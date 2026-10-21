@@ -49,7 +49,7 @@
         <span class="idle-label">{% if st.sets %}{{ ikon("refresh") }}Buat ulang varian{% else %}Buat varian dengan LLM lokal{% endif %}</span>
         <span class="htmx-indicator">Membuat varian…</span>
       </button>
-      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>LLM lokal memparafrasekan kalimat terpilih.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>LLM lokal memparafrasekan kalimat terpilih.</span></div>
     </div>
     {% endif %}
   </form>
@@ -61,7 +61,8 @@
   {% set status_text %}{% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.{% else %}Semua varian sudah ditinjau.{% endif %}{% endset %}
   <div class="review">
     <div class="review-head">
-      <h3>Tinjau varian</h3>
+      {# focused when generating the variants removed the button that had focus #}
+      <h3 id="tinjau-h" tabindex="-1" data-focus-fallback>Tinjau varian</h3>
       <div class="review-progress">
         <span class="bar{% if pending.n %} bar-warn{% endif %}" style="--value: {{ ((pending.total - pending.n) / pending.total)|round(3) if pending.total else 1 }}"></span>
         <p class="small">{{ status_text }}</p>
@@ -149,7 +150,7 @@
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
         <span class="htmx-indicator">Menerbitkan…</span>
       </button>
-      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.</span></div>
     </form>
   </div>
   {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}

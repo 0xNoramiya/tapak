@@ -79,6 +79,10 @@ def test_issue_trace_report_registry(client):
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
     assert r.status_code == 200
     assert "Salinan #13" in r.text and "Peluang tuduhan salah" in r.text
+    # The focused heading names the copy; the verdict stamp printed before it is its description,
+    # and the bound is given a spoken form (a superscript exponent is not read as one).
+    assert 'id="putusan-cap">Teridentifikasi' in r.text and 'aria-describedby="putusan-cap"' in r.text
+    assert re.search(r'<b class="sr-only">paling besar [\d,]+ kali 10 pangkat minus \d+</b>', r.text)
     # The trace is logged in the registry before decoding and spends its share of eps.
     assert "pelacakan ke-1 atas dokumen ini" in r.text and "Ke-1, entri #" in r.text
     assert re.search(r"tapak verify --jangkar \d+:[0-9a-f]{64}", r.text)
@@ -93,6 +97,7 @@ def test_issue_trace_report_registry(client):
     r = client.get("/registri")
     assert "Utuh" in r.text and "nota_dinas.pdf" in r.text
     assert "2 pelacakan" in r.text and "dilacak 2 kali" in r.text
+    assert r.text.count("dilacak 2 kali") == 2  # also in the line shown when the columns fold away
     r = client.post("/registri/merkle")
     assert "merkle-" in r.text
 
@@ -133,6 +138,8 @@ def test_regenerating_variants_keeps_decisions(client):
     sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
     units = re.findall(r'name="unit" value="(u\d+)"', r.text)
     r = client.post(f"/terbitkan/{sid}/varian", data={"unit": units})
+    # generating removes the button that had focus: the review heading takes it instead
+    assert 'id="tinjau-h" tabindex="-1" data-focus-fallback' in r.text
     unit, idx = re.findall(r"/varian/(u\d+)/(\d+)/disetujui", r.text)[0]
     r = client.post(f"/terbitkan/{sid}/varian/{unit}/{idx}/ditolak")
     assert f'id="v-{unit}-{idx}-no"' in r.text and 'aria-pressed="true"' in r.text
@@ -160,6 +167,70 @@ def test_lacak_requires_inputs(client):
     _issue(client)
     r = client.post("/lacak", data={"dokumen": ""})
     assert "Pilih dokumen" in r.text and "Unggah foto" in r.text
+
+
+def test_form_markup_for_assistive_technology(client):
+    page = client.get("/terbitkan").text
+    for name in ("dokumen", "penerima"):
+        tag = re.search(rf'<input id="{name}"[^>]*>', page).group(0)
+        # a required file input is reported invalid before anything is chosen (novalidate form;
+        # the server reports a missing file next to the field)
+        assert "required" not in tag
+    # busy lines are read out through #status-global, not as live regions of their own
+    assert 'role="status"' not in page and 'id="status-global" class="sr-only" aria-live="polite"' in page
+    assert '<div class="banner" role="region" aria-label="Klasifikasi">RAHASIA</div>' in page
+
+
+def test_oversized_master_is_a_field_error(client, monkeypatch):
+    import importlib
+
+    csv_bytes = (ROOT / "samples" / "recipients.csv").read_bytes()
+    monkeypatch.setattr(importlib.import_module("tapak.web.app"), "MAX_UPLOAD", len(csv_bytes) + 100)
+    files = {"dokumen": ("besar.pdf", b"%PDF-1.7\n" + b"x" * (len(csv_bytes) + 200), "application/pdf"),
+             "penerima": ("recipients.csv", csv_bytes, "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"}, headers={"HX-Request": "true"})
+    assert r.status_code == 200 and r.headers.get("HX-Reswap") == "none"
+    assert re.search(r'id="err-dokumen" hx-swap-oob="innerHTML"><span class="field-error" role="alert">PDF ini terlalu besar', r.text)
+    assert re.search(r'id="err-penerima" hx-swap-oob="innerHTML"></span>', r.text)
+
+
+def test_evidence_errors_are_marked_on_their_field(client, monkeypatch):
+    """An unknown file type or evidence over the limit is reported at the file field
+    (berkas-err) of the re-rendered form; pasted text over 1 MB also marks the text field."""
+    import importlib
+
+    _issue_small()
+    doc = re.search(r'<option value="([0-9a-f]{16})"', client.get("/lacak").text).group(1)
+    page = client.get("/lacak").text
+    assert 'aria-describedby="hint-bukti berkas-err bukti-err"' in page and 'aria-describedby="hint-teks teks-err bukti-err"' in page
+    hx = {"HX-Request": "true"}
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("daftar.csv", b"a,b\n", "text/csv")}, headers=hx)
+    assert r.headers.get("HX-Retarget") == "#form-lacak"
+    assert '<span id="berkas-err"><span class="field-error" role="alert">daftar.csv: jenis berkas tidak dikenal' in r.text
+    assert re.search(r'id="bukti"[^>]*aria-invalid="true"', r.text) and f'value="{doc}" selected' in r.text
+    assert "dilacak" not in client.get("/registri").text  # refused before a trace number is used
+
+    monkeypatch.setattr(importlib.import_module("tapak.web.app"), "MAX_UPLOAD", 1000)
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("foto.png", b"x" * 2000, "image/png")}, headers=hx)
+    assert r.status_code == 200 and '<span id="berkas-err"><span class="field-error" role="alert">Bukti terlalu besar' in r.text
+
+    r = client.post("/lacak", data={"dokumen": doc, "teks": "a" * 1_100_000}, headers=hx)
+    assert r.status_code == 400 and r.headers["HX-Retarget"] == "#galat-global"
+    assert '<span id="teks-err" hx-swap-oob="innerHTML"><span class="field-error">Teks yang ditempel terlalu panjang' in r.text
+
+
+def test_false_accusation_bound_has_a_spoken_form():
+    import math
+    from types import SimpleNamespace
+
+    from tapak.web.app import templates
+
+    spoken, written = templates.env.globals["fap_lisan"], templates.env.globals["fap"]
+    tiny = SimpleNamespace(false_accusation_probability=0.0, log10_false_accusation=-132.04)
+    assert str(written(tiny, 20)) == "9,2 \u00d7 10<sup>\u2212133</sup>"
+    assert spoken(tiny, 20) == "9,2 kali 10 pangkat minus 133"
+    plain = SimpleNamespace(false_accusation_probability=0.35, log10_false_accusation=math.log10(0.35))
+    assert spoken(plain, 20) == "0,35"
 
 
 def test_beranda_preview_and_preselect(client):

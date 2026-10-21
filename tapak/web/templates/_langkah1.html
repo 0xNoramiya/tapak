@@ -12,7 +12,7 @@
     <div class="drop-pair">
       <div class="field">
         <label class="dropzone" data-dropzone>
-          <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" required title="Pilih berkas"
+          <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" title="Pilih berkas"
                  aria-labelledby="label-dokumen" aria-describedby="hint-dokumen err-dokumen" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
           <span class="dropzone-icon" aria-hidden="true">{{ ikon("file-text") }}</span>
           <span class="dropzone-text">
@@ -25,7 +25,7 @@
       </div>
       <div class="field">
         <label class="dropzone" data-dropzone>
-          <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" required title="Pilih berkas"
+          <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" title="Pilih berkas"
                  aria-labelledby="label-penerima" aria-describedby="hint-penerima err-penerima" {% if errors.penerima %}aria-invalid="true"{% endif %}>
           <span class="dropzone-icon" aria-hidden="true">{{ ikon("users") }}</span>
           <span class="dropzone-text">
@@ -77,7 +77,7 @@
         <span class="idle-label">Analisis dokumen</span>
         <span class="htmx-indicator">Menganalisis dokumen…</span>
       </button>
-      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>Membaca lapisan teks dan menguji gerbang visual.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Membaca lapisan teks dan menguji gerbang visual.</span></div>
     </div>
   </form>
 </section>

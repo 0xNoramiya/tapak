@@ -50,6 +50,8 @@
 /* pasted text is used only when no file is chosen: say so on the summary, open or closed */
 .teks-abai { display: none; font-size: var(--fs-sm); font-weight: 400; color: var(--warn); }
 .lacak-bukti:has(.dropzone.has-files):has(#teks:not(:placeholder-shown)) .teks-abai { display: inline; }
+/* error slots used only by rarer errors (file type or size, text too long) take no gap when empty */
+#berkas-err:empty, #teks-err:empty { display: none; }
 .lacak-kirim { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 .lacak-form.htmx-request .lacak-kirim .icon-scan { display: none; }
 
