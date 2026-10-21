@@ -32,7 +32,7 @@ Sidiknya memakai kode Tardos. Dalam simulasi tingkat kode, gabungan kode tiga pe
 </picture>
 
 - **Geser kata dan baris** bertahan pada cetakan, foto, dan tangkapan layar.
-- **Pola latar** bertahan pada foto layar dan tangkapan layar, tetapi hilang saat dicetak.
+- **Pola latar** bertahan pada foto layar dan tangkapan layar, tetapi hilang saat dicetak. Profil latar cetak (opsional) bertahan di kertas, dengan harga halaman tampak abu-abu muda.
 - **Karakter tak terlihat** ikut terbawa saat teks disalin atau PDF diteruskan.
 - **Varian semantik**, parafrasa kalimat pembuka dan penutup yang dibuat LLM lokal lalu disetujui manusia, bertahan saat dokumen diketik ulang, tetapi hanya membawa beberapa bit.
 - **Kanari DNS**, subdomain unik per salinan, berbunyi bila berkas dibuka di luar jaringan satuan. Kanari tidak ikut dalam skor.
@@ -50,12 +50,12 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/benchmark-dark.svg">
-  <img alt="Uji sintetis 32 foto dan 8 tangkapan layar: 38 benar, 2 tidak cukup bukti, 0 salah" src="docs/img/benchmark-light.svg" width="100%">
+  <img alt="Uji sintetis: foto layar 37 dari 40 benar; foto kertas cetak dari printer simulasi 2 dari 16 dengan satu halaman dan 3 dari 8 dengan dua halaman; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Simulator foto tidak memodelkan printer, jadi pola latarnya tetap utuh seperti pada foto layar. Pada kertas cetak pola itu hilang (lihat [batasan](#batasan)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa dan satu halaman jarang cukup (lihat [batasan](#batasan)).
 
-Dua jawaban "tidak cukup bukti" berasal dari foto yang terlalu terang, sehingga pola latarnya hilang atau terlalu lemah. Kami tidak menurunkan ambang untuk meloloskan keduanya. Untuk 38 jawaban yang benar, batas peluang tuduhan salahnya paling besar 2,1 &times; 10<sup>-20</sup>.
+Tiga jawaban "tidak cukup bukti" untuk foto layar berasal dari foto yang terlalu terang, sehingga pola latarnya hilang atau terlalu lemah. Kami tidak menurunkan ambang untuk meloloskannya. Untuk 37 jawaban yang benar, batas peluang tuduhan salahnya paling besar 1,1 &times; 10<sup>-21</sup>.
 
 Uji lainnya:
 
@@ -101,10 +101,10 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 
 ## Batasan
 
-- Foto dari salinan yang dicetak hanya membawa kanal geser. Satu halaman belum cukup untuk menyebut nama, sedangkan dua halaman dari salinan yang sama cukup pada 5 dari 6 salinan uji. Untuk foto cetakan, ketahanan kolusi belum tercapai.
+- Dengan pola latar bawaan, foto salinan yang dicetak hanya membawa kanal geser. Pada uji printer simulasi (N = 100), satu halaman tidak menyebut siapa pun (0 dari 80 foto) dan dua halaman cukup pada 5 sampai 8 dari 20 salinan, tanpa ketahanan kolusi. Profil `--latar cetak` mengatasinya dalam simulasi (satu halaman cukup pada 40 dari 40, minimal satu dari tiga anggota koalisi tertangkap pada 32 dari 32), tetapi halaman tampak abu-abu muda.
 - Pengetikan ulang hanya menyisakan kanal semantik yang membawa beberapa bit, sehingga jawabannya "tidak cukup bukti".
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
-- Semua foto uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
+- Semua foto dan cetakan uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
 
 Kami memilih menjawab "tidak cukup bukti" daripada menebak. Daftar lengkapnya, dengan angka, ada di [keamanan](docs/keamanan.md#batasan).
 

@@ -98,11 +98,13 @@ def _cmd_keys_init(args: argparse.Namespace) -> int:
 
 
 def _issue_settings(args: argparse.Namespace):
+    from tapak.marker.background import background_profile
     from tapak.marker.issue import IssueSettings
     from tapak.marker.pdf_shift import ShiftSettings
 
     return IssueSettings(c=args.c, eps=args.eps, n_max=args.n_max, constant=args.constant,
                          shift=ShiftSettings(word_mm=args.shift_mm, row_mm=args.shift_mm),
+                         background=background_profile(args.latar),
                          workers=args.workers, canary_domain=args.canary_domain or None)
 
 
@@ -134,6 +136,11 @@ def _cmd_issue(args: argparse.Namespace) -> int:
         print(f"  kanal {ch:<10} {info['slots']:>5} slot, {info['bits']:>5} bit, {info['positions']:>5} posisi kode")
     if m.canary_domain:
         print(f"  kanal canary     satu subdomain per salinan di bawah {m.canary_domain}")
+    bg = m.background_settings
+    if bg is not None and m.plan_summary.get("background"):
+        from tapak.marker.background import profile_name
+
+        print(f"Pola latar: profil {profile_name(bg) or 'khusus'} ({bg.base:g} +/- {bg.amplitude:g} tingkat abu-abu)")
     if is_docx:
         print("Gerbang visual: tidak berlaku untuk DOCX (Word yang menata ulang dokumen)")
     else:
@@ -467,6 +474,9 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--issuer", default="operator")
     i.add_argument("--canary-domain", default=None, help="domain kanari (kosongkan untuk menonaktifkan)")
     i.add_argument("--semantic", default=None, help="varian.json yang sudah disetujui")
+    i.add_argument("--latar", choices=["layar", "cetak"], default="layar",
+                   help="profil pola latar: layar (bawaan, tak terlihat, hilang saat dicetak) atau cetak "
+                        "(bertahan saat dicetak, halaman tampak abu-abu muda)")
     i.add_argument("--no-registry", action="store_true")
     i.add_argument("--sign-later", action="store_true", help="catat tanpa tanda tangan (ditandatangani eselon atas)")
     i.set_defaults(func=_cmd_issue)

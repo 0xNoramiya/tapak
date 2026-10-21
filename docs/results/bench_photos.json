@@ -4,437 +4,789 @@
       "file": "photo_s013_p1_a0_0.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -89.68627741294345
+      "log10_fa": -84.6894788368622,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a0_1.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 13,
-      "accused": [
-        13
-      ],
-      "outcome": "benar",
-      "log10_fa": -19.686412797210597
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a10_0.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 13,
       "accused": [],
       "outcome": "tidak cukup bukti",
-      "log10_fa": null
+      "log10_fa": null,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a10_1.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -44.32431074869697
+      "log10_fa": -44.07785372319785,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a20_0.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -88.90469519059039
+      "log10_fa": -85.62569837824218,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a20_1.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -81.16425857405416
+      "log10_fa": -82.76093763877422,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a30_0.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -59.66444898152268
+      "log10_fa": -52.65019740669014,
+      "medium": "layar"
     },
     {
       "file": "photo_s013_p1_a30_1.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -83.6711451180203
+      "log10_fa": -82.73727992509986,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s013_p1_0.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -90.17280065983552
+      "log10_fa": -86.71838381606688,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s013_p1_1.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 13,
       "accused": [
         13
       ],
       "outcome": "benar",
-      "log10_fa": -88.5751103514713
+      "log10_fa": -86.2267494390793,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a0_0.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -90.20492125369078
+      "log10_fa": -88.48598941566298,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a0_1.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -91.84980119511346
+      "log10_fa": -89.464489743923,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a10_0.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -85.383333987634
+      "log10_fa": -82.51198336342082,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a10_1.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -90.90538733271153
+      "log10_fa": -87.78453688361331,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a20_0.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -29.59628302559186
+      "log10_fa": -20.943393050328357,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a20_1.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -86.79803671043888
+      "log10_fa": -82.05131925034583,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a30_0.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -80.68128653639398
+      "log10_fa": -77.11703984647515,
+      "medium": "layar"
     },
     {
       "file": "photo_s007_p1_a30_1.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 7,
       "accused": [],
       "outcome": "tidak cukup bukti",
-      "log10_fa": null
+      "log10_fa": null,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s007_p1_0.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -91.8225432163016
+      "log10_fa": -89.69130711901559,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s007_p1_1.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 7,
       "accused": [
         7
       ],
       "outcome": "benar",
-      "log10_fa": -91.40193092883213
+      "log10_fa": -89.54883752610532,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a0_0.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -89.59904733987817
+      "log10_fa": -92.38871188475521,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a0_1.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -88.98551494139323
+      "log10_fa": -91.52101433622336,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a10_0.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -85.38092384183457
+      "log10_fa": -86.61838528841797,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a10_1.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -90.94622554660815
+      "log10_fa": -90.2383805886297,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a20_0.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -55.70846534406091
+      "log10_fa": -60.327012372070385,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a20_1.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -84.16437784462077
+      "log10_fa": -85.08207826601297,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a30_0.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -90.46619337121533
+      "log10_fa": -92.50158283694985,
+      "medium": "layar"
     },
     {
       "file": "photo_s001_p1_a30_1.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -83.7339127459469
+      "log10_fa": -86.693388318288,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s001_p1_0.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -91.61332300531427
+      "log10_fa": -92.85894724740015,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s001_p1_1.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 1,
       "accused": [
         1
       ],
       "outcome": "benar",
-      "log10_fa": -90.96095520711677
+      "log10_fa": -91.94620271148898,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a0_0.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -85.39609566974639
+      "log10_fa": -89.60167867585,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a0_1.jpg",
       "kind": "photo",
       "angle": 0.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -90.54109453813788
+      "log10_fa": -94.4435674866312,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a10_0.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -73.61876254125303
+      "log10_fa": -71.34236630548007,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a10_1.jpg",
       "kind": "photo",
       "angle": 10.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -85.42042946522103
+      "log10_fa": -86.99568230493472,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a20_0.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -90.3441153988675
+      "log10_fa": -95.1490665298332,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a20_1.jpg",
       "kind": "photo",
       "angle": 20.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -90.7795367663199
+      "log10_fa": -93.9816432456886,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a30_0.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -89.24671483029157
+      "log10_fa": -93.07670200947705,
+      "medium": "layar"
     },
     {
       "file": "photo_s020_p1_a30_1.jpg",
       "kind": "photo",
       "angle": 30.0,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -85.51548493065408
+      "log10_fa": -90.32299845591123,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s020_p1_0.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -89.93890068344881
+      "log10_fa": -93.36647434089916,
+      "medium": "layar"
     },
     {
       "file": "screenshot_s020_p1_1.jpg",
       "kind": "screenshot",
       "angle": null,
+      "pages": 1,
       "expected": 20,
       "accused": [
         20
       ],
       "outcome": "benar",
-      "log10_fa": -90.91427002802712
+      "log10_fa": -94.4905708515663,
+      "medium": "layar"
+    },
+    {
+      "file": "cetak_s013_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -6.118962326441592,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -7.110510947334998,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p1_a10_0.jpg + cetak_s013_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -8.6043997029476,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s013_p1_a30_0.jpg + cetak_s013_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a10_0.jpg + cetak_s007_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a30_0.jpg + cetak_s007_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a10_0.jpg + cetak_s001_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a30_0.jpg + cetak_s001_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a10_0.jpg + cetak_s020_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -9.683716093498749,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a30_0.jpg + cetak_s020_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -10.23231669015169,
+      "medium": "cetak, 2 halaman"
     }
   ]
 }

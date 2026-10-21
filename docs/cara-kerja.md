@@ -9,7 +9,7 @@ Kode penerima yang sama ditanam di empat kanal, ditambah token kanari sebagai ka
 | Kanal | Yang ditanam | Kebocoran yang ditangani |
 |---|---|---|
 | 1. Geser kata dan baris | kelompok kata bergeser horizontal dan baris bergeser vertikal sebesar 0,05 mm. Bit dikodekan relatif terhadap tetangga (kontrol, data, kontrol), sehingga sisa distorsi perspektif saling meniadakan | cetak, foto, tangkapan layar |
-| 2. Pola latar | pola acak berfrekuensi rendah +/-2 tingkat abu-abu (sel 2 mm). Setiap posisi kode menempati 8 sel yang tersebar dan didekode secara buta per bit | tangkapan layar, foto layar |
+| 2. Pola latar | pola acak berfrekuensi rendah +/-2 tingkat abu-abu (sel 2 mm). Setiap posisi kode menempati 8 sel yang tersebar dan didekode secara buta per bit. Profil cetak (opsional): 242 +/- 5 | tangkapan layar, foto layar; dengan profil cetak juga kertas cetak ([di bawah](#salinan-yang-dicetak)) |
 | 3. Karakter tak terlihat | sepasang simbol lebar-nol sebelum dan sesudah kata (2 bit per simbol) serta huruf kembar Kiril pada kata huruf kecil | salin-tempel, berkas diteruskan |
 | 4. Varian semantik | parafrasa kalimat pembuka, penutup, dan tembusan oleh LLM lokal, disetujui manusia | pengetikan ulang, tetapi hanya beberapa bit (4 pada contoh), belum cukup untuk menyebut nama |
 | 5. Kanari DNS | satu subdomain unik per salinan di bawah domain kanari. Pendengar DNS mencatat kapan nama itu dicari dan resolver mana yang bertanya, bukan siapa pembukanya. Token ini tidak membawa kode Tardos | berkas dibuka di luar jaringan satuan, di Adobe Reader atau Word |
@@ -64,10 +64,11 @@ tapak/
   llm/          provider (antarmuka), mock (deterministik), llamacpp (lokal, loopback saja)
   learned_wm/   kerangka tanda air berbasis model (opsional, belum dilatih)
   web/          FastAPI + HTMX, antarmuka berbahasa Indonesia
-  photos.py     simulator degradasi foto dan tangkapan layar
+  photos.py     simulator foto, tangkapan layar, dan printer
   service.py    alur bersama CLI, web, dan demo
   cli.py        tapak issue | trace | simulate | verify | demo | ...
 samples/        templat nota dinas dan surat telegram fiktif, PDF contoh, daftar penerima
+scripts/        alat ukur dan eksperimen (scripts/cetak: pengukuran salinan cetak)
 tests/          pytest (tanpa GPU, tanpa model LLM, tanpa jaringan)
 docs/           dokumentasi, gambar README (docs/figures membuatnya ulang), keluaran simulasi dan benchmark
 ```
@@ -109,7 +110,8 @@ Tabel parameter (eps = 10^-6, `tapak simulate --table`):
 
 | Pengujian | Hasil |
 |---|---|
-| Kumpulan foto sintetis (`make photos` lalu `make bench`): 32 foto bersudut 0 sampai 30 derajat dan 8 tangkapan layar dari 4 salinan (halaman 1), dikompresi JPEG dua kali seperti WhatsApp. Simulator tidak memodelkan printer, jadi pola latar tetap utuh | 38 dari 40 benar, 2 "tidak cukup bukti", 0 tuduhan salah |
+| Kumpulan foto sintetis (`make photos` lalu `make bench`): 32 foto layar bersudut 0 sampai 30 derajat dan 8 tangkapan layar dari 4 salinan (halaman 1), dikompresi JPEG dua kali seperti WhatsApp | 37 dari 40 benar, 3 "tidak cukup bukti" (foto terlalu terang), 0 tuduhan salah |
+| Foto kertas cetak (`make photos-cetak` lalu `make bench`, dilaporkan terpisah): halaman 1 dan 2 dari 4 salinan yang sama, dicetak printer laser simulasi dengan profil latar bawaan, 16 foto (10 dan 30 derajat, 1600 px) dan 8 pasangan dua halaman | satu halaman 2 dari 16 benar (keduanya halaman 1 salinan #20), dua halaman 3 dari 8, 0 tuduhan salah |
 | 10 foto sintetis bersudut sampai 30 derajat | 10 dari 10 benar |
 | Halaman gabungan digital: setengah atas salinan A, setengah bawah salinan B (2 pasangan) | penerima A dan B dituduh, tidak ada orang lain |
 | Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |
@@ -118,6 +120,66 @@ Tabel parameter (eps = 10^-6, `tapak simulate --table`):
 | Kanari DNS, pembukaan disimulasikan (kueri langsung ke pendengar lokal) | tercatat dalam sekitar 0,1 detik (syarat: di bawah 5 detik) |
 | Registri: verifikasi hanya dengan kunci publik, setiap perubahan baris terdeteksi | lulus |
 | `make demo` (skenario lengkap) | sekitar 15 detik |
+
+## Salinan yang dicetak
+
+Pola latar bawaan (253 +/- 2) terlalu terang untuk printer: printer menggambar tingkat abu-abu di atas sekitar 250 sebagai kertas polos. Foto salinan yang dicetak karena itu hanya membawa kanal geser, sekitar 80 sampai 100 posisi kode terbaca per halaman. Printer sungguhan belum diuji; angka di bagian ini berasal dari simulator printer dan foto sintetis. Hasil lengkapnya ada di [`results/`](results/) (`cetak_summary.json`, `cetak_visibility.json`, `cetak_calibration.json`, `cetak_needbits.txt`), dan cara membuatnya ulang di [operasi](operasi.md#mengukur-salinan-yang-dicetak).
+
+### Simulator printer
+
+`print_page` di `tapak/photos.py` meniru printer laser kantor 600 dpi (preset `INKJET` untuk inkjet). Lembar hasilnya lalu difoto oleh simulator foto yang sama dengan benchmark.
+
+1. Teks dirasterisasi di kisi printer tanpa anti-aliasing, seperti RIP printer.
+2. Tingkat abu-abu 250 ke atas menjadi kertas polos.
+3. Warna lain diraster dengan raster AM 106 lpi pada 45 derajat.
+4. Banding drum dan roda gigi menggeser garis pindai sampai 25 um.
+5. Sebaran sinar laser dan toner, derau toner, dan ambang pengembangan membuat tepi huruf melebar sekitar 22 um dan bergerigi sekitar 15 um.
+6. Kertas miring sampai 0,25 derajat, bergeser sampai 1 mm, dan skalanya meleset sampai 0,2 %.
+7. Cahaya menyebar di dalam kertas (dot gain optis), dan kertas punya tekstur serat serta awan.
+
+Nilainya dari literatur dan perkiraan orde besaran, bukan dari printer yang diukur. Kalibrasinya (`scripts/cetak/calibrate.py`): abu-abu 50 % tercetak 11,7 poin persentase lebih gelap, dan tingkat 245 sampai 249 tercetak sebagai titik terkecil (dL* -1,9). Yang tidak dimodelkan: koreksi nada driver, mode hemat toner, printer warna, mesin fotokopi dan pemindai, serta pemrosesan gambar di kamera ponsel.
+
+### Templat induk tepat
+
+Dekoder geser mencocokkan setiap kelompok kata pada foto dengan templat dari dokumen induk. MuPDF menggambar glif kecil dari cache bitmap pada piksel utuh, jadi templat lama (render 4 kali lebih rapat lalu dirata-rata) menggeser kelompok kata sampai puluhan mikrometer, sama untuk setiap salinan dan foto. Templat tepat dirender pada 3.200 dpi atau lebih, saat glif digambar sebagai kurva tanpa pembulatan, per pita, lalu dirata-rata turun. Render tepat induk pada 4.800 dpi bergeser kurang dari 0,3 um terhadap templat ini untuk setiap kelompok. Rendernya memerlukan sekitar 4 sampai 13 detik per halaman di mesin uji yang dipakai bersama, sekali untuk setiap halaman dan resolusi analisis (lalu disimpan di cache).
+
+Pada foto kertas cetak, templat tepat hampir tidak mengubah hasil (tabel di bawah, dibandingkan dengan templat lama pada foto yang sama). Pada benchmark README putusannya identik untuk ke-64 pelacakan.
+
+### Hasil dengan profil latar bawaan
+
+Protokol: printer laser simulasi, foto sintetis (sudut pandang diundi 0 sampai 30 derajat, parameter lain diundi), salinan 1 sampai 20 dari 100 (N = 100, c = 3, eps = 10^-6), dekoder produksi. "Dua halaman" menggabungkan foto halaman 1 dan 2 salinan yang sama dalam satu pelacakan.
+
+| | 1600 px (WhatsApp standar) | 4000 px (WhatsApp HD) |
+|---|---|---|
+| Posisi geser terbaca per halaman (hal. 1 / hal. 2) | 102 / 79 | 103 / 80 |
+| Galat bit kanal geser (hal. 1 / hal. 2) | 4,8 % / 3,3 % | 0 % / 0 % |
+| Pola latar ditemukan | 0 dari 40 | 0 dari 40 |
+| Satu halaman menyebut salinan yang benar | 0 dari 40 | 0 dari 40 |
+| Skor salinan yang benar, median (maks.), persen ambang | 59 % (79 %) | 62 % (85 %) |
+| Dua halaman menyebut salinan yang benar | 5 dari 20 | 8 dari 20 |
+| Tuduhan salah | 0 | 0 |
+| Templat lama, foto yang sama: galat bit; dua halaman | 4,6 % / 3,1 %; 4 dari 20 | 0,05 % / 0,19 %; 8 dari 20 |
+
+Salinan yang benar selalu berskor tertinggi, tetapi satu halaman tidak mencapai ambang, bahkan pada 4000 px ketika semua bit yang terbaca benar. Batasnya kapasitas, bukan derau: menurut simulasi tingkat kode dengan vektor bias dokumen ini (`scripts/cetak/needbits.py`), satu pembocor perlu sekitar 300 posisi terbaca (galat sampai 5 %), dan menyebut minimal satu dari tiga anggota koalisi perlu 1.200 sampai 1.500.
+
+### Profil latar cetak (opsional)
+
+`tapak issue ... --latar cetak` menggambar pola latar 242 +/- 5 (tingkat 237 sampai 247), di bawah ambang printer. Dekodernya sama, dan catatan penerbitan menyimpan pengaturan pola. Dengan protokol yang sama (100 salinan diterbitkan dengan profil ini):
+
+| | 1600 px | 4000 px |
+|---|---|---|
+| Pola latar ditemukan | 40 dari 40 | 40 dari 40 |
+| Galat bit kanal latar (hal. 1 / hal. 2); median per foto | 1,7 % / 1,8 %; 0,5 % / 0,4 % | 3,1 % / 1,4 %; 0,4 % / 0,3 % |
+| Satu halaman menyebut salinan yang benar | 40 dari 40 | 40 dari 40 |
+| Skor salinan yang benar, median (min.), kali ambang | 4,3 (2,6) | 4,3 (2,5) |
+| Dua halaman menyebut salinan yang benar | 20 dari 20 | 20 dari 20 |
+| Tuduhan salah; skor tak bersalah tertinggi | 0; 65 % ambang | 0; 58 % ambang |
+
+* **Kolusi c = 3 di kertas.** Tiga salinan dipotong menjadi pita atas, tengah, dan bawah di ruang kosong antarbaris, disatukan dalam satu lembar, dicetak, lalu difoto (16 koalisi dari salinan 1 sampai 20, 1600 px). Satu halaman menyebut minimal satu anggota pada 32 dari 32 halaman dan ketiganya pada 27 dari 32. Dua halaman: 16 dari 16 dan 15 dari 16. Tidak ada orang tak bersalah yang disebut (skor tertinggi 49 % ambang).
+* **Printer inkjet simulasi** (halaman 1 salinan 1 sampai 10, 1600 px): 10 dari 10, galat bit 0,8 %.
+* **Foto yang terlalu terang** tetap melemahkan pola: tiga foto terburuk (35 sampai 45 % piksel jenuh) bergalat bit 21 sampai 27 %, tetapi masih menyebut salinan yang benar.
+
+Harganya tampilan. Seluruh halaman tampak abu-abu muda: dL* -3,4 terhadap kertas pada laser simulasi dan -4,5 di layar. Teksturnya di ambang terlihat: S-CIELAB pada 35 cm rata-rata 1,1 dan persentil 95 sebesar 3,5 (pola layar bawaan: 0,4 dan 0,8; raster abu-abu polos setingkat: 0,75 dan 2,0), dengan 1 sebagai beda yang nyaris terlihat (`scripts/cetak/visibility.py`). Karena itu profil ini tidak menjadi bawaan dan TAPAK menampilkan peringatan saat dipakai. Printer biasanya menyisakan tepi putih beberapa milimeter, sehingga halaman abu-abu tampak berbingkai putih. Belum diuji dengan printer, ponsel, maupun pengamat sungguhan.
 
 ## Keputusan desain yang menyimpang dari spesifikasi awal
 

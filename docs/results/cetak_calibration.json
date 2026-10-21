@@ -1,0 +1,342 @@
+{
+ "laser": {
+  "tone": [
+   {
+    "level": 255,
+    "printed_level": 255.1,
+    "nominal_coverage_pct": 0.0,
+    "effective_coverage_pct": -0.03,
+    "dot_gain_pct_points": -0.03,
+    "dL_vs_paper": 0.01
+   },
+   {
+    "level": 252,
+    "printed_level": 254.9,
+    "nominal_coverage_pct": 1.18,
+    "effective_coverage_pct": 0.04,
+    "dot_gain_pct_points": -1.13,
+    "dL_vs_paper": -0.02
+   },
+   {
+    "level": 251,
+    "printed_level": 255.0,
+    "nominal_coverage_pct": 1.57,
+    "effective_coverage_pct": 0.01,
+    "dot_gain_pct_points": -1.56,
+    "dL_vs_paper": -0.0
+   },
+   {
+    "level": 250,
+    "printed_level": 255.0,
+    "nominal_coverage_pct": 1.96,
+    "effective_coverage_pct": 0.01,
+    "dot_gain_pct_points": -1.95,
+    "dL_vs_paper": -0.0
+   },
+   {
+    "level": 249,
+    "printed_level": 242.9,
+    "nominal_coverage_pct": 2.35,
+    "effective_coverage_pct": 5.02,
+    "dot_gain_pct_points": 2.67,
+    "dL_vs_paper": -1.86
+   },
+   {
+    "level": 248,
+    "printed_level": 242.7,
+    "nominal_coverage_pct": 2.75,
+    "effective_coverage_pct": 5.13,
+    "dot_gain_pct_points": 2.38,
+    "dL_vs_paper": -1.9
+   },
+   {
+    "level": 246,
+    "printed_level": 242.7,
+    "nominal_coverage_pct": 3.53,
+    "effective_coverage_pct": 5.13,
+    "dot_gain_pct_points": 1.6,
+    "dL_vs_paper": -1.9
+   },
+   {
+    "level": 245,
+    "printed_level": 242.7,
+    "nominal_coverage_pct": 3.92,
+    "effective_coverage_pct": 5.13,
+    "dot_gain_pct_points": 1.21,
+    "dL_vs_paper": -1.9
+   },
+   {
+    "level": 242,
+    "printed_level": 235.4,
+    "nominal_coverage_pct": 5.1,
+    "effective_coverage_pct": 8.15,
+    "dot_gain_pct_points": 3.05,
+    "dL_vs_paper": -3.05
+   },
+   {
+    "level": 240,
+    "printed_level": 231.0,
+    "nominal_coverage_pct": 5.88,
+    "effective_coverage_pct": 10.01,
+    "dot_gain_pct_points": 4.13,
+    "dL_vs_paper": -3.77
+   },
+   {
+    "level": 238,
+    "printed_level": 230.9,
+    "nominal_coverage_pct": 6.67,
+    "effective_coverage_pct": 10.05,
+    "dot_gain_pct_points": 3.39,
+    "dL_vs_paper": -3.78
+   },
+   {
+    "level": 235,
+    "printed_level": 226.7,
+    "nominal_coverage_pct": 7.84,
+    "effective_coverage_pct": 11.78,
+    "dot_gain_pct_points": 3.94,
+    "dL_vs_paper": -4.46
+   },
+   {
+    "level": 230,
+    "printed_level": 220.9,
+    "nominal_coverage_pct": 9.8,
+    "effective_coverage_pct": 14.21,
+    "dot_gain_pct_points": 4.41,
+    "dL_vs_paper": -5.42
+   },
+   {
+    "level": 220,
+    "printed_level": 200.7,
+    "nominal_coverage_pct": 13.73,
+    "effective_coverage_pct": 22.61,
+    "dot_gain_pct_points": 8.88,
+    "dL_vs_paper": -8.89
+   },
+   {
+    "level": 200,
+    "printed_level": 173.9,
+    "nominal_coverage_pct": 21.57,
+    "effective_coverage_pct": 33.8,
+    "dot_gain_pct_points": 12.23,
+    "dL_vs_paper": -13.9
+   },
+   {
+    "level": 160,
+    "printed_level": 138.5,
+    "nominal_coverage_pct": 37.25,
+    "effective_coverage_pct": 48.52,
+    "dot_gain_pct_points": 11.27,
+    "dL_vs_paper": -21.35
+   },
+   {
+    "level": 128,
+    "printed_level": 107.4,
+    "nominal_coverage_pct": 49.8,
+    "effective_coverage_pct": 61.48,
+    "dot_gain_pct_points": 11.68,
+    "dL_vs_paper": -29.05
+   },
+   {
+    "level": 64,
+    "printed_level": 51.4,
+    "nominal_coverage_pct": 74.9,
+    "effective_coverage_pct": 84.83,
+    "dot_gain_pct_points": 9.92,
+    "dL_vs_paper": -48.01
+   },
+   {
+    "level": 0,
+    "printed_level": 14.9,
+    "nominal_coverage_pct": 100.0,
+    "effective_coverage_pct": 100.0,
+    "dot_gain_pct_points": 0.0,
+    "dL_vs_paper": -70.96
+   }
+  ],
+  "strokes": {
+   "stem_0.30mm": {
+    "nominal_mm": 0.2963,
+    "printed_width_mm": 0.3414,
+    "growth_um_per_edge": 22.5,
+    "edge_raggedness_um_sd": 15.2
+   },
+   "line_1px": {
+    "nominal_mm": 0.0423,
+    "printed_width_mm": 0.1139,
+    "growth_um_per_edge": 35.8,
+    "edge_raggedness_um_sd": 7.7
+   }
+  }
+ },
+ "inkjet": {
+  "tone": [
+   {
+    "level": 255,
+    "printed_level": 255.1,
+    "nominal_coverage_pct": 0.0,
+    "effective_coverage_pct": -0.03,
+    "dot_gain_pct_points": -0.03,
+    "dL_vs_paper": 0.01
+   },
+   {
+    "level": 252,
+    "printed_level": 254.9,
+    "nominal_coverage_pct": 1.18,
+    "effective_coverage_pct": 0.05,
+    "dot_gain_pct_points": -1.13,
+    "dL_vs_paper": -0.02
+   },
+   {
+    "level": 251,
+    "printed_level": 255.0,
+    "nominal_coverage_pct": 1.57,
+    "effective_coverage_pct": 0.01,
+    "dot_gain_pct_points": -1.55,
+    "dL_vs_paper": -0.01
+   },
+   {
+    "level": 250,
+    "printed_level": 255.0,
+    "nominal_coverage_pct": 1.96,
+    "effective_coverage_pct": 0.02,
+    "dot_gain_pct_points": -1.95,
+    "dL_vs_paper": -0.01
+   },
+   {
+    "level": 249,
+    "printed_level": 248.6,
+    "nominal_coverage_pct": 2.35,
+    "effective_coverage_pct": 2.73,
+    "dot_gain_pct_points": 0.38,
+    "dL_vs_paper": -0.98
+   },
+   {
+    "level": 248,
+    "printed_level": 247.7,
+    "nominal_coverage_pct": 2.75,
+    "effective_coverage_pct": 3.1,
+    "dot_gain_pct_points": 0.35,
+    "dL_vs_paper": -1.11
+   },
+   {
+    "level": 246,
+    "printed_level": 245.2,
+    "nominal_coverage_pct": 3.53,
+    "effective_coverage_pct": 4.18,
+    "dot_gain_pct_points": 0.65,
+    "dL_vs_paper": -1.5
+   },
+   {
+    "level": 245,
+    "printed_level": 243.9,
+    "nominal_coverage_pct": 3.92,
+    "effective_coverage_pct": 4.74,
+    "dot_gain_pct_points": 0.82,
+    "dL_vs_paper": -1.71
+   },
+   {
+    "level": 242,
+    "printed_level": 240.5,
+    "nominal_coverage_pct": 5.1,
+    "effective_coverage_pct": 6.2,
+    "dot_gain_pct_points": 1.1,
+    "dL_vs_paper": -2.24
+   },
+   {
+    "level": 240,
+    "printed_level": 238.2,
+    "nominal_coverage_pct": 5.88,
+    "effective_coverage_pct": 7.17,
+    "dot_gain_pct_points": 1.29,
+    "dL_vs_paper": -2.61
+   },
+   {
+    "level": 238,
+    "printed_level": 235.7,
+    "nominal_coverage_pct": 6.67,
+    "effective_coverage_pct": 8.22,
+    "dot_gain_pct_points": 1.56,
+    "dL_vs_paper": -3.0
+   },
+   {
+    "level": 235,
+    "printed_level": 232.3,
+    "nominal_coverage_pct": 7.84,
+    "effective_coverage_pct": 9.68,
+    "dot_gain_pct_points": 1.84,
+    "dL_vs_paper": -3.54
+   },
+   {
+    "level": 230,
+    "printed_level": 226.6,
+    "nominal_coverage_pct": 9.8,
+    "effective_coverage_pct": 12.14,
+    "dot_gain_pct_points": 2.33,
+    "dL_vs_paper": -4.48
+   },
+   {
+    "level": 220,
+    "printed_level": 213.9,
+    "nominal_coverage_pct": 13.73,
+    "effective_coverage_pct": 17.57,
+    "dot_gain_pct_points": 3.85,
+    "dL_vs_paper": -6.61
+   },
+   {
+    "level": 200,
+    "printed_level": 179.5,
+    "nominal_coverage_pct": 21.57,
+    "effective_coverage_pct": 32.26,
+    "dot_gain_pct_points": 10.69,
+    "dL_vs_paper": -12.81
+   },
+   {
+    "level": 160,
+    "printed_level": 92.6,
+    "nominal_coverage_pct": 37.25,
+    "effective_coverage_pct": 69.38,
+    "dot_gain_pct_points": 32.12,
+    "dL_vs_paper": -33.25
+   },
+   {
+    "level": 128,
+    "printed_level": 45.8,
+    "nominal_coverage_pct": 49.8,
+    "effective_coverage_pct": 89.34,
+    "dot_gain_pct_points": 39.54,
+    "dL_vs_paper": -50.54
+   },
+   {
+    "level": 64,
+    "printed_level": 27.3,
+    "nominal_coverage_pct": 74.9,
+    "effective_coverage_pct": 97.26,
+    "dot_gain_pct_points": 22.36,
+    "dL_vs_paper": -60.92
+   },
+   {
+    "level": 0,
+    "printed_level": 20.9,
+    "nominal_coverage_pct": 100.0,
+    "effective_coverage_pct": 100.0,
+    "dot_gain_pct_points": 0.0,
+    "dL_vs_paper": -65.63
+   }
+  ],
+  "strokes": {
+   "stem_0.30mm": {
+    "nominal_mm": 0.2963,
+    "printed_width_mm": 0.3387,
+    "growth_um_per_edge": 21.2,
+    "edge_raggedness_um_sd": 15.1
+   },
+   "line_1px": {
+    "nominal_mm": 0.0423,
+    "printed_width_mm": 0.1065,
+    "growth_um_per_edge": 32.1,
+    "edge_raggedness_um_sd": 9.7
+   }
+  }
+ }
+}

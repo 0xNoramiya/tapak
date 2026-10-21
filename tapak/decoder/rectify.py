@@ -98,6 +98,66 @@ def _render(pdf_bytes: bytes, page: int, dpi: float, supersample: int) -> np.nda
 _render_cached = lru_cache(maxsize=16)(_render)
 
 
+# MuPDF caches small glyphs as bitmaps and draws a cached glyph at a whole device pixel
+# vertically (a quarter pixel horizontally). Even with 4x supersampling (400 to 1200 dpi for
+# the analysis resolutions) every text row of ``render_page`` lands up to half a supersampled
+# pixel (10 to 30 um) off its true position, differently per row and word, and the same for
+# every copy and photo. Glyphs larger than about 256 px per em are drawn as outlines without
+# snapping; at 3200 dpi a 7 pt glyph is 311 px per em.
+EXACT_MIN_DPI = 3200.0
+EXACT_BAND_PT = 40.0  # band height: about 50 MB per band at 3300 dpi
+
+
+def render_page_exact(pdf_bytes: bytes, page: int, dpi: float, min_dpi: float = EXACT_MIN_DPI,
+                      cache: bool = True) -> np.ndarray:
+    """Render a page at ``dpi`` without glyph snapping: draw it at an integer multiple of ``dpi``
+    of at least ``min_dpi``, in horizontal bands, and average each block of k x k pixels.
+
+    Output pixel (row, col) covers exactly the page points [col, col + 1) x [row, row + 1)
+    times 72 / dpi, the frame in which the decoders read positions. Cached per page and dpi
+    like ``render_page`` (the analysis dpi varies per photo); ``cache=False`` renders afresh.
+    """
+    if not cache:
+        return _render_exact(pdf_bytes, page, float(dpi), float(min_dpi))
+    return _render_exact_cached(pdf_bytes, page, float(dpi), float(min_dpi)).copy()
+
+
+def _render_exact(pdf_bytes: bytes, page: int, dpi: float, min_dpi: float) -> np.ndarray:
+    k = max(1, int(np.ceil(min_dpi / dpi - 1e-9)))
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        p = doc[page]
+        w = int(round(p.rect.width * dpi / 72.0))
+        h = int(round(p.rect.height * dpi / 72.0))
+        mat = pymupdf.Matrix(dpi * k / 72.0, dpi * k / 72.0)
+        out = np.empty((h, w), dtype=np.float32)
+        band = max(1, int(EXACT_BAND_PT * dpi / 72.0))
+        content = p.get_displaylist()  # interpreted once, rasterized per band
+        for y0 in range(0, h, band):
+            y1 = min(h, y0 + band)
+            # Device rows y0*k .. y1*k (and columns 0 .. w*k) of the full-page raster; the clip
+            # is widened by a quarter row so rounding never drops a row, and the pixmap origin
+            # says where its first row and column lie.
+            clip = pymupdf.Rect(p.rect.x0, p.rect.y0 + (y0 - 0.25) * 72.0 / dpi, p.rect.x1,
+                                p.rect.y0 + (y1 + 0.25) * 72.0 / dpi)
+            pix = content.get_pixmap(matrix=mat, clip=clip, colorspace=pymupdf.csGRAY, alpha=False)
+            hi = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+            buf = np.full(((y1 - y0) * k, w * k), 255, dtype=np.uint8)  # paper beyond the raster
+            ox = int(round(p.rect.x0 * dpi * k / 72.0))
+            oy = int(round(p.rect.y0 * dpi * k / 72.0))
+            r0, c0 = y0 * k - (pix.y - oy), -(pix.x - ox)
+            rs, re_ = max(r0, 0), min(r0 + buf.shape[0], hi.shape[0])
+            cs, ce = max(c0, 0), min(c0 + buf.shape[1], hi.shape[1])
+            if re_ > rs and ce > cs:
+                buf[rs - r0:re_ - r0, cs - c0:ce - c0] = hi[rs:re_, cs:ce]
+            sums = buf.reshape(y1 - y0, k, w, k).sum(axis=(1, 3), dtype=np.uint32)
+            out[y0:y1] = sums.astype(np.float32) / np.float32(k * k)
+    return out
+
+
+# An exact master page at 300 dpi is 35 MB; the analysis dpi takes at most 21 values.
+_render_exact_cached = lru_cache(maxsize=8)(_render_exact)
+
+
 def flatten_illumination(gray: np.ndarray, sigma: float) -> np.ndarray:
     """Divide out slow illumination changes (shadows, vignetting); paper becomes about 1.0."""
     k = int(max(3, round(sigma / 4)) | 1)
