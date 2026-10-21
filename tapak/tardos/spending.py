@@ -12,7 +12,9 @@ TAPAK therefore numbers the traces of each document in the registry and lets tra
 
 of the document's budget eps. Because sum_{k >= 1} 1/k^2 = pi^2 / 6, the shares add up to
 exactly eps however many traces follow, and by the union bound the probability that any
-trace of the document ever accuses an innocent recipient stays at most eps. Within trace k
+trace of the document ever accuses an innocent recipient stays at most eps, provided the
+evidence of each trace is not picked from the scores shown by earlier traces (new evidence,
+a plan fixed in advance and the decision to trace again or stop are fine). Within trace k
 the per-recipient target is eps1_k = eps_k / n_max, as for a single trace.
 
 The schedule is fixed policy and the trace number is taken from the registry before the

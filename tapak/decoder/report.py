@@ -154,6 +154,9 @@ class ReportInfo:
             empty means the single ``evidence_name``.
         institution: issuing unit printed above the title (optional).
         place: place of signing (optional).
+        trace_entry, trace_entry_hash: number and hash of the registry entry that logged this
+            trace (None and "" when it was not logged). Printed as an anchor for
+            ``tapak verify --jangkar``, so deleting the entry later is detected.
     """
 
     case_number: str
@@ -181,6 +184,8 @@ class ReportInfo:
     evidence_names: list[str] = field(default_factory=list)
     institution: str = ""
     place: str = ""
+    trace_entry: int | None = None
+    trace_entry_hash: str = ""
 
     def __post_init__(self) -> None:
         if any(t not in EVIDENCE_TYPES for t in self.evidence_type.split(", ")):
@@ -609,7 +614,8 @@ def _params_rows(p: TardosParams) -> list[tuple[str, str | Markup]]:
         ("Ukuran koalisi rancangan (c)", format_int(p.c)),
         ("Peluang tuduhan salah total (eps)", format_probability_html(p.eps, round_up=False)),
         ("Jumlah penerima maksimum (n_max)", format_int(p.n_max)),
-        ("Peluang tuduhan salah per penerima (eps1 = eps / n_max)",
+        ("Peluang tuduhan salah per penerima pada rancangan kode (eps / n_max; ambang pelacakan memakai "
+         "jatah eps pelacakan itu, lihat Bagian V)",
          format_probability_html(p.eps1, round_up=False)),
         ("Panjang kode (m)", f"{format_int(p.length)} posisi"),
         ("Konstanta panjang kode", f"{p.constant} (K = {format_number(p.k_constant, 2)})"),
@@ -725,6 +731,8 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "trace_no": t.trace_no,
         "eps_share": format_probability_html(t.spent, round_up=False),
         "trace_text": _trace_text(t),
+        "trace_anchor": (f"{info.trace_entry}:{info.trace_entry_hash}"
+                         if info.trace_entry is not None and info.trace_entry_hash else ""),
         "channel_rows": channel_rows,
         "unread_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_UNREAD],
         "unexamined_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_NOT_EXAMINED],

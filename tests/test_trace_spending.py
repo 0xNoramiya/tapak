@@ -324,6 +324,9 @@ def test_repeated_traces_are_logged_before_decoding_with_a_shrinking_share(tmp_p
     assert cli.main(["trace", str(path), "--doc", doc]) == 0
     printed = capsys.readouterr().out
     assert "pelacakan ke-3 dokumen ini, jatah eps" in printed and "dicatat sebelum dekode" in printed
+    with Registry.open(s.registry_path) as reg:
+        head = reg.head()
+    assert head.kind == KIND_TRACE and f"tapak verify --jangkar {head.seq}:{head.entry_hash}" in printed
 
 
 def test_berita_acara_shows_the_trace_number_and_share(tmp_path, monkeypatch):
@@ -338,6 +341,34 @@ def test_berita_acara_shows_the_trace_number_and_share(tmp_path, monkeypatch):
     assert "pelacakanke-2untukdokumenini,dicatatdiregistrisebelumdekode" in compact
     assert "15,2%darieps" in compact  # 6 / (pi^2 x 4)
     assert "--pelacakan-ke2" in compact
+    assert f"tapakverify--jangkar{outcome.trace_entry}:{outcome.trace_entry_hash}" in compact
+
+
+def test_deleting_a_trace_entry_is_exposed_by_the_anchor_in_the_berita_acara(tmp_path, monkeypatch):
+    from tapak.registry.chain import TRIGGERS
+    from tapak.service import trace_evidence
+
+    s, keys, out, evidence = _issue(tmp_path, monkeypatch, n=3)
+    doc = out.manifest.doc_hash
+    trace_evidence(s, doc, "a.txt", evidence, keys)
+    second = trace_evidence(s, doc, "a.txt", evidence, keys)
+    anchor = (second.trace_entry, second.trace_entry_hash)
+    pub = s.public_key_path.read_text().strip()
+    assert verify_registry(s.registry_path, pub, anchors=[anchor]).ok
+    # Someone with write access drops the triggers, removes the last trace entry from the end of
+    # the chain and restores the triggers: the chain is still valid, and the next trace would get
+    # number 2 and its larger share again.
+    con = sqlite3.connect(s.registry_path)
+    for name in TRIGGERS:
+        con.execute(f"DROP TRIGGER {name}")
+    con.execute("DELETE FROM entries WHERE seq = ?", (second.trace_entry,))
+    for name, body in TRIGGERS.items():
+        con.execute(f"CREATE TRIGGER {name} {body}")
+    con.commit()
+    con.close()
+    assert verify_registry(s.registry_path, pub).ok  # invisible without an anchor
+    rep = verify_registry(s.registry_path, pub, anchors=[anchor])
+    assert not rep.ok and any(seq == second.trace_entry and "tidak ditemukan" in text for seq, text in rep.problems)
 
 
 def test_unrecorded_document_spends_the_whole_eps_with_a_note(tmp_path, monkeypatch):

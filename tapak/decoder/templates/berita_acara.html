@@ -270,6 +270,12 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
   <tr><th>Parameter kode</th><td>c = {{ case.c }}; eps = {{ eps }}; n_max = {{ case.n_max }};
     m = {{ m }}; konstanta {{ case.constant }}; batas bias t = {{ case.cutoff }}</td></tr>
   <tr><th>Pelacakan</th><td>{{ trace_text }}; jatah eps = {{ eps_share }}, eps1 = {{ eps1 }}</td></tr>
+  {% if trace_anchor %}
+  <tr><th>Jangkar entri pelacakan</th><td><div class="mono perintah">tapak verify --jangkar {{ trace_anchor }}</div>
+    Perintah ini memeriksa bahwa entri registri yang mencatat pelacakan ini masih ada dan tidak
+    diubah. Bila entri ini kemudian dihapus, pelacakan berikutnya dapat memakai lagi nomor dan
+    jatah eps pelacakan ini; pemeriksaan dengan jangkar ini mengungkapnya.</td></tr>
+  {% endif %}
   <tr><th>Aturan ambang</th><td>Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak
     bersalah tidak melebihi eps1 (jatah eps pelacakan dibagi n_max), dihitung hanya dari vektor bias
     dan bobot dekoder.
@@ -334,6 +340,10 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
   <li>Pelacakan ini tidak dicatat di registri. Bila dokumen yang sama dilacak berulang kali, misalnya
   dengan potongan atau gabungan bukti yang berbeda, batas peluang tuduhan salah hanya berlaku untuk
   setiap pelacakan secara terpisah.</li>
+  {% else %}
+  <li>Batas bersama untuk semua pelacakan dokumen ini berlaku bila bukti setiap pelacakan tidak
+  dipilih berdasarkan skor pelacakan sebelumnya, misalnya dengan membuang halaman agar skor
+  tertinggi naik.</li>
   {% endif %}
   {% if registry_failed %}
   <li class="tegas">Registri penerbitan TIDAK UTUH. Hasil atribusi tidak boleh dipakai sebelum

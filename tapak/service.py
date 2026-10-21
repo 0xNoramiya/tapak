@@ -458,8 +458,10 @@ class TraceOutcome:
     """Everything a trace produced, ready for display or a report.
 
     ``trace_entry`` is the registry entry number that logged this trace (None when it was not
-    logged); the trace number and the eps it spent are in ``attribution.threshold``
-    (``trace_no``, ``eps_share``).
+    logged) and ``trace_entry_hash`` its ``entry_hash``: together an anchor for
+    ``tapak verify --jangkar``, printed in the berita acara, that exposes a later deletion of
+    this entry (which would hand the next trace this trace's larger share again). The trace
+    number and the eps it spent are in ``attribution.threshold`` (``trace_no``, ``eps_share``).
     """
 
     attribution: object
@@ -472,6 +474,7 @@ class TraceOutcome:
     evidence_names: list[str] = field(default_factory=list)
     trace_entry: int | None = None
     trace_signed: bool = False
+    trace_entry_hash: str | None = None
 
 
 def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str], eps: float):
@@ -559,7 +562,8 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     names = ", ".join(n for n, _ in items)
     return TraceOutcome(attribution, obs, ctx, names, ", ".join(digests), reg, canary_alerts(settings, manifest),
                         [n for n, _ in items], trace_entry=entry.seq if entry else None,
-                        trace_signed=bool(entry and entry.signed))
+                        trace_signed=bool(entry and entry.signed),
+                        trace_entry_hash=entry.entry_hash if entry else None)
 
 
 def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
@@ -640,6 +644,7 @@ def write_report(outcome: TraceOutcome, out_path: Path | None = None, case_numbe
         registry_ok=reg.chain_ok, registry_entries=reg.entries, canary_events=outcome.canary,
     )
     info.registry_unsigned = reg.copies_unsigned
+    info.trace_entry, info.trace_entry_hash = outcome.trace_entry, outcome.trace_entry_hash or ""
     info.evidence_sha256 = outcome.evidence_sha256
     info.evidence_names = names if len(names) > 1 else []
     return render_report(outcome.attribution, info, out_path)

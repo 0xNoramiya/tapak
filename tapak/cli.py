@@ -293,6 +293,8 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         extra.append(f"Pelacakan ke-{outcome.attribution.threshold.trace_no} dicatat sebelum dekode sebagai entri "
                      f"registri #{outcome.trace_entry} ({signed}); jatah eps semua pelacakan dokumen ini "
                      "berjumlah paling banyak eps")
+        extra.append(f"Jangkar entri pelacakan (catat di luar sistem): tapak verify --jangkar "
+                     f"{outcome.trace_entry}:{outcome.trace_entry_hash}")
     accused = {c.copy.seq for c in outcome.attribution.accused}
     for a in outcome.canary:
         # As in the berita acara: a copy that is not accused is not identified, not even by number.
