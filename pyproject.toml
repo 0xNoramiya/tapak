@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tapak"
+version = "0.1.0"
+description = "TAPAK: Tanda Atribusi Penerima Anti-Kolusi (leak attribution for classified documents)"
+requires-python = ">=3.11"
+dependencies = [
+    "pikepdf>=9",
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "opencv-python-headless>=4.9",
+    "pytesseract>=0.3.10",
+    "pynacl>=1.5",
+    "dnslib>=0.9.24",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "weasyprint>=61",
+    "rapidfuzz>=3.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27", "fonttools>=4.50"]
+learned = ["torch>=2.2", "onnxruntime>=1.17"]
+
+[project.scripts]
+tapak = "tapak.cli:main"
+tapak-verify-registry = "tapak.registry.verify:main"
+
+[tool.setuptools.packages.find]
+include = ["tapak*"]
+
+[tool.setuptools.package-data]
+tapak = ["assets/fonts/*", "web/templates/*", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: long-running tests (deselect with -m 'not slow')"]

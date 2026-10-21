@@ -1,0 +1,38 @@
+{
+  "klasifikasi": "RAHASIA",
+  "kop": ["KOMANDO LATIHAN GABUNGAN FIKTIF", "BRIGADE INFANTERI 9905/LATIHAN"],
+  "judul": "NOTA DINAS",
+  "nomor": "Nomor ND/999/XI/2026",
+  "kepala": [
+    ["Kepada", "Yth. Komandan Batalyon Infanteri 9901/Contoh"],
+    ["Dari", "Kepala Staf Brigade Infanteri 9905/Latihan"],
+    ["Tembusan", "Komandan Brigade Infanteri 9905/Latihan"],
+    ["Tanggal", "3 November 2026"],
+    ["Klasifikasi", "Rahasia"],
+    ["Lampiran", "Satu berkas jadwal latihan sintetis"],
+    ["Perihal", "Persiapan latihan posko terpadu Garuda Sintetis tahun 2026"]
+  ],
+  "pembuka": "Dengan hormat, bersama ini kami sampaikan arahan persiapan latihan sebagai berikut.",
+  "isi": [
+    "Dasar. Rencana kerja Brigade Infanteri 9905/Latihan tahun anggaran 2026 tentang pembinaan kemampuan staf dan satuan jajaran dalam merencanakan serta mengendalikan operasi gabungan pada tingkat batalyon.",
+    {"teks": "Maksud dan tujuan. Latihan posko terpadu dilaksanakan untuk menguji prosedur hubungan komando, alur laporan, dan koordinasi bantuan tembakan antara satuan manuver dengan satuan bantuan tempur.", "sub": [
+      "menguji kecepatan penyusunan rencana operasi dalam waktu terbatas sesuai prosedur hubungan tetap;",
+      "melatih perwira staf dalam menyusun perkiraan keadaan dan menyajikan saran tindak kepada komandan;",
+      "mengevaluasi kesiapan sarana komunikasi lapangan pada saat terjadi gangguan jaringan."
+    ]},
+    "Waktu dan tempat. Latihan dilaksanakan selama lima hari mulai tanggal 17 sampai dengan 21 November 2026 di daerah latihan Bukit Sintetis, sektor barat, dengan pos komando utama berada di gedung serbaguna markas brigade.",
+    {"teks": "Peserta latihan. Satuan yang dilibatkan dalam latihan posko terpadu adalah sebagai berikut:", "sub": [
+      "Batalyon Infanteri 9901/Contoh sebagai satuan manuver utama dengan kekuatan staf lengkap;",
+      "Batalyon Kavaleri 9902/Fiktif sebagai satuan manuver cadangan dengan dua unsur pengintai;",
+      "Detasemen Zeni Tempur 9904/Uji sebagai satuan bantuan tempur yang menyiapkan rintangan;",
+      "Batalyon Artileri Pertahanan Udara 9906/Simulasi sebagai unsur perlindungan udara."
+    ]},
+    "Pengendalian. Pengendali latihan dipimpin oleh Wakil Kepala Staf Brigade dibantu tim penilai yang terdiri atas perwira seksi operasi, seksi intelijen, dan seksi logistik. Setiap tahap latihan dicatat dalam buku harian latihan dan dilaporkan kepada pengendali setiap pukul 06.00 dan 18.00.",
+    "Administrasi dan logistik. Kebutuhan konsumsi, bahan bakar, dan alat tulis kantor dibebankan pada anggaran latihan brigade. Setiap satuan peserta menyiapkan perlengkapan perorangan, peta skala satu banding lima puluh ribu, dan perangkat komunikasi cadangan secara mandiri.",
+    "Keamanan dokumen. Seluruh naskah latihan berklasifikasi rahasia, sehingga penggandaan tanpa izin, pemotretan, maupun pengiriman melalui aplikasi pesan pribadi dilarang. Setiap salinan yang diterima merupakan tanggung jawab penerima dan wajib disimpan dalam lemari dokumen berkunci.",
+    "Pelaporan. Komandan satuan peserta menyampaikan daftar nama personel yang dilibatkan paling lambat tanggal 10 November 2026 kepada seksi operasi brigade untuk keperluan penyusunan organisasi tugas latihan."
+  ],
+  "penutup": "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab.",
+  "ttd": ["Kepala Staf Brigade,", "Letkol Inf Contoh Nama Fiktif", "NRP 99990001"],
+  "tembusan": ["Komandan Brigade Infanteri 9905/Latihan", "Kepala Seksi Operasi Brigade", "Arsip"]
+}

@@ -1,0 +1,123 @@
+{
+  "params": {
+    "c": 3,
+    "eps": 1e-06,
+    "n_max": 100,
+    "constant": "skoric",
+    "eps1": 1e-08,
+    "length": 3273,
+    "cutoff": 0.0011111111111111111,
+    "k_constant": 19.739208802178716
+  },
+  "n_users": 100,
+  "coalition": 3,
+  "trials": 1000,
+  "ber": 0.0,
+  "erasure": 0.0,
+  "seed": 2026,
+  "results": [
+    {
+      "strategy": "majority",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 372.53740402841197,
+      "mean_top_colluder_score": 772.5785189652606,
+      "max_innocent_over_threshold": 0.7197538488944036,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    },
+    {
+      "strategy": "minority",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 372.53740402841197,
+      "mean_top_colluder_score": 768.1229097950369,
+      "max_innocent_over_threshold": 0.5910039134039821,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    },
+    {
+      "strategy": "random-mix",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 372.53740402841197,
+      "mean_top_colluder_score": 773.254312524794,
+      "max_innocent_over_threshold": 0.6343034143958224,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    },
+    {
+      "strategy": "coin",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 372.53740402841197,
+      "mean_top_colluder_score": 769.739219147874,
+      "max_innocent_over_threshold": 0.6526593096855134,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    },
+    {
+      "strategy": "all-1",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 372.53740402841197,
+      "mean_top_colluder_score": 770.8632559383601,
+      "max_innocent_over_threshold": 0.6219768831593991,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    },
+    {
+      "strategy": "all-0",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 372.53740402841197,
+      "mean_top_colluder_score": 770.6487623407787,
+      "max_innocent_over_threshold": 0.6841954717957468,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    },
+    {
+      "strategy": "erase",
+      "trials": 1000,
+      "false_accusation_trials": 0,
+      "detected_trials": 1000,
+      "all_caught_trials": 1000,
+      "mean_threshold": 306.5196832593888,
+      "mean_top_colluder_score": 722.764866423119,
+      "max_innocent_over_threshold": 0.600568351881023,
+      "false_accusation_rate": 0.0,
+      "detection_rate": 1.0,
+      "all_caught_rate": 1.0
+    }
+  ],
+  "bound_check": {
+    "0.01": {
+      "target": 0.01,
+      "empirical": 0.0006769759450171821,
+      "innocent_evaluations": 582000.0
+    },
+    "0.001": {
+      "target": 0.001,
+      "empirical": 3.2646048109965636e-05,
+      "innocent_evaluations": 582000.0
+    }
+  }
+}

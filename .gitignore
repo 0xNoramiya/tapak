@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Secrets never go in the repository.
+keys/
+*.key
+
+# Generated artifacts
+out/
+data/
+samples/generated/
+samples/photos/

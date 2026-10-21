@@ -1,0 +1,29 @@
+{
+  "klasifikasi": "RAHASIA",
+  "kop": ["KOMANDO DAERAH LATIHAN FIKTIF XIV", "STAF OPERASI"],
+  "judul": "SURAT TELEGRAM",
+  "nomor": "Nomor STR/9999/XI/2026",
+  "kepala": [
+    ["Dari", "Asisten Operasi Kodam Latihan Fiktif XIV"],
+    ["Kepada", "Para Komandan Satuan Jajaran Kodam Latihan Fiktif XIV"],
+    ["Tembusan", "Panglima Kodam Latihan Fiktif XIV"],
+    ["Klasifikasi", "Rahasia"],
+    ["Derajat", "Segera"],
+    ["Perihal", "Peningkatan kesiapsiagaan satuan dalam rangka uji sistem sintetis"]
+  ],
+  "pembuka": "Bersama ini disampaikan kepada para komandan satuan jajaran hal-hal sebagai berikut.",
+  "isi": [
+    "Berdasarkan hasil evaluasi uji sistem sintetis bulan Oktober 2026, ditemukan beberapa kelemahan dalam prosedur pengamanan dokumen dan pelaporan satuan jajaran yang perlu segera diperbaiki.",
+    {"teks": "Sehubungan dengan hal tersebut, para komandan satuan agar melaksanakan kegiatan berikut:", "sub": [
+      "melaksanakan pengecekan ulang daftar penerima dokumen berklasifikasi dan memperbarui buku ekspedisi;",
+      "memastikan setiap salinan dokumen rahasia tersimpan dalam lemari berkunci dan tidak dipindahkan ke perangkat pribadi;",
+      "menunjuk perwira pengaman dokumen pada setiap markas satuan dan melaporkan namanya kepada staf operasi;",
+      "melaksanakan apel kesiapsiagaan setiap hari Senin pukul 07.00 selama masa uji sistem."
+    ]},
+    "Kegiatan tersebut dilaksanakan mulai tanggal 10 November 2026 sampai dengan selesai uji sistem, dan hasilnya dilaporkan secara berjenjang melalui saluran komando paling lambat setiap hari Jumat pukul 16.00.",
+    "Satuan yang tidak dapat memenuhi ketentuan di atas agar melaporkan kendala yang dihadapi beserta usulan pemecahan masalah kepada Asisten Operasi untuk ditindaklanjuti."
+  ],
+  "penutup": "Demikian untuk dilaksanakan dan dilaporkan pelaksanaannya.",
+  "ttd": ["a.n. Panglima Kodam Latihan Fiktif XIV", "Asisten Operasi,", "Kolonel Inf Nama Contoh Sintetis", "NRP 99990002"],
+  "tembusan": ["Panglima Kodam Latihan Fiktif XIV", "Kepala Staf Kodam Latihan Fiktif XIV"]
+}
