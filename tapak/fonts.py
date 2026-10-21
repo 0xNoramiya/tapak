@@ -17,7 +17,7 @@ def font_path(name: str) -> Path:
     try:
         return FONT_DIR / BUNDLED[name]
     except KeyError as exc:
-        raise KeyError(f"font {name!r} is not bundled; available: {sorted(BUNDLED)}") from exc
+        raise KeyError(f"font {name!r} tidak disertakan; tersedia: {sorted(BUNDLED)}") from exc
 
 
 def strip_subset_tag(name: str) -> str:

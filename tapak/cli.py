@@ -54,10 +54,12 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     print(f"Simulasi Tardos: N={args.n}, c={params.c}, eps={params.eps:g} (eps1={params.eps1:.1e}), "
           f"m={params.length}, konstanta={params.constant}, koalisi={rep.coalition}, "
           f"percobaan={args.trials}, BER={args.ber}, hapus={args.erasure}")
-    print(f"{'strategi':<11} {'tuduhan salah':>14} {'deteksi':>9} {'semua tertangkap':>17} "
+    from tapak.tardos.attacks import STRATEGY_LABELS
+
+    print(f"{'strategi':<12} {'tuduhan salah':>14} {'deteksi':>9} {'semua tertangkap':>17} "
           f"{'Z rata2':>8} {'skor koalisi maks':>18} {'maks inosen/Z':>14}")
     for r in rep.results:
-        print(f"{r.strategy:<11} {r.false_accusation_trials:>6} ({r.false_accusation_rate:6.4f}) "
+        print(f"{STRATEGY_LABELS.get(r.strategy, r.strategy):<12} {r.false_accusation_trials:>6} ({r.false_accusation_rate:6.4f}) "
               f"{r.detection_rate:>9.4f} {r.all_caught_rate:>17.4f} {r.mean_threshold:>8.1f} "
               f"{r.mean_top_colluder_score:>18.1f} {r.max_innocent_over_threshold:>14.3f}")
     for b in rep.bound_check.values():
@@ -142,6 +144,8 @@ def _cmd_issue(args: argparse.Namespace) -> int:
                  "BELUM ditandatangani (kunci tanda tangan tidak ada di sini; pemegang kunci menjalankan: "
                  "tapak registry sign)")
         print(f"Registri: {out.registry_entries} entri baru, {state} ({s.registry_path})")
+    for w in out.warnings:
+        print(f"PERINGATAN: {w}")
     if args.out:
         import shutil
 
@@ -203,9 +207,12 @@ def _cmd_semantic_approve(args: argparse.Namespace) -> int:
 
 
 def _print_attribution(result, obs, notes_extra: list[str] | None = None) -> None:
-    for sb in obs:
-        meta = {k: v for k, v in sb.meta.items() if k not in ("reads",)}
-        print(f"Kanal {sb.channel:<10} {len(sb):>5} observasi  {meta}")
+    from tapak.decoder.report import SUBCHANNEL_LABELS, channel_observations
+
+    for row in channel_observations(obs):
+        label = SUBCHANNEL_LABELS.get(row["channel"], row["channel"])
+        noise = f"; {row['noise']}" if row["noise"] not in (None, "-") else ""
+        print(f"Kanal {label}: {row['observations']} observasi{noise}")
     for line in result.summary_lines():
         print(line)
     for n in notes_extra or []:
@@ -226,20 +233,24 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         from tapak.keys import load_code_secret
         from tapak.marker.issue import IssueManifest
 
-        manifest = IssueManifest.from_json(Path(args.manifest).read_text(encoding="utf-8"))
+        try:
+            manifest = IssueManifest.from_json(Path(args.manifest).read_text(encoding="utf-8"))
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ValueError(f"{args.manifest}: bukan catatan penerbitan (manifest) TAPAK yang sah") from exc
         master = Path(args.master).read_bytes()
         secret = load_code_secret(Path(args.secret) if args.secret else s.code_secret_path)
+        if not (master.startswith(b"PK") or b"%PDF-" in master[:1024]):
+            raise ValueError(f"{args.master}: dokumen induk harus berkas PDF atau DOCX")
         if master.startswith(b"PK"):  # a DOCX master: text-layer channel only
             from tapak.service import _trace_docx
 
-            result, obs, _ = _trace_docx(master, manifest, secret, items[0][0], items[0][1])
+            result, obs, _ = _trace_docx(master, manifest, secret, items)
         else:
             ctx = load_context(master, manifest, secret, folder=Path(args.manifest).parent)
             result, obs = trace_files(items, ctx)
         _print_attribution(result, obs)
         if args.json:
-            Path(args.json).write_text(json.dumps(result.to_dict(), indent=2, ensure_ascii=False, default=str),
-                                       encoding="utf-8")
+            _write_json(Path(args.json), result)
         return 0
     doc = args.doc
     if doc is None:
@@ -251,20 +262,53 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         doc = docs[0].doc_hash
     outcome = trace_evidence(s, doc, items[0][0], items[0][1], more=items[1:])
     reg = outcome.registry
-    extra = [f"Registri: rantai {'terverifikasi' if reg.chain_ok else 'TIDAK terverifikasi' if reg.chain_ok is False else 'belum diverifikasi'}"
-             f" ({reg.entries} entri), {reg.copies_confirmed}/{reg.copies_total} salinan cocok"]
+    if reg.chain_ok and reg.unsigned:
+        state = (f"rantai hash utuh, tetapi {reg.unsigned} dari {reg.entries} entri belum bertanda tangan "
+                 "sehingga belum terlindungi dari pemalsuan")
+    elif reg.chain_ok:
+        state = f"rantai terverifikasi dengan tanda tangan ({reg.entries} entri)"
+    else:
+        state = f"rantai belum diverifikasi ({reg.entries} entri)"
+    extra = [f"Registri: {state}; {reg.copies_confirmed}/{reg.copies_total} salinan cocok"]
     accused = {c.copy.seq for c in outcome.attribution.accused}
     for a in outcome.canary:
-        who = f" ({a['recipient_id']})" if a["seq"] in accused else ""
-        extra.append(f"Kueri kanari: nama salinan #{a['seq']}{who} di-resolve {a['time']} oleh resolver {a['src_ip']}")
+        # As in the berita acara: a copy that is not accused is not identified, not even by number.
+        which = f"salinan #{a['seq']} ({a['recipient_id']})" if a["seq"] in accused else \
+            "salinan lain (nomor tidak dicantumkan)"
+        extra.append(f"Kueri kanari: nama {which} di-resolve {a['time']} oleh resolver {a['src_ip']}")
     _print_attribution(outcome.attribution, outcome.observations, extra)
     if args.report:
         write_report(outcome, Path(args.report), case_number=args.nomor_perkara or "",
                      examiner_name=args.pemeriksa or "", examiner_rank=args.pangkat or "")
         print(f"Berita acara ditulis ke {args.report}")
     if args.json:
-        Path(args.json).write_text(json.dumps(outcome.attribution.to_dict(), indent=2, ensure_ascii=False,
-                                              default=str), encoding="utf-8")
+        _write_json(Path(args.json), outcome.attribution)
+    return 0
+
+
+def _write_json(path: Path, attribution) -> None:
+    """Attribution as JSON; copies that are not accused keep their score but lose their identity."""
+    data = attribution.to_dict()
+    for c in data["candidates"]:
+        # log10_false_accusation is the authoritative bound; the float underflows below 1e-308.
+        if c["false_accusation_probability"] < 1e-300:
+            c["false_accusation_probability"] = None
+        if not c["accused"]:
+            c["copy"] = {"seq": None, "copy_id": "", "recipient_id": "", "nama": "", "jabatan": "", "satuan": ""}
+    for ch in data["channels"]:
+        shown = [s for s in ch["accused_seqs"] if any(c.copy.seq == s for c in attribution.accused)]
+        ch["accused_seqs"], ch["accused_hidden"] = shown, len(ch["accused_seqs"]) - len(shown)
+        if ch["top_seq"] not in shown:
+            ch["top_seq"] = None
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+
+
+def _cmd_canary_allowlist(args: argparse.Namespace) -> int:
+    from tapak.service import publish_canary_allowlist
+
+    s = _settings(args)
+    n = publish_canary_allowlist(s)
+    print(f"Daftar izin kanari ditulis ulang: {n} digest token ke {s.canary_allowlist}")
     return 0
 
 
@@ -355,15 +399,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--n", type=int, default=100, help="jumlah penerima")
     s.add_argument("--c", type=int, default=3, help="ukuran koalisi rancangan")
     s.add_argument("--eps", type=float, default=1e-6, help="peluang tuduhan salah total")
-    s.add_argument("--trials", type=int, default=1000)
+    s.add_argument("--trials", type=int, default=1000, help="jumlah percobaan per strategi")
     s.add_argument("--coalition", type=int, default=None, help="ukuran koalisi uji (bawaan: c)")
-    s.add_argument("--constant", choices=["skoric", "tardos"], default="skoric")
-    s.add_argument("--strategies", default=None, help="daftar dipisah koma")
+    s.add_argument("--constant", choices=["skoric", "tardos"], default="skoric",
+                   help="konstanta panjang kode: skoric (2 pi^2) atau tardos (100)")
+    s.add_argument("--strategies", default=None,
+                   help="daftar dipisah koma dari: majority (mayoritas), minority (minoritas), random-mix "
+                        "(campur acak), coin (lempar koin), all-1, all-0, erase (hapus); bawaan semua")
     s.add_argument("--ber", type=float, default=0.0, help="laju galat bit kanal")
     s.add_argument("--erasure", type=float, default=0.0, help="laju posisi terhapus")
-    s.add_argument("--seed", type=int, default=2026)
+    s.add_argument("--seed", type=int, default=2026, help="benih bilangan acak (hasil dapat diulang)")
     s.add_argument("--table", action="store_true", help="cetak tabel parameter")
-    s.add_argument("--json", default=None)
+    s.add_argument("--json", default=None, help="tulis hasil lengkap ke berkas JSON ini")
     s.set_defaults(func=_cmd_simulate)
 
     k = sub.add_parser("keys", help="kelola kunci")
@@ -422,6 +469,9 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("docs", help="daftar dokumen yang telah diterbitkan")
     d.set_defaults(func=_cmd_docs)
 
+    ka = sub.add_parser("kanari-izin", help="tulis ulang daftar izin pendengar kanari dari semua penerbitan")
+    ka.set_defaults(func=_cmd_canary_allowlist)
+
     v = sub.add_parser("verify", help="verifikasi registri hanya dengan kunci publik")
     v.add_argument("--registry", default=None)
     v.add_argument("--public-key", default=None)
@@ -470,11 +520,18 @@ def main(argv: list[str] | None = None) -> int:
 
         return int(importlib.import_module(PASSTHROUGH[argv[i]]).main(argv[i + 1:]) or 0)
     args = build_parser().parse_args(argv)
+    import sqlite3
+
+    from tapak.registry.signing import describe_error
+
     try:
         return int(args.func(args))
-    except (FileNotFoundError, FileExistsError, ValueError, RuntimeError) as exc:
-        print(f"galat: {exc}", file=sys.stderr)
+    except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
+        print(f"galat: {describe_error(exc)}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print("dibatalkan", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

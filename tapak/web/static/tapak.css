@@ -260,6 +260,8 @@ details.more[open] summary { margin-bottom: 12px; }
 .btn-approve[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
 .btn-reject[aria-pressed="true"] { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
 .nowrap { white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+#galat-global:focus { outline: none; }
 .keep-case { text-transform: none; letter-spacing: 0; }
 [data-autofocus]:focus { outline: none; }
 [data-autofocus]:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
@@ -282,7 +284,16 @@ details.more[open] summary { margin-bottom: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* tables */
-.table-wrap { overflow-x: auto; }
+/* A table wider than its card scrolls sideways; a soft shadow at the clipped edge says so
+   (the covers scroll with the content and hide the shadow once an edge is reached). */
+.table-wrap {
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) left / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, transparent) right / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, oklch(0 0 0 / 0.14), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, oklch(0 0 0 / 0.14), transparent) right / 12px 100% no-repeat scroll;
+}
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th {
   text-align: left;
@@ -362,15 +373,25 @@ th.num { text-align: right; }
 
 .footer { border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12px; }
 .footer-inner { padding-top: 16px; padding-bottom: 24px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+.footer-inner > span { overflow-wrap: anywhere; min-width: 0; }  /* long registry paths */
 
 @media (max-width: 640px) {
   .hide-sm { display: none; }
   .unit-head { flex-direction: column; }
-  .btn { white-space: nowrap; }
   .topbar-inner { gap: 16px; height: auto; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; }
   .offline { display: none; }
   .card { padding: 18px; }
   .variant { flex-direction: column; }
+  /* Tables fit a phone screen: tighter cells, wrapping headers and status chips. */
+  th, td { padding-left: 6px; padding-right: 6px; }
+  th { letter-spacing: 0.02em; }
+  th.num { white-space: normal; }
+  td .chip { white-space: normal; border-radius: 8px; }
+}
+
+@media (max-width: 360px) {
+  .card { padding: 14px; }
+  th { font-size: 11px; letter-spacing: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

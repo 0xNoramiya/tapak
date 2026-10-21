@@ -1,7 +1,7 @@
 {% set t = a.threshold %}
 {% set accused_seqs = a.accused|map(attribute="copy.seq")|list %}
 <section class="verdict {% if identified %}verdict-found{% else %}verdict-none{% endif %}" aria-labelledby="putusan">
-  <span class="kicker">Hasil atribusi · <span class="mono keep-case">{{ o.evidence_name }}</span></span>
+  <span class="kicker">Hasil atribusi · <span class="mono keep-case">{{ redact(o.evidence_name) }}</span></span>
   {% if identified %}
     {% for c in a.accused %}
     <div class="who">
@@ -71,15 +71,15 @@
 {% if t.n_observed %}
 <section class="card" aria-labelledby="skor-h">
   <h2 id="skor-h">Peringkat skor</h2>
-  <p class="lead">Nama hanya ditampilkan untuk salinan yang melewati ambang. Salinan lain disebut dengan nomornya saja.</p>
+  <p class="lead">Nomor salinan dan nama hanya ditampilkan untuk salinan yang melewati ambang. Salinan lain disebut dengan peringkatnya saja.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Salinan</th><th class="hide-sm">Penerima</th><th class="num">Skor</th><th class="num hide-sm">Ambang</th><th>Status</th></tr></thead>
+      <thead><tr><th class="num">Peringkat</th><th class="hide-sm">Penerima</th><th class="num">Skor</th><th class="num hide-sm">Ambang</th><th>Status</th></tr></thead>
       <tbody>
       {% for c in a.candidates[:6] %}
         <tr>
-          <td class="num">#{{ c.copy.seq }}</td>
-          <td class="hide-sm">{% if c.accused %}{{ c.copy.nama }} <span class="muted mono small">{{ c.copy.recipient_id }}</span>{% else %}<span class="muted">disembunyikan</span>{% endif %}</td>
+          <td class="num">{{ loop.index }}</td>
+          <td class="hide-sm">{% if c.accused %}#{{ c.copy.seq }} · {{ c.copy.nama }} <span class="muted mono small">{{ c.copy.recipient_id }}</span>{% else %}<span class="muted">disembunyikan</span>{% endif %}</td>
           <td class="num">{{ c.score|num(1) }}</td>
           <td class="num hide-sm">{{ t.threshold|num(1) if t.threshold != inf else "-" }}</td>
           <td>{% if c.accused %}<span class="chip chip-ok">melewati ambang</span>{% else %}<span class="chip chip-neutral">di bawah ambang</span>{% endif %}</td>
@@ -96,11 +96,11 @@
   {% set r = o.registry %}
   <ul class="notes">
     <li>Registri:
-      {% if r.chain_ok %}<span class="chip chip-ok">rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="chip chip-no">rantai rusak</span>{% else %}<span class="chip chip-wait">tidak diverifikasi</span>{% endif %}
+      {% if r.chain_ok and r.unsigned %}<span class="chip chip-wait">utuh, {{ r.unsigned|num }} entri belum bertanda tangan</span>{% elif r.chain_ok %}<span class="chip chip-ok">rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="chip chip-no">rantai rusak</span>{% else %}<span class="chip chip-wait">tidak diverifikasi</span>{% endif %}
       {{ r.entries|num }} entri; {{ r.copies_confirmed }} dari {{ r.copies_total }} komitmen salinan cocok.
     </li>
     <li>SHA-256 bukti: <span class="mono">{{ o.evidence_sha256 }}</span></li>
-    {% for n in a.notes %}<li>{{ n }}</li>{% endfor %}
+    {% for n in a.notes %}<li>{{ redact(n) }}</li>{% endfor %}
     {% for p in r.problems %}<li>{{ p }}</li>{% endfor %}
   </ul>
   {% if o.canary %}
@@ -108,10 +108,10 @@
   <div class="table-wrap">
     <table>
       <thead><tr><th class="num">Salinan</th><th>Waktu</th><th>Resolver</th></tr></thead>
-      <tbody>{% for k in o.canary %}<tr><td class="num">#{{ k.seq }}</td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
+      <tbody>{% for k in o.canary %}<tr><td class="num">{% if k.seq in accused_seqs %}#{{ k.seq }}{% else %}<span class="muted">salinan lain</span>{% endif %}</td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
-  <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas, sehingga penerima tidak disebut di tabel ini.</p>
+  <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas; nomor salinan hanya dicantumkan untuk salinan yang juga dituduh hasil atribusi.</p>
   {% set named = o.canary|selectattr("seq", "in", accused_seqs)|list %}
   {% if named %}
   <details class="more small">

@@ -330,7 +330,7 @@ def encode_docx_zw(bits: Sequence[int]) -> tuple[str, str]:
     only U+200C, U+200D, U+200B and U+2060 are written.
     """
     if len(bits) > DOCX_MAX_ZW_BITS:
-        raise ValueError("at most 4 bits per word")
+        raise ValueError("paling banyak 4 bit per kata")
     return encode_zw([v for b in bits for v in (0, int(b))])
 
 
@@ -512,7 +512,7 @@ def _locate(spans: Sequence[TextSpan], char_index: int) -> tuple[TextSpan, int]:
         if k < n:
             return span, span.start + k
         k -= n
-    raise IndexError("character index outside the word")
+    raise IndexError("indeks karakter di luar kata")
 
 
 def _make_word(index: int, para_index: int, chars: list[tuple[str, _CharLoc | None]],

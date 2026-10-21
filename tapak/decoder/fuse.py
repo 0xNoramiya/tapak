@@ -56,7 +56,7 @@ def _accumulate(parts: list[SoftBits], m: int) -> tuple[np.ndarray, np.ndarray]:
         if len(sb) == 0:
             continue
         if sb.positions.min() < 0 or sb.positions.max() >= m:
-            raise ValueError(f"channel {sb.channel}: position outside [0, {m})")
+            raise ValueError(f"kanal {sb.channel}: posisi di luar [0, {m})")
         np.add.at(llr, sb.positions, sb.llr)
         np.add.at(count, sb.positions, 1)
     return llr, count

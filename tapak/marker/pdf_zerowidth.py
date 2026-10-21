@@ -109,7 +109,7 @@ def build_text_slots(
 def encode_zw(bits: list[int]) -> tuple[str, str]:
     """Bits (even count, at most 8) to the (prefix, suffix) invisible strings of a word."""
     if len(bits) % BITS_PER_SYMBOL or len(bits) > BITS_PER_SYMBOL * MAX_ZW_SYMBOLS:
-        raise ValueError("need an even number of bits, at most 8")
+        raise ValueError("jumlah bit harus genap, paling banyak 8")
     symbols = [
         ZW_ALPHABETS[k % 2][2 * int(bits[2 * k]) + int(bits[2 * k + 1])] for k in range(len(bits) // 2)
     ]

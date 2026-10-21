@@ -40,7 +40,7 @@ def score_terms(y: np.ndarray, p: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     y = np.asarray(y)
     p = np.asarray(p, dtype=np.float64)
     if y.shape != p.shape:
-        raise ValueError("y and p must have the same shape")
+        raise ValueError("y dan p harus berukuran sama")
     g = np.sqrt((1.0 - p) / p)
     h = np.sqrt(p / (1.0 - p))
     s = np.where(y > 0, 1.0, -1.0)
@@ -107,9 +107,9 @@ def _active(p: np.ndarray, weights: np.ndarray | None) -> tuple[np.ndarray, np.n
     p = np.asarray(p, dtype=np.float64)
     w = np.ones_like(p) if weights is None else np.asarray(weights, dtype=np.float64)
     if w.shape != p.shape:
-        raise ValueError("weights and p must have the same shape")
+        raise ValueError("bobot dan p harus berukuran sama")
     if (w < 0).any() or (w > 1).any():
-        raise ValueError("weights must be in [0, 1]")
+        raise ValueError("bobot harus di antara 0 dan 1")
     keep = w > 0
     return p[keep], w[keep]
 
@@ -139,7 +139,7 @@ def threshold(p: np.ndarray, eps1: float, weights: np.ndarray | None = None) -> 
     observed (nobody can be accused without evidence).
     """
     if not 0.0 < eps1 < 1.0:
-        raise ValueError("eps1 must be in (0, 1)")
+        raise ValueError("eps1 harus di antara 0 dan 1")
     pa, wa = _active(p, weights)
     if pa.size == 0:
         return math.inf

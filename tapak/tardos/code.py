@@ -39,7 +39,7 @@ def uniform_stream(secret: bytes, label: bytes, n: int) -> np.ndarray:
     length-prefixed (version, secret, label). Same inputs always give the same output.
     """
     if n < 0:
-        raise ValueError("n must be non-negative")
+        raise ValueError("n tidak boleh negatif")
     xof = hashlib.shake_256(_encode_fields(_STREAM_VERSION, secret, label))
     words = np.frombuffer(xof.digest(8 * n), dtype="<u8")
     return (words >> np.uint64(11)).astype(np.float64) * (1.0 / (1 << 53))
@@ -48,7 +48,7 @@ def uniform_stream(secret: bytes, label: bytes, n: int) -> np.ndarray:
 def bias_from_uniform(u: np.ndarray, cutoff: float) -> np.ndarray:
     """Map uniforms in [0, 1) to Tardos biases p in [cutoff, 1 - cutoff] (arcsine density)."""
     if not 0.0 < cutoff < 0.5:
-        raise ValueError("cutoff must be in (0, 0.5)")
+        raise ValueError("batas bias harus di antara 0 dan 0,5")
     t_prime = math.asin(math.sqrt(cutoff))
     r = t_prime + np.asarray(u, dtype=np.float64) * (math.pi / 2.0 - 2.0 * t_prime)
     return np.sin(r) ** 2
@@ -79,7 +79,7 @@ def code_digest(doc_hash: str, copy_id: str, codeword: np.ndarray) -> str:
     """
     x = np.asarray(codeword, dtype=np.uint8)
     if x.ndim != 1 or (x > 1).any():
-        raise ValueError("codeword must be a 1-D binary vector")
+        raise ValueError("kata kode harus vektor biner 1 dimensi")
     payload = _encode_fields(
         _DIGEST_VERSION,
         doc_hash.encode(),

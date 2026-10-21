@@ -2,6 +2,7 @@
   <h2 id="hasil-terbit">{{ manifest.copies|length }} salinan siap dibagikan</h2>
   <p class="lead">{{ manifest.doc_name }} · diterbitkan {{ manifest.issued_at|waktu }} oleh {{ manifest.issuer }} · {{ manifest.elapsed_s|num(1) }} detik.
     {% if out.registry_entries %}Registri: {{ out.registry_entries }} entri {% if out.signed %}ditandatangani{% else %}menunggu tanda tangan eselon atas{% endif %}.{% endif %}</p>
+  {% for w in out.warnings %}<div class="notice notice-warn" role="alert" style="margin-bottom: 16px">{{ w }}</div>{% endfor %}
   <div class="row" style="margin-bottom: 20px">
     <a class="btn btn-primary" href="/dokumen/{{ manifest.doc_hash[:16] }}/salinan.zip">Unduh semua salinan (ZIP)</a>
     <a class="btn btn-secondary" href="/terbitkan">Terbitkan dokumen lain</a>

@@ -58,12 +58,22 @@ class TraceContext:
 
 
 def load_semantic(folder: Path | None) -> SemanticSelection | None:
-    """The approved semantic selection stored next to the master (``varian.json``), if any."""
-    if folder is None or not (Path(folder) / "varian.json").exists():
+    """The approved semantic selection stored with the issuance (``varian.json``), if any.
+
+    It is looked up in ``folder`` and in its parent, so both the workspace manifest and the
+    copy next to the issued files (``salinan/manifest.json``) find it.
+    """
+    if folder is None:
         return None
     import json
 
-    return SemanticSelection.from_dict(json.loads((Path(folder) / "varian.json").read_text(encoding="utf-8")))
+    for candidate in (Path(folder) / "varian.json", Path(folder).parent / "varian.json"):
+        if candidate.exists():
+            try:
+                return SemanticSelection.from_dict(json.loads(candidate.read_text(encoding="utf-8")))
+            except (ValueError, KeyError, TypeError) as exc:
+                raise TraceError(f"{candidate.name} rusak atau bukan berkas varian TAPAK") from exc
+    return None
 
 
 def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
@@ -74,7 +84,10 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
     from ``semantic`` or from ``folder/varian.json`` and checked against the digest in the
     manifest. Without them the semantic channel is skipped (with a warning).
     """
-    master = load_master(master_pdf)
+    try:
+        master = load_master(master_pdf)
+    except (RuntimeError, ValueError) as exc:  # pymupdf.FileDataError is a RuntimeError
+        raise TraceError("dokumen induk tidak dapat dibuka (bukan PDF yang sah atau rusak)") from exc
     if master.doc_hash != manifest.doc_hash:
         raise TraceError("dokumen induk tidak cocok dengan catatan penerbitan (hash berbeda)")
     params = manifest.tardos_params
@@ -158,6 +171,59 @@ def collect_from_pdf(pdf_bytes: bytes, ctx: TraceContext) -> list[SoftBits]:
             + collect_from_text(extract_pdf_text(pdf_bytes), ctx))
 
 
+RASTER_DPI = 200.0
+RASTER_MAX_PIXELS = 25_000_000
+RASTER_MAX_PAGES = 20
+
+
+def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str) -> tuple[list[SoftBits], list[str]]:
+    """PDF pages the vector readout cannot use, decoded as images.
+
+    A page with no text layer matching the master (a scan or photo saved as PDF) is rendered
+    and decoded like a photo. A page whose text matches but whose paper size differs (printed
+    to another paper size) keeps its shifts from the vector readout; only the background, whose
+    cell grid would not line up, is taken from the rendered image.
+    """
+    from tapak.decoder.ch_shift import map_pages
+    from tapak.decoder.image import collect_from_gray
+    from tapak.decoder.rectify import render_page
+    from tapak.marker.layout import extract_layout
+
+    layout = extract_layout(pdf_bytes)
+    pairs = map_pages(ctx.master.layout, layout)
+    obs: list[SoftBits] = []
+    notes: list[str] = []
+    todo = []
+    for page in layout.pages:
+        mi = pairs.get(page.index)
+        if mi is None:
+            todo.append((page, None))
+            continue
+        mp = ctx.master.layout.pages[mi]
+        if (abs(page.width - mp.width) > 1 or abs(page.height - mp.height) > 1) and ctx.background is not None:
+            todo.append((page, {"background"}))
+    if len(todo) > RASTER_MAX_PAGES:
+        notes.append(f"{name}: hanya {RASTER_MAX_PAGES} dari {len(todo)} halaman tanpa lapisan teks yang cocok "
+                     "dibaca sebagai gambar")
+        todo = todo[:RASTER_MAX_PAGES]
+    for page, keep in todo:
+        area_in2 = max(page.width * page.height, 1.0) / 72.0**2
+        dpi = min(RASTER_DPI, (RASTER_MAX_PIXELS / area_in2) ** 0.5)
+        found = [sb for sb in collect_from_gray(render_page(pdf_bytes, page.index, dpi, supersample=1), ctx)
+                 if keep is None or sb.channel in keep]
+        reg = next((sb.meta for sb in found if "correlation" in sb.meta), None)
+        if reg is None:
+            if keep is None:
+                notes.append(f"{name} halaman {page.index + 1}: tidak memiliki lapisan teks yang cocok dan "
+                             "tidak dikenali sebagai halaman dokumen induk")
+            continue
+        obs += found
+        why = "ukuran kertas berbeda" if keep else "tanpa lapisan teks yang cocok"
+        notes.append(f"{name} halaman {page.index + 1}: dibaca sebagai gambar ({why}), dipetakan ke halaman "
+                     f"{reg['page'] + 1} (korelasi {reg['correlation']:.3f})")
+    return obs, notes
+
+
 def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] | None = None) -> Attribution:
     """Fuse, accuse, explain."""
     fused = fuse(observations, ctx.params.length)
@@ -194,14 +260,20 @@ def collect_file(name: str, data: bytes, ctx: TraceContext) -> tuple[list[SoftBi
             notes.append(f"berkas identik byte demi byte dengan salinan #{c.seq} (bukti pendukung)")
     suffix = Path(name).suffix.lower()
     if suffix == ".pdf":
-        if not data.startswith(b"%PDF"):
+        if b"%PDF-" not in data[:1024]:
             raise TraceError(f"{name}: bukan berkas PDF yang sah")
         try:
             obs = collect_from_pdf(data, ctx)
+            raster_obs, raster_notes = collect_rasterized_pages(data, ctx, name)
         except (RuntimeError, ValueError) as exc:  # pymupdf.FileDataError is a RuntimeError
             raise TraceError(f"{name}: berkas PDF tidak dapat dibuka atau rusak") from exc
+        obs += raster_obs
+        notes += raster_notes
     elif suffix in (".txt", ".md", ""):
-        obs = collect_from_text(decode_text_evidence(data), ctx)
+        text = decode_text_evidence(data)
+        if "\ufffd" in text:
+            notes.append(f"{name}: sebagian karakter tidak dapat diterjemahkan (pengodean teks tidak dikenal)")
+        obs = collect_from_text(text, ctx)
     elif suffix == ".docx":  # leaked text pasted into a Word file
         from tapak.decoder.ch_docx import extract_docx_text
 

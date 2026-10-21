@@ -183,7 +183,7 @@ def attribute(
 ) -> Attribution:
     """Accuse according to the fixed rule and assemble the explanation."""
     if codewords.shape != (len(refs), params.length):
-        raise ValueError("codewords must have shape (number of copies, m)")
+        raise ValueError("kata kode harus berukuran (jumlah salinan, m)")
     eps1 = params.eps1
     # Step 1: threshold first, from p and the decoder weights only.
     z = threshold(p, eps1, fused.weights)

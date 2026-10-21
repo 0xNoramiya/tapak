@@ -24,7 +24,9 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.exceptions import RequestValidationError
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from tapak.config import Settings, load_settings
@@ -62,13 +64,18 @@ class Staging:
 _STAGING: dict[str, Staging] = {}
 _TRACES: dict[str, object] = {}
 _LOCK = threading.Lock()
+# Image decoding and registration take hundreds of MB each: at most two traces at a time.
+_TRACE_SLOTS = threading.BoundedSemaphore(2)
 
 # Files written by the app (masters, copies, manifests) are readable by the operator only.
 os.umask(0o077)
 
 STAGING_TTL_S = 2 * 3600
+# Host names the app answers to (TrustedHostMiddleware syntax: exact names or "*.domain").
+# Add the public name when the app sits behind a reverse proxy, e.g.
+# TAPAK_ALLOWED_HOSTS=127.0.0.1,localhost,tapak.satuan.mil
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
-    "TAPAK_ALLOWED_HOSTS", "127.0.0.1,localhost,::1,testserver").split(",") if h.strip()]
+    "TAPAK_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h.strip()]
 
 app = FastAPI(title="TAPAK", docs_url=None, redoc_url=None, openapi_url=None)
 # Host allowlist: a page on another site cannot reach this app through DNS rebinding.
@@ -77,15 +84,32 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 @app.middleware("http")
 async def _same_origin_posts(request: Request, call_next):
-    """Refuse state-changing requests sent by another origin (cross-site form posts)."""
+    """Refuse state-changing requests sent by another origin (cross-site form posts).
+
+    Accepted: an Origin (or Referer) naming the host the request was sent to, or one of
+    ALLOWED_HOSTS (with the same "*.domain" wildcards as the host check; a bare "*" never
+    accepts a foreign origin).
+    """
     if request.method == "POST":
         origin = request.headers.get("origin") or request.headers.get("referer")
         if origin:
-            host = urlsplit(origin).hostname or ""
-            if host not in ALLOWED_HOSTS:
+            parts = urlsplit(origin)
+            same = parts.netloc.lower() == request.headers.get("host", "").lower()
+            if not (same or _host_allowed(parts.hostname or "")):
                 return HTMLResponse('<div class="notice notice-error">Permintaan dari asal lain ditolak.</div>',
                                     status_code=403)
     return await call_next(request)
+
+
+def _host_allowed(host: str) -> bool:
+    host = host.lower()
+    for pattern in ALLOWED_HOSTS:
+        pattern = pattern.lower()
+        if pattern == host or (pattern.startswith("*.") and host.endswith(pattern[1:])):
+            return True
+    return False
+
+
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters["num"] = lambda v, d=0: format_number(float(v), d)
@@ -106,12 +130,22 @@ def _fap(candidate, n_copies: int):
 templates.env.globals["fap"] = _fap
 
 
-def _notice(request: Request, message: str, status: int) -> HTMLResponse:
+def _notice(request: Request, message: str, status: int, restart: bool = False) -> HTMLResponse:
     """An Indonesian error notice. For htmx requests it is placed in the page-level alert
     region (HX-Retarget) so the current form stays intact."""
-    body = f'<div class="notice notice-error">{html.escape(message)}</div>'
+    link = ' <a class="link" href="/terbitkan">Mulai lagi</a>' if restart else ""
+    body = f'<div class="notice notice-error">{html.escape(message)}{link}</div>'
     headers = {"HX-Retarget": "#galat-global", "HX-Reswap": "innerHTML"} if request.headers.get("HX-Request") else {}
     return HTMLResponse(body, status_code=status, headers=headers)
+
+
+# Messages for errors raised by Starlette itself (its details are English).
+_FRAMEWORK_MESSAGES = {
+    400: "Permintaan tidak dapat dibaca. Periksa isian dan berkas, lalu kirim lagi.",
+    404: "Halaman tidak ditemukan.",
+    405: "Tindakan ini tidak tersedia di alamat tersebut.",
+    413: "Kiriman terlalu besar (maksimum 40 MB seluruhnya).",
+}
 
 
 @app.exception_handler(FileNotFoundError)
@@ -120,10 +154,25 @@ async def _not_found(request: Request, exc: FileNotFoundError) -> HTMLResponse:
     return _notice(request, str(exc), 404)
 
 
-@app.exception_handler(HTTPException)
-async def _http_error(request: Request, exc: HTTPException) -> HTMLResponse:
-    """HTTP errors (413, 404, 400) as Indonesian notices instead of JSON."""
-    return _notice(request, str(exc.detail), exc.status_code)
+@app.exception_handler(StarletteHTTPException)
+async def _http_error(request: Request, exc: StarletteHTTPException) -> HTMLResponse:
+    """HTTP errors (413, 404, 400) as Indonesian notices instead of JSON. TAPAK's own errors
+    (fastapi.HTTPException) already carry Indonesian text; Starlette's are replaced."""
+    if isinstance(exc, HTTPException):
+        message = str(exc.detail)
+    elif "maximum size" in str(exc.detail):
+        message = "Teks yang ditempel terlalu panjang (maksimum 1 MB). Simpan sebagai berkas .txt lalu unggah."
+    else:
+        message = _FRAMEWORK_MESSAGES.get(exc.status_code, f"Permintaan ditolak (kode {exc.status_code}).")
+    restart = bool(exc.headers and exc.headers.get("X-Tapak-Mulai-Lagi"))
+    return _notice(request, message, exc.status_code, restart=restart)
+
+
+@app.exception_handler(RequestValidationError)
+async def _invalid_form(request: Request, exc: RequestValidationError) -> HTMLResponse:
+    """A form field of the wrong type (normally caught by the form itself)."""
+    fields = sorted({str(e.get("loc", ["", "?"])[-1]) for e in exc.errors()})
+    return _notice(request, f"Isian tidak sah: {', '.join(fields)}. Periksa lalu kirim lagi.", 422)
 
 
 @app.exception_handler(Exception)
@@ -179,7 +228,7 @@ async def terbitkan_analisis(
     request: Request,
     dokumen: UploadFile | None = File(None),
     penerima: UploadFile | None = File(None),
-    c: int = Form(3),
+    c: str = Form("3"),
     eps: str = Form("1e-6"),
     penerbit: str = Form(""),
     kanari: str = Form(""),
@@ -195,7 +244,7 @@ async def terbitkan_analisis(
     csv_bytes = await _read_upload(penerima)
     if not pdf:
         errors["dokumen"] = "Pilih berkas PDF dokumen induk."
-    elif not pdf.startswith(b"%PDF"):
+    elif b"%PDF-" not in pdf[:1024]:
         errors["dokumen"] = "Berkas ini bukan PDF. Ekspor dokumen ke PDF lalu unggah lagi."
     recipients: list[Recipient] = []
     if not csv_bytes:
@@ -216,8 +265,10 @@ async def terbitkan_analisis(
                 probe.unlink(missing_ok=True)
         except (ValueError, UnicodeDecodeError) as exc:
             errors["penerima"] = str(exc) if isinstance(exc, ValueError) else "CSV harus berenkode UTF-8."
-    if not 1 <= c <= 10:
-        errors["c"] = "Ukuran koalisi harus antara 1 dan 10."
+    c_text = c.strip()
+    c = int(c_text) if c_text.isdigit() else 0  # type: ignore[assignment]
+    if not 1 <= c <= 10:  # type: ignore[operator]
+        errors["c"] = "Ukuran koalisi harus bilangan bulat antara 1 dan 10."
     if eps not in {e for e, _ in EPS_CHOICES}:
         errors["eps"] = "Pilih salah satu tingkat peluang tuduhan salah."
     master = None
@@ -307,7 +358,8 @@ def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
 def _staging(sid: str) -> Staging:
     st = _STAGING.get(sid)
     if st is None:
-        raise HTTPException(404, "Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa. Mulai lagi.")
+        raise HTTPException(404, "Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa.",
+                            headers={"X-Tapak-Mulai-Lagi": "1"})
     return st
 
 
@@ -342,8 +394,8 @@ async def terbitkan_varian(request: Request, sid: str) -> HTMLResponse:
                 if text in decided:
                     vs.set_status(i, decided[text])
     except (RuntimeError, ValueError) as exc:
-        return _page(request, "_semantik.html", st=st, block_error=f"Varian tidak dapat dibuat: {exc}")
-    return _page(request, "_semantik.html", st=st)
+        return _page(request, "_semantik.html", oob=True, st=st, block_error=f"Varian tidak dapat dibuat: {exc}")
+    return _page(request, "_semantik.html", oob=True, st=st)
 
 
 @app.post("/terbitkan/{sid}/varian/{unit_id}/{index}/{status}", response_class=HTMLResponse)
@@ -357,7 +409,7 @@ def terbitkan_putusan(request: Request, sid: str, unit_id: str, index: int, stat
         vs.set_status(index, status)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    return _page(request, "_semantik.html", st=st)
+    return _page(request, "_semantik.html", oob=True, st=st)
 
 
 @app.post("/terbitkan/{sid}/varian/{unit_id}/semua", response_class=HTMLResponse)
@@ -369,7 +421,7 @@ def terbitkan_setujui_semua(request: Request, sid: str, unit_id: str) -> HTMLRes
         raise HTTPException(400, "Permintaan tidak valid")
     for i in vs.pending():
         vs.set_status(i, "disetujui")
-    return _page(request, "_semantik.html", st=st)
+    return _page(request, "_semantik.html", oob=True, st=st)
 
 
 @app.post("/terbitkan/{sid}/terbitkan", response_class=HTMLResponse)
@@ -388,9 +440,9 @@ def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
         out = issue_document(s, st.folder / "induk.pdf", st.recipients, st.settings, st.issuer,
                              semantic=sel, doc_name=st.doc_name)
     except IssuanceBlocked as exc:
-        return _page(request, "_semantik.html", st=st, block_error=str(exc))
+        return _page(request, "_semantik.html", oob=True, st=st, block_error=str(exc))
     except (ValueError, RuntimeError) as exc:
-        return _page(request, "_semantik.html", st=st, block_error=f"Penerbitan gagal: {exc}")
+        return _page(request, "_semantik.html", oob=True, st=st, block_error=f"Penerbitan gagal: {exc}")
     except FileExistsError:
         return _page(request, "_galat.html", message="Dokumen ini sudah pernah diterbitkan. Buka halaman Lacak "
                      "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain.", restart=True)
@@ -431,7 +483,8 @@ def unduh_salinan(doc: str, seq: int) -> FileResponse:
 
 def _copy_path(folder: Path, name: str) -> Path:
     """A copy's file inside the workspace; a manifest naming anything else is refused."""
-    if not name or name != Path(name).name or name.startswith("."):
+    if (not name or name != Path(name).name or name.startswith(".")
+            or Path(name).suffix.lower() not in (".pdf", ".docx")):  # never the manifest or a key
         raise HTTPException(400, "Nama berkas salinan di catatan penerbitan tidak valid")
     path = (folder / "salinan" / name).resolve()
     if path.parent != (folder / "salinan").resolve() or not path.is_file():
@@ -485,8 +538,12 @@ async def lacak_run(
         resp.headers["HX-Retarget"] = "#form-lacak"
         resp.headers["HX-Reswap"] = "innerHTML"
         return resp
+    def run() -> object:
+        with _TRACE_SLOTS:
+            return trace_evidence(settings(), dokumen, name, data, None, items[1:])
+
     try:
-        outcome = await run_in_threadpool(trace_evidence, settings(), dokumen, name, data, None, items[1:])
+        outcome = await run_in_threadpool(run)
     except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
         return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {exc}")
     tid = secrets.token_hex(8)
@@ -494,10 +551,25 @@ async def lacak_run(
         _TRACES[tid] = outcome
         while len(_TRACES) > 50:
             _TRACES.pop(next(iter(_TRACES)))
-    return _page(request, "_hasil_lacak.html", o=outcome, a=outcome.attribution, tid=tid,
-                 identified=outcome.attribution.verdict == VERDICT_IDENTIFIED,
-                 eps_label=dict(EPS_CHOICES).get(f"{outcome.attribution.threshold.eps:g}".replace("e-0", "e-"),
-                                                 f"{outcome.attribution.threshold.eps:g}"))
+    from tapak.decoder.report import make_redactor
+
+    a = outcome.attribution
+    # As in the berita acara: file names and notes never identify a copy that is not accused.
+    redact = make_redactor((c.copy for c in a.candidates if not c.accused), {c.copy.seq for c in a.accused})
+    return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid,
+                 identified=a.verdict == VERDICT_IDENTIFIED, redact=redact,
+                 eps_label=_eps_label(a.threshold.eps))
+
+
+def _eps_label(eps: float) -> str:
+    """'1 dari 1.000.000' for the offered choices and any other 1/n; else an Indonesian number."""
+    for value, label in EPS_CHOICES:
+        if abs(float(value) - eps) <= 1e-9 * eps:
+            return label
+    n = 1.0 / eps
+    if abs(n - round(n)) < 1e-6 * n:
+        return "1 dari " + f"{round(n):,}".replace(",", ".")
+    return format_number(eps, 6)
 
 
 @app.get("/lacak/{tid}/berita-acara.pdf")

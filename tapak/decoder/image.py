@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from tapak.decoder.ch_background import decode_background
 from tapak.decoder.ch_shift import decode_displacements, measure_image
 from tapak.decoder.rectify import load_gray, register, render_page
@@ -17,7 +19,12 @@ if TYPE_CHECKING:
 
 def collect_from_image(data: bytes, ctx: "TraceContext") -> list[SoftBits]:
     """Soft bits from an image file. Returns empty observations if the page is not found."""
-    gray = load_gray(data)
+    return collect_from_gray(load_gray(data), ctx)
+
+
+def collect_from_gray(gray: np.ndarray, ctx: "TraceContext") -> list[SoftBits]:
+    """Soft bits from a grayscale page image (float32, 0..255): a photo, a screenshot or a
+    rendered page of a scanned PDF. Returns empty observations if the page is not found."""
     sizes = [(p.width, p.height) for p in ctx.master.layout.pages]
     reg = register(gray, ctx.master.pdf_bytes, sizes)
     if reg is None:

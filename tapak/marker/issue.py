@@ -17,6 +17,7 @@ import csv
 import json
 import multiprocessing as mp
 import os
+import re
 import secrets
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -182,6 +183,9 @@ class IssueManifest:
         return BackgroundSettings(**self.background)  # type: ignore[arg-type]
 
 
+RECIPIENT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+
 def read_recipients(path: Path) -> list[Recipient]:
     """Read a recipients CSV with at least ``recipient_id`` and ``nama`` columns."""
     with open(path, newline="", encoding="utf-8-sig") as fh:
@@ -195,6 +199,9 @@ def read_recipients(path: Path) -> list[Recipient]:
         nama = (r.pop("nama", "") or "").strip()
         if not rid or not nama:
             raise ValueError("setiap baris wajib memiliki recipient_id dan nama")
+        if not RECIPIENT_ID.fullmatch(rid):
+            raise ValueError(f"recipient_id tidak sah: {rid[:40]!r}; gunakan huruf, angka, titik, garis bawah "
+                             "atau tanda hubung (maksimal 64 karakter), karena dipakai dalam nama berkas")
         if rid in seen:
             raise ValueError(f"recipient_id ganda: {rid}")
         seen.add(rid)
@@ -280,7 +287,7 @@ def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
 def _params_for(settings: IssueSettings, n_recipients: int | None) -> TardosParams:
     n_max = settings.n_max if settings.n_max is not None else n_recipients
     if n_max is None:
-        raise ValueError("n_max unknown")
+        raise ValueError("n_max tidak diketahui")
     return TardosParams(c=settings.c, eps=settings.eps, n_max=n_max, constant=settings.constant)  # type: ignore[arg-type]
 
 
@@ -340,7 +347,7 @@ def issue(
     if len(recipients) > settings.n_max:  # type: ignore[operator]
         raise ValueError("jumlah penerima melebihi n_max kode")
     pdf_bytes = Path(pdf_path).read_bytes()
-    if not pdf_bytes.startswith(b"%PDF"):
+    if b"%PDF-" not in pdf_bytes[:1024]:
         raise ValueError("dokumen induk bukan berkas PDF")
     try:
         master = load_master(pdf_bytes)

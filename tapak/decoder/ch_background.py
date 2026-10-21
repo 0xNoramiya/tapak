@@ -12,10 +12,16 @@ Steps:
    t_b = sum_c pn_c * v_c * n_c / sum_c n_c, which estimates s_b times an unknown gain;
 5. calibrate with a decoy: the same cells and bit assignment, but each cell's sign is
    multiplied by an independent keyed random sign, so the pattern cancels and only noise
-   remains. Its spread is the noise level sigma. If the real statistic is not clearly wider
-   than the decoy (no pattern: a printed page, an overexposed photo, another document), the
-   channel reports nothing. Otherwise mu is fitted with sigma held at the decoy value and
-   LLR = 2 mu t / sigma^2.
+   remains. Its spread is the noise level sigma. With no pattern, t and the decoy have the
+   same energy in expectation (whatever the noise per cell); with a pattern of amplitude mu,
+   t^2 exceeds the decoy by about mu^2 * 7/8. A paired z-test on the clipped per-bit energy
+   difference (its standard error shrinks with the number of bits seen) decides whether a
+   pattern is present. If not (a printed page, an overexposed photo, another document), the
+   channel reports nothing, so noise cannot dilute the other channels. Otherwise mu is
+   fitted with sigma held at the decoy value and LLR = 2 mu t / sigma^2.
+
+The gate is a detection aid only. The false-accusation bound never depends on it: the
+weights use no codeword, so the bound holds for any input, noise included.
 
 No codeword is consulted at any step.
 """
@@ -30,7 +36,19 @@ from tapak.marker.background import PageGrid
 from tapak.marker.plan import CHANNEL_BACKGROUND, Slot
 
 MIN_VALID_FRACTION = 0.3
-SIGNAL_RATIO = 1.3  # median(t^2) / median(t_decoy^2) needed to call the pattern present
+SIGNAL_Z = 3.0  # z of the paired energy test needed to call the pattern present (p ~ 1e-3 by chance)
+CLIP_SIGMAS = 4.0  # per-bit statistics are clipped here before the energy test (stains, folds)
+
+
+def pattern_z(t: np.ndarray, t_decoy: np.ndarray, sigma: float) -> float:
+    """z statistic of E[t^2] > E[t_decoy^2] from paired per-bit values, both clipped at
+    CLIP_SIGMAS * sigma. Near 0 without a pattern, grows with mu^2 * sqrt(n) with one."""
+    if t.size < 8 or sigma <= 0:
+        return 0.0
+    c = CLIP_SIGMAS * sigma
+    d = np.clip(t, -c, c) ** 2 - np.clip(t_decoy, -c, c) ** 2
+    se = float(np.std(d, ddof=1)) / np.sqrt(d.size)
+    return float(np.mean(d)) / se if se > 0 else 0.0
 
 
 def estimate_mixture(t: np.ndarray, iters: int = 50) -> tuple[float, float]:
@@ -150,9 +168,9 @@ def decode_background(
     num_d = np.bincount(bits, weights=(decoy_sign * grid.pn * means)[sel] * weight, minlength=grid.n_bits)
     t_decoy = np.where(seen, num_d / np.maximum(den, 1e-12), 0.0)
     noise2 = float(np.median(t_decoy[seen] ** 2)) if seen.any() else 0.0
-    ratio = float(np.median(t[seen] ** 2)) / noise2 if noise2 > 0 else 0.0
     sigma = float(np.sqrt(noise2 / 0.4549)) if noise2 > 0 else 1.0  # median of chi2(1) is 0.4549
-    mu = fit_mu(t[seen], sigma) if ratio >= SIGNAL_RATIO else 0.0
+    z = pattern_z(t[seen], t_decoy[seen], sigma) if noise2 > 0 else 0.0
+    mu = fit_mu(t[seen], sigma) if z >= SIGNAL_Z else 0.0
     llr = 2.0 * mu * t / (sigma * sigma) if mu > 0 else np.zeros_like(t)
     pos, val = [], []
     for s in page_slots:
@@ -166,5 +184,5 @@ def decode_background(
         pos, val = [], []
     return SoftBits(CHANNEL_BACKGROUND, np.array(pos, dtype=np.int64), np.array(val),
                     {"page": grid.page, "bits_read": len(pos), "bits_total": len(page_slots),
-                     "mu": mu, "sigma": sigma, "snr": snr, "signal_ratio": round(ratio, 3),
+                     "mu": mu, "sigma": sigma, "snr": snr, "signal_z": round(z, 2),
                      "pattern_found": bool(mu > 0), "cells_used": int(sel.sum())})

@@ -53,13 +53,17 @@ def load_gray(data: bytes) -> np.ndarray:
     """Decode an image file (JPEG, PNG, ...) to a float32 grayscale array.
 
     Images whose header declares more than MAX_PIXELS are refused before decoding, so a small
-    file cannot make the decoder allocate gigabytes.
+    file cannot make the decoder allocate gigabytes: PNG and JPEG here, every other format by
+    OpenCV's own pixel limit (OPENCV_IO_MAX_IMAGE_PIXELS, set in tapak/__init__.py).
     """
     size = image_size(data)
     if size is not None and size[0] * size[1] > MAX_PIXELS:
         raise ValueError(f"gambar terlalu besar ({size[0]}x{size[1]} piksel); maksimum 60 megapiksel")
     arr = np.frombuffer(data, dtype=np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+    try:
+        img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+    except cv2.error as exc:  # OPENCV_IO_MAX_IMAGE_PIXELS (set in tapak/__init__.py) refused it
+        raise ValueError("gambar terlalu besar (maksimum 60 megapiksel) atau rusak") from exc
     if img is None:
         raise ValueError("berkas gambar tidak dapat dibaca")
     if img.shape[0] * img.shape[1] > MAX_PIXELS:

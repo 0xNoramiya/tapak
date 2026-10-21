@@ -11,7 +11,7 @@
       <p class="empty">Registri atau kunci publik belum ada. Terbitkan dokumen pertama untuk memulai rantai.</p>
     {% else %}
       <div class="figures">
-        <div class="figure"><span class="label">Status</span><b>{% if report.ok %}Utuh{% else %}Rusak{% endif %}</b><small>{% if report.ok %}hash dan tanda tangan sah{% else %}lihat masalah di bawah{% endif %}</small></div>
+        <div class="figure"><span class="label">Status</span><b>{% if report.ok %}Utuh{% else %}Rusak{% endif %}</b><small>{% if not report.ok %}lihat masalah di bawah{% elif report.unsigned %}rantai hash utuh, tetapi {{ report.unsigned|num }} dari {{ report.entries|num }} entri belum bertanda tangan sehingga belum terlindungi dari pemalsuan{% else %}hash dan tanda tangan sah{% endif %}</small></div>
         <div class="figure"><span class="label">Entri</span><b>{{ report.entries|num }}</b><small>dokumen dan salinan</small></div>
         <div class="figure"><span class="label">Belum ditandatangani</span><b>{{ report.unsigned|num }}</b><small>menunggu eselon atas</small></div>
       </div>

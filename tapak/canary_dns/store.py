@@ -283,9 +283,9 @@ def record_event(db_path: str | Path, qname: str, token: str, qtype: str, src_ip
 def _connect_ro(db_path: str | Path) -> sqlite3.Connection | None:
     """Read-only connection, or None when the file does not exist."""
     path = Path(db_path)
-    if not path.is_file():
+    if path.is_symlink() or not path.is_file():  # never follow a link planted in the shared folder
         return None
-    return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=10.0)
+    return sqlite3.connect(path.absolute().as_uri() + "?mode=ro&nofollow=1", uri=True, timeout=10.0)
 
 
 def _read_rows(db_path: str | Path, where: str = "", args: Sequence[object] = ()) -> list[tuple]:

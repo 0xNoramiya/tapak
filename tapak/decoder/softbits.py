@@ -35,7 +35,7 @@ class SoftBits:
         self.positions = np.asarray(self.positions, dtype=np.int64).reshape(-1)
         self.llr = np.clip(np.asarray(self.llr, dtype=np.float64).reshape(-1), -LLR_CLIP, LLR_CLIP)
         if self.positions.shape != self.llr.shape:
-            raise ValueError("positions and llr must have the same length")
+            raise ValueError("posisi dan llr harus sama panjang")
 
     @classmethod
     def empty(cls, channel: str, **meta: object) -> "SoftBits":
@@ -58,5 +58,5 @@ class SoftBits:
 def gaussian_llr(signed_measure: np.ndarray, amplitude: float, sigma: float) -> np.ndarray:
     """LLR for a measurement s = (2b-1) * amplitude + N(0, sigma^2): 2 * amplitude * s / sigma^2."""
     if sigma <= 0:
-        raise ValueError("sigma must be positive")
+        raise ValueError("sigma harus positif")
     return 2.0 * amplitude * np.asarray(signed_measure, dtype=np.float64) / (sigma * sigma)

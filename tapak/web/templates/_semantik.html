@@ -35,10 +35,10 @@
 
   {% if st.sets %}
   <div class="stack" style="margin-top: 20px">
-    <p class="small {% if pending.n %}muted{% endif %}" aria-live="polite">
-      {% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.
-      {% else %}Semua varian sudah ditinjau.{% endif %}
-    </p>
+    {% set status_text %}{% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.{% else %}Semua varian sudah ditinjau.{% endif %}{% endset %}
+    <p class="small {% if pending.n %}muted{% endif %}">{{ status_text }}</p>
+    {# The live region sits outside #semantik, so it survives the swap and is announced. #}
+    {% if oob %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}</p>{% endif %}
     {% for unit in st.units if unit.unit_id in st.sets %}
     {% set vs = st.sets[unit.unit_id] %}
     <div class="unit">

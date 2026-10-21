@@ -22,7 +22,7 @@ def client(tmp_path, monkeypatch):
     from tapak.web.app import app
 
     assert cli_main(["keys", "init"]) == 0  # a deployment starts with `tapak keys init`
-    return TestClient(app)
+    return TestClient(app, base_url="http://127.0.0.1")
 
 
 def _issue(client) -> str:

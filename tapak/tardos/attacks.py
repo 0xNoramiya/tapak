@@ -20,7 +20,7 @@ Strategy = Callable[[np.ndarray, np.random.Generator], tuple[np.ndarray, np.ndar
 def _split(xc: np.ndarray) -> tuple[np.ndarray, int, np.ndarray]:
     xc = np.asarray(xc, dtype=np.int64)
     if xc.ndim != 2:
-        raise ValueError("coalition codewords must be a 2-D array (c x m)")
+        raise ValueError("kata kode koalisi harus larik 2 dimensi (c x m)")
     ones = xc.sum(axis=0)
     c = xc.shape[0]
     detectable = (ones > 0) & (ones < c)
@@ -91,6 +91,17 @@ STRATEGIES: dict[str, Strategy] = {
     "erase": erase,
 }
 
+# Indonesian names for reports; the keys above stay the command-line identifiers.
+STRATEGY_LABELS: dict[str, str] = {
+    "majority": "mayoritas",
+    "minority": "minoritas",
+    "random-mix": "campur acak",
+    "coin": "lempar koin",
+    "all-1": "semua 1",
+    "all-0": "semua 0",
+    "erase": "hapus",
+}
+
 
 def add_channel_noise(
     y: np.ndarray,
@@ -101,7 +112,7 @@ def add_channel_noise(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Flip each observed bit with probability ``ber`` and erase it with probability ``erasure``."""
     if not (0.0 <= ber <= 0.5 and 0.0 <= erasure <= 1.0):
-        raise ValueError("ber must be in [0, 0.5] and erasure in [0, 1]")
+        raise ValueError("ber harus di antara 0 dan 0,5 dan erasure di antara 0 dan 1")
     y = np.asarray(y, dtype=np.uint8).copy()
     w = np.asarray(weights, dtype=np.float64).copy()
     if ber > 0:

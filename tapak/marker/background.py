@@ -49,9 +49,9 @@ class BackgroundSettings:
 
     def __post_init__(self) -> None:
         if self.base + self.amplitude > 255 or self.base - self.amplitude < 0:
-            raise ValueError("base +/- amplitude must stay within 0..255")
+            raise ValueError("dasar +/- amplitudo harus tetap di antara 0 dan 255")
         if self.cells_per_bit < 1 or self.cell_mm <= 0:
-            raise ValueError("invalid cell settings")
+            raise ValueError("pengaturan sel tidak sah")
 
 
 @dataclass(frozen=True)
@@ -152,7 +152,7 @@ def pattern_image(grid: PageGrid, level: np.ndarray) -> np.ndarray:
 def _png(img: np.ndarray) -> bytes:
     ok, buf = cv2.imencode(".png", img, [cv2.IMWRITE_PNG_COMPRESSION, 4])
     if not ok:
-        raise RuntimeError("PNG encoding failed")
+        raise RuntimeError("pengodean PNG gagal")
     return buf.tobytes()
 
 

@@ -127,9 +127,9 @@ class ReportInfo:
         case_number: nomor perkara.
         examiner_name: name of the examiner (Pemeriksa).
         examiner_rank: rank or position of the examiner.
-        evidence_name: file name of the evidence as received.
+        evidence_name: file name of the evidence as received (several names joined by ", ").
         evidence_sha256: hex SHA-256 of the evidence file.
-        evidence_type: one of EVIDENCE_TYPES.
+        evidence_type: one of EVIDENCE_TYPES, or several joined by ", " for mixed evidence.
         document_name: file name of the master document.
         doc_hash: hex SHA-256 of the master PDF.
         issued_at: ISO time of issuance.
@@ -149,6 +149,8 @@ class ReportInfo:
         examined_at: ISO time of the examination (default: now, local time zone).
         evidence_received_at: ISO time the evidence was received (optional).
         manifest_name: file name of the issuance manifest (for the re-run command).
+        evidence_names: every evidence file of a multi-file trace (for the re-run command);
+            empty means the single ``evidence_name``.
         institution: issuing unit printed above the title (optional).
         place: place of signing (optional).
     """
@@ -175,11 +177,12 @@ class ReportInfo:
     examined_at: str = field(default_factory=_now_iso)
     evidence_received_at: str = ""
     manifest_name: str = "manifest.json"
+    evidence_names: list[str] = field(default_factory=list)
     institution: str = ""
     place: str = ""
 
     def __post_init__(self) -> None:
-        if self.evidence_type not in EVIDENCE_TYPES:
+        if any(t not in EVIDENCE_TYPES for t in self.evidence_type.split(", ")):
             raise ValueError(
                 f"jenis barang bukti tidak dikenal: {self.evidence_type!r}; "
                 f"pilihan: {', '.join(EVIDENCE_TYPES)}"
@@ -229,7 +232,7 @@ def scientific_parts(value: float, digits: int = 1, log10_value: float | None = 
     """
     if log10_value is None:
         if not (value > 0 and math.isfinite(value)):
-            raise ValueError("value must be positive and finite")
+            raise ValueError("nilai harus positif dan terhingga")
         log10_value = math.log10(value)
     exponent = math.floor(log10_value)
     raw = 10.0 ** (log10_value - exponent)
@@ -305,6 +308,11 @@ def format_datetime(value: str, with_day: bool = False, with_time: bool = True) 
 
 
 # --- building ReportInfo from a trace ---------------------------------------------------
+
+
+def evidence_types_for(names: list[str]) -> str:
+    """Evidence type of several files: one type, or the distinct types joined by ", "."""
+    return ", ".join(dict.fromkeys(evidence_type_for(n) for n in names))
 
 
 def evidence_type_for(name: str) -> str:
@@ -472,11 +480,13 @@ def _seq_list_text(seqs: list[int], shown_seqs: set[int]) -> str:
 
 
 def _log10_false_accusation(c: CopyCandidate, n_copies: int) -> float:
-    """log10 of the bound (n - 1) * P(innocent >= S); exact even where the float underflows."""
-    if c.false_accusation_probability > 0:
-        return math.log10(c.false_accusation_probability)
+    """log10 of the bound (n - 1) * P(innocent >= S), exact even where the float underflows.
+
+    The float ``false_accusation_probability`` loses precision below about 1e-308 (subnormal
+    numbers), so it is never used here: a rounded-down bound would understate the risk.
+    """
     if math.isfinite(c.log10_bound):
-        return math.log10(max(n_copies - 1, 1)) + c.log10_bound
+        return min(0.0, math.log10(max(n_copies - 1, 1)) + c.log10_bound)
     return -math.inf
 
 
@@ -615,10 +625,11 @@ def _registry_text(info: ReportInfo) -> str:
 
 def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None) -> str:
     """The command that repeats this examination (file names optionally redacted)."""
-    names = [info.evidence_name, info.document_name, info.manifest_name]
+    evidence = list(info.evidence_names) or [info.evidence_name]
+    names = evidence + [info.document_name, info.manifest_name]
     if redact is not None:
         names = [redact(n) for n in names]
-    args = [names[0], "--master", names[1], "--manifest", names[2]]
+    args = names[:-2] + ["--master", names[-2], "--manifest", names[-1]]
     return "tapak trace " + " ".join(shlex.quote(a) for a in args)
 
 

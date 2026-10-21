@@ -75,6 +75,8 @@ COPY_FIELDS = frozenset({
     "semantic_variant_ids", "issued_at", "issuer", "canary_token", "file_sha256",
 })
 KIND_FIELDS: dict[str, frozenset[str]] = {KIND_DOCUMENT: DOCUMENT_FIELDS, KIND_COPY: COPY_FIELDS}
+# Fields a row may carry in addition (added later; older rows stay valid without them).
+KIND_OPTIONAL: dict[str, frozenset[str]] = {KIND_COPY: frozenset({"recipient_mac"})}
 
 _COLUMNS = "seq, kind, payload, prev_hash, created_at, entry_hash, signature, signer"
 
@@ -132,6 +134,23 @@ def compute_entry_hash(seq: int, kind: str, payload: object, prev_hash: str, cre
     """SHA-256 (hex) of the canonical JSON of the five hashed fields of an entry."""
     body = {"seq": seq, "kind": kind, "payload": payload, "prev_hash": prev_hash, "created_at": created_at}
     return hashlib.sha256(canonical_json(body)).hexdigest()
+
+
+def recipient_commitment(secret: bytes, doc_hash: str, copy_id: str, recipient_id: str, nama: str,
+                         jabatan: str = "", satuan: str = "") -> str:
+    """Keyed commitment to who received a copy: ``"hmac-sha256:"`` + hex.
+
+    It binds the recipient's name, position and unit to the signed copy row without putting
+    them in the registry. A plain hash could be reversed by hashing a personnel list; the key
+    (the code secret) prevents that. Whoever traces holds the secret and recomputes it from
+    the local manifest, so an edited name no longer matches the signed row.
+    """
+    import hmac
+
+    record = json.dumps({"doc_hash": doc_hash, "copy_id": copy_id, "recipient_id": recipient_id,
+                         "nama": nama, "jabatan": jabatan, "satuan": satuan},
+                        sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return "hmac-sha256:" + hmac.new(secret, record.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def canary_token_digest(token: str) -> str:
@@ -285,9 +304,10 @@ def _check_payload(kind: str, payload: object) -> None:
     if not isinstance(payload, dict):
         raise ValueError("isi entri harus berupa objek JSON (dict)")
     expected = KIND_FIELDS.get(kind)
-    if expected is not None and set(payload) != expected:
-        missing = sorted(expected - set(payload))
-        extra = sorted(set(payload) - expected)
+    present = set(payload) - KIND_OPTIONAL.get(kind, frozenset())
+    if expected is not None and present != expected:
+        missing = sorted(expected - present)
+        extra = sorted(present - expected)
         raise ValueError(f"isi entri '{kind}' tidak sesuai skema: kurang {missing}, berlebih {extra}")
 
 
@@ -554,11 +574,13 @@ class Registry:
         canary_token: str | None = None,
         signer: Signer | None = None,
         created_at: datetime | str | None = None,
+        recipient_mac: str | None = None,
     ) -> Entry:
-        """Record one issued copy. Only ``recipient_id`` identifies the recipient.
+        """Record one issued copy. Only ``recipient_id`` identifies the recipient in clear.
 
         ``canary_token`` is the clear token; the payload field ``canary_token`` stores its
         commitment :func:`canary_token_digest` (a value already in that form is kept).
+        ``recipient_mac`` is :func:`recipient_commitment` of the full recipient record.
         """
         if not recipient_id:
             raise ValueError("recipient_id wajib diisi")
@@ -573,6 +595,8 @@ class Registry:
             "semantic_variant_ids": list(semantic_variant_ids), "issued_at": issued_at,
             "issuer": issuer, "canary_token": canary_token, "file_sha256": file_sha256,
         }
+        if recipient_mac is not None:
+            payload["recipient_mac"] = recipient_mac
         return self.append(KIND_COPY, payload, signer=signer, created_at=created_at)
 
 
@@ -592,11 +616,13 @@ def registry_from_manifest(
     registry: Registry,
     signer: Signer | None = None,
     threshold_rule: str | None = None,
+    code_secret: bytes | None = None,
 ) -> list[Entry]:
     """Record the document and every copy of an issuance, atomically.
 
-    Only ``recipient_id`` is taken from each recipient; names, ranks and units stay in the
-    manifest. Refuses a manifest whose copies are already in the registry; the check runs
+    Only ``recipient_id`` is taken from each recipient in clear; names, ranks and units stay
+    in the manifest and, given ``code_secret``, are bound to the row by a keyed commitment
+    (:func:`recipient_commitment`). Refuses a manifest whose copies are already in the registry; the check runs
     inside the write transaction, so two processes cannot record the same copies twice.
     """
     if threshold_rule is None:
@@ -623,5 +649,8 @@ def registry_from_manifest(
                 seq=c.seq, code_digest=c.code_digest, channels_used=c.channels_used,
                 semantic_variant_ids=c.semantic_variant_ids, issued_at=manifest.issued_at,
                 issuer=manifest.issuer, canary_token=getattr(c, "canary_token", None),
-                file_sha256=c.file_sha256, signer=signer))
+                file_sha256=c.file_sha256, signer=signer,
+                recipient_mac=None if code_secret is None else recipient_commitment(
+                    code_secret, manifest.doc_hash, c.copy_id, c.recipient.recipient_id, c.recipient.nama,
+                    c.recipient.jabatan, c.recipient.satuan)))
     return entries

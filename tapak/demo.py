@@ -62,9 +62,8 @@ def _run(workdir: Path, keep: bool) -> int:
 
     t0 = time.perf_counter()
     marker = workdir / ".tapak-demo"
-    demo_names = {".tapak-demo", "data", "keys", "foto_bocor.jpg", "registri_diubah.db",
-                  "berita_acara_salinan13.pdf"}
-    if workdir.exists() and not marker.exists() and any(p.name not in demo_names for p in workdir.iterdir()):
+    if workdir.exists() and not marker.exists() and any(workdir.iterdir()):
+        # Never clear a folder the demo did not create: it may hold a real registry and keys.
         raise FileExistsError(f"{workdir} bukan folder demo TAPAK dan tidak kosong; pilih folder lain")
     if workdir.exists() and not keep:
         shutil.rmtree(workdir)
@@ -83,7 +82,8 @@ def _run(workdir: Path, keep: bool) -> int:
     from tapak.marker.render import render_pages
     from tapak.marker.semantic import STATUS_APPROVED, find_candidate_units, generate_variant_set
     from tapak.photos import PhotoParams, photo_jpeg
-    from tapak.service import ensure_keys, issue_document, trace_evidence, write_report
+    from tapak.service import (IssueOutcome, ensure_keys, issue_document, list_workspaces,
+                               load_workspace, trace_evidence, write_report)
 
     settings = load_settings()
     samples = samples_dir()
@@ -106,9 +106,15 @@ def _run(workdir: Path, keep: bool) -> int:
         for i in vs.pending():
             vs.set_status(i, STATUS_APPROVED)
     _ok(f"kanal semantik: {len(units)} kalimat aman, varian disetujui oleh peninjau (disimulasikan)")
-    out = issue_document(settings, sample, read_recipients(recipients_csv),
-                         IssueSettings(canary_domain=domain), issuer="Kasi Ops Brigif 9905 (fiktif)",
-                         keys=keys, semantic=SemanticSelection(units, sets))
+    previous = [d for d in list_workspaces(settings) if d.doc_hash == master.doc_hash]
+    if keep and previous:  # --keep: trace the copies issued by the previous run again
+        manifest, _, folder = load_workspace(settings, master.doc_hash)
+        out = IssueOutcome(manifest, folder, len(manifest.copies) + 1, keys.signer is not None)
+        _ok("memakai penerbitan dari demo sebelumnya (--keep)")
+    else:
+        out = issue_document(settings, sample, read_recipients(recipients_csv),
+                             IssueSettings(canary_domain=domain), issuer="Kasi Ops Brigif 9905 (fiktif)",
+                             keys=keys, semantic=SemanticSelection(units, sets))
     m = out.manifest
     p = m.tardos_params
     _ok(f"{len(m.copies)} salinan dalam {m.elapsed_s:.1f} s; kode Tardos m={p.length} bit, c={p.c}, eps={p.eps:g}")

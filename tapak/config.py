@@ -58,9 +58,16 @@ class Settings:
         return self.canary_dir / "kanari.db"
 
     @property
+    def canary_allow_dir(self) -> Path:
+        """Folder the listener may only read (mounted read-only): the token allowlist. It is
+        separate from ``canary_dir`` so that nothing the listener can write is ever followed
+        or read by the app when it publishes the allowlist."""
+        return self.data_dir / "kanari-izin"
+
+    @property
     def canary_allowlist(self) -> Path:
         """SHA-256 digests of issued canary tokens; the listener logs only these."""
-        return self.canary_dir / "token_digests.txt"
+        return self.canary_allow_dir / "token_digests.txt"
 
     @property
     def workspaces(self) -> Path:

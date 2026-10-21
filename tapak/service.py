@@ -115,6 +115,7 @@ class IssueOutcome:
     folder: Path
     registry_entries: int
     signed: bool
+    warnings: list[str] = field(default_factory=list)
 
 
 def issue_document(
@@ -148,15 +149,12 @@ def issue_document(
             if hasattr(reg, "pending") and reg.pending():
                 raise ValueError("registri memiliki entri yang belum ditandatangani; pemegang kunci perlu "
                                  "menjalankan tapak registry sign lebih dulu")
-    folder.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        folder.mkdir()  # atomic claim: a concurrent issuance of the same document fails here
-    except FileExistsError:
-        raise FileExistsError(f"dokumen ini sedang atau sudah diterbitkan (folder {folder})") from None
+    lock = _claim_workspace(folder)
     doc_name = doc_name or Path(doc_path).name
     is_docx = Path(doc_name).suffix.lower() == ".docx"
     master_path = folder / ("induk.docx" if is_docx else "induk.pdf")
     master_path.write_bytes(data)
+    committed = False
     try:
         if is_docx:
             manifest = _issue_docx(master_path, recipients, folder / "salinan", keys.code_secret,
@@ -164,41 +162,110 @@ def issue_document(
         else:
             manifest = issue(master_path, recipients, folder / "salinan", keys.code_secret,
                              issue_settings, issuer=issuer, semantic=semantic, file_stem=Path(doc_name).stem)
-    except Exception:
-        shutil.rmtree(folder, ignore_errors=True)
-        raise
-    manifest.doc_name = doc_name
-    entries = 0
-    try:
-        if record:  # registry first: a failure leaves no half-issued workspace behind
+        manifest.doc_name = doc_name
+        entries = 0
+        if record:  # registry first: until it commits, any failure removes the whole workspace
             with Registry.open(settings.registry_path) as reg:
-                entries = len(registry_from_manifest(manifest, reg, keys.signer))  # type: ignore[arg-type]
-        (folder / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
-        if not is_docx:  # a copy next to the files for tools that read salinan/manifest.json
-            (folder / "salinan" / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
+                entries = len(registry_from_manifest(manifest, reg, keys.signer,  # type: ignore[arg-type]
+                                                     code_secret=keys.code_secret))
+        committed = True
+        (folder / ".tercatat").touch()  # recorded in the registry: never reclaimed as stale
         if semantic is not None and manifest.semantic_digest:
-            save_json(folder / "varian.json", semantic.to_dict())
-    except Exception:
-        shutil.rmtree(folder, ignore_errors=True)
-        raise
-    publish_canary_allowlist(settings, manifest)
-    return IssueOutcome(manifest, folder, entries, keys.signer is not None)
+            _write_atomic(folder / "varian.json", json.dumps(semantic.to_dict(), indent=2, ensure_ascii=False))
+        if not is_docx:  # a copy next to the files for tools that read salinan/manifest.json
+            _write_atomic(folder / "salinan" / "manifest.json", manifest.to_json())
+        _write_atomic(folder / "manifest.json", manifest.to_json())  # last: it marks the issuance complete
+    except BaseException as exc:  # also Ctrl-C: never leave a half-issued workspace claimed
+        if not committed:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+        raise RuntimeError(f"salinan sudah tercatat di registri tetapi catatan lokal gagal ditulis ({exc}); "
+                           f"folder {folder} dipertahankan, jangan terbitkan ulang") from exc
+    finally:
+        lock.close()
+    outcome = IssueOutcome(manifest, folder, entries, keys.signer is not None)
+    if any(c.canary_token for c in manifest.copies):
+        try:
+            publish_canary_allowlist(settings)
+        except OSError as exc:  # the issuance is committed; the allowlist can be rebuilt later
+            outcome.warnings.append(f"daftar izin kanari tidak dapat ditulis ({exc.strerror or exc}); kueri untuk "
+                                    "salinan ini akan diabaikan pendengar sampai daftar ditulis ulang dengan "
+                                    "tapak kanari-izin")
+    return outcome
 
 
-def publish_canary_allowlist(settings: Settings, manifest: IssueManifest) -> None:
-    """Add this document's canary token digests to the listener's allowlist (digests only)."""
+def _write_atomic(path: Path, text: str) -> None:
+    """Write a text file via a temporary name and rename, so it is never half written."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def _claim_workspace(folder: Path):
+    """Create the document folder and hold an OS lock on it for the whole issuance.
+
+    A folder without manifest.json whose lock is free is a stale claim (an issuance that was
+    killed): it is removed and claimed again, unless its copies were already recorded in the
+    registry (marker ``.tercatat``). A folder whose lock is held is being issued now.
+    """
+    import fcntl
+
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(2):
+        try:
+            folder.mkdir()
+        except FileExistsError:
+            if (folder / "manifest.json").exists():
+                raise FileExistsError(f"dokumen ini sudah diterbitkan (folder {folder})") from None
+            if (folder / ".tercatat").exists():
+                raise FileExistsError(f"penerbitan dokumen ini sudah tercatat di registri tetapi catatan lokalnya tidak "
+                                      f"lengkap; periksa folder {folder} sebelum menerbitkan ulang") from None
+            probe = open(folder / ".terbit.lock", "a+")
+            try:
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                probe.close()
+                raise FileExistsError(f"dokumen ini sedang diterbitkan (folder {folder})") from None
+            probe.close()
+            shutil.rmtree(folder, ignore_errors=True)  # stale claim from an interrupted issuance
+            continue
+        lock = open(folder / ".terbit.lock", "a+")
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return lock
+    raise FileExistsError(f"folder dokumen {folder} tidak dapat diklaim")
+
+
+def publish_canary_allowlist(settings: Settings) -> int:
+    """Rewrite the listener's allowlist from the canary tokens of every issued document.
+
+    Only SHA-256 digests are written. The list is rebuilt from the manifests (never read back
+    from the file), written to a fresh random temporary name and renamed into place, under a
+    lock, so concurrent issuances cannot lose digests and a planted link is replaced, never
+    followed. Returns the number of digests.
+    """
+    import fcntl
+    import os
+    import tempfile
+
     from tapak.registry.chain import canary_token_digest
 
-    tokens = [c.canary_token for c in manifest.copies if c.canary_token]
-    if not tokens:
-        return
-    settings.canary_dir.mkdir(parents=True, exist_ok=True)
-    path = settings.canary_allowlist
-    known = set(path.read_text(encoding="ascii").split()) if path.exists() else set()
-    known.update(canary_token_digest(t) for t in tokens)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text("\n".join(sorted(known)) + "\n", encoding="ascii")
-    tmp.replace(path)
+    digests = sorted({canary_token_digest(c.canary_token) for m in list_workspaces(settings)
+                      for c in m.copies if c.canary_token})
+    folder = settings.canary_allow_dir
+    folder.mkdir(parents=True, exist_ok=True)
+    settings.workspaces.mkdir(parents=True, exist_ok=True)
+    with open(settings.workspaces / ".kanari-izin.lock", "a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        fd, tmp = tempfile.mkstemp(dir=folder, prefix=".token_digests.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="ascii") as fh:
+                fh.write("".join(d + "\n" for d in digests))
+            os.chmod(tmp, 0o644)  # the listener runs as another process and only reads it
+            os.replace(tmp, settings.canary_allowlist)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+    return len(digests)
 
 
 def _issue_docx(docx_path: Path, recipients: list[Recipient], out_dir: Path, secret: bytes,
@@ -271,9 +338,11 @@ class RegistryCheck:
     mismatched: list[int] = field(default_factory=list)  # copy numbers whose record differs
 
 
-def check_registry(settings: Settings, manifest: IssueManifest) -> RegistryCheck:
-    """Verify the chain with the public key and confirm every copy's code commitment."""
-    from tapak.registry.chain import Registry
+def check_registry(settings: Settings, manifest: IssueManifest, secret: bytes | None = None) -> RegistryCheck:
+    """Verify the chain with the public key and confirm every copy's record: recipient id,
+    number, code and file commitments and, given the code secret, the keyed commitment to the
+    recipient's name, position and unit."""
+    from tapak.registry.chain import Registry, recipient_commitment
     from tapak.registry.verify import verify_registry
 
     if not settings.registry_path.exists():
@@ -294,6 +363,7 @@ def check_registry(settings: Settings, manifest: IssueManifest) -> RegistryCheck
                            if e.payload.get("doc_hash") == manifest.doc_hash}
     recorded = {k: e.payload for k, e in entries_by_copy.items()}
     mismatched: list[int] = []
+    uncommitted = 0
     for c in manifest.copies:
         rec = recorded.get(c.copy_id)
         # Every field that ties a copy to a person must match the signed record, so an edited
@@ -301,6 +371,12 @@ def check_registry(settings: Settings, manifest: IssueManifest) -> RegistryCheck
         if rec is None or (rec.get("recipient_id"), rec.get("seq"), rec.get("code_digest"), rec.get("file_sha256")) != (
                 c.recipient.recipient_id, c.seq, c.code_digest, c.file_sha256):
             mismatched.append(c.seq)
+        elif "recipient_mac" not in rec:
+            uncommitted += 1
+        elif secret is not None and rec["recipient_mac"] != recipient_commitment(
+                secret, manifest.doc_hash, c.copy_id, c.recipient.recipient_id, c.recipient.nama,
+                c.recipient.jabatan, c.recipient.satuan):
+            mismatched.append(c.seq)  # the name, position or unit was edited after issuance
     confirmed = len(manifest.copies) - len(mismatched)
     copies_unsigned = sum(1 for e in entries_by_copy.values() if not e.signed)
     if recorded and mismatched:
@@ -309,6 +385,9 @@ def check_registry(settings: Settings, manifest: IssueManifest) -> RegistryCheck
     if copies_unsigned:
         problems.append(f"{copies_unsigned} entri salinan dokumen ini belum bertanda tangan; rantai tanpa "
                         "tanda tangan tidak terlindungi dari pemalsuan oleh pemegang akses tulis")
+    if uncommitted:
+        problems.append(f"{uncommitted} entri salinan tidak memuat komitmen nama penerima (diterbitkan versi lama); "
+                        "nama, jabatan dan satuan hanya berasal dari catatan lokal")
     canary_ok = None
     try:
         from tapak.canary_dns.store import check_events_chain
@@ -355,6 +434,7 @@ class TraceOutcome:
     evidence_sha256: str
     registry: RegistryCheck
     canary: list[dict[str, object]]
+    evidence_names: list[str] = field(default_factory=list)
 
 
 def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidence: bytes,
@@ -368,13 +448,17 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     manifest, master, folder = load_workspace(settings, doc_key)
     items = [(evidence_name, evidence)] + list(more or [])
     if (folder / "induk.docx").exists():
-        attribution, obs, ctx = _trace_docx(master, manifest, keys.code_secret, evidence_name, evidence)
+        attribution, obs, ctx = _trace_docx(master, manifest, keys.code_secret, items)
     else:
         ctx = load_context(master, manifest, keys.code_secret, folder=folder)
         attribution, obs = trace_files(items, ctx)
-    reg = check_registry(settings, manifest)
-    if reg.chain_ok is False:
-        attribution.notes.append("PERINGATAN: verifikasi rantai registri gagal; lihat bagian registri")
+    reg = check_registry(settings, manifest, keys.code_secret)
+    if reg.recorded and reg.chain_ok is False:
+        from tapak.decoder.trace import TraceError
+
+        raise TraceError("verifikasi rantai registri gagal (" + "; ".join(reg.problems[:3]) + "); identitas "
+                         "penerima tidak dapat dikonfirmasi sehingga tidak ada nama yang disebut. Periksa registri "
+                         "dengan tapak verify")
     if reg.recorded and reg.mismatched:
         from tapak.decoder.trace import TraceError
 
@@ -388,12 +472,14 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
         attribution.notes.append(f"{reg.copies_unsigned} entri registri salinan belum bertanda tangan")
     names = ", ".join(n for n, _ in items)
     digest = sha256_hex(evidence) if len(items) == 1 else ", ".join(sha256_hex(d) for _, d in items)
-    return TraceOutcome(attribution, obs, ctx, names, digest, reg, canary_alerts(settings, manifest))
+    return TraceOutcome(attribution, obs, ctx, names, digest, reg, canary_alerts(settings, manifest),
+                        [n for n, _ in items])
 
 
-def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes, evidence_name: str,
-                evidence: bytes) -> tuple[object, list, object]:
-    """Trace text or a DOCX file against a DOCX master (text-layer channel)."""
+def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
+                items: list[tuple[str, bytes]]) -> tuple[object, list, object]:
+    """Trace text, DOCX or PDF evidence against a DOCX master (text-layer channel); several
+    files of the same leak are fused."""
     from types import SimpleNamespace
 
     import numpy as np
@@ -407,7 +493,10 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes, evi
     from tapak.marker.plan import plan_key
     from tapak.tardos.code import code_digest, derive_bias, derive_codeword
 
-    master = load_docx_master(master_bytes)
+    try:
+        master = load_docx_master(master_bytes)
+    except Exception as exc:  # noqa: BLE001 - zip/xml errors from a damaged file
+        raise TraceError("dokumen induk DOCX tidak dapat dibaca (rusak atau bukan DOCX)") from exc
     if master.doc_hash != manifest.doc_hash:
         raise TraceError("dokumen induk tidak cocok dengan catatan penerbitan (hash berbeda)")
     params = manifest.tardos_params
@@ -421,17 +510,29 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes, evi
         rows.append(x)
         refs.append(CopyRef(c.seq, c.copy_id, c.recipient.recipient_id, c.recipient.nama,
                             c.recipient.jabatan, c.recipient.satuan))
-    suffix = Path(evidence_name).suffix.lower()
-    if suffix == ".docx":
-        text = extract_docx_text(evidence)
-    elif suffix == ".pdf":
-        text = extract_pdf_text(evidence)
-    else:
-        text = evidence.decode("utf-8", errors="replace")
-    obs = decode_docx(text, master, plan)
+    from tapak.decoder.trace import decode_text_evidence
+
+    obs, notes = [], []
+    for name, data in items:
+        suffix = Path(name).suffix.lower()
+        try:
+            if suffix == ".docx":
+                text = extract_docx_text(data)
+            elif suffix == ".pdf":
+                text = extract_pdf_text(data)
+            else:
+                text = decode_text_evidence(data)
+        except Exception as exc:  # noqa: BLE001 - damaged evidence file
+            raise TraceError(f"{name}: berkas bukti tidak dapat dibaca") from exc
+        if "\ufffd" in text:
+            notes.append(f"{name}: sebagian karakter tidak dapat diterjemahkan (pengodean teks tidak dikenal)")
+        obs += decode_docx(text, master, plan)
     codewords = np.vstack(rows)
     result = attribute(fuse(obs, params.length), fuse_by_physical_channel(obs, params.length), p,
                        codewords, refs, params)
+    if len(items) > 1:
+        notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
+    result.notes = notes + result.notes
     ctx = SimpleNamespace(master=SimpleNamespace(doc_hash=master.doc_hash, pdf_bytes=b""), manifest=manifest,
                           params=params, plan=plan, p=p, codewords=codewords, refs=refs)
     return result, obs, ctx
@@ -440,17 +541,19 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes, evi
 def write_report(outcome: TraceOutcome, out_path: Path | None = None, case_number: str = "",
                  examiner_name: str = "", examiner_rank: str = "") -> bytes:
     """Berita acara PDF for a trace outcome."""
-    from tapak.decoder.report import build_report_info, render_report
+    from tapak.decoder.report import build_report_info, evidence_types_for, render_report
 
     reg = outcome.registry
+    names = outcome.evidence_names or [outcome.evidence_name]
     info = build_report_info(
-        outcome.ctx, outcome.evidence_name, b"", outcome.observations,
+        outcome.ctx, outcome.evidence_name, b"", outcome.observations, evidence_type=evidence_types_for(names),
         case_number=case_number or f"TAPAK-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}",
         examiner_name=examiner_name or "(nama pemeriksa)", examiner_rank=examiner_rank or "(pangkat/NRP)",
         registry_ok=reg.chain_ok, registry_entries=reg.entries, canary_events=outcome.canary,
     )
     info.registry_unsigned = reg.copies_unsigned
     info.evidence_sha256 = outcome.evidence_sha256
+    info.evidence_names = names if len(names) > 1 else []
     return render_report(outcome.attribution, info, out_path)
 
 

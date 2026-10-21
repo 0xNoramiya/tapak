@@ -8,22 +8,22 @@
         hx-disabled-elt="find button[type=submit]">
     <div class="field">
       <label for="dokumen">Dokumen yang diduga bocor</label>
-      <select id="dokumen" name="dokumen" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
+      <select id="dokumen" name="dokumen" aria-describedby="dokumen-err" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
         {% for m in docs %}
         <option value="{{ m.doc_hash[:16] }}" {% if selected == m.doc_hash[:16] %}selected{% endif %}>{{ m.doc_name }} · {{ m.issued_at|waktu }} · {{ m.copies|length }} salinan</option>
         {% endfor %}
       </select>
-      {% if errors.dokumen %}<span class="field-error">{{ errors.dokumen }}</span>{% endif %}
+      <span id="dokumen-err">{% if errors.dokumen %}<span class="field-error" role="alert">{{ errors.dokumen }}</span>{% endif %}</span>
     </div>
     <div class="field">
       <label for="bukti">Berkas bukti</label>
-      <input id="bukti" name="bukti" type="file" multiple accept="image/*,.pdf,.docx,.txt" aria-describedby="hint-bukti{% if errors.bukti %} bukti-err{% endif %}">
+      <input id="bukti" name="bukti" type="file" multiple accept="image/*,.pdf,.docx,.txt" aria-describedby="hint-bukti bukti-err" {% if errors.bukti %}aria-invalid="true"{% endif %}>
       <span class="hint" id="hint-bukti">Foto (JPEG/PNG), tangkapan layar, PDF, DOCX, atau berkas teks. Beberapa berkas dari kebocoran yang sama (misalnya foto tiap halaman) boleh dipilih sekaligus; buktinya digabung.</span>
     </div>
     <div class="field">
       <label for="teks">Atau tempel teks yang bocor</label>
       <textarea id="teks" name="teks" spellcheck="false" placeholder="Tempel teks dari pesan atau dokumen di sini"></textarea>
-      {% if errors.bukti %}<span class="field-error" id="bukti-err">{{ errors.bukti }}</span>{% endif %}
+      <span id="bukti-err">{% if errors.bukti %}<span class="field-error" role="alert">{{ errors.bukti }}</span>{% endif %}</span>
     </div>
     <div class="row">
       <button class="btn btn-primary" type="submit">

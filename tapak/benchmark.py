@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["TAPAK_KEY_DIR"] = args.keys
 
     from tapak.config import load_settings
-    from tapak.decoder.accuse import VERDICT_IDENTIFIED
+    from tapak.decoder.accuse import VERDICT_IDENTIFIED, format_upper_bound
     from tapak.service import list_workspaces, trace_evidence
 
     settings = load_settings()
@@ -57,9 +57,10 @@ def main(argv: list[str] | None = None) -> int:
         best = a.accused[0] if a.accused else None
         rows.append({"file": e["file"], "kind": e["kind"], "angle": e.get("angle"), "expected": expected,
                      "accused": accused, "outcome": outcome,
-                     "fa": best.false_accusation_probability if best else None})
+                     "log10_fa": best.log10_false_accusation if best else None})
         print(f"{e['file']:<32} {outcome:<18} dituduh={accused} "
-              + (f"peluang tuduhan salah<={best.false_accusation_probability:.1e}" if best else ""), flush=True)
+              + (f"peluang tuduhan salah<={format_upper_bound(best.log10_false_accusation)}" if best else ""),
+              flush=True)
     summary: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for r in rows:
         key = f"{r['kind']} {int(r['angle'] or 0):>2} derajat" if r['kind'] == 'photo' else r['kind']
