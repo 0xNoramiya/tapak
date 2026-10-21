@@ -48,6 +48,10 @@ form:not(.htmx-request) .form-actions .idle-label { display: inline-flex; align-
 }
 .plan-main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .plan .stats { grid-template-columns: repeat(auto-fit, minmax(min(136px, 100%), 1fr)); }
+/* retype-surviving bits: a strip under the four tiles (updated by the review steps) */
+.plan .stat-wide { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.plan .stat-wide .stat-value { font-size: var(--fs-title); }
+.plan .stat-wide .stat-note { flex: 1 1 16rem; }
 
 .channels th[scope="row"] {
   padding: 12px 12px 12px 0;
@@ -152,6 +156,146 @@ details.dropped > summary { font-size: var(--fs-sm); }
   .unit-review-head > .btn { width: 100%; }
 }
 
+/* ---------------------------------------------------------------- step 3b: word choice */
+
+.lex-draft { margin-bottom: 20px; }
+.lex-optin { gap: 16px; }
+
+/* the capacity aside comes first in the markup (it leads on a phone) and sits on the right,
+   in view while the issuer works down the list, once there is room for two columns */
+.lex-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+@container main (min-width: 880px) {
+  .lex-body { grid-template-columns: minmax(0, 1fr) 296px; gap: 32px; align-items: start; }
+  .lex-aside { grid-column: 2; grid-row: 1; }
+  .lex-main { grid-column: 1; grid-row: 1; }
+  /* sticky only where the whole aside (about 760 px) fits below the banner */
+  @media (min-height: 860px) {
+    .lex-aside { position: sticky; top: calc(var(--banner-h) + 16px); }
+  }
+}
+.lex-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.lex-main > .review-head h3 { font-size: var(--fs-lead); }
+
+.lex-rule { border: 1px solid var(--border-strong); border-radius: var(--r-2); background: var(--surface); }
+.lex-rule-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  border-radius: calc(var(--r-2) - 1px) calc(var(--r-2) - 1px) 0 0;
+  background: var(--surface-sunken);
+}
+.lex-rule-info { display: flex; flex-direction: column; gap: 2px; flex: 1 1 16rem; min-width: 0; }
+.lex-rule-forms { font-size: var(--fs-body); font-weight: 600; }
+.lex-rule-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.lex-points { list-style: none; margin: 0; padding: 0; }
+/* the sentence takes the full row width; status, forms and the decision sit under it */
+.lex-point { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-top: 1px solid var(--border); }
+.lex-point:first-child { border-top: 0; }
+.lex-context { max-width: 72ch; }
+.lex-point.is-ditolak .lex-context { color: var(--ink-muted); }
+.lex-point.is-ditolak mark.diff { background: var(--hover); text-decoration-color: var(--border-strong); }
+.lex-point-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.lex-point-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lex-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: var(--fs-sm); color: var(--ink-muted); }
+.lex-forms { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--ink-muted); }
+.lex-forms-label { margin-right: 4px; font: 500 var(--fs-label)/1.5 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+/* the forms a copy may show; the master's own form carries the same tint as the phrase above */
+.lex-form { padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--ink); line-height: 1.6; }
+.lex-form.is-master { border-color: var(--accent-line); background: var(--accent-soft); }
+.lex-repeated { font-size: var(--fs-sm); color: var(--warn); max-width: 72ch; }
+
+.lex-aside { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.lex-counter { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: var(--r-2); background: var(--surface-sunken); }
+.lex-total-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.lex-total-row .stamp { white-space: normal; }
+.lex-total { color: var(--ink-muted); font-size: var(--fs-ui); }
+.lex-total-n { margin-right: 2px; color: var(--ink); font-size: var(--fs-stat); font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.lex-sum { margin-top: -6px; font-size: var(--fs-ui); font-weight: 500; font-variant-numeric: tabular-nums; }
+.lex-counter .meter { margin: 4px 0 2px; }
+.lex-verdict { color: var(--ink); }
+.lex-caveat { padding-top: 10px; border-top: 1px solid var(--border); }
+.lex-refused-box { display: flex; flex-direction: column; gap: 8px; }
+.lex-refused { list-style: none; margin: 0; padding: 0; }
+.lex-refused li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-ui);
+}
+.lex-refused b { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* two sample copies side by side: page, copy 1, copy 2 */
+.lex-sample { display: flex; flex-direction: column; gap: 12px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.lex-sample h3 { font-size: var(--fs-lead); }
+.lex-sample-table { border: 1px solid var(--border-strong); border-radius: var(--r-2); background: var(--surface); }
+.lex-sample-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 24px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.lex-sample-row:first-child { border-top: 0; }
+.lex-sample-cols {
+  border-radius: calc(var(--r-2) - 1px) calc(var(--r-2) - 1px) 0 0;
+  background: var(--surface-sunken);
+  padding-block: 8px;
+  font: 500 var(--fs-label)/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.lex-sample-page { padding-top: 2px; font: 400 var(--fs-sm)/1.5 var(--font-mono); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.lex-sample-line { min-width: 0; }
+.lex-sample-row.is-same .lex-sample-line { color: var(--ink-muted); }
+/* a point whose form is the same in both samples: located, not highlighted */
+mark.lex-same {
+  background: none;
+  color: inherit;
+  text-decoration: underline dotted var(--ink-faint) 1.5px;
+  text-underline-offset: 4px;
+}
+.lex-sample-tag { display: none; }
+@container main (max-width: 699px) {
+  .lex-sample-row { grid-template-columns: 16px minmax(0, 1fr); column-gap: 10px; padding: 12px 14px; }
+  .lex-sample-row > .lex-sample-page { grid-row: span 2; }
+  /* the column heads stay for screen readers; sighted readers get the 1 and 2 tags instead */
+  .lex-sample-cols { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .lex-sample-cols + .lex-sample-row { border-top: 0; }
+  .lex-sample-tag {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-stamp);
+    font: 500 11px/1 var(--font-mono);
+    color: var(--ink-muted);
+    vertical-align: 1px;
+  }
+}
+
+.lex-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+@container main (max-width: 619px) {
+  .lex-point { padding: 14px; }
+  .lex-point .segmented { display: flex; width: 100%; }
+  .lex-point .segmented > button { flex: 1; justify-content: center; }
+  .lex-rule-head { padding: 14px; }
+  .lex-rule-actions { width: 100%; }
+  .lex-rule-actions > .btn { flex: 1 1 auto; }
+  .lex-counter { padding: 16px; }
+}
+
 /* ---------------------------------------------------------------- step 4: publish */
 
 .publish-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; }
@@ -169,6 +313,8 @@ details.dropped > summary { font-size: var(--fs-sm); }
 .issued-registry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 4px; }
 .issued h2 { font-size: var(--fs-h1); line-height: 1.15; letter-spacing: -0.015em; }
 .issued-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.issued-retype { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding: 12px 14px; border-radius: var(--r-2); background: var(--surface-sunken); }
+.issued-retype .label { margin-right: 6px; }
 .issued > .notice { margin-top: 20px; }
 @container main (max-width: 559px) {
   .issued-body { flex-direction: column; gap: 18px; }

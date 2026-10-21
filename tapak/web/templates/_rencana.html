@@ -1,7 +1,8 @@
 {% from "_ikon.html" import ikon %}
 {% set rv = namespace(pending=0) %}
 {% for vs in st.sets.values() %}{% set rv.pending = rv.pending + vs.pending()|length %}{% endfor %}
-{% set cur = 3 if st.units and (not st.sets or rv.pending) else 4 %}
+{% set lex_pending = st.lexical.pending()|length if st.lexical is not none else 0 %}
+{% set cur = 3 if (st.units and (not st.sets or rv.pending)) or lex_pending else 4 %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
   {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
   <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
@@ -25,6 +26,7 @@
         <div class="stat"><span class="stat-label">Panjang kode</span><span class="stat-value">{{ st.plan.params.length|num }}</span><span class="stat-note">bit Tardos per penerima</span></div>
         <div class="stat"><span class="stat-label">Tahan kolusi</span><span class="stat-value">{{ st.plan.params.c }}</span><span class="stat-note">penerima bersekongkol</span></div>
         <div class="stat"><span class="stat-label">Ambang penuh</span><span class="stat-value">{{ st.plan.threshold|num(0) }}</span><span class="stat-note">skor minimum untuk menuduh</span></div>
+        {% include "_tahan_ketik.html" %}
       </div>
       <div class="table-wrap">
         <table class="channels">

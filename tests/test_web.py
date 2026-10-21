@@ -388,3 +388,202 @@ def test_visible_marks_caveat_is_split_from_the_notes():
     assert out.startswith("[P]salinan #3: ") and out.endswith("[C]catatan biasa") and out.count("[P]") == 1
     src = (ROOT / "tapak" / "web" / "templates" / "_hasil_lacak.html").read_text(encoding="utf-8")
     assert src.index("peringatan_terlihat(a.notes)") < src.index('class="verdict-actions"')
+
+
+# --- word choice (opt-in lexical channel) ----------------------------------------------------
+
+
+def _analyse(client) -> tuple[str, str]:
+    files = {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
+             "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"})
+    assert r.status_code == 200
+    return re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1), r.text
+
+
+def _status(html: str) -> str:
+    """Text of the live region update in a review response."""
+    return re.search(r'<p id="semantik-status" hx-swap-oob="innerHTML">([^<]*)</p>', html).group(1)
+
+
+def _publish_button(html: str) -> str:
+    return re.search(r'<button class="btn btn-primary" type="submit"[^>]*>', html).group(0)
+
+
+def test_word_choice_is_opt_in_and_scan_lists_points(client):
+    from tapak.web.app import _STAGING
+
+    sid, page = _analyse(client)
+    # Off by default: an opt-in form with the plain policy sentence and the draft banner, no points.
+    assert f'hx-post="/terbitkan/{sid}/leksikal"' in page and "Pindai titik pilihan kata" in page
+    assert "DRAF, belum disahkan peninjau bahasa Tata Naskah Dinas" in page
+    assert "dokumen induk tetap menjadi catatan resmi" in page and "berbeda kata" in page
+    assert 'id="lx-l0-ok"' not in page and _STAGING[sid].lexical is None
+    assert 'id="stat-ketik"' in page  # the plan tile for retype-surviving bits
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    assert r.status_code == 200
+    sel = _STAGING[sid].lexical
+    assert sel is not None and sel.points and not sel.carrying()
+    rows = {re.search(r'id="lx-(l\d+)-ok"', li).group(1): li
+            for li in re.findall(r'<li class="lex-point.*?</li>', r.text, re.S)}
+    assert sorted(rows) == sorted(p.point_id for p in sel.points)
+    for p in sel.points:
+        row = rows[p.point_id]
+        assert re.search(rf'id="lx-{p.point_id}-ok"\s+aria-pressed="false"', row)
+        assert f'<mark class="diff">{p.forms[0]}</mark>' in row  # the phrase, highlighted in its sentence
+        assert re.findall(r'<span class="lex-form(?: is-master)?">([^<]*)', row) == list(p.forms)  # every form
+    assert 'id="lx-tinjau-h" tabindex="-1" data-autofocus' in r.text  # focus moves to the list
+    assert "0 bit leksikal + 0 bit semantik" in r.text
+    assert "belum mencapai 64 bit" in r.text and "Cukup untuk satu pembocor" not in r.text
+    assert "peringatan tanda terlihat" in r.text  # a retyped-text name always carries the caveat
+    assert _status(r.text).startswith(f"{len(sel.points)} dari {len(sel.points)} titik pilihan kata menunggu")
+    assert "disabled" in _publish_button(r.text) and "setiap titik pilihan kata disetujui atau ditolak" in r.text
+    assert 'id="stat-ketik" hx-swap-oob="true"' in r.text
+    # Opting out again drops the scan and its decisions.
+    r = client.post(f"/terbitkan/{sid}/leksikal/batal")
+    assert _STAGING[sid].lexical is None and "Pindai titik pilihan kata" in r.text
+    assert "disabled" not in _publish_button(r.text)
+
+
+def test_word_choice_point_decisions_and_counter(client):
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    client.post(f"/terbitkan/{sid}/leksikal")
+    sel = _STAGING[sid].lexical
+    first, second = sel.points[0].point_id, sel.points[1].point_id
+    r = client.post(f"/terbitkan/{sid}/leksikal/{first}/disetujui")
+    assert r.status_code == 200
+    assert re.search(rf'id="lx-{first}-ok"\s+aria-pressed="true"', r.text)
+    assert re.search(rf'id="lx-{first}-no"\s+aria-pressed="false"', r.text)
+    bits = sel.points[0].bits
+    assert f"{bits} bit leksikal + 0 bit semantik" in r.text and f"{bits} bit leksikal + 0 bit semantik." in _status(r.text)
+    assert "Contoh dua salinan" in r.text and "lex-sample-row" in r.text  # two sample copies of the approved rows
+    r = client.post(f"/terbitkan/{sid}/leksikal/{second}/ditolak")
+    assert re.search(rf'id="lx-{second}-no"\s+aria-pressed="true"', r.text)
+    assert sel.point(second).status == "ditolak"
+    assert client.post(f"/terbitkan/{sid}/leksikal/{first}/keliru").status_code == 400
+    assert client.post(f"/terbitkan/{sid}/leksikal/l999/disetujui").status_code == 400
+
+
+def test_word_choice_bulk_approval_needs_confirmation(client):
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    sel = _STAGING[sid].lexical
+    rule = max({p.rule_id for p in sel.points}, key=lambda rid: sum(p.rule_id == rid for p in sel.points))
+    of_rule = [p for p in sel.points if p.rule_id == rule]
+    first = of_rule[0].point_id  # a rule is named by its first point: URLs carry no document phrase
+    button = re.search(rf'<button[^>]*id="lx-aturan-{first}-ok"[^>]*>', r.text, re.S).group(0)
+    assert "hx-confirm=" in button and "konfirmasi" in button
+    assert f'hx-post="/terbitkan/{sid}/leksikal/aturan/{first}/disetujui"' in button
+    reject = re.search(rf'<button[^>]*id="lx-aturan-{first}-no"[^>]*>', r.text, re.S).group(0)
+    assert "hx-confirm" not in reject
+    assert not re.search(r'hx-post="[^"]*/leksikal/aturan/(?!l\d+/)', r.text)
+    # Without the confirmation the server refuses and nothing changes.
+    r = client.post(f"/terbitkan/{sid}/leksikal/aturan/{first}/disetujui")
+    assert r.status_code == 400 and "konfirmasi" in r.text
+    assert all(p.status == "menunggu" for p in of_rule)
+    # A point rejected first stays rejected: bulk approval takes only the pending points.
+    client.post(f"/terbitkan/{sid}/leksikal/{first}/ditolak")
+    r = client.post(f"/terbitkan/{sid}/leksikal/aturan/{of_rule[-1].point_id}/disetujui", data={"konfirmasi": "ya"})
+    assert r.status_code == 200
+    assert of_rule[0].status == "ditolak" and all(p.status == "disetujui" for p in of_rule[1:])
+    assert all(p.status == "menunggu" for p in sel.points if p.rule_id != rule)
+    # Rejecting a whole rule needs no confirmation.
+    r = client.post(f"/terbitkan/{sid}/leksikal/aturan/{first}/ditolak")
+    assert r.status_code == 200 and all(p.status == "ditolak" for p in of_rule)
+    assert client.post(f"/terbitkan/{sid}/leksikal/aturan/l999/ditolak").status_code == 400
+    assert client.post(f"/terbitkan/{sid}/leksikal/aturan/{first}/menunggu").status_code == 400
+
+
+def test_word_choice_refusals_name_categories_only(client):
+    from tapak.marker import lexical as lx
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    sel = _STAGING[sid].lexical
+    assert sel.refused
+    block = re.search(r'<ul class="lex-refused"[^>]*>(.*?)</ul>', r.text, re.S).group(1)
+    categories = {getattr(lx, n) for n in dir(lx) if n.startswith("REFUSE_")}
+    items = re.findall(r"<li><span>([^<]*)</span><b class=\"tnum\">(\d+)</b></li>", block)
+    assert len(items) == len(sel.refused) and re.sub(r"<li>.*?</li>", "", block).strip() == ""
+    for category, n in items:
+        assert category in categories and sel.refused[category] == int(n)
+
+
+def test_sample_copy_rows_mark_point_words():
+    from tapak.web.app import _sample_line
+
+    a = [("Rapat", (0, 4, 0)), ("pada", None), ("saat", None), ("<b>", (0, 4, 3)), ("dan", None)]
+    b = [("Rapat", (0, 4, 0)), ("ketika", None), ("<b>", (0, 4, 2)), ("dan", None)]
+    assert str(_sample_line(a, b)) == 'Rapat <mark class="diff">pada saat</mark> &lt;b&gt; <mark class="lex-same">dan</mark>'
+    assert str(_sample_line(b, a)) == 'Rapat <mark class="diff">ketika</mark> &lt;b&gt; <mark class="lex-same">dan</mark>'
+
+
+def test_word_choice_blocks_publishing_while_pending(client):
+    from tapak.config import load_settings
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    client.post(f"/terbitkan/{sid}/leksikal")
+    sel = _STAGING[sid].lexical
+    r = client.post(f"/terbitkan/{sid}/leksikal/{sel.points[0].point_id}/disetujui")
+    assert "disabled" in _publish_button(r.text)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert "diblokir" in r.text and "titik pilihan kata masih menunggu" in r.text
+    assert "tapak leksikal" not in r.text  # no CLI hint in the web
+    assert r.headers.get("HX-Retarget") == "#semantik"
+    assert not list(load_settings().workspaces.glob("*/manifest.json"))
+
+
+def test_word_choice_publish_stores_selection_and_lacak_names_the_channel(client):
+    import json
+
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueManifest
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    client.post(f"/terbitkan/{sid}/leksikal")
+    sel = _STAGING[sid].lexical
+    for p in sel.points:
+        r = client.post(f"/terbitkan/{sid}/leksikal/{p.point_id}/disetujui")
+    assert "Semua titik pilihan kata sudah ditinjau." in _status(r.text)
+    assert "disabled" not in _publish_button(r.text)
+    bits = sel.bits
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
+    assert f"{bits} bit leksikal + 0 bit semantik" in r.text and "belum mencapai 64 bit" in r.text
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    folder = load_settings().workspaces / doc
+    stored = json.loads((folder / "leksikal.json").read_text(encoding="utf-8"))
+    assert stored["format"] == "tapak-leksikal-1" and all(p["status"] == "disetujui" for p in stored["points"])
+    manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.plan_summary["lexical"]["bits"] == bits and manifest.lexical_digest == sel.digest
+    assert manifest.retype_positions
+    # Lacak labels the channel: physical "Leksikal" in the evidence table, "Pilihan kata" per sub-channel.
+    copy = client.get(f"/dokumen/{doc}/salinan/5")
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
+    assert r.status_code == 200 and "Salinan #5" in r.text
+    assert "<td>Leksikal</td>" in r.text and "<td>Pilihan kata</td>" in r.text
+
+
+def test_word_choice_with_every_point_rejected_issues_without_the_channel(client):
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueManifest
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    client.post(f"/terbitkan/{sid}/leksikal")
+    for point_id in {p.rule_id: p.point_id for p in _STAGING[sid].lexical.points}.values():
+        r = client.post(f"/terbitkan/{sid}/leksikal/aturan/{point_id}/ditolak")
+    assert "salinan diterbitkan tanpa kanal pilihan kata" in r.text
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    folder = load_settings().workspaces / doc
+    manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.lexical_digest is None and not (folder / "leksikal.json").exists()
+    assert "bit leksikal" not in r.text

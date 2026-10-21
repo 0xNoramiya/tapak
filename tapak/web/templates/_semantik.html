@@ -1,14 +1,18 @@
 {% from "_ikon.html" import ikon %}
 {% set pending = namespace(n=0, total=0) %}
 {% for vs in st.sets.values() %}{% set pending.n = pending.n + vs.pending()|length %}{% set pending.total = pending.total + vs.variants|length - 1 %}{% endfor %}
+{# word-choice points awaiting review block publishing like variants do #}
+{% set lex_pending = st.lexical.pending()|length if st.lexical is not none else 0 %}
+{% set blocked = pending.n + lex_pending %}
 {% if oob %}
-{# The progress header sits outside #semantik; it follows the review state. #}
-{% set cur = 3 if st.units and (not st.sets or pending.n) else 4 %}
+{# The progress header and the plan tile sit outside #semantik; they follow the review state. #}
+{% set cur = 3 if (st.units and (not st.sets or pending.n)) or lex_pending else 4 %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan" hx-swap-oob="true">
   {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
   <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
   {% endfor %}
 </ol>
+{% include "_tahan_ketik.html" %}
 {% endif %}
 <section class="card sem" aria-labelledby="langkah3">
   <h2 id="langkah3">Kalimat aman <span class="field-optional">(opsional)</span></h2>
@@ -69,7 +73,7 @@
       </div>
     </div>
     {# The live region sits outside #semantik, so it survives the swap and is announced. #}
-    {% if oob %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}</p>{% endif %}
+    {% if oob and not lex_announce %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}</p>{% endif %}
     {% for unit in st.units if unit.unit_id in st.sets %}
     {% set vs = st.sets[unit.unit_id] %}
     {% set page = unit.page + 1 %}
@@ -137,17 +141,21 @@
   {% endif %}
 </section>
 
-<section class="card publish{% if not pending.n %} is-ready{% endif %}" aria-labelledby="langkah4">
+{% if st.pdf %}{% include "_leksikal.html" %}{% endif %}
+
+<section class="card publish{% if not blocked %} is-ready{% endif %}" aria-labelledby="langkah4">
   <div class="publish-row">
     <div class="publish-text">
       <h2 id="langkah4">Terbitkan</h2>
-      <p class="lead{% if pending.n %} is-blocked{% endif %}" id="langkah4-status">
-        {% if pending.n %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
+      <p class="lead{% if blocked %} is-blocked{% endif %}" id="langkah4-status">
+        {% if pending.n and lex_pending %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian dan titik pilihan kata disetujui atau ditolak ({{ pending.n }} varian dan {{ lex_pending }} titik menunggu).
+        {% elif pending.n %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
+        {% elif lex_pending %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap titik pilihan kata disetujui atau ditolak ({{ lex_pending }} menunggu).
         {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
       </p>
     </div>
     <form class="publish-form" hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="find button[type=submit]">
-      <button class="btn btn-primary" type="submit" {% if pending.n %}disabled{% endif %} aria-describedby="langkah4-status">
+      <button class="btn btn-primary" type="submit" {% if blocked %}disabled{% endif %} aria-describedby="langkah4-status">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
         <span class="htmx-indicator">Menerbitkan…</span>

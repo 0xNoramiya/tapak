@@ -18,6 +18,12 @@
       {% endif %}
       <h2 id="hasil-terbit" tabindex="-1" data-autofocus>{{ manifest.copies|length }} salinan siap dibagikan</h2>
       <p class="lead"><span class="mono">{{ manifest.doc_name }}</span>, diterbitkan {{ manifest.issued_at|waktu }} oleh {{ manifest.issuer }} dalam {{ manifest.elapsed_s|num(1) }} detik.</p>
+      {% if retype %}
+      <div class="issued-retype">
+        <p><span class="label">Tahan ketik ulang</span> <b class="tnum">{{ retype.lex|num }} bit leksikal + {{ retype.sem|num }} bit semantik</b>, posisi kode dari pita bias 0,3 sampai 0,7.</p>
+        <p class="hint">{{ retype.verdict[:1]|upper }}{{ retype.verdict[1:] }}. Pilihan kata disimpan sebagai <span class="mono">leksikal.json</span> di samping dokumen induk; registri hanya mencatat digest-nya.</p>
+      </div>
+      {% endif %}
       <div class="issued-actions">
         <a class="btn btn-primary" href="/dokumen/{{ key }}/salinan.zip">{{ ikon("download") }}Unduh semua salinan (ZIP)</a>
         <a class="btn btn-secondary" href="/lacak?dokumen={{ key }}">{{ ikon("scan") }}Lacak dokumen ini</a>
