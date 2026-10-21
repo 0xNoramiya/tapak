@@ -69,6 +69,7 @@
 }
 
 * { box-sizing: border-box; }
+sup { line-height: 0; }  /* a superscript must not push its line down */
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -354,7 +355,7 @@ th.num { text-align: right; }
 .verdict .kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
 .verdict h2 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
 .verdict .who { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; }
-.verdict .facts { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 14px; }
+.verdict .facts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; font-size: 14px; }
 .verdict .facts b { font-variant-numeric: tabular-nums; }
 
 /* semantic variants */

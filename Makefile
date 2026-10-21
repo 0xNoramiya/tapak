@@ -3,7 +3,7 @@ PY ?= .venv/bin/python
 TAPAK ?= .venv/bin/tapak
 PHOTO_DATA ?= out/photos
 
-.PHONY: setup samples test test-fast simulate table photos bench demo web verify docker clean
+.PHONY: setup samples test test-fast simulate table photos bench demo web verify docker figures clean
 
 setup:            ## create the virtualenv and install TAPAK (needs network once)
 	uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
@@ -40,6 +40,11 @@ verify:           ## verify ./data/registry.db with the public key only
 
 docker:           ## build and start app + canary-dns
 	docker compose up --build -d
+
+figures:          ## README figures in docs/img (needs: uv pip install -e ".[figures]")
+	$(PY) docs/figures/fig_alur.py
+	$(PY) docs/figures/fig_kanal.py
+	$(PY) docs/figures/fig_hasil.py
 
 clean:
 	rm -rf out samples/photos .pytest_cache

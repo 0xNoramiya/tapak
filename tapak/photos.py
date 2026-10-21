@@ -7,7 +7,9 @@ pages of issued PDF copies into the kind of images that reach an investigator:
   the page plane from a view angle up to ``max_angle_deg``; the scene gets uneven light,
   lens and motion blur, sensor noise, phone sharpening and a tone curve (bright paper may
   clip to white), then the user crops the outer margin and WhatsApp downscales the long
-  side and recompresses it (JPEG twice).
+  side and recompresses it (JPEG twice). The print step itself is not modeled: the page keeps
+  the rendered gray levels, including the +/-2 background pattern that real printers drop
+  (see the limitations in docs/keamanan.md).
 * ``screenshot``: a screen capture of a PDF viewer (96 to 150 dpi, optional gray viewer
   chrome) forwarded twice on WhatsApp. No perspective.
 
