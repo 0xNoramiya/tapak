@@ -192,10 +192,19 @@ Tabel parameter (eps = 10^-6 untuk seluruh daftar, `tapak simulate --table`):
 | Banyak simbol lebar-nol di akhir kata | paling banyak dua simbol per posisi (sebelum dan sesudah kata), dari alfabet berbeda | MuPDF dan poppler membuang glif identik yang ditumpuk di posisi yang sama (dianggap tebal palsu) |
 | Konstanta "Skoric 2006, 2 pi^2" | dipertahankan sebagai bawaan, atribusi dikoreksi | 2 pi^2 berasal dari Skoric, Vladimirova, Celik, dan Talstra untuk skor asimetris (pendekatan Gauss). Dengan skor simetris konstanta asimtotiknya pi^2/2, jadi ada margin sekitar 4 kali; untuk c kecil ini bukan batas yang terbukti, tetapi jaminan tuduhan salah TAPAK tetap ketat karena berasal dari ambang Chernoff |
 
+### Format registri (untuk auditor)
+
+* Setiap entri: `entry_hash = SHA-256(JSON kanonis {seq, kind, payload, prev_hash, created_at})`, JSON kanonis = kunci terurut, tanpa spasi, UTF-8. `prev_hash` entri pertama adalah 64 angka nol. Tanda tangan Ed25519 dibuat atas 32 byte `entry_hash`.
+* Jenis entri `document` (parameter kode, kanal, ringkasan rencana, aturan dan nilai ambang) dan `copy` (`doc_hash`, `recipient_id`, `copy_id`, `seq`, `code_digest`, `channels_used`, `semantic_variant_ids`, `issued_at`, `issuer`, `file_sha256`, serta `canary_token` dalam bentuk `sha256:` hash, bukan token aslinya).
+* Akar Merkle harian: daun = 32 byte mentah `entry_hash`, simpul = SHA-256(kiri || kanan), simpul ganjil digandakan, satu daun adalah akarnya sendiri. Berkas `merkle-YYYY-MM-DD.txt` hanya untuk hari UTC yang sudah selesai; hari berjalan ditulis sebagai `.partial.txt` (sementara). Setiap berkas memuat hash berkas hari sebelumnya, sehingga penghapusan entri di ujung rantai pun terdeteksi bila berkas akar disimpan di luar sistem.
+* Berkas kunci tanda tangan berisi `ed25519-seed:<64 hex>`; kunci publik berupa 64 hex.
+* Log peristiwa kanari memakai tabel `canary_events` di berkas yang sama dengan rantai hash sendiri; `python -m tapak.canary_dns --anchor` menambatkan ujungnya ke registri bertanda tangan.
+
 ## Keamanan dan minimisasi data
 
 * Registri dan log hanya berisi hash, id penerima, id salinan, komitmen kode, nama kanal, id varian, waktu, dan penerbit. Tidak ada teks dokumen, gambar, maupun nama penerima.
 * Teks varian semantik adalah isi dokumen; disimpan di folder dokumen (`varian.json`) bersama PDF induk, dan registri hanya menyimpan hash-nya.
+* `semantic_variant_ids` (misalnya `u0:v2`) dicatat di registri sesuai spesifikasi. Konsekuensinya: pembaca registri dapat melihat salinan mana yang menerima varian sama, yang setara dengan beberapa bit kode (4 dari sekitar 3000 posisi pada contoh). Registri dipegang satuan penerbit dan eselon atas, bukan oleh penerima; bila ini dianggap terlalu banyak, kolom itu dapat dikosongkan karena id varian dapat dihitung ulang dari rahasia kode saat pelacakan.
 * Kode setiap penerima diturunkan dari rahasia kode dengan SHAKE-256 (dapat dibangkitkan ulang bit demi bit bertahun-tahun kemudian, tidak bergantung versi numpy) dan diperiksa terhadap komitmen sebelum pelacakan.
 * Tabel registri dijaga trigger tambah-saja; perubahan yang melewati trigger tetap terdeteksi karena rantai hash dan tanda tangan.
 * Satu-satunya lalu lintas keluar adalah pendengar DNS kanari yang menerima kueri. Antarmuka web memuat HTMX dan font dari server lokal.
