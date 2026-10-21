@@ -128,25 +128,26 @@ def collect_background_from_pdf(pdf_bytes: bytes, ctx: TraceContext, dpi: float 
     """Channel 2 from a forwarded PDF: render each page (already aligned with the master)."""
     if ctx.background is None or not ctx.plan.channel("background"):
         return []
-    import pymupdf
 
     from tapak.decoder.ch_background import decode_background
     from tapak.decoder.rectify import render_page
     from tapak.marker.background import page_grids
 
-    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
-        n_pages = min(doc.page_count, len(ctx.master.layout.pages))
+    from tapak.decoder.ch_shift import map_pages
+    from tapak.marker.layout import extract_layout
+
+    pairs = map_pages(ctx.master.layout, extract_layout(pdf_bytes))  # evidence page -> master page
     sizes = [(p.width, p.height) for p in ctx.master.layout.pages]
     grids = page_grids(sizes, ctx.key, ctx.background)
     parts = []
-    for page in range(n_pages):
-        img = render_page(pdf_bytes, page, dpi, supersample=1)
-        master = render_page(ctx.master.pdf_bytes, page, dpi, supersample=1)
+    for li, mi in pairs.items():
+        img = render_page(pdf_bytes, li, dpi, supersample=1)
+        master = render_page(ctx.master.pdf_bytes, mi, dpi, supersample=1)
         if img.shape != master.shape:
-            continue
-        parts.append(decode_background(img, np.ones(img.shape, dtype=bool), master, dpi, grids[page],
+            continue  # scaled to another paper size: the cell grid would not line up
+        parts.append(decode_background(img, np.ones(img.shape, dtype=bool), master, dpi, grids[mi],
                                        ctx.plan.channel("background")))
-    return [SoftBits.concat("background", parts, pages=n_pages)] if parts else []
+    return [SoftBits.concat("background", parts, pages=len(parts))] if parts else []
 
 
 def collect_from_pdf(pdf_bytes: bytes, ctx: TraceContext) -> list[SoftBits]:
@@ -166,36 +167,86 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
     return result
 
 
-def trace_file(path: Path, ctx: TraceContext) -> tuple[Attribution, list[SoftBits]]:
-    """Trace any supported evidence file (PDF, text; images from M3)."""
-    path = Path(path)
-    data = path.read_bytes()
+def decode_text_evidence(data: bytes) -> str:
+    """Text evidence in UTF-8, UTF-16 or UTF-32 (with or without BOM), as Windows Notepad saves it."""
+    import codecs
+
+    for bom, enc in ((codecs.BOM_UTF32_LE, "utf-32"), (codecs.BOM_UTF32_BE, "utf-32"),
+                     (codecs.BOM_UTF16_LE, "utf-16"), (codecs.BOM_UTF16_BE, "utf-16"),
+                     (codecs.BOM_UTF8, "utf-8-sig")):
+        if data.startswith(bom):
+            return data.decode(enc, errors="replace")
+    if len(data) >= 4:
+        even, odd = data[0::2], data[1::2]
+        if odd.count(0) > 0.2 * len(odd):
+            return data.decode("utf-16-le", errors="replace")
+        if even.count(0) > 0.2 * len(even):
+            return data.decode("utf-16-be", errors="replace")
+    return data.decode("utf-8", errors="replace")
+
+
+def collect_file(name: str, data: bytes, ctx: TraceContext) -> tuple[list[SoftBits], list[str]]:
+    """Observations and notes from one evidence file (PDF, DOCX, text or image)."""
     notes = []
     digest = sha256_hex(data)
     for c in ctx.manifest.copies:
         if c.file_sha256 == digest:
             notes.append(f"berkas identik byte demi byte dengan salinan #{c.seq} (bukti pendukung)")
-    suffix = path.suffix.lower()
+    suffix = Path(name).suffix.lower()
     if suffix == ".pdf":
-        obs = collect_from_pdf(data, ctx)
+        if not data.startswith(b"%PDF"):
+            raise TraceError(f"{name}: bukan berkas PDF yang sah")
+        try:
+            obs = collect_from_pdf(data, ctx)
+        except (RuntimeError, ValueError) as exc:  # pymupdf.FileDataError is a RuntimeError
+            raise TraceError(f"{name}: berkas PDF tidak dapat dibuka atau rusak") from exc
     elif suffix in (".txt", ".md", ""):
-        obs = collect_from_text(data.decode("utf-8", errors="replace"), ctx)
+        obs = collect_from_text(decode_text_evidence(data), ctx)
     elif suffix == ".docx":  # leaked text pasted into a Word file
         from tapak.decoder.ch_docx import extract_docx_text
 
-        obs = collect_from_text(extract_docx_text(data), ctx)
+        try:
+            text = extract_docx_text(data)
+        except Exception as exc:  # noqa: BLE001 - zip/xml errors from a damaged file
+            raise TraceError(f"{name}: berkas DOCX tidak dapat dibaca") from exc
+        obs = collect_from_text(text, ctx)
     elif suffix in IMAGE_SUFFIXES:
-        from tapak.decoder.image import collect_from_image  # M3
+        from tapak.decoder.image import collect_from_image
 
         obs = collect_from_image(data, ctx)
         if obs and all(sb.meta.get("registered") is False for sb in obs):
-            notes.append("halaman dokumen induk tidak ditemukan pada gambar (bukan dokumen ini, "
+            notes.append(f"{name}: halaman dokumen induk tidak ditemukan pada gambar (bukan dokumen ini, "
                          "terlalu buram, atau terpotong)")
         else:
             reg = next((sb.meta for sb in obs if "correlation" in sb.meta), None)
             if reg:
-                notes.append(f"gambar dipetakan ke halaman {reg['page'] + 1} (metode {reg['method']}, "
+                notes.append(f"{name}: dipetakan ke halaman {reg['page'] + 1} (metode {reg['method']}, "
                              f"korelasi {reg['correlation']:.3f}, resolusi efektif {reg['effective_dpi']:.0f} dpi)")
+            bg = next((sb.meta for sb in obs if sb.channel == "background"), None)
+            if bg is not None and not bg.get("pattern_found", True):
+                notes.append(f"{name}: pola latar tidak terdeteksi (kertas cetak, foto terlalu terang, atau "
+                             "bukan salinan bertanda); hanya kanal geser yang dipakai")
     else:
-        raise TraceError(f"jenis berkas tidak dikenal: {suffix}")
+        raise TraceError(f"jenis berkas tidak dikenal: {suffix or '(tanpa akhiran)'}")
+    return obs, notes
+
+
+def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext) -> tuple[Attribution, list[SoftBits]]:
+    """Trace several evidence files of the same leak together (for example one photo per page
+    of a printed copy): their observations are fused before the single accusation, so slices
+    carried by different pages add up. The threshold covers the combined set."""
+    obs: list[SoftBits] = []
+    notes: list[str] = []
+    for name, data in items:
+        o, n = collect_file(name, data, ctx)
+        obs += o
+        notes += n
+    if len(items) > 1:
+        notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
     return run_trace(obs, ctx, notes), obs
+
+
+def trace_file(path: Path, ctx: TraceContext) -> tuple[Attribution, list[SoftBits]]:
+    """Trace one evidence file (PDF, DOCX, text or image)."""
+    path = Path(path)
+    return trace_files([(path.name, path.read_bytes())], ctx)

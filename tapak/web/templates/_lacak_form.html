@@ -17,8 +17,8 @@
     </div>
     <div class="field">
       <label for="bukti">Berkas bukti</label>
-      <input id="bukti" name="bukti" type="file" accept="image/*,.pdf,.docx,.txt" {% if errors.bukti %}aria-invalid="true" aria-describedby="bukti-err"{% endif %}>
-      <span class="hint">Foto (JPEG/PNG), tangkapan layar, PDF, DOCX, atau berkas teks.</span>
+      <input id="bukti" name="bukti" type="file" multiple accept="image/*,.pdf,.docx,.txt" aria-describedby="hint-bukti{% if errors.bukti %} bukti-err{% endif %}">
+      <span class="hint" id="hint-bukti">Foto (JPEG/PNG), tangkapan layar, PDF, DOCX, atau berkas teks. Beberapa berkas dari kebocoran yang sama (misalnya foto tiap halaman) boleh dipilih sekaligus; buktinya digabung.</span>
     </div>
     <div class="field">
       <label for="teks">Atau tempel teks yang bocor</label>

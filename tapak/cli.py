@@ -83,6 +83,9 @@ def _cmd_keys_init(args: argparse.Namespace) -> int:
     print(f"Rahasia kode   : {s.code_secret_path}")
     if keys.signer is not None:
         print(f"Kunci tanda tangan registri: {s.signing_key_path} (simpan terpisah, idealnya di eselon atas)")
+    elif keys.public_key_hex:
+        print("Kunci tanda tangan registri: dipegang di tempat lain (hanya kunci publik ada di sini); "
+              "entri dicatat tanpa tanda tangan sampai pemegang kunci menjalankan tapak registry sign")
     print(f"Kunci publik   : {s.public_key_path if keys.public_key_hex else '(belum ada)'}")
     if keys.public_key_hex:
         print(f"                 {keys.public_key_hex}")
@@ -122,13 +125,17 @@ def _cmd_issue(args: argparse.Namespace) -> int:
                          record=not args.no_registry, semantic=semantic)
     m = out.manifest
     p = m.tardos_params
+    is_docx = m.gate.get("note") == "DOCX"
     print(f"Dokumen: {m.doc_name} (SHA-256 {m.doc_hash[:16]}...)")
     print(f"Kode Tardos: N={p.n_max}, c={p.c}, eps={p.eps:g}, m={p.length}; ambang penuh Z={m.threshold_full:.1f}")
     for ch, info in m.plan_summary.items():
         print(f"  kanal {ch:<10} {info['slots']:>5} slot, {info['bits']:>5} bit, {info['positions']:>5} posisi kode")
     if m.canary_domain:
         print(f"  kanal canary     satu subdomain per salinan di bawah {m.canary_domain}")
-    print(f"Gerbang visual: {'lulus' if m.gate.get('passed') else 'GAGAL'} (selisih maks {m.gate.get('max_diff')})")
+    if is_docx:
+        print("Gerbang visual: tidak berlaku untuk DOCX (Word yang menata ulang dokumen)")
+    else:
+        print(f"Gerbang visual: {'lulus' if m.gate.get('passed') else 'GAGAL'} (selisih maks {m.gate.get('max_diff')})")
     print(f"{len(m.copies)} salinan ditulis ke {out.folder / 'salinan'} dalam {m.elapsed_s:.2f} s")
     if not args.no_registry:
         state = ("ditandatangani" if out.signed else
@@ -209,19 +216,26 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     from tapak.service import trace_evidence, write_report
 
     s = _settings(args)
-    evidence = Path(args.evidence)
+    paths = [Path(e) for e in args.evidence]
+    evidence = paths[0]
+    items = [(p.name, p.read_bytes()) for p in paths]
     if args.master or args.manifest:
         if not (args.master and args.manifest):
             raise ValueError("--master dan --manifest harus diberikan bersama")
-        from tapak.decoder.trace import load_context, trace_file
+        from tapak.decoder.trace import load_context, trace_files
         from tapak.keys import load_code_secret
         from tapak.marker.issue import IssueManifest
 
         manifest = IssueManifest.from_json(Path(args.manifest).read_text(encoding="utf-8"))
-        ctx = load_context(Path(args.master).read_bytes(), manifest,
-                           load_code_secret(Path(args.secret) if args.secret else s.code_secret_path),
-                           folder=Path(args.manifest).parent)
-        result, obs = trace_file(evidence, ctx)
+        master = Path(args.master).read_bytes()
+        secret = load_code_secret(Path(args.secret) if args.secret else s.code_secret_path)
+        if master.startswith(b"PK"):  # a DOCX master: text-layer channel only
+            from tapak.service import _trace_docx
+
+            result, obs, _ = _trace_docx(master, manifest, secret, items[0][0], items[0][1])
+        else:
+            ctx = load_context(master, manifest, secret, folder=Path(args.manifest).parent)
+            result, obs = trace_files(items, ctx)
         _print_attribution(result, obs)
         if args.json:
             Path(args.json).write_text(json.dumps(result.to_dict(), indent=2, ensure_ascii=False, default=str),
@@ -235,13 +249,14 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         if len(docs) != 1:
             raise ValueError("pilih dokumen dengan --doc (lihat: tapak docs)")
         doc = docs[0].doc_hash
-    outcome = trace_evidence(s, doc, evidence.name, evidence.read_bytes())
+    outcome = trace_evidence(s, doc, items[0][0], items[0][1], more=items[1:])
     reg = outcome.registry
     extra = [f"Registri: rantai {'terverifikasi' if reg.chain_ok else 'TIDAK terverifikasi' if reg.chain_ok is False else 'belum diverifikasi'}"
              f" ({reg.entries} entri), {reg.copies_confirmed}/{reg.copies_total} salinan cocok"]
+    accused = {c.copy.seq for c in outcome.attribution.accused}
     for a in outcome.canary:
-        extra.append(f"Kueri kanari: nama salinan #{a['seq']} ({a['recipient_id']}) di-resolve {a['time']} "
-                     f"oleh resolver {a['src_ip']}")
+        who = f" ({a['recipient_id']})" if a["seq"] in accused else ""
+        extra.append(f"Kueri kanari: nama salinan #{a['seq']}{who} di-resolve {a['time']} oleh resolver {a['src_ip']}")
     _print_attribution(outcome.attribution, outcome.observations, extra)
     if args.report:
         write_report(outcome, Path(args.report), case_number=args.nomor_perkara or "",
@@ -309,15 +324,6 @@ def _cmd_registry_merkle(args: argparse.Namespace) -> int:
 # --- passthroughs -----------------------------------------------------------------------------------
 
 
-def _passthrough(module: str):
-    def run(args: argparse.Namespace) -> int:
-        import importlib
-
-        return int(importlib.import_module(module).main(args.rest) or 0)
-
-    return run
-
-
 def _cmd_web(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -332,12 +338,18 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     return run_demo(Path(args.workdir), keep=args.keep)
 
 
+PASSTHROUGH = {"canary-dns": "tapak.canary_dns.__main__", "photos": "tapak.photos"}
+
+
 def build_parser() -> argparse.ArgumentParser:
-    """Argument parser for all subcommands."""
-    ap = argparse.ArgumentParser(prog="tapak", description="TAPAK: atribusi kebocoran dokumen rahasia")
+    """Argument parser for all subcommands (Indonesian help and errors)."""
+    from tapak.registry.signing import IndonesianArgumentParser
+
+    ap = IndonesianArgumentParser(prog="tapak", description="TAPAK: atribusi kebocoran dokumen rahasia")
     ap.add_argument("--data", default=None, help="folder data (bawaan: data/ atau $TAPAK_DATA)")
     ap.add_argument("--keys", default=None, help="folder kunci (bawaan: keys/ atau $TAPAK_KEY_DIR)")
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub = ap.add_subparsers(dest="cmd", required=True, title="perintah", metavar="PERINTAH",
+                            parser_class=IndonesianArgumentParser)
 
     s = sub.add_parser("simulate", help="simulasi serangan kolusi terhadap kode Tardos")
     s.add_argument("--n", type=int, default=100, help="jumlah penerima")
@@ -393,7 +405,9 @@ def build_parser() -> argparse.ArgumentParser:
     sa.set_defaults(func=_cmd_semantic_approve)
 
     t = sub.add_parser("trace", help="lacak sumber kebocoran")
-    t.add_argument("evidence", help="berkas bukti: foto, tangkapan layar, PDF, DOCX, atau teks")
+    t.add_argument("evidence", nargs="+",
+                   help="berkas bukti: foto, tangkapan layar, PDF, DOCX, atau teks; beberapa berkas dari "
+                        "kebocoran yang sama (misalnya foto tiap halaman) digabung dalam satu atribusi")
     t.add_argument("--doc", default=None, help="dokumen terbitan (hash atau 16 karakter awal)")
     t.add_argument("--master", default=None, help="PDF induk (mode tanpa folder data)")
     t.add_argument("--manifest", default=None, help="manifest penerbitan (mode tanpa folder data)")
@@ -426,11 +440,9 @@ def build_parser() -> argparse.ArgumentParser:
     rm.add_argument("--registry", default=None)
     rm.set_defaults(func=_cmd_registry_merkle)
 
-    for name, module, desc in (("canary-dns", "tapak.canary_dns.__main__", "jalankan pendengar DNS kanari"),
-                               ("photos", "tapak.photos", "buat set uji foto sintetis")):
-        p = sub.add_parser(name, help=desc, add_help=False)
-        p.add_argument("rest", nargs=argparse.REMAINDER)
-        p.set_defaults(func=_passthrough(module))
+    for name, desc in (("canary-dns", "jalankan pendengar DNS kanari (opsi: tapak canary-dns --help)"),
+                       ("photos", "buat set uji foto sintetis (opsi: tapak photos --help)")):
+        sub.add_parser(name, help=desc)  # dispatched in main() before parsing
 
     w = sub.add_parser("web", help="jalankan antarmuka web")
     w.add_argument("--host", default="127.0.0.1")
@@ -447,6 +459,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     os.umask(0o077)  # masters, copies, manifests and keys are readable by the operator only
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # canary-dns and photos keep their own option parsers: hand everything after the name over.
+    i = 0
+    while i < len(argv) and argv[i].startswith("-"):
+        i += 2 if argv[i] in ("--data", "--keys") else 1
+    if i < len(argv) and argv[i] in PASSTHROUGH:
+        _settings(build_parser().parse_args(argv[:i] + ["docs"]))  # validates and applies --data/--keys
+        import importlib
+
+        return int(importlib.import_module(PASSTHROUGH[argv[i]]).main(argv[i + 1:]) or 0)
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args))

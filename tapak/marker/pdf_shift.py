@@ -44,7 +44,7 @@ class ShiftSettings:
 
     def __post_init__(self) -> None:
         if not (0 < self.word_mm <= MAX_SHIFT_MM and 0 < self.row_mm <= MAX_SHIFT_MM):
-            raise ValueError(f"shifts must be in (0, {MAX_SHIFT_MM}] mm")
+            raise ValueError(f"besar geser harus di antara 0 dan {MAX_SHIFT_MM} mm")
 
     @property
     def word_pt(self) -> float:

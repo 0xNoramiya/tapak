@@ -1,4 +1,5 @@
 {% set t = a.threshold %}
+{% set accused_seqs = a.accused|map(attribute="copy.seq")|list %}
 <section class="verdict {% if identified %}verdict-found{% else %}verdict-none{% endif %}" aria-labelledby="putusan">
   <span class="kicker">Hasil atribusi · <span class="mono keep-case">{{ o.evidence_name }}</span></span>
   {% if identified %}
@@ -36,7 +37,11 @@
         {% for ch in a.channels %}
         <tr><td>{{ channel_name(ch.channel) }}</td><td class="num">{{ ch.n_observed|num }}</td>
             <td class="num hide-sm">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
-            <td>{% if ch.accused_seqs %}{% for s in ch.accused_seqs %}#{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}<span class="muted">tidak ada</span>{% endif %}</td></tr>
+            {# Only copies accused by the fused result are named here, as in the berita acara:
+               each channel alone is an extra test, and eps covers the fused result only. #}
+            {% set shown = ch.accused_seqs|select("in", accused_seqs)|list %}
+            {% set hidden = ch.accused_seqs|length - shown|length %}
+            <td>{% for s in shown %}#{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}{% if hidden %}{% if shown %}, {% endif %}<span class="muted">{{ hidden }} salinan lain (nomor tidak dicantumkan)</span>{% endif %}{% if not ch.accused_seqs %}<span class="muted">tidak ada</span>{% endif %}</td></tr>
         {% else %}
         <tr><td colspan="4" class="empty">Tidak ada kanal yang terbaca.</td></tr>
         {% endfor %}
@@ -101,9 +106,12 @@
     </table>
   </div>
   <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas, sehingga penerima tidak disebut di tabel ini.</p>
+  {% set named = o.canary|selectattr("seq", "in", accused_seqs)|list %}
+  {% if named %}
   <details class="more small">
-    <summary>Tampilkan penerima salinan dengan kueri kanari (bukti pendukung, bukan hasil skor)</summary>
-    <ul class="notes">{% for k in o.canary %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
+    <summary>Penerima salinan yang juga dituduh hasil atribusi dan memiliki kueri kanari</summary>
+    <ul class="notes">{% for k in named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
   </details>
+  {% endif %}
   {% endif %}
 </section>

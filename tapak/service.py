@@ -34,18 +34,28 @@ class Keys:
     public_key_hex: str | None
 
 
-def ensure_keys(settings: Settings, create_signing_key: bool = True) -> Keys:
-    """Load (or create) the code secret and, if available, the registry signing key."""
+def ensure_keys(settings: Settings, create_signing_key: bool = True, create_secret: bool = True) -> Keys:
+    """Load the code secret and, if present here, the registry signing key.
+
+    A signing key is created only when ``create_signing_key`` is set AND no public key exists
+    yet: an existing public key without its private half means the key is held elsewhere (a
+    higher echelon), and creating a local one would silently replace the trusted signer. A
+    loaded key must match the published public key.
+    """
     from tapak.registry.signing import export_public_key, load_public_key, load_signer
 
-    secret = load_code_secret(settings.code_secret_path, create=True)
+    secret = load_code_secret(settings.code_secret_path, create=create_secret)
     signer = None
-    sk = settings.signing_key_path
-    if sk.exists() or create_signing_key:
-        signer = load_signer(sk, create=create_signing_key)
-        if not settings.public_key_path.exists():
-            export_public_key(signer, settings.public_key_path)
-    pub = load_public_key(settings.public_key_path) if settings.public_key_path.exists() else None
+    sk, pk = settings.signing_key_path, settings.public_key_path
+    held_elsewhere = pk.exists() and not sk.exists()
+    if sk.exists() or (create_signing_key and not held_elsewhere):
+        signer = load_signer(sk, create=True)
+        if pk.exists():
+            if load_public_key(pk) != signer.public_key_hex:
+                raise ValueError(f"kunci tanda tangan {sk} tidak cocok dengan kunci publik {pk}")
+        else:
+            export_public_key(signer, pk)
+    pub = load_public_key(pk) if pk.exists() else None
     return Keys(secret, signer, pub)
 
 
@@ -131,7 +141,18 @@ def issue_document(
     folder = workspace_dir(settings, sha256_hex(data))
     if (folder / "manifest.json").exists():
         raise FileExistsError(f"dokumen ini sudah diterbitkan (folder {folder}); gunakan dokumen lain")
-    folder.mkdir(parents=True, exist_ok=True)
+    if record and keys.signer is not None and settings.registry_path.exists():
+        from tapak.registry.chain import Registry as _Reg
+
+        with _Reg.open(settings.registry_path) as reg:  # signing over unreviewed rows is refused
+            if hasattr(reg, "pending") and reg.pending():
+                raise ValueError("registri memiliki entri yang belum ditandatangani; pemegang kunci perlu "
+                                 "menjalankan tapak registry sign lebih dulu")
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        folder.mkdir()  # atomic claim: a concurrent issuance of the same document fails here
+    except FileExistsError:
+        raise FileExistsError(f"dokumen ini sedang atau sudah diterbitkan (folder {folder})") from None
     doc_name = doc_name or Path(doc_path).name
     is_docx = Path(doc_name).suffix.lower() == ".docx"
     master_path = folder / ("induk.docx" if is_docx else "induk.pdf")
@@ -139,7 +160,7 @@ def issue_document(
     try:
         if is_docx:
             manifest = _issue_docx(master_path, recipients, folder / "salinan", keys.code_secret,
-                                   issue_settings, issuer)
+                                   issue_settings, issuer, file_stem=Path(doc_name).stem)
         else:
             manifest = issue(master_path, recipients, folder / "salinan", keys.code_secret,
                              issue_settings, issuer=issuer, semantic=semantic, file_stem=Path(doc_name).stem)
@@ -147,16 +168,19 @@ def issue_document(
         shutil.rmtree(folder, ignore_errors=True)
         raise
     manifest.doc_name = doc_name
-    (folder / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
-    if not is_docx:  # keep a copy next to the files for tools that read salinan/manifest.json
-        (folder / "salinan" / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
-    if semantic is not None and manifest.semantic_digest:
-        save_json(folder / "varian.json", semantic.to_dict())
     entries = 0
-    if record:
-        settings.data_dir.mkdir(parents=True, exist_ok=True)
-        with Registry.open(settings.registry_path) as reg:
-            entries = len(registry_from_manifest(manifest, reg, keys.signer))  # type: ignore[arg-type]
+    try:
+        if record:  # registry first: a failure leaves no half-issued workspace behind
+            with Registry.open(settings.registry_path) as reg:
+                entries = len(registry_from_manifest(manifest, reg, keys.signer))  # type: ignore[arg-type]
+        (folder / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
+        if not is_docx:  # a copy next to the files for tools that read salinan/manifest.json
+            (folder / "salinan" / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
+        if semantic is not None and manifest.semantic_digest:
+            save_json(folder / "varian.json", semantic.to_dict())
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     publish_canary_allowlist(settings, manifest)
     return IssueOutcome(manifest, folder, entries, keys.signer is not None)
 
@@ -178,7 +202,7 @@ def publish_canary_allowlist(settings: Settings, manifest: IssueManifest) -> Non
 
 
 def _issue_docx(docx_path: Path, recipients: list[Recipient], out_dir: Path, secret: bytes,
-                s: IssueSettings, issuer: str) -> IssueManifest:
+                s: IssueSettings, issuer: str, file_stem: str | None = None) -> IssueManifest:
     """DOCX issuance (text-layer channel and canary only) recorded in an IssueManifest."""
     import time
 
@@ -203,6 +227,13 @@ def _issue_docx(docx_path: Path, recipients: list[Recipient], out_dir: Path, sec
         return add_docx_canary(data, canary_url(tokens[copy_id], s.canary_domain))  # type: ignore[arg-type]
 
     rows = issue_docx(docx_path, recipients, out_dir, secret, params, post_process_copy=per_copy)
+    if file_stem:  # name the copies after the original file, not the workspace's induk.docx
+        renamed = []
+        for seq, cid, path, digest in rows:
+            new = Path(path).with_name(Path(path).name.replace(Path(docx_path).stem, file_stem, 1))
+            Path(path).rename(new)
+            renamed.append((seq, cid, new, digest))
+        rows = renamed
     plan = build_docx_plan(master, params.length, plan_key(secret, master.doc_hash))
     used = [c for c in ("zw", "homoglyph") if plan.channel(c)] + (["canary"] if canary else [])
     copies = [IssuedCopy(seq=seq, copy_id=cid, recipient=recipients[seq - 1], file=Path(path).name,
@@ -327,23 +358,20 @@ class TraceOutcome:
 
 
 def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidence: bytes,
-                   keys: Keys | None = None) -> TraceOutcome:
-    """Decode an evidence file against an issued document."""
-    import tempfile
+                   keys: Keys | None = None, more: list[tuple[str, bytes]] | None = None) -> TraceOutcome:
+    """Decode evidence against an issued document; ``more`` adds further files of the same leak
+    (for example photos of the other pages), fused into one attribution."""
+    from tapak.decoder.trace import load_context, trace_files
 
-    from tapak.decoder.trace import load_context, trace_file
-
-    keys = keys or ensure_keys(settings, create_signing_key=False)
+    # Tracing never creates keys: a missing code secret is an error, not a reason to make one.
+    keys = keys or ensure_keys(settings, create_signing_key=False, create_secret=False)
     manifest, master, folder = load_workspace(settings, doc_key)
+    items = [(evidence_name, evidence)] + list(more or [])
     if (folder / "induk.docx").exists():
         attribution, obs, ctx = _trace_docx(master, manifest, keys.code_secret, evidence_name, evidence)
     else:
         ctx = load_context(master, manifest, keys.code_secret, folder=folder)
-        suffix = Path(evidence_name).suffix.lower() or ".txt"
-        with tempfile.TemporaryDirectory() as tmp:
-            p = Path(tmp) / f"bukti{suffix}"
-            p.write_bytes(evidence)
-            attribution, obs = trace_file(p, ctx)
+        attribution, obs = trace_files(items, ctx)
     reg = check_registry(settings, manifest)
     if reg.chain_ok is False:
         attribution.notes.append("PERINGATAN: verifikasi rantai registri gagal; lihat bagian registri")
@@ -358,8 +386,9 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
                                  "catatan lokal dan tidak dapat dikonfirmasi pihak ketiga")
     if reg.copies_unsigned:
         attribution.notes.append(f"{reg.copies_unsigned} entri registri salinan belum bertanda tangan")
-    return TraceOutcome(attribution, obs, ctx, evidence_name, sha256_hex(evidence), reg,
-                        canary_alerts(settings, manifest))
+    names = ", ".join(n for n, _ in items)
+    digest = sha256_hex(evidence) if len(items) == 1 else ", ".join(sha256_hex(d) for _, d in items)
+    return TraceOutcome(attribution, obs, ctx, names, digest, reg, canary_alerts(settings, manifest))
 
 
 def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes, evidence_name: str,

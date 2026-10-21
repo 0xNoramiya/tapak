@@ -99,9 +99,8 @@ def _fap(candidate, n_copies: int):
     """False-accusation probability of a named copy, exact even when it underflows a float."""
     import math
 
-    others = max(n_copies - 1, 1)
-    log10 = candidate.log10_bound + math.log10(others) if math.isfinite(candidate.log10_bound) else None
-    return format_probability_html(candidate.false_accusation_probability, log10)
+    log10 = candidate.log10_false_accusation
+    return format_probability_html(candidate.false_accusation_probability, log10 if math.isfinite(log10) else None)
 
 
 templates.env.globals["fap"] = _fap
@@ -456,18 +455,26 @@ def lacak_page(request: Request) -> HTMLResponse:
 async def lacak_run(
     request: Request,
     dokumen: str = Form(""),
-    bukti: UploadFile | None = File(None),
+    bukti: list[UploadFile] | None = File(None),
     teks: str = Form(""),
 ) -> HTMLResponse:
-    """Run the trace and show the attribution."""
+    """Run the trace and show the attribution (several evidence files are fused)."""
     from tapak.decoder.trace import TraceError
     from tapak.service import list_workspaces, trace_evidence
 
     errors: dict[str, str] = {}
-    data = await _read_upload(bukti)
-    name = Path(bukti.filename).name if bukti is not None and bukti.filename else ""
-    if not data and teks.strip():
-        data, name = teks.encode("utf-8"), "teks_tempel.txt"
+    items: list[tuple[str, bytes]] = []
+    total = 0
+    for f in bukti or []:
+        content = await _read_upload(f)
+        total += len(content)
+        if total > MAX_UPLOAD:
+            raise HTTPException(413, "Berkas terlalu besar (maksimum 40 MB seluruhnya)")
+        if content:
+            items.append((Path(f.filename or "bukti").name, content))
+    if not items and teks.strip():
+        items = [("teks_tempel.txt", teks.encode("utf-8"))]
+    data, name = (items[0][1], items[0][0]) if items else (b"", "")
     if not dokumen:
         errors["dokumen"] = "Pilih dokumen yang diduga bocor."
     if not data:
@@ -479,7 +486,7 @@ async def lacak_run(
         resp.headers["HX-Reswap"] = "innerHTML"
         return resp
     try:
-        outcome = await run_in_threadpool(trace_evidence, settings(), dokumen, name, data)
+        outcome = await run_in_threadpool(trace_evidence, settings(), dokumen, name, data, None, items[1:])
     except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
         return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {exc}")
     tid = secrets.token_hex(8)

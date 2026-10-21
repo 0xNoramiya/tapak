@@ -340,7 +340,14 @@ def issue(
     if len(recipients) > settings.n_max:  # type: ignore[operator]
         raise ValueError("jumlah penerima melebihi n_max kode")
     pdf_bytes = Path(pdf_path).read_bytes()
-    master = load_master(pdf_bytes)
+    if not pdf_bytes.startswith(b"%PDF"):
+        raise ValueError("dokumen induk bukan berkas PDF")
+    try:
+        master = load_master(pdf_bytes)
+    except RuntimeError as exc:  # pymupdf.FileDataError for a damaged file
+        raise ValueError("dokumen induk PDF tidak dapat dibuka atau rusak") from exc
+    if not any(True for _ in master.layout.words()):
+        raise ValueError("PDF ini tidak memiliki lapisan teks (hasil pindai). TAPAK memerlukan PDF teks.")
     if semantic is not None:
         validate_selection(master, semantic.units, semantic.sets)  # fail before any rendering
     gate = visual_gate(master)

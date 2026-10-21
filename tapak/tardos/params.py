@@ -56,13 +56,13 @@ class TardosParams:
 
     def __post_init__(self) -> None:
         if self.c < 1:
-            raise ValueError("c must be >= 1")
+            raise ValueError("ukuran koalisi c minimal 1")
         if not 0.0 < self.eps < 1.0:
-            raise ValueError("eps must be in (0, 1)")
+            raise ValueError("peluang tuduhan salah eps harus di antara 0 dan 1")
         if self.n_max < 1:
-            raise ValueError("n_max must be >= 1")
+            raise ValueError("jumlah penerima maksimum n_max minimal 1")
         if self.constant not in CONSTANTS:
-            raise ValueError(f"unknown constant {self.constant!r}")
+            raise ValueError(f"konstanta panjang kode tidak dikenal: {self.constant!r} (pilih skoric atau tardos)")
 
     @property
     def eps1(self) -> float:

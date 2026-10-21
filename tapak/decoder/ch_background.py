@@ -10,8 +10,12 @@ Steps:
 3. average the modulation over every cell of the grid;
 4. for every code position, correlate its cells with their keyed signs pn_c:
    t_b = sum_c pn_c * v_c * n_c / sum_c n_c, which estimates s_b times an unknown gain;
-5. fit the symmetric two-component mixture t ~ +/-mu + N(0, sigma^2) (EM, after clipping
-   gross outliers) and output LLR = 2 mu t / sigma^2.
+5. calibrate with a decoy: the same cells and bit assignment, but each cell's sign is
+   multiplied by an independent keyed random sign, so the pattern cancels and only noise
+   remains. Its spread is the noise level sigma. If the real statistic is not clearly wider
+   than the decoy (no pattern: a printed page, an overexposed photo, another document), the
+   channel reports nothing. Otherwise mu is fitted with sigma held at the decoy value and
+   LLR = 2 mu t / sigma^2.
 
 No codeword is consulted at any step.
 """
@@ -26,6 +30,7 @@ from tapak.marker.background import PageGrid
 from tapak.marker.plan import CHANNEL_BACKGROUND, Slot
 
 MIN_VALID_FRACTION = 0.3
+SIGNAL_RATIO = 1.3  # median(t^2) / median(t_decoy^2) needed to call the pattern present
 
 
 def estimate_mixture(t: np.ndarray, iters: int = 50) -> tuple[float, float]:
@@ -50,6 +55,18 @@ def estimate_mixture(t: np.ndarray, iters: int = 50) -> tuple[float, float]:
         var = float(np.mean(t * t)) - mu * mu
         sigma = max(np.sqrt(max(var, 1e-18)), 1e-9)
     return mu, sigma
+
+
+def fit_mu(t: np.ndarray, sigma: float, iters: int = 50) -> float:
+    """Pattern amplitude mu of t ~ 0.5 N(+mu, sigma^2) + 0.5 N(-mu, sigma^2) with sigma fixed."""
+    t = np.asarray(t, dtype=np.float64)
+    if t.size == 0 or sigma <= 0:
+        return 0.0
+    mu = float(np.sqrt(max(np.mean(t * t) - sigma * sigma, 0.0)))
+    for _ in range(iters):
+        w = np.tanh(np.clip(mu * t / (sigma * sigma), -50, 50))
+        mu = max(float(np.mean(w * t)), 0.0)
+    return mu
 
 
 def ink_mask(master_render: np.ndarray, dilate_px: int = 2) -> np.ndarray:
@@ -125,7 +142,17 @@ def decode_background(
     den = np.bincount(bits, weights=weight, minlength=grid.n_bits)
     seen = den > 0
     t = np.where(seen, num / np.maximum(den, 1e-12), 0.0)
-    mu, sigma = estimate_mixture(t[seen])
+    # Decoy: same cells, independent keyed signs. The pattern cancels; the noise does not.
+    from tapak.tardos.code import uniform_stream
+
+    decoy_sign = np.where(uniform_stream(grid.key, f"bg-decoy|{grid.page}".encode(), grid.n_cells) < 0.5,
+                          -1.0, 1.0).reshape(grid.ny, grid.nx)
+    num_d = np.bincount(bits, weights=(decoy_sign * grid.pn * means)[sel] * weight, minlength=grid.n_bits)
+    t_decoy = np.where(seen, num_d / np.maximum(den, 1e-12), 0.0)
+    noise2 = float(np.median(t_decoy[seen] ** 2)) if seen.any() else 0.0
+    ratio = float(np.median(t[seen] ** 2)) / noise2 if noise2 > 0 else 0.0
+    sigma = float(np.sqrt(noise2 / 0.4549)) if noise2 > 0 else 1.0  # median of chi2(1) is 0.4549
+    mu = fit_mu(t[seen], sigma) if ratio >= SIGNAL_RATIO else 0.0
     llr = 2.0 * mu * t / (sigma * sigma) if mu > 0 else np.zeros_like(t)
     pos, val = [], []
     for s in page_slots:
@@ -135,6 +162,9 @@ def decode_background(
         pos.append(s.positions[0])
         val.append(llr[b] * (1 - 2 * s.whiten[0]))
     snr = mu / sigma if sigma > 0 else 0.0
-    return SoftBits(CHANNEL_BACKGROUND, np.array(pos), np.array(val),
+    if mu <= 0:  # no pattern detected: report nothing rather than noise
+        pos, val = [], []
+    return SoftBits(CHANNEL_BACKGROUND, np.array(pos, dtype=np.int64), np.array(val),
                     {"page": grid.page, "bits_read": len(pos), "bits_total": len(page_slots),
-                     "mu": mu, "sigma": sigma, "snr": snr, "cells_used": int(sel.sum())})
+                     "mu": mu, "sigma": sigma, "snr": snr, "signal_ratio": round(ratio, 3),
+                     "pattern_found": bool(mu > 0), "cells_used": int(sel.sum())})

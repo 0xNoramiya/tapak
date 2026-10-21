@@ -11,7 +11,7 @@ Semua dokumen, satuan, nama, dan nomor di repositori ini **fiktif** dan setiap h
 | Pengujian | Hasil |
 |---|---|
 | Simulasi kolusi Tardos, N=100, c=3, eps=1e-6, 1000 percobaan x 7 strategi | **0 tuduhan salah**, deteksi **100 %**, semua anggota koalisi tertangkap 100 % |
-| Set foto sintetis (`make photos` + `make bench`): 32 foto 0 sampai 30 derajat dan 8 tangkapan layar, JPEG ganda gaya WhatsApp | **39 dari 40 benar**, 1 "tidak cukup bukti", **0 tuduhan salah** |
+| Set foto sintetis (`make photos` + `make bench`): 32 foto 0 sampai 30 derajat dan 8 tangkapan layar, JPEG ganda gaya WhatsApp | **37 dari 40 benar**, 3 "tidak cukup bukti" (foto terlalu terang: pola latar tidak dapat dibedakan dari derau), **0 tuduhan salah** |
 | Foto 10 sampel sampai 30 derajat (uji M3) | 10 dari 10 benar |
 | Halaman gabungan setengah atas salinan A dan setengah bawah salinan B | A dan B dituduh, tidak ada orang lain |
 | Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |
@@ -35,7 +35,7 @@ Kode penerima yang sama ditanam di lima kanal. Kanal mana pun boleh rusak; dekod
 
 **Kode Tardos.** Setiap dokumen memiliki vektor bias p (distribusi arcsine dengan batas t = 1/(300c)) dan setiap salinan memiliki kata kode biner x_j. Panjang kode m = K c^2 ln(1/eps1) dengan eps1 = eps/N (batas gabungan untuk N penerima), K = 2 pi^2 (bawaan) atau 100 (konservatif). Skor tuduhan memakai skor simetris Skoric dkk.: S_j = jumlah w_i U(y_i, x_ji, p_i).
 
-**Ambang ditetapkan sebelum analisis.** Ambang Z dihitung dari batas Chernoff yang ketat terhadap vektor bias yang sebenarnya dan bobot dekoder, dengan bit bocor terburuk di setiap posisi. Perhitungannya sama sekali tidak melihat kode penerima mana pun, dicatat dengan cap waktu, baru kemudian skor dihitung. Jaminan tuduhan salah karenanya **tidak bergantung pada konstanta K maupun pendekatan Gauss**; K hanya memengaruhi tingkat deteksi, yang diukur dengan simulasi.
+**Ambang ditetapkan sebelum skor dihitung.** Aturan ambang ditetapkan saat penerbitan dan dicatat di registri (bersama nilai Z untuk pembacaan penuh). Nilai Z untuk sebuah bukti dihitung setelah dekode dari batas Chernoff yang ketat terhadap vektor bias yang sebenarnya dan bobot dekoder (posisi yang tidak terbaca tidak dihitung), dengan bit bocor terburuk di setiap posisi. Perhitungannya sama sekali tidak melihat kode penerima mana pun, dicatat dengan cap waktu di hasil dan berita acara, baru kemudian skor dihitung. Jaminan tuduhan salah karenanya **tidak bergantung pada konstanta K maupun pendekatan Gauss**; K hanya memengaruhi tingkat deteksi, yang diukur dengan simulasi.
 
 **Fusi bukti.** Setiap kanal menghasilkan rasio log-kemungkinan (LLR) per posisi kode tanpa pernah melihat kode penerima. LLR dijumlahkan, keputusan y_i = tanda LLR, bobot w_i = tanh(|LLR|/2). Akusasi dijalankan pada hasil fusi dan pada setiap kanal fisik secara terpisah, sehingga laporan menyebut berapa kanal yang sepakat secara independen. Kanal yang saling bertentangan dilaporkan sebagai kemungkinan manipulasi.
 
@@ -102,6 +102,7 @@ tapak keys init                                  # rahasia kode + kunci tanda ta
 tapak issue samples/nota_dinas.pdf samples/recipients.csv --canary-domain kanari.satuan.mil
 tapak docs                                       # daftar dokumen terbitan
 tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
+tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu kebocoran, digabung
 tapak verify                                     # verifikasi registri dengan kunci publik saja
 tapak registry export-merkle                     # akar Merkle harian
 tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
@@ -191,6 +192,7 @@ Tabel parameter (eps = 10^-6 untuk seluruh daftar, `tapak simulate --table`):
 | Registri menyimpan kode | registri menyimpan komitmen (`code_digest`); kode diturunkan ulang dari rahasia kode | siapa pun yang dapat membaca kode dapat memfitnah penerima |
 | Kanari DOCX lewat referensi font eksternal | relasi gambar eksternal | Word tidak mengambil font eksternal |
 | Banyak simbol lebar-nol di akhir kata | paling banyak dua simbol per posisi (sebelum dan sesudah kata), dari alfabet berbeda | MuPDF dan poppler membuang glif identik yang ditumpuk di posisi yang sama (dianggap tebal palsu) |
+| Ambang Z ditetapkan sebelum analisis | aturan ambang ditetapkan saat penerbitan; nilai Z dihitung setelah dekode dari posisi yang benar-benar terbaca, sebelum skor dihitung | kanal yang rusak menghapus posisi; ambang yang tetap untuk pembacaan penuh akan terlalu ketat untuk bukti parsial. Aturannya tetap dan tidak pernah melihat kode penerima, sehingga tidak dapat disesuaikan setelah melihat hasil |
 | Konstanta "Skoric 2006, 2 pi^2" | dipertahankan sebagai bawaan, atribusi dikoreksi | 2 pi^2 berasal dari Skoric, Vladimirova, Celik, dan Talstra untuk skor asimetris (pendekatan Gauss). Dengan skor simetris konstanta asimtotiknya pi^2/2, jadi ada margin sekitar 4 kali; untuk c kecil ini bukan batas yang terbukti, tetapi jaminan tuduhan salah TAPAK tetap ketat karena berasal dari ambang Chernoff |
 
 ### Format registri (untuk auditor)
@@ -219,8 +221,8 @@ Tabel parameter (eps = 10^-6 untuk seluruh daftar, `tapak simulate --table`):
 
 1. **Pengetikan ulang penuh dengan kalimat pembuka dan penutup ditulis ulang mengalahkan atribusi.** Kanal geser, latar, dan teks hilang; kanal semantik hanya membawa sedikit bit (contoh nota dinas: 2 kalimat, 4 bit). Teks ketikan ulang yang mempertahankan kalimat itu tetap dapat dibaca bitnya, tetapi 4 bit tidak cukup untuk menuduh pada eps = 10^-6, sehingga keluarannya "tidak cukup bukti".
 2. **Kapasitas kanal semantik kecil**: sekitar 2 bit per kalimat aman yang disetujui, dan hanya kalimat yang tidak memuat angka, nama, waktu, koordinat, atau perintah.
-3. **Kanal latar tidak bertahan dicetak**: printer menggambar tingkat abu-abu di atas sekitar 250 sebagai kertas polos. Foto kertas cetak hanya membawa kanal geser (sekitar 90 bit per halaman), cukup untuk penerima tunggal dengan resolusi foto yang baik, tetapi **ketahanan kolusi dari foto kertas cetak tidak tercapai** pada c=3. Ketahanan kolusi dari foto bergantung pada kanal latar (layar dan tangkapan layar).
-4. **Foto yang terlalu terang** (banyak piksel kertas jenuh 255) juga menghapus pola latar. Dekoder lalu menjawab "tidak cukup bukti", seperti pada 1 dari 40 gambar benchmark.
+3. **Kanal latar tidak bertahan dicetak**: printer menggambar tingkat abu-abu di atas sekitar 250 sebagai kertas polos. Foto kertas cetak hanya membawa kanal geser, sekitar 80 sampai 100 bit per halaman. Hasil terukur (foto 3000 px, eps = 10^-6, 6 salinan): **satu halaman tidak cukup** (0 dari 6, semuanya "tidak cukup bukti", walau salinan yang benar selalu berskor tertinggi); **dua halaman salinan yang sama digabung dalam satu pelacakan** (`tapak trace foto_hal1.jpg foto_hal2.jpg --doc ...`, atau pilih beberapa berkas di halaman Lacak) cukup untuk 5 dari 6, tanpa tuduhan salah. Ketahanan kolusi dari foto kertas cetak pada c = 3 tetap tidak tercapai; ketahanan kolusi dari foto bergantung pada kanal latar (layar dan tangkapan layar).
+4. **Foto yang terlalu terang** (banyak piksel kertas jenuh 255) juga menghapus pola latar. Dekoder mendeteksinya dengan statistik umpan (sel yang sama dengan tanda acak independen): bila pola tidak lebih kuat dari derau, kanal latar tidak melaporkan apa pun (bukan derau) dan catatan hasil menyebutnya. Bila kanal geser saja tidak cukup, jawabannya "tidak cukup bukti", seperti pada 3 dari 40 gambar benchmark. Dua di antaranya sebenarnya masih membawa pola lemah (sekitar 64 % bit benar), tetapi dengan sekitar 1900 bit pola selemah itu secara statistik tidak dapat dibedakan dari foto tanpa pola; TAPAK memilih tidak memakainya daripada memasukkan derau sebagai bukti.
 5. **Geser baris rentan pada tangkapan layar beresolusi rendah** karena penampil PDF membulatkan garis dasar ke piksel. Dekoder menaksir derau per jenis dan otomatis memberi bobot kecil; geser kata (horizontal) tetap terbaca.
 6. **Kanal teks tidak aman terhadap lawan yang paham**: simbol lebar-nol dan huruf Kiril dapat dibersihkan atau diubah. Mengubahnya tidak dapat memfitnah orang lain (lawan tidak tahu kode penerima lain), tetapi dapat menghapus bukti kanal itu. Pencarian frasa lintas kata di penampil PDF dapat gagal pada salinan bertanda; pencarian satu kata tetap berfungsi.
 7. **Kanari bergantung pada penampil**: Adobe Reader menghubungi alamat aksi pembuka (dan menampilkan peringatan izin), Word mengambil gambar eksternal, sedangkan penampil peramban dan MuPDF tidak mengambil apa pun. Demo mensimulasikan pencarian DNS yang dilakukan penampil. Di dalam jaringan satuan, DNS internal harus menjawab zona kanari secara lokal agar penerima sah tidak memicu peringatan.

@@ -97,9 +97,9 @@ def run_simulation(
     strategies = list(STRATEGIES) if strategies is None else strategies
     unknown = set(strategies) - set(STRATEGIES)
     if unknown:
-        raise ValueError(f"unknown strategies: {sorted(unknown)}")
+        raise ValueError(f"strategi tidak dikenal: {sorted(unknown)} (pilihan: {sorted(STRATEGIES)})")
     if not 1 <= coalition < n_users:
-        raise ValueError("coalition must be between 1 and n_users - 1")
+        raise ValueError("ukuran koalisi harus antara 1 dan jumlah penerima dikurangi 1")
 
     rng = np.random.default_rng(seed)
     acc = {s: dict(fa=0, det=0, all=0, z=0.0, top=0.0, ratio=-math.inf) for s in strategies}

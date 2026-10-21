@@ -23,6 +23,7 @@ is meant for screens, screenshots and photos of screens; printed copies rely on 
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -155,7 +156,8 @@ def _png(img: np.ndarray) -> bytes:
     return buf.tobytes()
 
 
-def background_hook(plan: EmbeddingPlan, codeword: np.ndarray, grids: list[PageGrid]):
+def background_hook(plan: EmbeddingPlan, codeword: np.ndarray,
+                    grids: list[PageGrid]) -> Callable[[pymupdf.Document, pymupdf.Page], None]:
     """A CopyMarks page hook that draws this copy's pattern under all page content."""
     slots = plan.channel(CHANNEL_BACKGROUND)
     by_page = {g.page: g for g in grids}

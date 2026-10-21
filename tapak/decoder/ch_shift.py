@@ -169,10 +169,32 @@ def decode_displacements(
     )
 
 
+def map_pages(master_layout: DocumentLayout, leaked_layout: DocumentLayout,
+              min_ratio: float = 0.5) -> dict[int, int]:
+    """Evidence page index -> master page index, by word-sequence similarity.
+
+    A leaked PDF may drop pages, add a cover page or reorder them; pairing by position would
+    compare the wrong pages. Pages that match no master page well enough are left out.
+    """
+    master_words = [[w.text for r in p.rows for w in r.words] for p in master_layout.pages]
+    out: dict[int, int] = {}
+    for lp in leaked_layout.pages:
+        words = [normalize_text(w.text) for r in lp.rows for w in r.words]
+        if not words:
+            continue
+        scores = [difflib.SequenceMatcher(None, words, mw, autojunk=False).ratio() for mw in master_words]
+        best = int(np.argmax(scores))
+        if scores[best] >= min_ratio:
+            out[lp.index] = best
+    return out
+
+
 def match_words(master_layout: DocumentLayout, leaked_layout: DocumentLayout) -> Displacements:
-    """Displacement of every master word found in a leaked *PDF* layout (same page order)."""
+    """Displacement of every master word found in a leaked *PDF* layout (pages matched by text)."""
     disp: Displacements = {}
-    for mp, lp in zip(master_layout.pages, leaked_layout.pages):
+    pairs = map_pages(master_layout, leaked_layout)
+    for li, mi in pairs.items():
+        mp, lp = master_layout.pages[mi], leaked_layout.pages[li]
         mw = [w for r in mp.rows for w in r.words]
         lw = [w for r in lp.rows for w in r.words]
         sm = difflib.SequenceMatcher(None, [w.text for w in mw],

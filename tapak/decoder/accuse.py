@@ -54,6 +54,7 @@ class CopyCandidate:
     log10_bound: float
     false_accusation_probability: float
     accused: bool
+    log10_false_accusation: float = 0.0  # exact even when the probability underflows a float
     channel_scores: dict[str, float] = field(default_factory=dict)
     channels_agreeing: list[str] = field(default_factory=list)
 
@@ -116,7 +117,7 @@ class Attribution:
         for c in self.accused:
             lines.append(
                 f"  Salinan #{c.copy.seq} ({c.copy.recipient_id}, {c.copy.nama}): skor {c.score:.1f} >= Z {t.threshold:.1f}; "
-                f"peluang tuduhan salah <= {c.false_accusation_probability:.2e}; "
+                f"peluang tuduhan salah <= {format_upper_bound(c.log10_false_accusation)}; "
                 f"kanal yang sepakat secara independen: {len(c.channels_agreeing)} ({', '.join(c.channels_agreeing) or '-'})"
             )
         if not self.accused:
@@ -133,6 +134,19 @@ class Attribution:
             )
         lines.extend(f"  Catatan: {n}" for n in self.notes)
         return lines
+
+
+def format_upper_bound(log10_p: float) -> str:
+    """An upper bound written as m x 10^e, with the mantissa rounded UP (never understated)."""
+    if log10_p == -math.inf:
+        return "0"
+    if log10_p >= 0:
+        return "1"
+    e = math.floor(log10_p)
+    mant = math.ceil(10 ** (log10_p - e) * 100) / 100
+    if mant >= 10:
+        mant, e = mant / 10, e + 1
+    return f"{mant:.2f}e{e:+03d}"
 
 
 def _now() -> str:
@@ -197,6 +211,7 @@ def attribute(
     for j, ref in enumerate(refs):
         lb = log_tail_bound(float(s[j]), p, fused.weights)
         fap = min(1.0, n_others * math.exp(lb)) if lb > -math.inf else 0.0
+        log10_fap = min(0.0, math.log10(n_others) + lb / math.log(10)) if lb > -math.inf else -math.inf
         candidates.append(
             CopyCandidate(
                 copy=ref,
@@ -204,6 +219,7 @@ def attribute(
                 log10_bound=lb / math.log(10) if lb > -math.inf else -math.inf,
                 false_accusation_probability=fap,
                 accused=bool(math.isfinite(z) and s[j] >= z),
+                log10_false_accusation=log10_fap,
                 channel_scores={k: float(v[j]) for k, v in per_scores.items()},
                 channels_agreeing=[k for k, v in per_accused.items() if v[j]],
             )

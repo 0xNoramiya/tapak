@@ -61,9 +61,15 @@ def _run(workdir: Path, keep: bool) -> int:
     import numpy as np
 
     t0 = time.perf_counter()
+    marker = workdir / ".tapak-demo"
+    demo_names = {".tapak-demo", "data", "keys", "foto_bocor.jpg", "registri_diubah.db",
+                  "berita_acara_salinan13.pdf"}
+    if workdir.exists() and not marker.exists() and any(p.name not in demo_names for p in workdir.iterdir()):
+        raise FileExistsError(f"{workdir} bukan folder demo TAPAK dan tidak kosong; pilih folder lain")
     if workdir.exists() and not keep:
         shutil.rmtree(workdir)
     (workdir / "data").mkdir(parents=True, exist_ok=True)
+    marker.write_text("folder demo TAPAK; boleh dihapus\n", encoding="utf-8")
     os.environ["TAPAK_DATA"] = str(workdir / "data")
     os.environ["TAPAK_KEY_DIR"] = str(workdir / "keys")
     domain = "kanari.tapak.test"
