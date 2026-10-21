@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from tapak.decoder.accuse import Attribution, CopyRef, attribute
-from tapak.decoder.ch_shift import decode_vector
+from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
@@ -137,8 +137,23 @@ def collect_from_text(text: str, ctx: TraceContext) -> list[SoftBits]:
     return obs
 
 
-def collect_background_from_pdf(pdf_bytes: bytes, ctx: TraceContext, dpi: float = 100.0) -> list[SoftBits]:
-    """Channel 2 from a forwarded PDF: render each page (already aligned with the master)."""
+def _num(value: float, decimals: int) -> str:
+    """A number with the Indonesian decimal comma, for notes."""
+    return f"{value:.{decimals}f}".replace(".", ",")
+
+
+def pdf_frames(pdf_bytes: bytes, ctx: TraceContext) -> dict[int, "PageFrame"]:
+    """Evidence page -> master page and fitted frame (scale, offset, invisible OCR text)."""
+    from tapak.decoder.ch_shift import invisible_text_pages, page_frames
+    from tapak.marker.layout import extract_layout
+
+    return page_frames(ctx.master.layout, extract_layout(pdf_bytes), invisible_text_pages(pdf_bytes))
+
+
+def collect_background_from_pdf(pdf_bytes: bytes, ctx: TraceContext, dpi: float = 100.0,
+                                frames: dict[int, "PageFrame"] | None = None) -> list[SoftBits]:
+    """Channel 2 from a forwarded PDF: render each page that lies exactly in the master's frame
+    (same paper, not scaled or moved); other pages are read from a registered image instead."""
     if ctx.background is None or not ctx.plan.channel("background"):
         return []
 
@@ -146,81 +161,114 @@ def collect_background_from_pdf(pdf_bytes: bytes, ctx: TraceContext, dpi: float 
     from tapak.decoder.rectify import render_page
     from tapak.marker.background import page_grids
 
-    from tapak.decoder.ch_shift import map_pages
-    from tapak.marker.layout import extract_layout
-
-    pairs = map_pages(ctx.master.layout, extract_layout(pdf_bytes))  # evidence page -> master page
+    frames = pdf_frames(pdf_bytes, ctx) if frames is None else frames
     sizes = [(p.width, p.height) for p in ctx.master.layout.pages]
     grids = page_grids(sizes, ctx.key, ctx.background)
     parts = []
-    for li, mi in pairs.items():
-        img = render_page(pdf_bytes, li, dpi, supersample=1)
-        master = render_page(ctx.master.pdf_bytes, mi, dpi, supersample=1)
+    for li, f in frames.items():
+        if f.invisible or not f.in_master_frame:
+            continue
+        img = render_page(pdf_bytes, li, dpi, supersample=1, cache=False)
+        master = render_page(ctx.master.pdf_bytes, f.master_page, dpi, supersample=1)
         if img.shape != master.shape:
-            continue  # scaled to another paper size: the cell grid would not line up
-        parts.append(decode_background(img, np.ones(img.shape, dtype=bool), master, dpi, grids[mi],
+            continue  # another paper size: the cell grid would not line up
+        parts.append(decode_background(img, np.ones(img.shape, dtype=bool), master, dpi, grids[f.master_page],
                                        ctx.plan.channel("background")))
     return [SoftBits.concat("background", parts, pages=len(parts))] if parts else []
 
 
-def collect_from_pdf(pdf_bytes: bytes, ctx: TraceContext) -> list[SoftBits]:
-    """Channels readable from a forwarded PDF: shifts (vector readout), background (render),
-    text layer and semantic variants."""
-    return ([decode_vector(pdf_bytes, ctx.master, ctx.plan, ctx.shift, ctx.excluded)]
-            + collect_background_from_pdf(pdf_bytes, ctx)
+def collect_from_pdf(pdf_bytes: bytes, ctx: TraceContext,
+                     frames: dict[int, "PageFrame"] | None = None) -> list[SoftBits]:
+    """Channels readable from a forwarded PDF: shifts (vector readout, in the master's frame),
+    background (render), text layer and semantic variants."""
+    from tapak.decoder.ch_shift import decode_displacements, match_words
+    from tapak.marker.layout import extract_layout
+
+    frames = pdf_frames(pdf_bytes, ctx) if frames is None else frames
+    disp = match_words(ctx.master.layout, extract_layout(pdf_bytes), frames)
+    return ([decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded)]
+            + collect_background_from_pdf(pdf_bytes, ctx, frames=frames)
             + collect_from_text(extract_pdf_text(pdf_bytes), ctx))
 
 
 RASTER_DPI = 200.0
-RASTER_MAX_PIXELS = 25_000_000
-RASTER_MAX_PAGES = 20
+RASTER_MAX_PIXELS = 25_000_000      # one rendered page
+RASTER_TRACE_PIXELS = 60_000_000    # all rendered pages of one trace together
+RASTER_GIVE_UP_AFTER = 2            # consecutive pages of a file that match no master page
 
 
-def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str) -> tuple[list[SoftBits], list[str]]:
+@dataclass
+class RasterBudget:
+    """How many PDF pages one trace may still render and decode as images."""
+
+    pages: int
+    pixels: float = RASTER_TRACE_PIXELS
+
+    @classmethod
+    def for_context(cls, ctx: TraceContext) -> "RasterBudget":
+        """Twice the master's page count, at least 4."""
+        return cls(pages=max(4, 2 * len(ctx.master.layout.pages)))
+
+
+def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str,
+                             frames: dict[int, "PageFrame"] | None = None,
+                             budget: RasterBudget | None = None) -> tuple[list[SoftBits], list[str]]:
     """PDF pages the vector readout cannot use, decoded as images.
 
-    A page with no text layer matching the master (a scan or photo saved as PDF) is rendered
-    and decoded like a photo. A page whose text matches but whose paper size differs (printed
-    to another paper size) keeps its shifts from the vector readout; only the background, whose
-    cell grid would not line up, is taken from the rendered image.
+    A page with no text matching the master, or with an invisible OCR layer over a scan, is
+    rendered and decoded like a photo. A page whose text matches but is scaled, moved or on
+    another paper size keeps its shifts from the (frame-corrected) vector readout; only the
+    background, whose cell grid would not line up, is taken from the rendered image. Rendering
+    is bounded per trace (``budget``) and stops after pages that match nothing.
     """
-    from tapak.decoder.ch_shift import map_pages
     from tapak.decoder.image import collect_from_gray
     from tapak.decoder.rectify import render_page
     from tapak.marker.layout import extract_layout
 
     layout = extract_layout(pdf_bytes)
-    pairs = map_pages(ctx.master.layout, layout)
+    frames = pdf_frames(pdf_bytes, ctx) if frames is None else frames
+    budget = RasterBudget.for_context(ctx) if budget is None else budget
     obs: list[SoftBits] = []
     notes: list[str] = []
     todo = []
     for page in layout.pages:
-        mi = pairs.get(page.index)
-        if mi is None:
-            todo.append((page, None))
+        f = frames.get(page.index)
+        if f is None or f.invisible:
+            todo.append((page, None, "tanpa lapisan teks yang cocok" if f is None else "lapisan teks OCR"))
             continue
-        mp = ctx.master.layout.pages[mi]
-        if (abs(page.width - mp.width) > 1 or abs(page.height - mp.height) > 1) and ctx.background is not None:
-            todo.append((page, {"background"}))
-    if len(todo) > RASTER_MAX_PAGES:
-        notes.append(f"{name}: hanya {RASTER_MAX_PAGES} dari {len(todo)} halaman tanpa lapisan teks yang cocok "
-                     "dibaca sebagai gambar")
-        todo = todo[:RASTER_MAX_PAGES]
-    for page, keep in todo:
+        mp = ctx.master.layout.pages[f.master_page]
+        resized = abs(page.width - mp.width) > 1 or abs(page.height - mp.height) > 1
+        if ctx.background is not None and (resized or not f.in_master_frame):
+            todo.append((page, {"background"}, "diperkecil, digeser, atau ukuran kertas berbeda"))
+    misses = 0
+    for k, (page, keep, why) in enumerate(todo):
         area_in2 = max(page.width * page.height, 1.0) / 72.0**2
         dpi = min(RASTER_DPI, (RASTER_MAX_PIXELS / area_in2) ** 0.5)
-        found = [sb for sb in collect_from_gray(render_page(pdf_bytes, page.index, dpi, supersample=1), ctx)
+        pixels = area_in2 * dpi * dpi
+        if budget.pages <= 0 or budget.pixels < pixels:
+            notes.append(f"{name}: {len(todo) - k} halaman tidak dibaca sebagai gambar (batas pembacaan gambar "
+                         "per pelacakan tercapai)")
+            break
+        if misses >= RASTER_GIVE_UP_AFTER:
+            notes.append(f"{name}: {len(todo) - k} halaman berikutnya dilewati; halaman sebelumnya tidak cocok "
+                         "dengan dokumen induk")
+            break
+        budget.pages -= 1
+        budget.pixels -= pixels
+        found = [sb for sb in collect_from_gray(render_page(pdf_bytes, page.index, dpi, supersample=1, cache=False),
+                                                ctx)
                  if keep is None or sb.channel in keep]
         reg = next((sb.meta for sb in found if "correlation" in sb.meta), None)
         if reg is None:
+            misses += 1
             if keep is None:
                 notes.append(f"{name} halaman {page.index + 1}: tidak memiliki lapisan teks yang cocok dan "
                              "tidak dikenali sebagai halaman dokumen induk")
             continue
+        misses = 0
         obs += found
-        why = "ukuran kertas berbeda" if keep else "tanpa lapisan teks yang cocok"
         notes.append(f"{name} halaman {page.index + 1}: dibaca sebagai gambar ({why}), dipetakan ke halaman "
-                     f"{reg['page'] + 1} (korelasi {reg['correlation']:.3f})")
+                     f"{reg['page'] + 1} (korelasi {_num(reg['correlation'], 3)})")
     return obs, notes
 
 
@@ -251,8 +299,10 @@ def decode_text_evidence(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def collect_file(name: str, data: bytes, ctx: TraceContext) -> tuple[list[SoftBits], list[str]]:
-    """Observations and notes from one evidence file (PDF, DOCX, text or image)."""
+def collect_file(name: str, data: bytes, ctx: TraceContext,
+                 budget: RasterBudget | None = None) -> tuple[list[SoftBits], list[str]]:
+    """Observations and notes from one evidence file (PDF, DOCX, text or image). ``budget``
+    bounds the PDF pages rendered as images (shared by all files of one trace)."""
     notes = []
     digest = sha256_hex(data)
     for c in ctx.manifest.copies:
@@ -263,8 +313,9 @@ def collect_file(name: str, data: bytes, ctx: TraceContext) -> tuple[list[SoftBi
         if b"%PDF-" not in data[:1024]:
             raise TraceError(f"{name}: bukan berkas PDF yang sah")
         try:
-            obs = collect_from_pdf(data, ctx)
-            raster_obs, raster_notes = collect_rasterized_pages(data, ctx, name)
+            frames = pdf_frames(data, ctx)
+            obs = collect_from_pdf(data, ctx, frames=frames)
+            raster_obs, raster_notes = collect_rasterized_pages(data, ctx, name, frames=frames, budget=budget)
         except (RuntimeError, ValueError) as exc:  # pymupdf.FileDataError is a RuntimeError
             raise TraceError(f"{name}: berkas PDF tidak dapat dibuka atau rusak") from exc
         obs += raster_obs
@@ -293,7 +344,7 @@ def collect_file(name: str, data: bytes, ctx: TraceContext) -> tuple[list[SoftBi
             reg = next((sb.meta for sb in obs if "correlation" in sb.meta), None)
             if reg:
                 notes.append(f"{name}: dipetakan ke halaman {reg['page'] + 1} (metode {reg['method']}, "
-                             f"korelasi {reg['correlation']:.3f}, resolusi efektif {reg['effective_dpi']:.0f} dpi)")
+                             f"korelasi {_num(reg['correlation'], 3)}, resolusi efektif {reg['effective_dpi']:.0f} dpi)")
             bg = next((sb.meta for sb in obs if sb.channel == "background"), None)
             if bg is not None and not bg.get("pattern_found", True):
                 notes.append(f"{name}: pola latar tidak terdeteksi (kertas cetak, foto terlalu terang, atau "
@@ -309,8 +360,9 @@ def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext) -> tuple[Attr
     carried by different pages add up. The threshold covers the combined set."""
     obs: list[SoftBits] = []
     notes: list[str] = []
+    budget = RasterBudget.for_context(ctx)
     for name, data in items:
-        o, n = collect_file(name, data, ctx)
+        o, n = collect_file(name, data, ctx, budget)
         obs += o
         notes += n
     if len(items) > 1:

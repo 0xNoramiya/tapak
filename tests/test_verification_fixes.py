@@ -44,7 +44,7 @@ def test_stale_claim_is_reclaimed_and_live_claim_refused(tmp_path, monkeypatch):
     keys = ensure_keys(s)
     folder = s.workspaces / load_master(SAMPLE.read_bytes()).doc_hash[:16]
     folder.mkdir(parents=True)
-    with open(folder / ".terbit.lock", "a+") as held:  # another issuance is running
+    with open(s.workspaces / (folder.name + ".lock"), "a+") as held:  # another issuance is running
         fcntl.flock(held, fcntl.LOCK_EX)
         with pytest.raises(FileExistsError, match="sedang diterbitkan"):
             issue_document(s, SAMPLE, read_recipients(RECIPIENTS)[:2], IssueSettings(workers=1), "uji", keys)
@@ -420,3 +420,180 @@ def test_pattern_z_null_rate_does_not_grow_with_few_bits():
     for n in (100, 2000):  # no pattern: false detections stay near 1e-3 whatever n is
         assert np.mean([stats(n, 0.0) >= SIGNAL_Z for _ in range(400)]) < 0.01
     assert stats(2000, 0.6) >= SIGNAL_Z  # about 73 % of bits correct: clearly present
+
+
+# --- second verification round ----------------------------------------------------------------
+
+
+def _issued_workspace(tmp_path, monkeypatch, n=3):
+    from tapak.service import ensure_keys, issue_document
+
+    s = _settings(tmp_path, monkeypatch)
+    keys = ensure_keys(s)
+    out = issue_document(s, SAMPLE, read_recipients(RECIPIENTS)[:n], IssueSettings(workers=1), "uji", keys)
+    evidence = (out.folder / "salinan" / out.manifest.copies[0].file).read_bytes()
+    return s, keys, out, evidence
+
+
+def test_missing_registry_names_nobody_when_a_registry_is_configured(tmp_path, monkeypatch):
+    from tapak.service import trace_evidence
+
+    s, _, out, evidence = _issued_workspace(tmp_path, monkeypatch)
+    s.registry_path.rename(s.registry_path.with_suffix(".hilang"))
+    with pytest.raises(TraceError, match="tidak ditemukan di registri"):
+        trace_evidence(s, out.manifest.doc_hash, "bocor.pdf", evidence)
+
+
+def test_second_unsigned_copy_row_names_nobody(tmp_path, monkeypatch):
+    from tapak.registry.chain import Registry
+    from tapak.service import trace_evidence
+
+    s, _, out, evidence = _issued_workspace(tmp_path, monkeypatch)
+    with Registry.open(s.registry_path) as reg:
+        row = dict(next(e.payload for e in reg.entries("copy") if e.payload["seq"] == 1))
+        row.pop("recipient_mac")
+        reg.append("copy", row)  # no key needed; the chain stays valid
+    with pytest.raises(TraceError, match="tidak cocok dengan registri"):
+        trace_evidence(s, out.manifest.doc_hash, "bocor.pdf", evidence)
+
+
+def test_edited_code_parameters_name_nobody(tmp_path, monkeypatch):
+    from tapak.service import trace_evidence
+
+    s, _, out, evidence = _issued_workspace(tmp_path, monkeypatch)
+    m = json.loads((out.folder / "manifest.json").read_text(encoding="utf-8"))
+    m["params"]["eps"] = 0.05  # a looser threshold for the same code
+    (out.folder / "manifest.json").write_text(json.dumps(m), encoding="utf-8")
+    with pytest.raises(TraceError, match="parameter kode"):
+        trace_evidence(s, out.manifest.doc_hash, "bocor.pdf", evidence)
+
+
+def test_canary_log_fifo_or_link_never_blocks(tmp_path):
+    import os
+    import time
+
+    from tapak.canary_dns.store import events, record_event
+
+    db = tmp_path / "kanari.db"
+    record_event(db, "abc.c.kanari.tapak.test", "abc", "A", "192.0.2.1", 53)
+    assert len(events(db)) == 1
+    fifo = tmp_path / "fifo.db"
+    os.mkfifo(fifo)
+    t = time.perf_counter()
+    assert events(fifo) == [] and time.perf_counter() - t < 1.0
+    (tmp_path / "link.db").symlink_to(db)
+    assert events(tmp_path / "link.db") == []
+
+
+def _scaled_copy(pdf: bytes, scale: float, dx: float, dy: float, width: float = 595.28, height: float = 841.89) -> bytes:
+    src = pymupdf.open(stream=pdf)
+    doc = pymupdf.open()
+    for i in range(len(src)):
+        page = doc.new_page(width=width, height=height)
+        r = src[i].rect
+        page.show_pdf_page(pymupdf.Rect(dx, dy, dx + r.width * scale, dy + r.height * scale), src, i)
+    return doc.tobytes()
+
+
+def test_scaled_print_is_read_in_the_master_frame(issued, ctx):
+    from tapak.decoder.ch_shift import decode_vector
+    from tapak.decoder.trace import pdf_frames
+
+    pdf = _scaled_copy(_copy(issued, 2), 0.94, 18, 25)
+    frames = pdf_frames(pdf, ctx)
+    assert all(not f.in_master_frame and abs(f.sx - 0.94) < 1e-3 for f in frames.values())
+    sb = decode_vector(pdf, ctx.master, ctx.plan, ctx.shift, ctx.excluded)
+    x = ctx.codewords[1]
+    assert len(sb) > 150 and np.mean((sb.llr > 0) == x[sb.positions]) > 0.99
+    obs, notes = collect_file("kecil.pdf", pdf, ctx)
+    assert sum(len(o) for o in obs if o.channel == "background") > 0
+    assert any("diperkecil" in n for n in notes)
+    assert [c.copy.seq for c in run_trace(obs, ctx, notes).accused] == [2]
+
+
+def test_invisible_ocr_layer_is_not_read_as_geometry(issued, ctx):
+    import cv2
+
+    from tapak.decoder.ch_shift import invisible_text_pages
+    from tapak.decoder.trace import pdf_frames
+    from tapak.marker.render import render_pages
+
+    copy = _copy(issued, 4)
+    img = render_pages(copy, 200, [0])[0]
+    doc = pymupdf.open()
+    page = doc.new_page(width=595.28, height=841.89)
+    page.insert_image(page.rect, stream=cv2.imencode(".png", img)[1].tobytes())
+    # OCR recognizes plain letters (no invisible marks) at imprecise positions.
+    for x0, y0, x1, y1, word, *_ in pymupdf.open(stream=SAMPLE.read_bytes())[0].get_text("words"):
+        page.insert_text((x0 + 0.6, y1 - 2.4), word, fontsize=11, render_mode=3)
+    pdf = doc.tobytes()
+    assert invisible_text_pages(pdf) == {0}
+    frames = pdf_frames(pdf, ctx)
+    assert frames and all(f.invisible for f in frames.values())
+    obs, notes = collect_file("pindai_ocr.pdf", pdf, ctx)
+    vector = [o for o in obs if o.channel == "shift" and "correlation" not in o.meta]
+    assert all(len(o) == 0 for o in vector) and any("lapisan teks OCR" in n for n in notes)
+    assert [c.copy.seq for c in run_trace(obs, ctx, notes).accused] == [4]
+
+
+def test_raster_pages_are_budgeted_and_not_cached(ctx):
+    from tapak.decoder import rectify
+    from tapak.decoder.trace import RasterBudget
+
+    doc = pymupdf.open()
+    for _ in range(6):
+        doc.new_page(width=1800, height=1800).insert_text((72, 72), "halaman kosong", fontsize=12)
+    pdf = doc.tobytes()
+    before = rectify._render_cached.cache_info().currsize
+    budget = RasterBudget.for_context(ctx)
+    obs, notes = collect_rasterized_pages(pdf, ctx, "besar.pdf", budget=budget)
+    assert obs == [] and any("dilewati" in n or "batas" in n for n in notes)
+    assert rectify._render_cached.cache_info().currsize == before
+
+
+def test_other_localhost_ports_are_other_origins(client):
+    r = client.post("/lacak", data={"dokumen": ""}, headers={"origin": "http://localhost:3002"})
+    assert r.status_code == 403
+    r = client.post("/lacak", data={"dokumen": ""}, headers={"origin": "http://127.0.0.1"})
+    assert r.status_code == 200
+
+
+def test_plain_link_errors_get_a_full_page(client):
+    r = client.get("/lacak/0123456789abcdef/berita-acara.pdf")
+    assert r.status_code == 404 and "<html" in r.text and 'href="/lacak"' in r.text
+
+
+def test_subchannel_summary_is_plain_indonesian(issued, ctx):
+    from tapak.web.app import _subchannel_summary
+
+    obs, _ = collect_file("bocor.pdf", _copy(issued, 1), ctx)
+    for sb in obs:
+        text = _subchannel_summary(sb)
+        assert "=" not in text.replace("z =", "") and "{" not in text and "_" not in text
+
+
+def test_file_conflicts_are_described_in_indonesian():
+    from tapak.registry.signing import describe_error
+    from tapak.service import WorkspaceBusy
+
+    assert describe_error(WorkspaceBusy("dokumen ini sedang diterbitkan")) == "dokumen ini sedang diterbitkan"
+
+
+def test_loose_mode_refuses_report_and_verify_takes_anchors(tmp_path, issued, capsys):
+    from tapak import cli
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(issued[1].to_json(), encoding="utf-8")
+    code = cli.main(["--keys", str(tmp_path / "k"), "trace", str(manifest), "--master", str(SAMPLE),
+                     "--manifest", str(manifest), "--report", str(tmp_path / "ba.pdf")])
+    assert code == 2 and "--report memerlukan --doc" in capsys.readouterr().err
+    args = cli.build_parser().parse_args(["verify", "--jangkar", "3:" + "a" * 64])
+    assert args.jangkar == ["3:" + "a" * 64]
+
+
+def test_page_frames_of_an_exact_copy_are_the_identity(issued, ctx):
+    from tapak.decoder.ch_shift import PageFrame, page_frames
+
+    frames = page_frames(ctx.master.layout, extract_layout(_copy(issued, 1)))
+    assert sorted(frames) == [0, 1] and all(f.in_master_frame and not f.invisible for f in frames.values())
+    assert not PageFrame(0, sx=1.002).in_master_frame and not PageFrame(0, oy=0.5).in_master_frame

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card" aria-labelledby="galat-h">
+  <h1 id="galat-h">Permintaan tidak dapat dipenuhi</h1>
+  <div class="notice notice-error" role="alert">{{ message }}</div>
+  <div class="row" style="margin-top: 16px">
+    {% if restart %}<a class="btn btn-primary" href="/terbitkan">Mulai lagi</a>{% endif %}
+    <a class="btn btn-secondary" href="/lacak">Buka Lacak</a>
+  </div>
+</section>
+{% endblock %}

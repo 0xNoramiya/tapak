@@ -1,5 +1,5 @@
 <section class="card" aria-labelledby="langkah2">
-  <h2 id="langkah2"><span class="step">2</span>Rencana penandaan</h2>
+  <h2 id="langkah2" tabindex="-1" data-autofocus><span class="step">2</span>Rencana penandaan</h2>
   <p class="lead">{{ st.doc_name }} untuk {{ st.recipients|length }} penerima. Gerbang visual
     {% if gate.passed %}<span class="chip chip-ok">lulus</span>{% else %}<span class="chip chip-no">gagal</span>{% endif %}:
     tanpa tanda, dokumen digambar ulang identik dengan aslinya (selisih maksimum {{ gate.max_diff }} tingkat abu-abu).</p>
@@ -11,7 +11,7 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Kanal</th><th class="num">Slot</th><th class="num">Posisi kode</th><th>Bertahan terhadap</th></tr></thead>
+      <thead><tr><th>Kanal</th><th class="num">Slot</th><th class="num">Posisi kode</th><th class="hide-sm">Bertahan terhadap</th></tr></thead>
       <tbody>
         {% set survives = {"shift": "cetak, foto, tangkapan layar", "background": "layar, tangkapan layar, foto layar",
                            "zw": "salin-tempel, berkas diteruskan", "homoglyph": "salin-tempel, teks dinormalkan sebagian"} %}

@@ -97,7 +97,7 @@
 
 <section class="card" aria-labelledby="langkah4">
   <h2 id="langkah4"><span class="step">4</span>Terbitkan</h2>
-  {% if block_error %}<div class="notice notice-error" role="alert">{{ block_error }}</div>{% endif %}
+  {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}
   <p class="lead" id="langkah4-status">
     {% if pending.n %}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
     {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}

@@ -273,6 +273,8 @@ def describe_error(exc: BaseException) -> str:
         return "registri tidak dapat dibuka atau ditulis (bukan berkas SQLite, rusak, atau sedang terkunci)"
     if isinstance(exc, UnicodeError):
         return "berkas berisi karakter yang tidak sah"
+    if isinstance(exc, OSError) and exc.errno is None and exc.args:
+        return str(exc)  # raised by TAPAK itself with an Indonesian message
     if isinstance(exc, OSError) and not isinstance(exc, FileNotFoundError):
         return f"kesalahan berkas: {name or exc.strerror or 'tidak diketahui'}"
     return str(exc)

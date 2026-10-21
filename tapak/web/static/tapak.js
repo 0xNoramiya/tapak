@@ -17,10 +17,16 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
   });
-  // A new request clears the previous error notice.
-  body.addEventListener("htmx:beforeRequest", function () {
+  // A new request clears the previous error notice and the requesting form's field errors (a
+  // fixed field must not keep its message after a successful submit).
+  body.addEventListener("htmx:beforeRequest", function (e) {
     var g = document.getElementById("galat-global");
     if (g) { g.innerHTML = ""; }
+    var form = e.detail.elt;
+    if (form && form.querySelectorAll) {
+      form.querySelectorAll('[id^="err-"], [id$="-err"]').forEach(function (n) { n.innerHTML = ""; });
+      markInvalid();
+    }
   });
   // Move keyboard focus to a result heading marked data-autofocus after it arrives; bring a
   // page-level notice into view, wherever the user had scrolled to.

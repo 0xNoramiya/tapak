@@ -24,7 +24,7 @@
       <div class="grid-2">
         <div class="field">
           <label for="c">Ukuran koalisi yang ditahan (c)</label>
-          <input id="c" name="c" type="number" min="1" max="10" value="{{ values.c if values.c is not none and values.c != '' else 3 }}"
+          <input id="c" name="c" type="number" min="1" max="10" value="{{ values.get('c') if values.get('c') not in (none, '') else 3 }}"
                  aria-describedby="hint-c err-c" {% if errors.c %}aria-invalid="true"{% endif %}>
           <span class="hint" id="hint-c">Jumlah penerima yang mungkin bersekongkol membandingkan salinan.</span>
           <span id="err-c">{% if errors.c %}<span class="field-error">{{ errors.c }}</span>{% endif %}</span>

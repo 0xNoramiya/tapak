@@ -60,7 +60,7 @@
         <tbody>
         {% for sb in o.observations %}
           <tr><td>{{ channel_name(sb.channel) }}</td><td class="num">{{ sb.positions|length|num }}</td>
-              <td class="small muted mono">{% for k, v in sb.meta.items() if k not in ("reads",) %}{{ k }}={{ v if v is not number else (v|round(3)) }}{% if not loop.last %}; {% endif %}{% endfor %}</td></tr>
+              <td class="small muted">{{ subchannel_summary(sb) }}</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -96,7 +96,7 @@
   {% set r = o.registry %}
   <ul class="notes">
     <li>Registri:
-      {% if r.chain_ok and r.unsigned %}<span class="chip chip-wait">utuh, {{ r.unsigned|num }} entri belum bertanda tangan</span>{% elif r.chain_ok %}<span class="chip chip-ok">rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="chip chip-no">rantai rusak</span>{% else %}<span class="chip chip-wait">tidak diverifikasi</span>{% endif %}
+      {% if r.chain_ok and r.copies_unsigned %}<span class="chip chip-wait">utuh, {{ r.copies_unsigned|num }} salinan belum bertanda tangan</span>{% elif r.chain_ok %}<span class="chip chip-ok">rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="chip chip-no">rantai rusak</span>{% else %}<span class="chip chip-wait">tidak diverifikasi</span>{% endif %}
       {{ r.entries|num }} entri; {{ r.copies_confirmed }} dari {{ r.copies_total }} komitmen salinan cocok.
     </li>
     <li>SHA-256 bukti: <span class="mono">{{ o.evidence_sha256 }}</span></li>

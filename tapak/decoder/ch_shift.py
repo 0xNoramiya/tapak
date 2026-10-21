@@ -16,6 +16,7 @@ LLR = 2 * delta * s / sigma^2.
 from __future__ import annotations
 
 import difflib
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -195,26 +196,116 @@ def map_pages(master_layout: DocumentLayout, leaked_layout: DocumentLayout,
     return {leaked[r][0]: int(c) for r, c in zip(rows, cols) if sim[r, c] >= min_ratio}
 
 
-def match_words(master_layout: DocumentLayout, leaked_layout: DocumentLayout) -> Displacements:
-    """Displacement of every master word found in a leaked *PDF* layout (pages matched by text)."""
+# A page counts as being in the master's frame when the fitted transform is within these.
+FRAME_SCALE_TOL = 0.0005   # 0.3 pt across an A4 page
+FRAME_OFFSET_TOL_PT = 0.25
+
+
+@dataclass(frozen=True)
+class PageFrame:
+    """Where an evidence PDF page's text lies relative to its master page:
+    x' = sx * x + ox and y' = sy * y + oy (points), fitted over the matched words.
+
+    ``invisible`` marks a page whose text is mostly invisible (render mode 3): an OCR layer
+    over a scanned image, whose positions are estimates rather than the printed geometry.
+    """
+
+    master_page: int
+    sx: float = 1.0
+    ox: float = 0.0
+    sy: float = 1.0
+    oy: float = 0.0
+    invisible: bool = False
+
+    @property
+    def in_master_frame(self) -> bool:
+        """True when the page is neither scaled nor moved (a direct copy of the master page)."""
+        return (abs(self.sx - 1) <= FRAME_SCALE_TOL and abs(self.sy - 1) <= FRAME_SCALE_TOL
+                and abs(self.ox) <= FRAME_OFFSET_TOL_PT and abs(self.oy) <= FRAME_OFFSET_TOL_PT)
+
+
+def invisible_text_pages(pdf_bytes: bytes) -> set[int]:
+    """Pages whose text is mostly invisible (render mode 3), as OCR software writes it."""
+    import pymupdf
+
+    out = set()
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        for page in doc:
+            seen = hidden = 0
+            for span in page.get_texttrace():
+                n = len(span["chars"])
+                seen += n
+                hidden += n if span["type"] == 3 or span.get("opacity", 1.0) == 0 else 0
+            if seen and hidden > 0.5 * seen:
+                out.add(page.number)
+    return out
+
+
+def _fit_axis(m: np.ndarray, v: np.ndarray) -> tuple[float, float]:
+    """Robust v = a * m + b: least squares, refitted twice without outliers. With too little
+    spread to fit a scale, only the offset (median difference) is estimated."""
+    if len(m) < 8 or float(np.ptp(m)) < 50.0:
+        return 1.0, float(np.median(v - m)) if len(m) else 0.0
+    a, b = np.polyfit(m, v, 1)
+    for _ in range(2):
+        r = v - (a * m + b)
+        spread = 1.4826 * float(np.median(np.abs(r - np.median(r)))) or 1e-6
+        keep = np.abs(r) <= max(5.0 * spread, 0.5)
+        if keep.sum() >= 8:
+            a, b = np.polyfit(m[keep], v[keep], 1)
+    # An exact copy fits the identity up to rounding; report it exactly.
+    return (1.0 if abs(a - 1) < 1e-9 else float(a)), (0.0 if abs(b) < 1e-6 else float(b))
+
+
+def _word_pairs(master_layout: DocumentLayout, leaked_layout: DocumentLayout, li: int, mi: int):
+    """(master word, leaked word) pairs of one page pair, matched by text sequence."""
+    mp, lp = master_layout.pages[mi], leaked_layout.pages[li]
+    mw = [w for r in mp.rows for w in r.words]
+    lw = [w for r in lp.rows for w in r.words]
+    sm = difflib.SequenceMatcher(None, [w.text for w in mw], [normalize_text(w.text) for w in lw], autojunk=False)
+    return [(mw[b.a + k], lw[b.b + k]) for b in sm.get_matching_blocks() for k in range(b.size)]
+
+
+def page_frames(master_layout: DocumentLayout, leaked_layout: DocumentLayout,
+                invisible: set[int] | frozenset[int] = frozenset()) -> dict[int, PageFrame]:
+    """Evidence page index -> its master page and fitted frame (see :class:`PageFrame`)."""
+    frames: dict[int, PageFrame] = {}
+    for li, mi in map_pages(master_layout, leaked_layout).items():
+        pairs = _word_pairs(master_layout, leaked_layout, li, mi)
+        mx = np.array([a.glyphs[0].x for a, _ in pairs])
+        my = np.array([a.glyphs[0].y for a, _ in pairs])
+        lx = np.array([c.glyphs[0].x for _, c in pairs])
+        ly = np.array([c.glyphs[0].y for _, c in pairs])
+        sx, ox = _fit_axis(mx, lx)
+        sy, oy = _fit_axis(my, ly)
+        frames[li] = PageFrame(mi, sx, ox, sy, oy, li in invisible)
+    return frames
+
+
+def match_words(master_layout: DocumentLayout, leaked_layout: DocumentLayout,
+                frames: dict[int, PageFrame] | None = None) -> Displacements:
+    """Displacement of every master word found in a leaked *PDF* layout, in the master's frame.
+
+    Pages are matched by text, and each page's scale and offset (a print scaled to fit, or to
+    another paper size) is removed first, so only the per-word marks remain. Pages with an
+    invisible text layer (OCR over a scan) are skipped: they are decoded as images.
+    """
+    if frames is None:
+        frames = page_frames(master_layout, leaked_layout)
     disp: Displacements = {}
-    pairs = map_pages(master_layout, leaked_layout)
-    for li, mi in pairs.items():
-        mp, lp = master_layout.pages[mi], leaked_layout.pages[li]
-        mw = [w for r in mp.rows for w in r.words]
-        lw = [w for r in lp.rows for w in r.words]
-        sm = difflib.SequenceMatcher(None, [w.text for w in mw],
-                                     [normalize_text(w.text) for w in lw], autojunk=False)
-        for b in sm.get_matching_blocks():
-            for k in range(b.size):
-                a, c = mw[b.a + k], lw[b.b + k]
-                disp[a.id] = (c.glyphs[0].x - a.glyphs[0].x, c.glyphs[0].y - a.glyphs[0].y)
+    for li, f in frames.items():
+        if f.invisible:
+            continue
+        for a, c in _word_pairs(master_layout, leaked_layout, li, f.master_page):
+            disp[a.id] = ((c.glyphs[0].x - f.ox) / f.sx - a.glyphs[0].x,
+                          (c.glyphs[0].y - f.oy) / f.sy - a.glyphs[0].y)
     return disp
 
 
 def measure_vector(pdf_bytes: bytes, master: MasterDocument) -> Displacements:
     """Displacements read from the glyph origins of a leaked PDF file."""
-    return match_words(master.layout, extract_layout(pdf_bytes))
+    layout = extract_layout(pdf_bytes)
+    return match_words(master.layout, layout, page_frames(master.layout, layout, invisible_text_pages(pdf_bytes)))
 
 
 def decode_vector(

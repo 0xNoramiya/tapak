@@ -268,6 +268,10 @@ _W: dict[str, object] = {}
 
 def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
                  semantic: SemanticSelection | None = None) -> None:
+    if mp.parent_process() is not None:  # a pool worker (this also runs in-process when serial)
+        import signal
+
+        signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C is handled by the parent, which stops the pool
     master = load_master(pdf_bytes)
     params = _params_for(settings, None)
     _W.update(

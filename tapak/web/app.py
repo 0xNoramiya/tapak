@@ -86,19 +86,26 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 async def _same_origin_posts(request: Request, call_next):
     """Refuse state-changing requests sent by another origin (cross-site form posts).
 
-    Accepted: an Origin (or Referer) naming the host the request was sent to, or one of
-    ALLOWED_HOSTS (with the same "*.domain" wildcards as the host check; a bare "*" never
-    accepts a foreign origin).
+    Accepted: an Origin (or Referer) naming exactly the host and port the request was sent to,
+    or a non-loopback name in ALLOWED_HOSTS (the public name behind a reverse proxy, with the
+    same "*.domain" wildcards as the host check; a bare "*" never accepts a foreign origin).
     """
     if request.method == "POST":
         origin = request.headers.get("origin") or request.headers.get("referer")
         if origin:
             parts = urlsplit(origin)
+            host = (parts.hostname or "").lower()
             same = parts.netloc.lower() == request.headers.get("host", "").lower()
-            if not (same or _host_allowed(parts.hostname or "")):
+            # Another app on this machine (any localhost port) is a different origin: loopback
+            # names count only as the exact host:port of this app. ALLOWED_HOSTS admits the
+            # public names a reverse proxy serves.
+            if not (same or (host not in _LOOPBACK and _host_allowed(host))):
                 return HTMLResponse('<div class="notice notice-error">Permintaan dari asal lain ditolak.</div>',
                                     status_code=403)
     return await call_next(request)
+
+
+_LOOPBACK = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
 
 def _host_allowed(host: str) -> bool:
@@ -130,9 +137,46 @@ def _fap(candidate, n_copies: int):
 templates.env.globals["fap"] = _fap
 
 
+def _subchannel_summary(sb) -> str:
+    """Decoder diagnostics of one sub-channel in plain Indonesian (no raw keys or values)."""
+    from tapak.decoder.report import _noise_text
+
+    m = sb.meta
+    parts = []
+    if isinstance(m.get("page"), int):
+        parts.append(f"halaman {m['page'] + 1}")
+    elif isinstance(m.get("pages"), int):
+        parts.append(f"{m['pages']} halaman dibaca")
+    for key, label in (("slots", "slot"), ("bits", "bit")):
+        if isinstance(m.get(f"{key}_read"), int) and isinstance(m.get(f"{key}_total"), int):
+            parts.append(f"{label} terbaca {format_number(m[f'{key}_read'], 0)} dari {format_number(m[f'{key}_total'], 0)}")
+    if m.get("registered") is False:
+        parts.append("halaman tidak dikenali")
+    if m.get("pattern_found") is False:
+        parts.append("pola tidak terdeteksi")
+    if isinstance(m.get("signal_z"), (int, float)):
+        parts.append(f"uji pola z = {format_number(float(m['signal_z']), 1)}")
+    noise = _noise_text(sb.channel, m)
+    if noise not in ("-", ""):
+        parts.append(noise)
+    if isinstance(m.get("correlation"), (int, float)):
+        parts.append(f"korelasi {format_number(float(m['correlation']), 3)}")
+    if isinstance(m.get("effective_dpi"), (int, float)):
+        parts.append(f"resolusi efektif {format_number(float(m['effective_dpi']), 0)} dpi")
+    return "; ".join(parts) or "-"
+
+
+templates.env.globals["subchannel_summary"] = _subchannel_summary
+
+
 def _notice(request: Request, message: str, status: int, restart: bool = False) -> HTMLResponse:
     """An Indonesian error notice. For htmx requests it is placed in the page-level alert
-    region (HX-Retarget) so the current form stays intact."""
+    region (HX-Retarget) so the current form stays intact; a plain link (a download, an old
+    bookmark) gets a full page with navigation."""
+    if not request.headers.get("HX-Request"):
+        resp = _page(request, "galat.html", title="Galat", message=message, restart=restart)
+        resp.status_code = status
+        return resp
     link = ' <a class="link" href="/terbitkan">Mulai lagi</a>' if restart else ""
     body = f'<div class="notice notice-error">{html.escape(message)}{link}</div>'
     headers = {"HX-Retarget": "#galat-global", "HX-Reswap": "innerHTML"} if request.headers.get("HX-Request") else {}
@@ -424,11 +468,19 @@ def terbitkan_setujui_semua(request: Request, sid: str, unit_id: str) -> HTMLRes
     return _page(request, "_semantik.html", oob=True, st=st)
 
 
+def _review_error(request: Request, st: "Staging", message: str) -> HTMLResponse:
+    """A publish failure shown inside the review section; the plan and the decisions stay."""
+    resp = _page(request, "_semantik.html", oob=True, st=st, block_error=message)
+    resp.headers["HX-Retarget"] = "#semantik"
+    resp.headers["HX-Reswap"] = "innerHTML show:#semantik-galat:center"
+    return resp
+
+
 @app.post("/terbitkan/{sid}/terbitkan", response_class=HTMLResponse)
 def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
     """Issue the copies (blocked while any variant awaits review)."""
     from tapak.marker.semantic import IssuanceBlocked
-    from tapak.service import issue_document
+    from tapak.service import WorkspaceBusy, issue_document
 
     st = _staging(sid)
     s = settings()
@@ -440,9 +492,11 @@ def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
         out = issue_document(s, st.folder / "induk.pdf", st.recipients, st.settings, st.issuer,
                              semantic=sel, doc_name=st.doc_name)
     except IssuanceBlocked as exc:
-        return _page(request, "_semantik.html", oob=True, st=st, block_error=str(exc))
+        return _review_error(request, st, str(exc))
+    except WorkspaceBusy as exc:
+        return _review_error(request, st, str(exc))
     except (ValueError, RuntimeError) as exc:
-        return _page(request, "_semantik.html", oob=True, st=st, block_error=f"Penerbitan gagal: {exc}")
+        return _review_error(request, st, f"Penerbitan gagal: {exc}")
     except FileExistsError:
         return _page(request, "_galat.html", message="Dokumen ini sudah pernah diterbitkan. Buka halaman Lacak "
                      "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain.", restart=True)

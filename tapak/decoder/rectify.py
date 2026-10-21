@@ -71,17 +71,20 @@ def load_gray(data: bytes) -> np.ndarray:
     return img.astype(np.float32)
 
 
-def render_page(pdf_bytes: bytes, page: int, dpi: float, supersample: int = 4) -> np.ndarray:
+def render_page(pdf_bytes: bytes, page: int, dpi: float, supersample: int = 4, cache: bool = True) -> np.ndarray:
     """Render a page at ``dpi`` by supersampling and area-averaging.
 
     Plain low-resolution rendering snaps glyphs to the pixel grid (up to half a pixel),
     which is larger than the marks being measured; supersampling removes that bias.
+    Masters are cached (rendered again for every trace); pass ``cache=False`` for evidence, so
+    renders of uploaded files never stay in memory after the request.
     """
+    if not cache:
+        return _render(pdf_bytes, page, float(dpi), supersample)
     return _render_cached(pdf_bytes, page, float(dpi), supersample).copy()
 
 
-@lru_cache(maxsize=16)
-def _render_cached(pdf_bytes: bytes, page: int, dpi: float, supersample: int) -> np.ndarray:
+def _render(pdf_bytes: bytes, page: int, dpi: float, supersample: int) -> np.ndarray:
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
         p = doc[page]
         w = int(round(p.rect.width * dpi / 72.0))
@@ -90,6 +93,9 @@ def _render_cached(pdf_bytes: bytes, page: int, dpi: float, supersample: int) ->
         pix = p.get_pixmap(matrix=mat, colorspace=pymupdf.csGRAY, alpha=False)
         hi = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).astype(np.float32)
     return cv2.resize(hi, (w, h), interpolation=cv2.INTER_AREA)
+
+
+_render_cached = lru_cache(maxsize=16)(_render)
 
 
 def flatten_illumination(gray: np.ndarray, sigma: float) -> np.ndarray:

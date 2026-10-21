@@ -52,7 +52,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import stat
 import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -280,12 +282,35 @@ def record_event(db_path: str | Path, qname: str, token: str, qtype: str, src_ip
 # --- read path (read-only, never creates anything) ---------------------------------------
 
 
+MAX_READ_BYTES = 256 * 1024 * 1024
+
+
 def _connect_ro(db_path: str | Path) -> sqlite3.Connection | None:
-    """Read-only connection, or None when the file does not exist."""
-    path = Path(db_path)
-    if path.is_symlink() or not path.is_file():  # never follow a link planted in the shared folder
+    """A read-only connection to the log, or None when there is no readable log.
+
+    The log lives in a folder the internet-facing listener can write, which could plant a link
+    or a FIFO there (a plain open of a FIFO blocks forever). So the file is opened once with
+    O_NOFOLLOW | O_NONBLOCK and must be a regular file; SQLite then opens that same open file
+    through /dev/fd (never the path again, so it cannot be swapped in between) and reads it
+    under its usual locks, so a read during a write is never torn.
+    """
+    try:
+        fd = os.open(db_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:  # missing, a link (ELOOP) or unreadable
         return None
-    return sqlite3.connect(path.absolute().as_uri() + "?mode=ro&nofollow=1", uri=True, timeout=10.0)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_READ_BYTES:
+            return None
+        con = sqlite3.connect(f"file:/dev/fd/{fd}?mode=ro", uri=True, timeout=10.0)
+        try:
+            con.execute("PRAGMA schema_version").fetchone()  # SQLite now holds its own descriptor
+        except sqlite3.DatabaseError:
+            con.close()
+            return None
+        return con
+    finally:
+        os.close(fd)  # no transaction is open here, so no SQLite lock is released by this
 
 
 def _read_rows(db_path: str | Path, where: str = "", args: Sequence[object] = ()) -> list[tuple]:

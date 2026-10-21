@@ -229,6 +229,8 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     if args.master or args.manifest:
         if not (args.master and args.manifest):
             raise ValueError("--master dan --manifest harus diberikan bersama")
+        if args.report:
+            raise ValueError("--report memerlukan --doc: berita acara hanya dibuat setelah registri diperiksa")
         from tapak.decoder.trace import load_context, trace_files
         from tapak.keys import load_code_secret
         from tapak.marker.issue import IssueManifest
@@ -248,7 +250,8 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         else:
             ctx = load_context(master, manifest, secret, folder=Path(args.manifest).parent)
             result, obs = trace_files(items, ctx)
-        _print_attribution(result, obs)
+        _print_attribution(result, obs, ["Mode lepas: registri tidak diperiksa; identitas penerima hanya berasal "
+                                         "dari catatan penerbitan yang diberikan"])
         if args.json:
             _write_json(Path(args.json), result)
         return 0
@@ -335,6 +338,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     argv = [str(args.registry or s.registry_path), "--public-key", str(args.public_key or s.public_key_path)]
     if args.merkle_dir:
         argv += ["--merkle-dir", args.merkle_dir]
+    for anchor in args.jangkar:
+        argv += ["--jangkar", anchor]
     return verify_main(argv)
 
 
@@ -476,6 +481,8 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--registry", default=None)
     v.add_argument("--public-key", default=None)
     v.add_argument("--merkle-dir", default=None)
+    v.add_argument("--jangkar", action="append", default=[], metavar="NOMOR:HASH",
+                   help="ujung rantai yang dicatat sebelumnya; entri yang hilang sesudahnya terdeteksi")
     v.set_defaults(func=_cmd_verify)
 
     r = sub.add_parser("registry", help="operasi registri")

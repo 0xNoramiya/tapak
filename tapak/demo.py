@@ -109,8 +109,8 @@ def _run(workdir: Path, keep: bool) -> int:
     previous = [d for d in list_workspaces(settings) if d.doc_hash == master.doc_hash]
     if keep and previous:  # --keep: trace the copies issued by the previous run again
         manifest, _, folder = load_workspace(settings, master.doc_hash)
-        out = IssueOutcome(manifest, folder, len(manifest.copies) + 1, keys.signer is not None)
-        _ok("memakai penerbitan dari demo sebelumnya (--keep)")
+        out = IssueOutcome(manifest, folder, 0, keys.signer is not None)
+        _ok("memakai penerbitan dan entri registri dari demo sebelumnya (--keep)")
     else:
         out = issue_document(settings, sample, read_recipients(recipients_csv),
                              IssueSettings(canary_domain=domain), issuer="Kasi Ops Brigif 9905 (fiktif)",
@@ -120,7 +120,8 @@ def _run(workdir: Path, keep: bool) -> int:
     _ok(f"{len(m.copies)} salinan dalam {m.elapsed_s:.1f} s; kode Tardos m={p.length} bit, c={p.c}, eps={p.eps:g}")
     _ok("kanal: " + ", ".join(f"{ch} ({info['positions']} posisi)" for ch, info in m.plan_summary.items())
         + f", canary (subdomain per salinan di {domain})")
-    _ok(f"registri: {out.registry_entries} entri ditandatangani Ed25519")
+    if out.registry_entries:
+        _ok(f"registri: {out.registry_entries} entri ditandatangani Ed25519")
 
     # 2 --------------------------------------------------------------------------------
     _say("2/6", "Salinan #13 difoto dengan ponsel dan dikirim lewat WhatsApp (sintetis)")
@@ -153,11 +154,12 @@ def _run(workdir: Path, keep: bool) -> int:
                              allowlist=settings.canary_allowlist)
     server.start()
     try:
+        before = len(canary_alerts(settings, m))  # with --keep, older hits are already logged
         t = time.perf_counter()
         simulate_open(copy7, "pdf", ("127.0.0.1", server.port), domain=domain)
         alerts = []
         while time.perf_counter() - t < 5.0:
-            alerts = [x for x in canary_alerts(settings, m) if x["seq"] == 7]
+            alerts = [x for x in canary_alerts(settings, m)[before:] if x["seq"] == 7]
             if alerts:
                 break
             time.sleep(0.05)

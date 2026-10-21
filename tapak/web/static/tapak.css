@@ -27,6 +27,7 @@
   --info-soft: oklch(0.96 0.02 240);
   --banner: oklch(0.47 0.15 27);
   --focus: oklch(0.55 0.12 250);
+  --scroll-shadow: oklch(0 0 0 / 0.14);
   --disabled-bg: oklch(0.92 0.005 115);
   --disabled-text: oklch(0.62 0.008 115);
   --shadow: 0 1px 1px oklch(0.2 0.02 115 / 0.04), 0 2px 6px oklch(0.2 0.02 115 / 0.04),
@@ -39,6 +40,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --focus: oklch(0.7 0.12 250);
+    --scroll-shadow: oklch(1 0 0 / 0.18);
     --bg: oklch(0.19 0.008 115);
     --surface: oklch(0.235 0.009 115);
     --surface-sunken: oklch(0.21 0.008 115);
@@ -142,7 +145,7 @@ h1, h2 { text-wrap: balance; }
 .page-head p { margin: 0; color: var(--text-muted); max-width: 65ch; }
 
 .stack { display: flex; flex-direction: column; gap: 20px; }
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 
 .card {
   background: var(--surface);
@@ -291,8 +294,8 @@ details.more[open] summary { margin-bottom: 12px; }
   background:
     linear-gradient(to right, var(--surface) 40%, transparent) left / 28px 100% no-repeat local,
     linear-gradient(to left, var(--surface) 40%, transparent) right / 28px 100% no-repeat local,
-    radial-gradient(farthest-side at 0 50%, oklch(0 0 0 / 0.14), transparent) left / 12px 100% no-repeat scroll,
-    radial-gradient(farthest-side at 100% 50%, oklch(0 0 0 / 0.14), transparent) right / 12px 100% no-repeat scroll;
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shadow), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow), transparent) right / 12px 100% no-repeat scroll;
 }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th {
@@ -365,10 +368,14 @@ th.num { text-align: right; }
 .check-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
 .check-row input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--accent); }
 
-.notice { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; background: var(--info-soft); }
+.notice { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; background: var(--info-soft); overflow-wrap: anywhere; }
 .notice-warn { background: var(--warn-soft); }
 .notice-error { background: var(--danger-soft); color: var(--danger); }
 .notes { margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.notes li { overflow-wrap: anywhere; min-width: 0; }
+/* htmx replaces #semantik on every review decision; without this, Chromium's scroll anchoring
+   jumps the page to the bottom while the old content is removed. */
+#semantik { overflow-anchor: none; }
 .empty { color: var(--text-muted); padding: 12px 0; }
 
 .footer { border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12px; }

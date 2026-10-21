@@ -150,7 +150,8 @@ def test_registry_failure_leaves_no_workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(chain, "registry_from_manifest", boom)
     with pytest.raises(chain.RegistryError):
         issue_document(s, SAMPLE, read_recipients(RECIPIENTS)[:3], IssueSettings(workers=1), "uji", keys)
-    assert list_workspaces(s) == [] and not any(s.workspaces.glob("*"))
+    # Only the per-document lock file may remain (it is never deleted while others may hold it).
+    assert list_workspaces(s) == [] and not [p for p in s.workspaces.glob("*") if p.suffix != ".lock"]
 
 
 def test_manifest_disagreeing_with_registry_names_nobody(tmp_path, monkeypatch):
