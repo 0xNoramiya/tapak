@@ -1,38 +1,70 @@
-<section class="card" aria-labelledby="bukti-h">
-  <h2 id="bukti-h">Bukti</h2>
-  {% if not docs %}
-  <p class="empty">Belum ada dokumen yang diterbitkan. <a class="link" href="/terbitkan">Terbitkan dokumen</a> lebih dulu, lalu kembali ke sini untuk melacak kebocorannya.</p>
-  {% else %}
-  <form hx-post="/lacak" hx-encoding="multipart/form-data" hx-target="#hasil" hx-swap="innerHTML show:#hasil:top"
-        hx-trigger="submit, keydown[(metaKey||ctrlKey)&&key=='Enter'] from:#teks"
-        hx-disabled-elt="find button[type=submit]">
+{% from "_ikon.html" import ikon %}
+{% if not docs %}
+<section class="empty-state" aria-labelledby="bukti-h">
+  <h2 id="bukti-h">Belum ada dokumen yang diterbitkan.</h2>
+  <p>Kebocoran hanya dapat dilacak pada dokumen yang diterbitkan lewat TAPAK.</p>
+  <a class="btn btn-primary" href="/terbitkan">{{ ikon("files") }}Terbitkan dokumen</a>
+</section>
+{% else %}
+{% set ns = namespace(doc=docs[0]) %}
+{% for m in docs %}{% if m.doc_hash[:16] == selected %}{% set ns.doc = m %}{% endif %}{% endfor %}
+{% set src = pratinjau_url(ns.doc) %}
+{# Options read "name · date"; the time is added only where a name and date repeat. #}
+{% set name_days = [] %}
+{% for m in docs %}{% set _ = name_days.append(m.doc_name ~ "|" ~ (m.issued_at|waktu).split(" pukul ")[0]) %}{% endfor %}
+<form class="lacak-form" aria-labelledby="bukti-h" hx-post="/lacak" hx-encoding="multipart/form-data" hx-target="#hasil" hx-swap="innerHTML show:#hasil:top"
+      hx-trigger="submit, keydown[(metaKey||ctrlKey)&&key=='Enter'] from:#teks"
+      hx-disabled-elt="find button[type=submit]">
+  <h2 id="bukti-h" class="sr-only">Bukti</h2>
+  <div class="card lacak-dok">
     <div class="field">
       <label for="dokumen">Dokumen yang diduga bocor</label>
       <select id="dokumen" name="dokumen" aria-describedby="dokumen-err" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
         {% for m in docs %}
-        <option value="{{ m.doc_hash[:16] }}" {% if selected == m.doc_hash[:16] %}selected{% endif %}>{{ m.doc_name }} · {{ m.issued_at|waktu }} · {{ m.copies|length }} salinan</option>
+        {% set when = (m.issued_at|waktu).split(" pukul ") %}
+        <option value="{{ m.doc_hash[:16] }}" {% if m is sameas ns.doc %}selected{% endif %} data-pratinjau="{{ pratinjau_url(m) or '' }}">{{ m.doc_name }} · {{ when[0] }}{% if when|length > 1 and name_days.count(m.doc_name ~ "|" ~ when[0]) > 1 %} pukul {{ when[1].split(" ")[0] }}{% endif %}</option>
         {% endfor %}
       </select>
       <span id="dokumen-err">{% if errors.dokumen %}<span class="field-error" role="alert">{{ errors.dokumen }}</span>{% endif %}</span>
     </div>
+    <figure class="lacak-pratinjau">
+      <span class="thumb"><img {% if src %}src="{{ src }}" {% endif %}data-preview-from="#dokumen" alt="" width="200" height="283"></span>
+      <figcaption><span class="pratinjau-ada">Halaman 1 dokumen yang dipilih</span><span class="pratinjau-tidak">Pratinjau tidak tersedia untuk DOCX</span></figcaption>
+    </figure>
+  </div>
+
+  <div class="card lacak-bukti">
     <div class="field">
-      <label for="bukti">Berkas bukti</label>
-      <input id="bukti" name="bukti" type="file" multiple accept="image/*,.pdf,.docx,.txt" aria-describedby="hint-bukti bukti-err" {% if errors.bukti %}aria-invalid="true"{% endif %}>
-      <span class="hint" id="hint-bukti">Foto (JPEG/PNG), tangkapan layar, PDF, DOCX, atau berkas teks. Beberapa berkas dari kebocoran yang sama (misalnya foto tiap halaman) boleh dipilih sekaligus; buktinya digabung.</span>
-    </div>
-    <div class="field">
-      <label for="teks">Atau tempel teks yang bocor</label>
-      <textarea id="teks" name="teks" spellcheck="false" placeholder="Tempel teks dari pesan atau dokumen di sini"></textarea>
+      <span class="field-label" id="bukti-label">Bukti yang bocor</span>
+      <label class="dropzone" data-dropzone>
+        <input type="file" id="bukti" name="bukti" multiple accept="image/*,.pdf,.docx,.txt" title="Pilih berkas" aria-labelledby="bukti-label" aria-describedby="hint-bukti bukti-err" {% if errors.bukti %}aria-invalid="true"{% endif %}>
+        <span class="dropzone-icon" aria-hidden="true">{{ ikon("file-up") }}</span>
+        <span class="dropzone-text">
+          <span class="dropzone-title">Foto, tangkapan layar, PDF, DOCX, atau TXT</span>
+          <span class="dropzone-hint">Seret ke sini atau <span class="dropzone-link">pilih berkas</span>.</span>
+        </span>
+        <ul class="dropzone-files" data-dropzone-files></ul>
+      </label>
+      <span class="hint" id="hint-bukti">Foto tiap halaman dari kebocoran yang sama boleh dipilih sekaligus; buktinya digabung.</span>
       <span id="bukti-err">{% if errors.bukti %}<span class="field-error" role="alert">{{ errors.bukti }}</span>{% endif %}</span>
     </div>
-    <div class="row">
+
+    <details class="more lacak-teks">
+      <summary><span>Atau tempel teks yang bocor<span class="teks-abai"> · diabaikan karena ada berkas</span></span></summary>
+      <div class="field">
+        <label for="teks">Teks yang bocor</label>
+        <textarea id="teks" name="teks" spellcheck="false" autocomplete="off" aria-describedby="hint-teks bukti-err" placeholder="Tempel teks dari pesan atau dokumen di sini"></textarea>
+        <span class="hint" id="hint-teks">Dipakai bila tidak ada berkas yang dipilih. Ctrl+Enter untuk melacak.</span>
+      </div>
+    </details>
+
+    <div class="lacak-kirim">
       <button class="btn btn-primary" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        <span class="idle-label">Lacak sumber</span>
+        {{ ikon("scan") }}<span class="idle-label">Lacak sumber</span>
         <span class="htmx-indicator">Menganalisis bukti…</span>
       </button>
-      <span class="hint">Foto memerlukan beberapa detik untuk diluruskan dan dibaca. Dari kotak teks: Ctrl+Enter.</span>
     </div>
-  </form>
-  {% endif %}
-</section>
+  </div>
+</form>
+{% endif %}

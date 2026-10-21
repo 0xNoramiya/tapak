@@ -39,10 +39,11 @@ ALUR_DEMO = ROOT / "out" / "figures-work" / "alur" / "demo"  # written by fig_al
 SAMPLES = ROOT / "samples"
 ISSUER = "Kasi Ops Brigif 9905 (fiktif)"
 SCHEMES = ("light", "dark")
-# 760 CSS px keeps the desktop layout (the UI switches at 640 px) but lets text and tables
-# wrap, so the image stays legible when a phone scales it to 390 px. Shot at 2x for retina.
+# 760 CSS px: the compact shell (the sidebar starts at 1024 px) with stacked cards (.split
+# splits at 880 px), so text and tables wrap and the image stays legible when a phone scales
+# it to 390 px. Shot at 2x for retina.
 VIEWPORT = {"width": 760, "height": 900}
-PAD = 24  # CSS px of transparent margin kept around the cropped region (room for the shadow)
+PAD = 24  # CSS px of transparent margin kept around the cropped region
 CANVAS = {"light": "#ffffff", "dark": "#0d1117"}  # GitHub's README backgrounds, for previews
 
 
@@ -51,13 +52,16 @@ CANVAS = {"light": "#ffffff", "dark": "#0d1117"}  # GitHub's README backgrounds,
 def _shoot(page, first: str, last: str, stem: str, work: Path) -> None:
     """Shoot ``first`` through ``last`` in both color schemes; other cards are hidden meanwhile.
 
-    Hiding (visibility, so nothing moves) keeps neighbouring cards out of the padding.
+    Hiding (visibility, so nothing moves) keeps neighbouring cards and the Terbitkan stepper
+    out of the padding. The page is scrolled to the top first: the banner and the top bar are
+    sticky, and a full-page shot taken at a scroll offset draws them over the clip.
     """
     page.add_style_tag(content="html, body { background: transparent !important; }")
     box = page.evaluate(
         """([a, b]) => {
             const r1 = document.querySelector(a), r2 = document.querySelector(b);
-            document.querySelectorAll('main section').forEach(s => {
+            window.scrollTo(0, 0);
+            document.querySelectorAll('main section, #stepper').forEach(s => {
                 const inside = r1.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING
                     && r2.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_PRECEDING;
                 if (s !== r1 && s !== r2 && !inside) s.style.visibility = 'hidden';
@@ -75,7 +79,7 @@ def _shoot(page, first: str, last: str, stem: str, work: Path) -> None:
         page.screenshot(path=str(work / f"raw-{stem}-{scheme}.png"), clip=clip, full_page=True,
                         omit_background=True)
     page.emulate_media(color_scheme="light")
-    page.evaluate("document.querySelectorAll('main section').forEach(s => s.style.visibility = '')")
+    page.evaluate("document.querySelectorAll('main section, #stepper').forEach(s => s.style.visibility = '')")
 
 
 def capture(step: str, base: str, chrome: str, work: Path, photo: str | None) -> None:

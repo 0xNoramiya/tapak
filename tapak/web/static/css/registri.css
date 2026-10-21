@@ -1,0 +1,64 @@
+/* Registri page (registri.html, _merkle.html). Uses the tokens and components of tapak.css;
+   only the page's own arrangement lives here. */
+
+/* integrity: the verdict stamp beside its heading, the three figures in a row below */
+.integritas { display: flex; flex-direction: column; gap: 24px; }
+.integritas.is-rusak { border-color: var(--danger-line); }
+.integritas.is-belum { border-color: var(--warn-line); }
+.integritas-kunci dd.mono { font-size: var(--fs-sm); }
+.integritas-putusan { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 24px; row-gap: 4px; }
+.integritas-putusan .stamp-lg { grid-row: 1 / span 2; }
+.integritas-putusan .lead { margin: 0; }
+.integritas-catatan .notes { list-style: none; padding-left: 0; }
+.integritas-angka .stat-note.hash { font-size: var(--fs-label); color: var(--ink-muted); }
+/* label, value and note line up across the three figures even when one label wraps */
+.integritas-angka > .stat { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 6px; }
+@container main (max-width: 559px) {
+  .integritas-putusan { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  .integritas-putusan .stamp-lg { grid-row: auto; justify-self: start; margin-bottom: 8px; }
+}
+
+/* public key and Merkle export side by side, equal height */
+.registri .split-even { align-items: stretch; }
+.kode { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#merkle:not(:empty) { margin-top: 16px; }
+.merkle-hasil { display: flex; flex-direction: column; gap: 8px; }
+.merkle-berkas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.merkle-berkas li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+
+/* flush cards: table straight under the heading, a divider before the closing note */
+.registri .card-flush { padding: 0; }   /* tapak.css pads every .card on a phone, flush ones too */
+.registri .card-flush > .card-head + .table-wrap { margin-top: 12px; }
+.registri .card-flush > .table-wrap + .card-section { border-top: 1px solid var(--border); }
+.registri .card-flush td { vertical-align: middle; }
+.kanari.has-kueri { border-color: var(--warn-line); }
+.kanari.is-rusak { border-color: var(--danger-line); }
+.card-head > .kanari-status { display: flex; flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kanari .notice .notes { margin: 6px 0 0; padding-left: 18px; }
+
+.waktu { display: flex; flex-direction: column; white-space: nowrap; }
+.waktu-jam { font-size: var(--fs-sm); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* the document column takes the free width and truncates; the others keep their content width */
+.kanari-salinan, .dokumen td:first-child { width: 100%; max-width: 0; }
+.dok { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.dok-teks { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dok-nama { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dok-meta { font-size: var(--fs-sm); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dok-meta-sm { display: none; }
+.dok-hash { max-width: 18ch; color: var(--ink-muted); }
+@container main (max-width: 879px) {
+  .kol-hash { display: none; }   /* the document name needs the room more than the hash */
+}
+
+.aksi { width: 1%; white-space: nowrap; text-align: right; }
+.aksi-tombol { display: flex; gap: 8px; justify-content: flex-end; }
+
+@media (max-width: 639px) {
+  /* the date, count and hash columns are hidden on a phone; the count and date move under the name */
+  .dok { gap: 12px; }
+  .dok-meta-sm { display: block; white-space: normal; }
+  .aksi-tombol { flex-direction: column; align-items: stretch; gap: 6px; }
+  .integritas-angka { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .integritas-angka > .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}

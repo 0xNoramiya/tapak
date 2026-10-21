@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% from "_ikon.html" import ikon %}
+{% block head %}<link rel="stylesheet" href="/static/css/beranda.css?v={{ asset_v() }}">{% endblock %}
+{% block content %}
+<div class="page beranda">
+  <section class="hero" aria-labelledby="beranda-h">
+    <picture class="hero-art">
+      <source srcset="/static/img/hero-dark.webp" media="(prefers-color-scheme: dark)">
+      <img src="/static/img/hero-light.webp" alt="" width="2000" height="857">
+    </picture>
+    <div class="hero-body">
+      <p class="eyebrow">Atribusi kebocoran dokumen</p>
+      <h1 id="beranda-h">Setiap salinan membawa tanda penerimanya</h1>
+      <p>Bila dokumen bocor, TAPAK menunjuk salinan sumbernya beserta peluang tuduhan salahnya.</p>
+      {% if docs %}
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/terbitkan">{{ ikon("files") }}Terbitkan dokumen</a>
+        <a class="btn btn-secondary" href="/lacak">{{ ikon("scan") }}Lacak kebocoran</a>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if not docs %}
+  <section class="empty-state" aria-labelledby="kosong-h">
+    <h2 id="kosong-h">Belum ada dokumen yang diterbitkan.</h2>
+    <p>Unggah PDF induk dan daftar penerima. TAPAK membuat satu salinan bertanda untuk setiap penerima dan mencatatnya di registri.</p>
+    <a class="btn btn-primary" href="/terbitkan">{{ ikon("files") }}Terbitkan dokumen pertama</a>
+  </section>
+  {% else %}
+  {# distinct copies behind the canary queries (one opening usually sends an A and an AAAA query) #}
+  {% set ns = namespace(salinan=[]) %}
+  {% for k in alerts %}{% if (k.doc, k.seq) not in ns.salinan %}{% set ns.salinan = ns.salinan + [(k.doc, k.seq)] %}{% endif %}{% endfor %}
+  <section aria-label="Ringkasan" class="stats-strip">
+    <div class="stat">
+      <span class="stat-label">Dokumen terbit</span>
+      <span class="stat-value">{{ docs|length|num }}</span>
+      <span class="stat-note">{% if registry.state == "ok" %}tercatat di registri{% else %}belum terverifikasi{% endif %}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Salinan</span>
+      <span class="stat-value">{{ n_copies|num }}</span>
+      <span class="stat-note">masing-masing bertanda unik</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Registri</span>
+      <span class="stat-value"><span class="stamp {{ {'ok': 'stamp-ok', 'warn': 'stamp-warn', 'danger': 'stamp-danger'}.get(registry.state, 'stamp-neutral') }}">{{ registry.label }}</span></span>
+      {% set counted = registry.get("counted", registry.state == "ok") %}
+      <span class="stat-note">
+        {%- if counted %}{{ registry.entries|num }} entri{% if registry.unsigned %}, {{ registry.unsigned|num }} belum bertanda tangan{% endif %}{% endif %}
+        {%- if registry.state != "ok" %}{% if counted %}, {% endif %}<a class="link" href="/registri">lihat penyebabnya</a>{% endif -%}
+      </span>
+    </div>
+    <div class="stat{% if alerts %} stat-warn{% endif %}">
+      <span class="stat-label">Kueri kanari</span>
+      <span class="stat-value">{{ alerts|length|num }}</span>
+      <span class="stat-note">{% if alerts %}dari {{ ns.salinan|length|num }} salinan{% else %}belum ada yang terdeteksi{% endif %}</span>
+    </div>
+  </section>
+
+  <div class="split">
+    <section class="card" aria-labelledby="terbaru-h">
+      <div class="card-head">
+        <div><h2 id="terbaru-h">Dokumen terbaru</h2></div>
+        {% if docs|length > recent|length %}<a class="link small" href="/registri#dok-h">Semua {{ docs|length }} dokumen</a>{% endif %}
+      </div>
+      <ul class="list">
+        {% for m in recent %}
+        {% set key = m.doc_hash[:16] %}
+        {% set src = pratinjau_url(m) %}
+        <li class="list-row">
+          <span class="thumb thumb-sm">{% if src %}<img src="{{ src }}?ukuran=kecil" alt="" width="44" height="62" loading="lazy">{% endif %}</span>
+          <div class="list-main">
+            <span class="list-title" title="{{ m.doc_name }}">{{ m.doc_name }}</span>
+            <span class="list-meta">{{ m.copies|length|num }} salinan · {{ (m.issued_at|waktu).split(" pukul ")[0] }}</span>
+          </div>
+          <div class="list-actions">
+            <a class="btn btn-ghost btn-small" href="/dokumen/{{ key }}/salinan.zip" aria-label="Unduh ZIP salinan {{ m.doc_name }}">{{ ikon("download", 16) }}ZIP</a>
+            <a class="btn btn-secondary btn-small" href="/lacak?dokumen={{ key }}" aria-label="Lacak kebocoran {{ m.doc_name }}">{{ ikon("scan", 16) }}Lacak</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="kanari-h">
+      <div class="card-head">
+        <div>
+          <h2 id="kanari-h">Kueri kanari terbaru</h2>
+          <p class="lead">Salinan yang terdeteksi dibuka di luar jaringan satuan.</p>
+        </div>
+      </div>
+      {% if recent_alerts %}
+      <ul class="list kanari-list">
+        {% for k in recent_alerts %}
+        <li class="list-row">
+          <div class="list-main">
+            {% set w = (k.time|waktu).split(" pukul ") %}
+            <span class="list-title" title="{{ k.doc_name }}">Salinan #{{ k.seq }} <span class="kanari-dok">{{ k.doc_name }}</span></span>
+            <span class="list-meta">{{ w[0] }}{% if w|length > 1 %}, {{ w[1] }}{% endif %}</span>
+          </div>
+          <div class="list-actions">
+            <a class="btn btn-ghost btn-small" href="/lacak?dokumen={{ k.doc }}" aria-label="Lacak kebocoran {{ k.doc_name }}">{{ ikon("scan") }}Lacak</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if alerts|length > recent_alerts|length %}<p class="small list-more"><a class="link" href="/registri#kanari-h">Semua {{ alerts|length }} kueri</a></p>{% endif %}
+      {% else %}
+      <p class="empty">Belum ada kueri.</p>
+      {% endif %}
+    </section>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

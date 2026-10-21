@@ -1,11 +1,28 @@
 {% extends "base.html" %}
+{% block head %}<link rel="stylesheet" href="/static/css/lacak.css?v={{ asset_v() }}">{% endblock %}
 {% block content %}
-<div class="page-head">
-  <h1>Lacak sumber kebocoran</h1>
-  <p>Unggah apa pun yang bocor: foto layar atau kertas, tangkapan layar, berkas PDF atau DOCX yang diteruskan, atau teks yang disalin. TAPAK hanya menyebut nama bila buktinya melewati ambang yang ditetapkan sebelum analisis.</p>
-</div>
-<div class="stack">
+<div class="page lacak">
+  <div class="page-head">
+    <p class="eyebrow">Dekoder luring · ambang Chernoff</p>
+    <h1>Lacak sumber kebocoran</h1>
+    <p>Unggah apa pun yang bocor: foto layar atau kertas, tangkapan layar, PDF atau DOCX yang diteruskan, atau teks yang disalin.</p>
+  </div>
   <div id="form-lacak">{% include "_lacak_form.html" %}</div>
-  <div id="hasil" class="stack"></div>
+  <div class="busy lacak-sibuk" role="status">
+    <span class="busy-bar"></span>
+    <span><b>Menganalisis bukti.</b> Foto memerlukan beberapa detik untuk diluruskan dan dibaca.</span>
+  </div>
+  <div id="hasil" class="stack">
+    {% if docs %}
+    <section class="empty-state hasil-kosong" aria-labelledby="hasil-kosong-h">
+      <div class="contoh-meter" aria-hidden="true">
+        <span class="contoh-label">Ambang Z</span>
+        <span class="contoh-track"><span class="contoh-mark"></span></span>
+      </div>
+      <h2 id="hasil-kosong-h">Belum ada hasil pelacakan.</h2>
+      <p>Skor tiap salinan dibandingkan dengan ambang Z, yang ditetapkan sebelum skor siapa pun dihitung. Nama hanya disebut bila skornya melewati ambang itu.</p>
+    </section>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

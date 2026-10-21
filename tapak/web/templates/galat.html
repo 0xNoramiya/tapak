@@ -1,11 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card" aria-labelledby="galat-h">
-  <h1 id="galat-h">Permintaan tidak dapat dipenuhi</h1>
-  <div class="notice notice-error" role="alert">{{ message }}</div>
-  <div class="row" style="margin-top: 16px">
-    {% if restart %}<a class="btn btn-primary" href="/terbitkan">Mulai lagi</a>{% endif %}
+<div class="page galat">
+  <section class="page-head" aria-labelledby="galat-h">
+    <p class="galat-cap"><span class="stamp stamp-lg stamp-danger">Galat{% if code %} {{ code }}{% endif %}</span></p>
+    <h1 id="galat-h">{% if code == 404 %}Tidak ditemukan{% elif code and code >= 500 %}Kesalahan di server{% else %}Permintaan tidak dapat dipenuhi{% endif %}</h1>
+    <p role="alert">{{ message }}</p>
+  </section>
+  <div class="row">
+    {% if restart %}
+    <a class="btn btn-primary" href="/terbitkan">Mulai lagi</a>
     <a class="btn btn-secondary" href="/lacak">Buka Lacak</a>
+    {% else %}
+    <a class="btn btn-primary" href="/">Ke beranda</a>
+    <a class="btn btn-secondary" href="/lacak">Buka Lacak</a>
+    {% endif %}
   </div>
-</section>
+</div>
 {% endblock %}

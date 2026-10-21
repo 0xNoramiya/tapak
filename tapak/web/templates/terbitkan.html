@@ -1,10 +1,14 @@
 {% extends "base.html" %}
+{% block head %}<link rel="stylesheet" href="/static/css/terbitkan.css?v={{ asset_v() }}">{% endblock %}
 {% block content %}
-<div class="page-head">
-  <h1>Terbitkan salinan bertanda</h1>
-  <p>Setiap penerima mendapat salinan dengan sidik unik yang tidak terlihat. Jika salinan bocor, TAPAK dapat menunjuk salinan sumbernya beserta peluang tuduhan salahnya.</p>
-</div>
-<div id="alur" class="stack">
-  {% include "_langkah1.html" %}
+<div class="page">
+  <div class="page-head">
+    <p class="eyebrow">Penandaan luring · kode Tardos</p>
+    <h1>Terbitkan salinan bertanda</h1>
+    <p>Setiap penerima mendapat salinan dengan sidik unik yang tidak terlihat. Jika salinan bocor, TAPAK dapat menunjuk salinan sumbernya beserta peluang tuduhan salahnya.</p>
+  </div>
+  <div id="alur" class="stack">
+    {% include "_langkah1.html" %}
+  </div>
 </div>
 {% endblock %}

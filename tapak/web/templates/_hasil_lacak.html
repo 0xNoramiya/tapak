@@ -1,123 +1,203 @@
+{% from "_ikon.html" import ikon %}
 {% set t = a.threshold %}
+{% set z_ok = t.threshold != inf %}
+{% set z_text = t.threshold|num(1) if z_ok else "tak hingga" %}
 {% set accused_seqs = a.accused|map(attribute="copy.seq")|list %}
+{% macro meter_block(score, score_label, below) -%}
+{% set m = meter(score, t.threshold) %}
+<div class="meter{% if below %} meter-below{% endif %}{% if m.mark is not none and m.mark < 0.2 %} mark-start{% elif m.mark is not none and m.mark > 0.8 %} mark-end{% endif %}" style="--value: {{ m.value }}; --mark: {{ m.mark if m.mark is not none else 0 }}">
+  <div class="meter-track"><div class="meter-fill"></div>{% if m.mark is not none %}<div class="meter-mark"></div>{% endif %}</div>
+  <div class="meter-legend"><span>{{ score_label }} <b>{{ score|num(1) }}</b></span><span>Ambang Z <b>{{ z_text }}</b></span></div>
+</div>
+{%- endmacro %}
+
 <section class="verdict {% if identified %}verdict-found{% else %}verdict-none{% endif %}" aria-labelledby="putusan">
-  <span class="kicker">Hasil atribusi · <span class="mono keep-case">{{ redact(o.evidence_name) }}</span></span>
+  <div class="verdict-head">
+    <p class="kicker">Hasil atribusi<span class="kicker-sep"> · </span><span class="mono keep-case">{{ redact(o.evidence_name) }}</span></p>
+    {% if identified %}
+    <span class="stamp stamp-lg stamp-ok">Teridentifikasi</span>
+    {% else %}
+    <h2 id="putusan" tabindex="-1" data-autofocus><span class="stamp stamp-lg stamp-warn">Tidak cukup bukti</span></h2>
+    {% endif %}
+  </div>
+
   {% if identified %}
     {% for c in a.accused %}
     <div class="who">
-      <h2 {% if loop.first %}id="putusan" tabindex="-1" data-autofocus{% endif %}>Salinan #{{ c.copy.seq }} · {{ c.copy.nama }}</h2>
-      <span class="muted">{{ c.copy.recipient_id }}{% if c.copy.satuan %} · {{ c.copy.satuan }}{% endif %}</span>
-    </div>
-    <div class="facts">
-      <span>Skor <b>{{ c.score|num(1) }}</b> ≥ ambang <b>{{ t.threshold|num(1) }}</b></span>
-      <span>Peluang tuduhan salah <b>≤ {{ fap(c, a.candidates|length) }}</b></span>
-      <span>Kanal sepakat secara independen <b>{{ c.channels_agreeing|length }}</b>{% if c.channels_agreeing %} ({{ c.channels_agreeing|map("title")|join(", ") }}){% endif %}</span>
+      <div class="who-id">
+        <h2 {% if loop.first %}id="putusan" tabindex="-1" data-autofocus{% endif %}><span class="who-seq">Salinan #{{ c.copy.seq }}</span> <span class="who-name">{{ c.copy.nama }}</span></h2>
+        <p class="who-meta"><span class="mono">{{ c.copy.recipient_id }}</span>{% if c.copy.jabatan %} · {{ c.copy.jabatan }}{% endif %}{% if c.copy.satuan %} · {{ c.copy.satuan }}{% endif %}</p>
+      </div>
+      <div class="facts">
+        {{ meter_block(c.score, "Skor", false) }}
+        <span class="fact"><small>Peluang tuduhan salah</small> <b>≤ {{ fap(c, a.candidates|length) }}</b></span>
+        <span class="fact"><small>Kanal sepakat</small> <b>{{ c.channels_agreeing|length }}</b>{% if c.channels_agreeing %} <i>{{ c.channels_agreeing|map("title")|join(", ") }}{% if c.channels_agreeing|length > 1 %}, masing-masing secara independen{% endif %}</i>{% endif %}</span>
+      </div>
     </div>
     {% endfor %}
-    {% if a.accused|length > 1 %}<p class="small">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
+    {% if a.accused|length > 1 %}<p class="notice verdict-note">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
+    {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
+    {% set r = o.registry %}
+    {% if not r.recorded %}
+    <p class="notice notice-warn verdict-note">Dokumen ini tidak tercatat di registri. Identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.</p>
+    {% elif r.chain_ok is not sameas true %}
+    <p class="notice notice-warn verdict-note">Registri tidak diverifikasi karena kunci publik tidak tersedia. Identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.</p>
+    {% elif r.copies_unsigned %}
+    <p class="notice notice-warn verdict-note">{{ r.copies_unsigned|num }} entri salinan dokumen ini belum bertanda tangan. Identitas penerima belum dilindungi tanda tangan registri.</p>
+    {% endif %}
   {% else %}
-    <h2 id="putusan" tabindex="-1" data-autofocus>Tidak cukup bukti</h2>
-    <p class="small" style="margin:0; max-width:65ch">
-      {% if a.candidates and t.n_observed %}Tidak ada salinan yang mencapai ambang. Skor tertinggi {{ a.candidates[0].score|num(1) }} di bawah ambang {{ t.threshold|num(1) if t.threshold != inf else "tak hingga" }}. Nama tidak disebutkan.
-      {% else %}Tidak ada tanda yang terbaca pada bukti ini. Nama tidak disebutkan.{% endif %}
-    </p>
+    <div class="who who-none">
+      {% if a.candidates and t.n_observed and z_ok %}
+      <p class="verdict-text">Tidak ada salinan yang mencapai ambang Z. Nama tidak disebutkan.</p>
+      <div class="facts">{{ meter_block(a.candidates[0].score, "Skor tertinggi", true) }}</div>
+      {% elif t.n_observed %}
+      <p class="verdict-text">Posisi kode yang terbaca terlalu sedikit: tidak ada skor yang dapat mencapai ambang Z. Nama tidak disebutkan.</p>
+      {% else %}
+      <p class="verdict-text">Tidak ada tanda yang terbaca pada bukti ini. Nama tidak disebutkan.</p>
+      {% endif %}
+    </div>
   {% endif %}
-  <div class="row">
-    <a class="btn btn-primary" href="/lacak/{{ tid }}/berita-acara.pdf">Unduh berita acara (PDF)</a>
+
+  <div class="verdict-actions">
+    <a class="btn btn-primary" href="/lacak/{{ tid }}/berita-acara.pdf">{{ ikon("download") }}Unduh berita acara (PDF)</a>
+    {% if not identified and t.n_observed %}<p class="hint">Foto halaman lain dari kebocoran yang sama dapat diunggah bersama; buktinya digabung.</p>{% endif %}
   </div>
 </section>
 
-<section class="card" aria-labelledby="kanal-h">
-  <h2 id="kanal-h">Bukti per kanal</h2>
-  {% if t.n_observed %}
-  <p class="lead">Ambang Z = {{ t.threshold|num(1) if t.threshold != inf else "tak hingga" }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (peluang tuduhan salah maksimum {{ eps_label }} untuk seluruh daftar penerima).</p>
-  {% else %}
-  <p class="lead">Tidak ada posisi kode yang terbaca pada bukti ini, sehingga tidak ada ambang maupun skor yang berlaku.</p>
-  {% endif %}
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Kanal</th><th class="num">Posisi terbaca</th><th class="num hide-sm">Ambang kanal</th><th>Menunjuk salinan</th></tr></thead>
-      <tbody>
-        {% for ch in a.channels %}
-        <tr><td>{{ channel_name(ch.channel) }}</td><td class="num">{{ ch.n_observed|num }}</td>
-            <td class="num hide-sm">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
+<div class="split">
+  <div class="stack">
+    <section class="card" aria-labelledby="kanal-h">
+      <h2 id="kanal-h">Bukti per kanal</h2>
+      {% if t.n_observed %}
+      <p class="lead">Ambang Z = {{ z_text }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (peluang tuduhan salah maksimum {{ eps_label }} untuk seluruh daftar penerima).</p>
+      {% else %}
+      <p class="lead">Tidak ada posisi kode yang terbaca pada bukti ini, sehingga tidak ada ambang maupun skor yang berlaku.</p>
+      {% endif %}
+      {# Bars are the share of the code read through each channel, as on the plan step. #}
+      {% set code_len = o.ctx.params.length or 1 %}
+      <div class="table-wrap">
+        <table class="kanal-tabel">
+          <thead><tr><th>Kanal</th><th class="num">Posisi terbaca</th><th class="num hide-sm">Ambang kanal</th><th>Menunjuk salinan</th></tr></thead>
+          <tbody>
+            {% for ch in a.channels %}
             {# Only copies accused by the fused result are named here, as in the berita acara:
                each channel alone is an extra test, and eps covers the fused result only. #}
             {% set shown = ch.accused_seqs|select("in", accused_seqs)|list %}
             {% set hidden = ch.accused_seqs|length - shown|length %}
-            <td>{% for s in shown %}#{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}{% if hidden %}{% if shown %}, {% endif %}<span class="muted">{{ hidden }} salinan lain (nomor tidak dicantumkan)</span>{% endif %}{% if not ch.accused_seqs %}<span class="muted">tidak ada</span>{% endif %}</td></tr>
-        {% else %}
-        <tr><td colspan="4" class="empty">Tidak ada kanal yang terbaca.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <details class="more">
-    <summary>Rincian sub-kanal</summary>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Sub-kanal</th><th class="num">Observasi</th><th>Keterangan</th></tr></thead>
-        <tbody>
-        {% for sb in o.observations %}
-          <tr><td>{{ channel_name(sb.channel) }}</td><td class="num">{{ sb.positions|length|num }}</td>
-              <td class="small muted">{{ subchannel_summary(sb) }}</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </details>
-</section>
+            <tr>
+              <td>{{ channel_name(ch.channel) }}</td>
+              <td class="num"><span class="bar{% if not shown %} bar-muted{% endif %}" style="--value: {{ [ch.n_observed / code_len, 1]|min|round(5) }}" aria-hidden="true"></span><span class="kanal-n">{{ ch.n_observed|num }}</span></td>
+              <td class="num hide-sm">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
+              <td>{% for s in shown %}<b>#{{ s }}</b>{% if not loop.last %}, {% endif %}{% endfor %}{% if hidden %}{% if shown %}, {% endif %}<span class="muted">{{ hidden }} salinan lain (nomor tidak dicantumkan)</span>{% endif %}{% if not ch.accused_seqs %}<span class="muted">tidak ada</span>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty">Tidak ada kanal yang terbaca.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if a.channels %}<p class="hint kanal-catatan">Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.</p>{% endif %}
+      {% if o.observations %}
+      <details class="more">
+        <summary>Rincian sub-kanal</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Sub-kanal</th><th class="num">Observasi</th><th>Keterangan</th></tr></thead>
+            <tbody>
+            {% for sb in o.observations %}
+              <tr><td>{{ channel_name(sb.channel) }}</td><td class="num">{{ sb.positions|length|num }}</td>
+                  <td class="small muted">{{ subchannel_summary(sb) }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      {% endif %}
+    </section>
 
-{% if t.n_observed %}
-<section class="card" aria-labelledby="skor-h">
-  <h2 id="skor-h">Peringkat skor</h2>
-  <p class="lead">Nomor salinan dan nama hanya ditampilkan untuk salinan yang melewati ambang. Salinan lain disebut dengan peringkatnya saja.</p>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th class="num">Peringkat</th><th class="hide-sm">Penerima</th><th class="num">Skor</th><th class="num hide-sm">Ambang</th><th>Status</th></tr></thead>
-      <tbody>
-      {% for c in a.candidates[:6] %}
-        <tr>
-          <td class="num">{{ loop.index }}</td>
-          <td class="hide-sm">{% if c.accused %}#{{ c.copy.seq }} · {{ c.copy.nama }} <span class="muted mono small">{{ c.copy.recipient_id }}</span>{% else %}<span class="muted">disembunyikan</span>{% endif %}</td>
-          <td class="num">{{ c.score|num(1) }}</td>
-          <td class="num hide-sm">{{ t.threshold|num(1) if t.threshold != inf else "-" }}</td>
-          <td>{% if c.accused %}<span class="chip chip-ok">melewati ambang</span>{% else %}<span class="chip chip-neutral">di bawah ambang</span>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    {% if t.n_observed and a.candidates %}
+    {% set top_score = [a.candidates[0].score, t.threshold if z_ok else 0, 0]|max %}
+    {% set scale = top_score * 1.15 if top_score > 0 else 1 %}
+    {% set mark = (t.threshold / scale)|round(4) if z_ok else none %}
+    <section class="card" aria-labelledby="skor-h">
+      <h2 id="skor-h">Peringkat skor</h2>
+      <p class="lead">{% if mark is not none %}Garis tegak menandai ambang Z. {% endif %}Nomor salinan dan nama hanya ditampilkan untuk salinan yang melewati ambang; salinan lain disebut dengan peringkatnya saja.</p>
+      <div class="peringkat" style="--mark: {{ mark if mark is not none else 0 }}">
+        {% if mark is not none %}
+        <div class="peringkat-skala" aria-hidden="true"><span class="{% if mark < 0.3 %}at-start{% elif mark > 0.7 %}at-end{% endif %}">Ambang Z <b>{{ z_text }}</b></span></div>
+        {% endif %}
+        <ol class="peringkat-daftar">
+          {% for c in a.candidates[:6] %}
+          <li class="peringkat-baris{% if c.accused %} is-accused{% endif %}">
+            <span class="peringkat-no" aria-hidden="true">{{ loop.index }}</span>
+            <span class="peringkat-siapa">{% if c.accused %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b> <span class="stamp stamp-ok">Melewati ambang</span>{% else %}<span class="muted">Disembunyikan</span><span class="sr-only">, di bawah ambang</span>{% endif %}</span>
+            <span class="peringkat-skor num">{{ c.score|num(1) }}</span>
+            {% if mark is not none %}<span class="peringkat-bar" style="--value: {{ ([c.score, 0]|max / scale)|round(4) }}" aria-hidden="true"></span>{% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </section>
+    {% endif %}
   </div>
-</section>
-{% endif %}
 
-<section class="card" aria-labelledby="sah-h">
-  <h2 id="sah-h">Keabsahan dan peringatan</h2>
-  {% set r = o.registry %}
-  <ul class="notes">
-    <li>Registri:
-      {% if r.chain_ok and r.copies_unsigned %}<span class="chip chip-wait">utuh, {{ r.copies_unsigned|num }} salinan belum bertanda tangan</span>{% elif r.chain_ok %}<span class="chip chip-ok">rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="chip chip-no">rantai rusak</span>{% else %}<span class="chip chip-wait">tidak diverifikasi</span>{% endif %}
-      {{ r.entries|num }} entri; {{ r.copies_confirmed }} dari {{ r.copies_total }} komitmen salinan cocok.
-    </li>
-    <li>SHA-256 bukti: <span class="mono">{{ o.evidence_sha256 }}</span></li>
-    {% for n in a.notes %}<li>{{ redact(n) }}</li>{% endfor %}
-    {% for p in r.problems %}<li>{{ p }}</li>{% endfor %}
-  </ul>
-  {% if o.canary %}
-  <h3 class="label" style="margin-top:16px">Kueri DNS kanari untuk dokumen ini</h3>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th class="num">Salinan</th><th>Waktu</th><th>Resolver</th></tr></thead>
-      <tbody>{% for k in o.canary %}<tr><td class="num">{% if k.seq in accused_seqs %}#{{ k.seq }}{% else %}<span class="muted">salinan lain</span>{% endif %}</td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
-    </table>
+  <div class="stack">
+    {% if o.canary %}
+    <section class="card lacak-kanari" aria-labelledby="kanari-h">
+      <div class="card-head">
+        <div><h2 id="kanari-h">Kueri DNS kanari</h2></div>
+        <span class="muted small tnum">{{ o.canary|length|num }} kueri</span>
+      </div>
+      <ul class="list">
+        {% for k in o.canary %}
+        <li class="list-row">
+          <div class="list-main">
+            <span class="list-title">{% if k.seq in accused_seqs %}Salinan #{{ k.seq }}{% else %}<span class="muted">Salinan lain</span>{% endif %}</span>
+            <span class="list-meta">{{ k.time|waktu }} · resolver <span class="mono">{{ k.src_ip }}</span></span>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="hint">Nama unik salinan itu dicari resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor; nomor salinan hanya dicantumkan untuk salinan yang juga dituduh hasil atribusi.</p>
+      {% set named = o.canary|selectattr("seq", "in", accused_seqs)|list %}
+      {% if named %}
+      <details class="more small">
+        <summary>Penerima yang juga dituduh</summary>
+        <ul class="notes">{% for k in named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
+      </details>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="card lacak-sah" aria-labelledby="sah-h">
+      <h2 id="sah-h">Keabsahan dan catatan</h2>
+      {% set r = o.registry %}
+      <dl class="kv">
+        <dt>Registri</dt>
+        <dd>{% if r.chain_ok and r.copies_unsigned %}<span class="stamp stamp-warn">Utuh, belum bertanda tangan</span>{% elif r.chain_ok %}<span class="stamp stamp-ok">Rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="stamp stamp-danger">Rantai rusak</span>{% else %}<span class="stamp stamp-neutral">Tidak diverifikasi</span>{% endif %}</dd>
+        <dt>Entri</dt>
+        <dd class="tnum">{% if r.chain_ok is none %}-{% else %}{{ r.entries|num }}{% if r.copies_unsigned %}, {{ r.copies_unsigned|num }} salinan belum bertanda tangan{% endif %}{% endif %}</dd>
+        <dt>Komitmen</dt>
+        <dd class="tnum">{{ r.copies_confirmed|num }} dari {{ r.copies_total|num }} salinan cocok</dd>
+      </dl>
+      <div class="lacak-hash">
+        <span class="label">SHA-256 bukti</span>
+        <div class="code-row">
+          <span class="code" id="sha-bukti">{{ o.evidence_sha256 }}</span>
+          <button type="button" class="copy-btn" data-copy-target="#sha-bukti" aria-label="Salin SHA-256 bukti">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
+        </div>
+      </div>
+      {% if a.notes or r.problems %}
+      <div class="lacak-catatan">
+        <span class="label">Catatan</span>
+        <ul class="notes">
+          {% for n in a.notes %}<li>{{ redact(n) }}</li>{% endfor %}
+        </ul>
+        {% if r.problems %}
+        <div class="notice notice-warn"><ul class="notes">{% for p in r.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </section>
   </div>
-  <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas; nomor salinan hanya dicantumkan untuk salinan yang juga dituduh hasil atribusi.</p>
-  {% set named = o.canary|selectattr("seq", "in", accused_seqs)|list %}
-  {% if named %}
-  <details class="more small">
-    <summary>Penerima salinan yang juga dituduh hasil atribusi dan memiliki kueri kanari</summary>
-    <ul class="notes">{% for k in named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
-  </details>
-  {% endif %}
-  {% endif %}
-</section>
+</div>

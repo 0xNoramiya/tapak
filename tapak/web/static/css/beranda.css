@@ -1,0 +1,50 @@
+/* Beranda (beranda.html). Uses the tokens and components of tapak.css; only page details here. */
+
+/* the hero eyebrow uses the same label size as every other page head */
+.hero .eyebrow { font-size: var(--fs-label); }
+
+/* status row: one ledger strip divided by hairlines, like a row of boxes on a printed form.
+   Label, value and note line up across the cells (subgrid), also when a note wraps. */
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface);
+}
+.stats-strip > .stat {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 6px;
+  align-content: start;
+  padding: 18px 20px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.stats-strip > .stat + .stat { border-inline-start: 1px solid var(--border); }
+.stats-strip .stat-value { align-self: center; }
+@container main (max-width: 679px) {
+  /* two by two: the third and fourth cells start a new row under a hairline */
+  .stats-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats-strip > .stat { padding: 14px 16px; }
+  .stats-strip > .stat:nth-child(odd) { border-inline-start: 0; }
+  .stats-strip > .stat:nth-child(n + 3) { border-block-start: 1px solid var(--border); }
+}
+
+/* recent documents and canary queries end on the same line */
+.beranda .split { align-items: stretch; }
+
+/* canary rows have no thumbnail, so their link stays on the row on a phone */
+.kanari-list .list-row { flex-wrap: nowrap; }
+.kanari-list .list-actions { width: auto; padding-left: 0; }
+.kanari-dok { margin-left: 4px; color: var(--ink-muted); font-weight: 400; }
+
+/* Between phone and desktop widths the headline would run over the paper stack: keep the text
+   column narrow there (tapak.css stacks the hero below 720 px). */
+@container main (min-width: 721px) and (max-width: 899px) {
+  .hero-body { max-width: 28.5rem; padding: 32px; }
+  .hero h1 { font-size: var(--fs-h1); }
+  .hero-art img { object-position: 85% 50%; }
+}

@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEXT_SUFFIXES = {".py", ".md", ".html", ".txt", ".toml", ".yml", ".yaml", ".json", ".csv", ".css", ".js", ".cfg"}
 EM_DASH = chr(0x2014)
-SKIP_PARTS = {".venv", ".git", "__pycache__", ".pytest_cache", "out", "data", "node_modules"}
+SKIP_PARTS = {".venv", ".git", ".claude", "__pycache__", ".pytest_cache", "out", "data", "node_modules"}
 
 
 def _files(suffixes: set[str]):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
@@ -104,7 +105,7 @@ def test_reissue_detected_at_analysis_and_canary_rows_hide_names(client):
     files = {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
              "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
     r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"}, headers={"HX-Request": "true"})
-    assert "sudah pernah diterbitkan" in r.text and 'href="/lacak"' in r.text
+    assert "sudah pernah diterbitkan" in r.text and f'href="/lacak?dokumen={doc}"' in r.text
     # A canary hit for copy 7: the registry page lists it by copy number, without the name.
     import os
 
@@ -154,3 +155,126 @@ def test_lacak_requires_inputs(client):
     _issue(client)
     r = client.post("/lacak", data={"dokumen": ""})
     assert "Pilih dokumen" in r.text and "Unggah foto" in r.text
+
+
+def test_beranda_preview_and_preselect(client):
+    """Home page, page-1 thumbnails, the Lacak preselect and the sidebar registry status."""
+    r = client.get("/")
+    assert r.status_code == 200 and "Beranda" in r.text and 'href="/terbitkan"' in r.text
+    doc = _issue(client)
+    r = client.get("/")
+    assert "nota_dinas.pdf" in r.text and f"/dokumen/{doc}/pratinjau.png" in r.text
+    png = client.get(f"/dokumen/{doc}/pratinjau.png")
+    assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
+    assert "no-store" in png.headers.get("cache-control", "")
+    for bad in ("0123456789abcdef", "..%2F..%2Fetc", "ZZZZZZZZZZZZZZZZ"):
+        assert client.get(f"/dokumen/{bad}/pratinjau.png").status_code == 404
+    assert client.get("/terbitkan/0123456789abcdef/pratinjau.png").status_code == 404
+    assert f'value="{doc}" selected' in client.get(f"/lacak?dokumen={doc}").text
+    bad = client.get("/lacak?dokumen=../../etc")
+    assert bad.status_code == 200 and "../../etc" not in bad.text
+    status = client.get("/registri/status")
+    assert status.status_code == 200 and "Utuh" in status.text
+
+
+def test_publish_triggers_sidebar_refresh_and_staging_preview(client):
+    files = {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
+             "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"})
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    png = client.get(f"/terbitkan/{sid}/pratinjau.png")
+    assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and r.headers.get("HX-Trigger") == "registri-berubah"
+
+
+def test_variant_diff_marks_only_changed_words():
+    from tapak.web.app import templates
+
+    beda = templates.env.filters["beda"]
+    out = str(beda("Dengan hormat, bersama ini <kami>", "Dengan hormat, melalui surat ini <kami>"))
+    assert '<mark class="diff">' in out and "&lt;kami&gt;" in out and "<kami>" not in out
+    assert out.startswith("Dengan hormat,") and re.search(r'<mark class="diff">[^<]*melalui', out)
+
+
+def test_download_names_security_headers_and_registry_without_key(client):
+    """A non-Latin-1 document name still downloads as a ZIP; every response forbids framing;
+    a registry whose public key is missing keeps its entry count; 404s name no server path."""
+    from tapak.config import load_settings
+
+    name = "nota \u2013 uji.pdf"
+    files = {"dokumen": (name, SAMPLE.read_bytes(), "application/pdf"),
+             "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"})
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    z = client.get(f"/dokumen/{doc}/salinan.zip")
+    assert z.status_code == 200 and z.content[:2] == b"PK"
+    disposition = z.headers["content-disposition"]
+    assert "filename*=utf-8''nota%20%E2%80%93%20uji_salinan.zip" in disposition
+    assert 'filename="nota uji_salinan.zip"' in disposition
+
+    page = client.get("/")
+    assert page.headers["x-frame-options"] == "DENY"
+    assert "frame-ancestors 'none'" in page.headers["content-security-policy"]
+    assert page.headers["x-content-type-options"] == "nosniff"
+
+    s = load_settings()
+    missing = client.get("/dokumen/0123456789abcdef/salinan.zip")
+    assert missing.status_code == 404 and str(s.workspaces) not in missing.text
+
+    s.public_key_path.rename(s.public_key_path.with_suffix(".bak"))
+    status = client.get("/registri/status").text
+    assert "Tanpa kunci" in status and re.search(r"\d+ entri", status) and "Belum ada" not in status
+
+
+def _issue_small():
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueSettings, read_recipients
+    from tapak.service import issue_document
+
+    s = load_settings()
+    out = issue_document(s, SAMPLE, read_recipients(ROOT / "samples" / "recipients.csv")[:4],
+                         IssueSettings(workers=1, canary_domain="kanari.tapak.test"), "uji")
+    return s, out.manifest
+
+
+def test_registri_page_with_unreadable_or_missing_public_key(client):
+    """A malformed .pub is reported on /registri instead of a 500; a missing one is not shown
+    as an empty registry and does not suggest creating a new signing key."""
+    s, _ = _issue_small()
+    good = s.public_key_path.read_text()
+    s.public_key_path.write_text("zz-not-a-key\n")
+    r = client.get("/registri")
+    assert r.status_code == 200 and "Tak terbaca" in r.text and "zz-not-a-key" not in r.text
+    s.public_key_path.unlink()
+    r = client.get("/registri")
+    assert r.status_code == 200 and "Rantai registri belum dapat diverifikasi" in r.text
+    assert "Terbitkan dokumen pertama" not in r.text and "Jalankan" not in r.text
+    s.public_key_path.write_text(good)
+    assert "Rantai registri utuh" in client.get("/registri").text
+
+
+def test_registri_checks_canary_log_and_lists_use_small_thumbnails(client):
+    from tapak.canary_dns.store import record_event
+
+    s, m = _issue_small()
+    token = m.copies[1].canary_token
+    for qtype in ("A", "AAAA"):  # one opening, two queries
+        record_event(s.canary_db, f"{token}.c.kanari.tapak.test", token, qtype, "198.51.100.7", 5353)
+    assert "Log utuh" in client.get("/registri").text
+    home = client.get("/").text
+    assert "dari 1 salinan" in home and "?ukuran=kecil" in home
+    con = sqlite3.connect(s.canary_db)
+    for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'").fetchall():
+        con.execute(f"DROP TRIGGER {name}")
+    con.execute("UPDATE canary_events SET src_ip = '10.0.0.9' WHERE seq = 1")
+    con.commit()
+    con.close()
+    assert "Log rusak" in client.get("/registri").text
+    doc = m.doc_hash[:16]
+    small = client.get(f"/dokumen/{doc}/pratinjau.png?ukuran=kecil")
+    full = client.get(f"/dokumen/{doc}/pratinjau.png")
+    assert small.status_code == 200 and small.content.startswith(b"\x89PNG")
+    assert len(small.content) < len(full.content) / 2

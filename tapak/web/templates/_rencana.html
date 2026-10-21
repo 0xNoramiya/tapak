@@ -1,30 +1,60 @@
-<section class="card" aria-labelledby="langkah2">
-  <h2 id="langkah2" tabindex="-1" data-autofocus><span class="step">2</span>Rencana penandaan</h2>
-  <p class="lead">{{ st.doc_name }} untuk {{ st.recipients|length }} penerima. Gerbang visual
-    {% if gate.passed %}<span class="chip chip-ok">lulus</span>{% else %}<span class="chip chip-no">gagal</span>{% endif %}:
-    tanpa tanda, dokumen digambar ulang identik dengan aslinya (selisih maksimum {{ gate.max_diff }} tingkat abu-abu).</p>
-  <div class="figures">
-    <div class="figure"><span class="label">Halaman</span><b>{{ st.plan.pages }}</b><small>{{ st.plan.words|num }} kata</small></div>
-    <div class="figure"><span class="label">Panjang kode</span><b>{{ st.plan.params.length|num }}</b><small>bit Tardos per penerima</small></div>
-    <div class="figure"><span class="label">Tahan kolusi</span><b>{{ st.plan.params.c }}</b><small>penerima bersekongkol</small></div>
-    <div class="figure"><span class="label">Ambang penuh</span><b>{{ st.plan.threshold|num(0) }}</b><small>skor minimum untuk menuduh</small></div>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Kanal</th><th class="num">Slot</th><th class="num">Posisi kode</th><th class="hide-sm">Bertahan terhadap</th></tr></thead>
-      <tbody>
-        {% set survives = {"shift": "cetak, foto, tangkapan layar", "background": "layar, tangkapan layar, foto layar",
-                           "zw": "salin-tempel, berkas diteruskan", "homoglyph": "salin-tempel, teks dinormalkan sebagian"} %}
-        {% for ch, info in st.plan.summary.items() %}
-        <tr><td>{{ channel_name(ch) }}</td><td class="num">{{ info.slots|num }}</td><td class="num">{{ info.positions|num }}</td>
-            <td class="muted">{{ survives.get(ch, "") }}</td></tr>
-        {% endfor %}
-        {% if st.settings.canary_domain %}
-        <tr><td>Token kanari</td><td class="num">{{ st.recipients|length }}</td><td class="num">-</td>
-            <td class="muted">berkas dibuka di luar jaringan satuan (DNS ke {{ st.settings.canary_domain }})</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+{% from "_ikon.html" import ikon %}
+{% set rv = namespace(pending=0) %}
+{% for vs in st.sets.values() %}{% set rv.pending = rv.pending + vs.pending()|length %}{% endfor %}
+{% set cur = 3 if st.units and (not st.sets or rv.pending) else 4 %}
+<ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
+  {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
+  <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
+  {% endfor %}
+</ol>
+<section class="card plan" aria-labelledby="langkah2">
+  <h2 id="langkah2" tabindex="-1" data-autofocus>Rencana penandaan</h2>
+  <p class="lead"><span class="mono">{{ st.doc_name }}</span> untuk {{ st.recipients|length|num }} penerima. Kode setiap penerima disebar ke beberapa kanal; tiap kanal bertahan terhadap perubahan yang berbeda.</p>
+  <div class="plan-body">
+    <figure class="plan-preview">
+      <span class="thumb thumb-lg"><img src="/terbitkan/{{ st.sid }}/pratinjau.png" alt="Halaman 1 {{ st.doc_name }}" width="200" height="283"></span>
+      <figcaption class="gate">
+        <span class="gate-head"><span class="label">Gerbang visual</span>
+          {% if gate.passed %}<span class="stamp stamp-ok">Lulus</span>{% else %}<span class="stamp stamp-danger">Gagal</span>{% endif %}</span>
+        <span class="hint">Tanpa tanda, dokumen digambar ulang identik dengan aslinya: selisih maksimum {{ gate.max_diff }} tingkat <span class="nowrap">abu-abu.</span></span>
+      </figcaption>
+    </figure>
+    <div class="plan-main">
+      <div class="stats">
+        <div class="stat"><span class="stat-label">Halaman</span><span class="stat-value">{{ st.plan.pages|num }}</span><span class="stat-note">{{ st.plan.words|num }} kata</span></div>
+        <div class="stat"><span class="stat-label">Panjang kode</span><span class="stat-value">{{ st.plan.params.length|num }}</span><span class="stat-note">bit Tardos per penerima</span></div>
+        <div class="stat"><span class="stat-label">Tahan kolusi</span><span class="stat-value">{{ st.plan.params.c }}</span><span class="stat-note">penerima bersekongkol</span></div>
+        <div class="stat"><span class="stat-label">Ambang penuh</span><span class="stat-value">{{ st.plan.threshold|num(0) }}</span><span class="stat-note">skor minimum untuk menuduh</span></div>
+      </div>
+      <div class="table-wrap">
+        <table class="channels">
+          <caption class="sr-only">Kapasitas kanal penandaan</caption>
+          <thead><tr><th scope="col">Kanal</th><th scope="col" class="num hide-sm">Slot</th><th scope="col" class="cov-head">Cakupan kode</th></tr></thead>
+          <tbody>
+            {% set survives = {"shift": "cetak, foto, tangkapan layar", "background": "layar, tangkapan layar, foto layar",
+                               "zw": "salin-tempel, berkas diteruskan", "homoglyph": "salin-tempel, teks dinormalkan sebagian"} %}
+            {% set order = ["shift", "background", "zw", "homoglyph"] %}
+            {% set length = st.plan.params.length or 1 %}
+            {% for ch in order|select("in", st.plan.summary)|list + st.plan.summary.keys()|reject("in", order)|list %}
+            {% set info = st.plan.summary[ch] %}
+            <tr>
+              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}</span>{% endif %}</th>
+              <td class="num hide-sm">{{ info.slots|num }}</td>
+              <td><span class="cov"><span class="bar" style="--value: {{ [info.positions / length, 1]|min|round(3) }}"></span><span class="cov-num">{{ info.positions|num }}</span></span></td>
+            </tr>
+            {% endfor %}
+            {% if st.settings.canary_domain %}
+            <tr>
+              <th scope="row"><span class="ch-name">Token kanari</span><span class="ch-note">Mendeteksi berkas dibuka di luar jaringan satuan (DNS ke <span class="mono">{{ st.settings.canary_domain }}</span>)</span></th>
+              <td class="num hide-sm">{{ st.recipients|length|num }}</td>
+              <td><span class="cov-none">tidak membawa kode</span></td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Bilah menunjukkan bagian dari {{ st.plan.params.length|num }} posisi kode yang dibawa kanal itu. Bilah penuh berarti kanal itu sendiri dapat membawa seluruh kode.</p>
+    </div>
   </div>
 </section>
 <p id="semantik-status" class="sr-only" aria-live="polite"></p>

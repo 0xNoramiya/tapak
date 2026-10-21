@@ -1,5 +1,16 @@
 {% if files %}
-<ul class="notes" style="margin-top:12px">{% for f in files %}<li class="mono small">{{ f }}{% if f.name.endswith(".partial.txt") %} <span class="muted">(sementara, hari berjalan)</span>{% endif %}</li>{% endfor %}</ul>
+{% set ns = namespace(partial=false) %}
+<div class="notice notice-ok merkle-hasil">
+  <p>{{ files|length|num }} berkas akar ditulis ke <span class="mono">{{ files[0].parent }}</span></p>
+  <ul class="merkle-berkas">
+    {% for f in files %}
+    {% set partial = f.name.endswith(".partial.txt") %}
+    {% if partial %}{% set ns.partial = true %}{% endif %}
+    <li><span class="mono">{{ f.name }}</span>{% if partial %} <span class="hint">sementara</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% if ns.partial %}<p class="hint">Akar hari berjalan bersifat sementara: berubah bila hari ini ada entri baru.</p>{% endif %}
+</div>
 {% else %}
 <p class="empty">Tidak ada entri untuk diekspor.</p>
 {% endif %}

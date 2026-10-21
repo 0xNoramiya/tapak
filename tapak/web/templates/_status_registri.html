@@ -1,0 +1,9 @@
+{# Registry state in the sidebar. It reloads itself when a response announces a registry
+   change (HX-Trigger: registri-berubah), e.g. after copies are issued. #}
+{% set reg = registry_status() %}
+<a class="status-registry" id="status-registri" href="/registri" hx-get="/registri/status" hx-trigger="registri-berubah from:body"
+   hx-swap="outerHTML" data-quiet>
+  <span class="label">Registri</span>
+  <span class="stamp {{ {'ok': 'stamp-ok', 'warn': 'stamp-warn', 'danger': 'stamp-danger'}.get(reg.state, 'stamp-neutral') }}">{{ reg.label }}</span>
+  {% if reg.counted %}<span class="status-meta">{{ reg.entries|num }} entri</span>{% endif %}
+</a>

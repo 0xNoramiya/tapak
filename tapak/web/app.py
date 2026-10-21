@@ -7,8 +7,10 @@ sent to the internet; HTMX is served from ./static.
 from __future__ import annotations
 
 import csv
+import difflib
 import html
 import io
+import re
 import secrets
 import shutil
 import threading
@@ -18,13 +20,14 @@ from pathlib import Path
 
 import os
 import time
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
+from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -107,6 +110,27 @@ async def _same_origin_posts(request: Request, call_next):
 
 _LOOPBACK = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
+# No page of another site may frame TAPAK (clickjacking of "Terbitkan" or the review buttons),
+# and the browser itself keeps the app offline: data, images, fonts and form posts go to this
+# origin only. script-src and style-src stay open: htmx injects its indicator styles and
+# evaluates the hx-trigger filter of the Lacak form (Ctrl+Enter) with Function().
+_SECURITY_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": ("frame-ancestors 'none'; connect-src 'self'; img-src 'self'; font-src 'self'; "
+                                "form-action 'self'; base-uri 'none'; object-src 'none'"),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    """Frame, content-type and referrer policy on every response."""
+    response = await call_next(request)
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
 
 def _host_allowed(host: str) -> bool:
     host = host.lower()
@@ -169,12 +193,158 @@ def _subchannel_summary(sb) -> str:
 templates.env.globals["subchannel_summary"] = _subchannel_summary
 
 
+def _beda(original: object, variant: object) -> Markup:
+    """The variant with the words that differ from the original wrapped in <mark class="diff">.
+
+    Words are compared as whitespace-separated tokens (difflib), so punctuation stuck to a word
+    counts as part of it. Everything else is escaped; the variant's own spacing is kept.
+    """
+    words = str(variant).split()
+    gaps = re.findall(r"\s+", str(variant))
+    lead = gaps.pop(0) if gaps and str(variant)[:1].isspace() else ""
+    changed = [False] * len(words)
+    matcher = difflib.SequenceMatcher(a=str(original).split(), b=words, autojunk=False)
+    for tag, _, _, j1, j2 in matcher.get_opcodes():
+        if tag in ("replace", "insert"):
+            changed[j1:j2] = [True] * (j2 - j1)
+    out = [str(escape(lead))]
+    open_mark = False
+    for i, word in enumerate(words):
+        gap = str(escape(gaps[i - 1])) if i else ""
+        if changed[i] and open_mark:
+            out.append(gap + str(escape(word)))
+            continue
+        if open_mark:
+            out.append("</mark>")
+            open_mark = False
+        out.append(gap)
+        if changed[i]:
+            out.append('<mark class="diff">')
+            open_mark = True
+        out.append(str(escape(word)))
+    if open_mark:
+        out.append("</mark>")
+    if len(gaps) >= len(words) and words:
+        out.append(str(escape(gaps[-1])))
+    return Markup("".join(out))
+
+
+templates.env.filters["beda"] = _beda
+
+
+def _meter(value: float, mark: float | None = None) -> dict[str, float | None]:
+    """Positions (0..1) of a score and its threshold on one scale for a .meter.
+
+    The scale runs from 0 to 15 % past the larger of the two, so neither touches the end;
+    negative scores sit at 0 and an infinite threshold has no mark (None).
+    """
+    import math
+
+    v = max(float(value), 0.0)
+    m = float(mark) if mark is not None and math.isfinite(float(mark)) else None
+    top = max(v, m or 0.0) * 1.15 or 1.0
+    return {"value": round(v / top, 4), "mark": None if m is None else round(max(m, 0.0) / top, 4)}
+
+
+templates.env.globals["meter"] = _meter
+
+_STATIC_FILES = ("tapak.css", "tapak.js")
+
+
+def _asset_version() -> str:
+    """Cache-busting query value for the stylesheets and script (newest modification time)."""
+    static = HERE / "static"
+    files = [static / n for n in _STATIC_FILES] + sorted((static / "css").glob("*.css"))
+    return str(max(int(p.stat().st_mtime) for p in files))
+
+
+templates.env.globals["asset_v"] = _asset_version
+
+_REGISTRY_STATUS: dict[str, object] = {}
+
+
+def _registry_key(s: Settings) -> str:
+    """Path, size and modification time of the registry and the public key file."""
+    stamp = []
+    for p in (s.registry_path, s.public_key_path):
+        try:
+            st = p.stat()
+            stamp.append((str(p), st.st_size, st.st_mtime_ns))
+        except OSError:
+            stamp.append((str(p), None, None))
+    return repr(stamp)
+
+
+def _registry_status() -> dict[str, object]:
+    """Registry state for the sidebar and Beranda: state ok / warn / danger / none, label,
+    entries, unsigned, and counted (False when the entry count is unknown: show no count).
+
+    Verifying the chain reads every row, so the result is kept until the registry or the
+    public key file changes (keyed by path, size and modification time).
+    """
+    s = settings()
+    key = _registry_key(s)
+    with _LOCK:
+        if _REGISTRY_STATUS.get("key") == key:
+            return _REGISTRY_STATUS["value"]  # type: ignore[return-value]
+    value = _verify_status(s)
+    with _LOCK:
+        _REGISTRY_STATUS.update(key=key, value=value)
+    return value
+
+
+def _verify_status(s: Settings) -> dict[str, object]:
+    if not s.registry_path.exists():
+        return {"state": "none", "label": "Belum ada", "entries": 0, "unsigned": 0, "counted": False}
+    unreadable = {"state": "danger", "label": "Tak terbaca", "entries": 0, "unsigned": 0, "counted": False}
+    if not s.public_key_path.exists():
+        # Entries exist but cannot be verified without the public key: count them read-only.
+        import sqlite3
+
+        try:
+            conn = sqlite3.connect(s.registry_path.resolve().as_uri() + "?mode=ro", uri=True)
+            try:
+                entries = conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+            finally:
+                conn.close()
+        except sqlite3.Error:
+            return unreadable
+        return {"state": "warn", "label": "Tanpa kunci", "entries": entries, "unsigned": 0, "counted": True}
+    from tapak.registry.verify import verify_registry
+
+    try:
+        report = verify_registry(s.registry_path, s.public_key_path.read_text().strip(), require_signed=False)
+    except (OSError, ValueError):  # SigningKeyError and UnicodeDecodeError are ValueErrors
+        return unreadable
+    return _report_status(report)
+
+
+def _report_status(report) -> dict[str, object]:
+    return {"state": "ok" if report.ok else "danger", "label": "Utuh" if report.ok else "Rusak",
+            "entries": report.entries, "unsigned": report.unsigned, "counted": True}
+
+
+templates.env.globals["registry_status"] = _registry_status
+
+
+def _preview_url(manifest) -> str | None:
+    """URL of the page-1 thumbnail of an issued document (PDF masters only)."""
+    from tapak.service import workspace_dir
+
+    if (workspace_dir(settings(), manifest.doc_hash) / "induk.pdf").is_file():
+        return f"/dokumen/{manifest.doc_hash[:16]}/pratinjau.png"
+    return None
+
+
+templates.env.globals["pratinjau_url"] = _preview_url
+
+
 def _notice(request: Request, message: str, status: int, restart: bool = False) -> HTMLResponse:
     """An Indonesian error notice. For htmx requests it is placed in the page-level alert
     region (HX-Retarget) so the current form stays intact; a plain link (a download, an old
     bookmark) gets a full page with navigation."""
     if not request.headers.get("HX-Request"):
-        resp = _page(request, "galat.html", title="Galat", message=message, restart=restart)
+        resp = _page(request, "galat.html", title="Galat", message=message, restart=restart, code=status)
         resp.status_code = status
         return resp
     link = ' <a class="link" href="/terbitkan">Mulai lagi</a>' if restart else ""
@@ -186,16 +356,32 @@ def _notice(request: Request, message: str, status: int, restart: bool = False) 
 # Messages for errors raised by Starlette itself (its details are English).
 _FRAMEWORK_MESSAGES = {
     400: "Permintaan tidak dapat dibaca. Periksa isian dan berkas, lalu kirim lagi.",
-    404: "Halaman tidak ditemukan.",
+    404: "Halaman tidak ditemukan. Periksa alamatnya, atau pilih tujuan dari menu.",
     405: "Tindakan ini tidak tersedia di alamat tersebut.",
     413: "Kiriman terlalu besar (maksimum 40 MB seluruhnya).",
 }
 
 
+_PATH_SUFFIX = re.compile(r" tidak ditemukan di \S+$")
+
+
+def _public_text(exc: Exception) -> str:
+    """The message of a lookup error for the page: "dokumen <key> tidak ditemukan di <data
+    folder>" loses the folder, which stays in the server log."""
+    text = str(exc)
+    if _PATH_SUFFIX.search(text):
+        import logging
+
+        logging.getLogger("tapak.web").info("%s", text)
+        text = _PATH_SUFFIX.sub(" tidak ditemukan", text)
+    return text
+
+
 @app.exception_handler(FileNotFoundError)
 async def _not_found(request: Request, exc: FileNotFoundError) -> HTMLResponse:
     """Missing or invalid documents become a 404 with an Indonesian message, never a 500."""
-    return _notice(request, str(exc), 404)
+    text = _public_text(exc)
+    return _notice(request, text[:1].upper() + text[1:], 404)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -251,10 +437,83 @@ async def _read_upload(f: UploadFile | None) -> bytes:
     return data
 
 
-@app.get("/", include_in_schema=False)
-def index() -> RedirectResponse:
-    """Start on the issue page."""
-    return RedirectResponse("/terbitkan", status_code=303)
+@app.get("/", response_class=HTMLResponse)
+def beranda(request: Request) -> HTMLResponse:
+    """Overview: issued documents, registry state and recent canary queries."""
+    from tapak.service import list_workspaces
+
+    s = settings()
+    docs = list_workspaces(s)
+    alerts = _canary_events(s, docs)
+    return _page(request, "beranda.html", title="Beranda", active="beranda", docs=docs, recent=docs[:5],
+                 n_copies=sum(len(m.copies) for m in docs), alerts=alerts, recent_alerts=alerts[:5],
+                 registry=_registry_status())
+
+
+def _canary_events(s: Settings, docs: list) -> list[dict[str, object]]:
+    """Canary DNS queries of every issued document, newest first (each with its doc_name).
+
+    The log is read once and matched against the tokens of all documents. Recipient names
+    are left out: a canary query is supporting evidence, not an attribution.
+    """
+    import sqlite3
+
+    from tapak.canary_dns.store import events
+
+    if not s.canary_db.exists():
+        return []
+    try:
+        evs = events(s.canary_db)
+    except sqlite3.Error:  # an unreadable log is reported on /registri (check_events_chain)
+        return []
+    copies = {c.canary_token: (m, c) for m in docs for c in m.copies if c.canary_token}
+    alerts = []
+    for ev in evs:
+        if ev.token in copies:
+            m, c = copies[ev.token]
+            alerts.append({"seq": c.seq, "time": ev.received_at, "src_ip": ev.src_ip, "qtype": ev.qtype,
+                           "doc_name": m.doc_name, "doc": m.doc_hash[:16]})
+    alerts.sort(key=lambda a: str(a["time"]), reverse=True)
+    return alerts
+
+
+def _thumbnail(pdf: bytes, dpi: int = 60) -> Response:
+    """Page 1 of a PDF as a small PNG, rendered per request and never stored."""
+    import pymupdf
+
+    try:
+        with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+            if doc.page_count == 0:
+                raise HTTPException(404, "Dokumen tidak memiliki halaman")
+            png = doc[0].get_pixmap(dpi=dpi, alpha=False).tobytes("png")
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(404, "Pratinjau dokumen tidak dapat dibuat") from exc
+    return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/dokumen/{doc}/pratinjau.png")
+def pratinjau_dokumen(doc: str, ukuran: str = "") -> Response:
+    """Page-1 thumbnail of an issued document's master (PDF masters only).
+
+    ?ukuran=kecil renders at 20 dpi (about 165 x 234 px) for the 44 px list thumbnails.
+    """
+    from tapak.service import load_workspace
+
+    _, master, folder = load_workspace(settings(), doc)
+    if not (folder / "induk.pdf").is_file():
+        raise HTTPException(404, "Pratinjau hanya tersedia untuk dokumen PDF")
+    return _thumbnail(master, dpi=20 if ukuran == "kecil" else 60)
+
+
+@app.get("/terbitkan/{sid}/pratinjau.png")
+def pratinjau_staging(sid: str) -> Response:
+    """Page-1 thumbnail of the master being prepared in an issuance session."""
+    st = _staging(sid)
+    master = st.folder / "induk.pdf"
+    if not master.is_file():
+        raise HTTPException(404, "Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa.",
+                            headers={"X-Tapak-Mulai-Lagi": "1"})
+    return _thumbnail(master.read_bytes())
 
 
 # --- Terbitkan -------------------------------------------------------------------------------
@@ -323,13 +582,13 @@ async def terbitkan_analisis(
                 errors["dokumen"] = "PDF ini tidak memiliki lapisan teks (hasil pindai). TAPAK memerlukan PDF teks."
         except Exception:  # noqa: BLE001 - any parse failure is a user-facing input error
             errors["dokumen"] = "PDF tidak dapat dibaca."
-    existing = False
+    existing = ""  # key of the already issued document: the error links to Lacak with it preselected
     if master is not None and "dokumen" not in errors:
         from tapak.service import workspace_dir
 
         if (workspace_dir(settings(), master.doc_hash) / "manifest.json").exists():
             errors["dokumen"] = "Dokumen ini sudah pernah diterbitkan."
-            existing = True
+            existing = master.doc_hash[:16]
     if errors:
         return _step1_errors(request, errors, values, kanari, existing)
     assert master is not None
@@ -337,7 +596,7 @@ async def terbitkan_analisis(
     if not gate.passed:
         errors["dokumen"] = ("Penerbitan ditolak: TAPAK tidak dapat menggambar ulang dokumen ini tanpa "
                              f"perubahan yang terlihat (selisih maksimum {gate.max_diff} tingkat abu-abu).")
-        return _step1_errors(request, errors, values, kanari, False)
+        return _step1_errors(request, errors, values, kanari, "")
 
     _expire_staging()
     sid = secrets.token_hex(8)
@@ -356,7 +615,7 @@ async def terbitkan_analisis(
 
 
 def _step1_errors(request: Request, errors: dict[str, str], values: dict[str, object], kanari: str,
-                  existing: bool) -> HTMLResponse:
+                  existing: str) -> HTMLResponse:
     """Step-1 validation errors: out-of-band error slots for htmx (the form keeps its files),
     the whole form otherwise."""
     if request.headers.get("HX-Request"):
@@ -498,13 +757,18 @@ def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
     except (ValueError, RuntimeError) as exc:
         return _review_error(request, st, f"Penerbitan gagal: {exc}")
     except FileExistsError:
+        from tapak.marker.layout import sha256_hex
+
+        key = sha256_hex((st.folder / "induk.pdf").read_bytes())[:16]
         return _page(request, "_galat.html", message="Dokumen ini sudah pernah diterbitkan. Buka halaman Lacak "
-                     "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain.", restart=True)
+                     "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain.", restart=True, lacak=key)
     st.issued_doc = out.manifest.doc_hash
     shutil.rmtree(st.folder, ignore_errors=True)
     with _LOCK:
         _STAGING.pop(sid, None)
-    return _page(request, "_hasil_terbit.html", out=out, manifest=out.manifest)
+    resp = _page(request, "_hasil_terbit.html", out=out, manifest=out.manifest)
+    resp.headers["HX-Trigger"] = "registri-berubah"  # the sidebar reloads its registry state
+    return resp
 
 
 @app.get("/dokumen/{doc}/salinan.zip")
@@ -518,9 +782,15 @@ def unduh_zip(doc: str) -> StreamingResponse:
         for c in manifest.copies:
             z.write(_copy_path(folder, c.file), c.file)
     buf.seek(0)
-    name = Path(manifest.doc_name).stem + "_salinan.zip"
     return StreamingResponse(buf, media_type="application/zip",
-                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
+                             headers={"Content-Disposition": _attachment(Path(manifest.doc_name).stem + "_salinan.zip")})
+
+
+def _attachment(name: str) -> str:
+    """Content-Disposition for a download named after an uploaded file: an ASCII fallback
+    (headers are latin-1; quotes and backslashes removed) plus the exact UTF-8 name (RFC 5987)."""
+    ascii_name = " ".join("".join(ch for ch in name if " " <= ch <= "~" and ch not in '"\\').split()) or "salinan.zip"
+    return f"attachment; filename=\"{ascii_name}\"; filename*=utf-8''{quote(name, safe='')}"
 
 
 @app.get("/dokumen/{doc}/salinan/{seq}")
@@ -550,12 +820,14 @@ def _copy_path(folder: Path, name: str) -> Path:
 
 
 @app.get("/lacak", response_class=HTMLResponse)
-def lacak_page(request: Request) -> HTMLResponse:
-    """Evidence form."""
+def lacak_page(request: Request, dokumen: str = "") -> HTMLResponse:
+    """Evidence form; ?dokumen=<16-character key> preselects that document."""
     from tapak.service import list_workspaces
 
+    key = dokumen.strip().lower()[:16]
+    selected = key if re.fullmatch(r"[0-9a-f]{16}", key) else ""
     return _page(request, "lacak.html", title="Lacak", active="lacak", docs=list_workspaces(settings()),
-                 errors={})
+                 errors={}, selected=selected)
 
 
 @app.post("/lacak", response_class=HTMLResponse)
@@ -599,7 +871,7 @@ async def lacak_run(
     try:
         outcome = await run_in_threadpool(run)
     except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
-        return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {exc}")
+        return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {_public_text(exc)}")
     tid = secrets.token_hex(8)
     with _LOCK:
         _TRACES[tid] = outcome
@@ -648,23 +920,38 @@ def berita_acara(tid: str) -> Response:
 @app.get("/registri", response_class=HTMLResponse)
 def registri_page(request: Request) -> HTMLResponse:
     """Registry verification, canary alerts and Merkle export."""
-    from tapak.service import canary_alerts, list_workspaces
+    from tapak.canary_dns.store import check_events_chain
+    from tapak.registry.signing import SigningKeyError, normalize_public_key
+    from tapak.registry.verify import verify_registry
+    from tapak.service import list_workspaces
 
     s = settings()
-    report = None
-    if s.registry_path.exists() and s.public_key_path.exists():
-        from tapak.registry.verify import verify_registry
-
-        report = verify_registry(s.registry_path, s.public_key_path.read_text().strip(), require_signed=False)
+    key = _registry_key(s)
+    report = key_error = public_key = None
+    if s.public_key_path.exists():
+        try:
+            public_key = normalize_public_key(s.public_key_path.read_text())
+        except UnicodeDecodeError:
+            key_error = "isi berkas bukan teks; kunci publik berupa 64 karakter heksadesimal"
+        except SigningKeyError as exc:
+            key_error = str(exc)
+        except OSError as exc:
+            key_error = f"berkas tidak dapat dibaca ({exc.strerror or exc})"
+    if public_key and s.registry_path.exists():
+        report = verify_registry(s.registry_path, public_key, require_signed=False)
+        with _LOCK:  # the sidebar of this page reuses the check instead of verifying again
+            _REGISTRY_STATUS.update(key=key, value=_report_status(report))
     docs = list_workspaces(s)
-    alerts = []
-    for m in docs:
-        for a in canary_alerts(s, m):
-            alerts.append({**a, "doc_name": m.doc_name})
-    alerts.sort(key=lambda a: str(a["time"]), reverse=True)
     return _page(request, "registri.html", title="Registri", active="registri", report=report, docs=docs,
-                 alerts=alerts, public_key=(s.public_key_path.read_text().strip()
-                                            if s.public_key_path.exists() else None))
+                 alerts=_canary_events(s, docs), registry=_registry_status(), public_key=public_key,
+                 key_error=key_error, public_key_path=str(s.public_key_path),
+                 canary_log=check_events_chain(s.canary_db) if s.canary_db.exists() else None)
+
+
+@app.get("/registri/status", response_class=HTMLResponse)
+def registri_status(request: Request) -> HTMLResponse:
+    """The sidebar's registry state (stamp and entry count), reloaded after an issuance."""
+    return _page(request, "_status_registri.html")
 
 
 @app.post("/registri/merkle", response_class=HTMLResponse)

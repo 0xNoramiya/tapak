@@ -1,0 +1,226 @@
+/* Lacak page (lacak.html, _lacak_form.html, _hasil_lacak.html). Uses the tokens and components
+   of tapak.css; only the page's own arrangement lives here. */
+
+/* ---------------------------------------------------------------- evidence form */
+
+/* the document card (select + page-1 preview) beside the evidence card */
+.lacak-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@container main (min-width: 760px) {
+  .lacak-form { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; align-items: stretch; }
+}
+
+/* narrow: a small page beside the select; wide: the select above a preview pane */
+.lacak-dok { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 16px; }
+.lacak-dok > .field { grid-column: 2; grid-row: 1; }
+.lacak-pratinjau { grid-column: 1; grid-row: 1; margin: 0; }
+.lacak-pratinjau .thumb { --thumb-w: 52px; border-radius: 3px; }
+.lacak-pratinjau figcaption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+@container main (min-width: 760px) {
+  .lacak-dok { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; align-items: stretch; row-gap: 20px; }
+  .lacak-dok > .field, .lacak-pratinjau { grid-column: 1; grid-row: auto; }
+  .lacak-pratinjau {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px 16px 16px;
+    border-radius: var(--r-2);
+    background: var(--surface-sunken);
+  }
+  .lacak-pratinjau .thumb { --thumb-w: 168px; border-radius: 4px; }
+  .lacak-pratinjau figcaption { position: static; width: auto; height: auto; overflow: visible; clip: auto; font-size: var(--fs-sm); color: var(--ink-muted); }
+}
+
+/* a DOCX master has no page-1 image: blank paper and a caption that says so. Driven by the
+   selected option's data-pratinjau, so it follows the select without script. */
+.pratinjau-tidak { display: none; }
+.lacak-dok:has(#dokumen option[data-pratinjau=""]:checked) .lacak-pratinjau img { visibility: hidden; }
+.lacak-dok:has(#dokumen option[data-pratinjau=""]:checked) .pratinjau-ada { display: none; }
+.lacak-dok:has(#dokumen option[data-pratinjau=""]:checked) .pratinjau-tidak { display: inline; }
+
+/* the evidence card: the drop zone takes the free height, the submit row sits at the bottom */
+.lacak-bukti { display: flex; flex-direction: column; gap: 20px; }
+.lacak-bukti > .field:first-child { flex: 1; }
+.lacak-bukti .dropzone { flex: 1; align-content: center; }
+@container main (min-width: 760px) {
+  .lacak-bukti .dropzone { min-height: 168px; padding: 24px; }
+}
+.lacak-teks .field { margin-top: 4px; }
+/* pasted text is used only when no file is chosen: say so on the summary, open or closed */
+.teks-abai { display: none; font-size: var(--fs-sm); font-weight: 400; color: var(--warn); }
+.lacak-bukti:has(.dropzone.has-files):has(#teks:not(:placeholder-shown)) .teks-abai { display: inline; }
+.lacak-kirim { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.lacak-form.htmx-request .lacak-kirim .icon-scan { display: none; }
+
+/* while a trace runs: a progress line where the result will appear, the previous result fades */
+.lacak-sibuk {
+  display: none;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface);
+}
+.lacak-sibuk b { color: var(--ink); font-weight: 500; }
+.lacak-sibuk .busy-bar { flex-basis: 160px; }
+.lacak:has(.lacak-form.htmx-request) .lacak-sibuk { display: flex; }
+
+#hasil > * { transition: opacity 200ms ease-out; }
+.lacak:has(.lacak-form.htmx-request) #hasil > * { opacity: 0.4; pointer-events: none; }
+
+/* before the first trace: an empty meter with only the threshold mark */
+.hasil-kosong { padding: 28px 24px; }
+.hasil-kosong > p { max-width: 60ch; }
+.contoh-meter { --mark: 0.62; width: min(36rem, 100%); display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.contoh-track { position: relative; height: 10px; border-radius: 5px; background: var(--track); }
+.contoh-mark { position: absolute; top: -5px; bottom: -5px; left: calc(var(--mark) * 100%); width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink-faint); }
+.contoh-label {
+  width: max-content;
+  margin-left: calc(var(--mark) * 100%);
+  transform: translateX(-50%);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* ---------------------------------------------------------------- verdict */
+
+.lacak .verdict { gap: 24px; padding: 24px; }
+.verdict-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 24px; }
+.verdict-head .kicker { flex: 1 1 18rem; min-width: 0; margin: 0; padding-top: 2px; overflow-wrap: anywhere; }
+.verdict-head h2 { font-size: inherit; line-height: 1; }
+.verdict-head .stamp-lg { flex: none; }
+
+.lacak .verdict .who { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 24px 48px; }
+.lacak .verdict .who + .who { padding-top: 24px; border-top: 1px solid var(--border); }
+@container main (min-width: 760px) {
+  .lacak .verdict .who:not(.who-none) { grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); }
+}
+.lacak .verdict .who h2 { font-size: inherit; letter-spacing: 0; }
+.who-seq {
+  display: block;
+  font-size: var(--fs-display);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.who-name { display: block; margin-top: 10px; font-size: var(--fs-title); font-weight: 500; line-height: 1.3; }
+.who-meta { margin-top: 4px; font-size: var(--fs-ui); color: var(--ink-muted); }
+.who-meta .mono { color: var(--ink); }
+.verdict-text { font-size: var(--fs-lead); max-width: 60ch; }
+.lacak .verdict .who-none { gap: 20px; }
+.who-none .facts { max-width: 40rem; }
+
+.lacak .verdict .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; font-size: var(--fs-ui); }
+.lacak .verdict .facts .meter { grid-column: 1 / -1; }
+/* the threshold value sits above its tick, the score below the start of the bar */
+.lacak .verdict .meter { position: relative; padding-top: 26px; }
+.lacak .verdict .meter-legend > span:last-child {
+  position: absolute;
+  top: 0;
+  left: calc(var(--mark) * 100%);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.lacak .verdict .mark-start .meter-legend > span:last-child { transform: translateX(-8px); }
+.lacak .verdict .mark-end .meter-legend > span:last-child { transform: translateX(calc(-100% + 8px)); }
+.fact { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fact small { font: 500 var(--fs-label)/1.4 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); }
+.fact b { font-size: var(--fs-h2); line-height: 1.3; font-variant-numeric: tabular-nums; }
+.fact i { font-style: normal; font-size: var(--fs-sm); color: var(--ink-muted); }
+.lacak .verdict .verdict-note { max-width: none; }
+
+.verdict-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+.verdict-actions .hint { flex: 1 1 18rem; }
+
+/* ---------------------------------------------------------------- details */
+
+.lacak .tnum { font-variant-numeric: tabular-nums; }
+.kanal-tabel td { vertical-align: middle; }
+.kanal-tabel td.num .bar { margin-right: 12px; }
+.kanal-n { display: inline-block; min-width: 5ch; text-align: right; }
+/* a few positions of a long code still show as a dot, not a hairline */
+.kanal-catatan { margin: 12px 0 16px; }
+
+/* ranking: every bar on one scale, so the threshold ticks line up from row to row */
+.peringkat { --mark: 0; display: flex; flex-direction: column; }
+.peringkat-skala { position: relative; height: 22px; margin-left: 40px; }
+.peringkat-skala span {
+  position: absolute;
+  bottom: 2px;
+  left: calc(var(--mark) * 100%);
+  transform: translateX(-50%);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+.peringkat-skala b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.peringkat-skala .at-start { transform: translateX(-1px); }
+.peringkat-skala .at-end { transform: translateX(calc(-100% + 1px)); }
+.peringkat-daftar { list-style: none; margin: 0; padding: 0; }
+.peringkat-baris {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px 12px;
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--border);
+}
+.peringkat-no { font: 500 var(--fs-label)/1 var(--font-mono); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.peringkat-siapa { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: var(--fs-ui); }
+.peringkat-skor { font-size: var(--fs-ui); font-weight: 500; }
+.peringkat-baris:not(.is-accused) .peringkat-skor { color: var(--ink-muted); font-weight: 400; }
+.peringkat-bar { grid-column: 2 / -1; position: relative; height: 6px; border-radius: 3px; background: var(--track); }
+.peringkat-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--value) * 100%);
+  border-radius: 3px;
+  background: var(--ink-faint);
+}
+.is-accused .peringkat-bar::before { background: var(--accent); }
+.peringkat-bar::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  left: calc(var(--mark) * 100%);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* aside: canary hits and the validity checks */
+.lacak-kanari { border-color: var(--warn-line); }
+.lacak-kanari .card-head { flex-wrap: nowrap; align-items: center; margin-bottom: 12px; }
+.lacak-kanari .card-head > div { flex: 1 1 auto; }
+.lacak-kanari .list { margin-bottom: 16px; }
+.lacak-kanari .list-title { white-space: normal; }
+.lacak-kanari .hint + details.more { margin-top: 16px; }
+.lacak-sah { display: flex; flex-direction: column; gap: 20px; }
+.lacak-sah > h2, .lacak-sah > .kv { margin: 0; }
+.lacak-hash, .lacak-catatan { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lacak-catatan .notice .notes { padding-left: 16px; }
+
+@media (max-width: 639px) {
+  .lacak .verdict { padding: 18px; gap: 20px; }
+  .kicker-sep { display: none; }
+  .verdict-head .kicker .mono { display: block; margin-top: 4px; }
+  .lacak .verdict .facts { grid-template-columns: minmax(0, 1fr); }
+  .who-seq { font-size: var(--fs-h1); }
+  .who-name { font-size: var(--fs-h2); margin-top: 6px; }
+  .verdict-actions .btn, .lacak-kirim .btn { flex: 1 1 auto; }
+  .kanal-tabel td.num .bar { width: 44px; margin-right: 8px; }
+  .hasil-kosong { padding: 24px 18px; }
+}
+
+@media (max-width: 360px) {
+  .lacak .verdict { padding: 14px; }
+  .hasil-kosong { padding: 20px 14px; }
+}

@@ -1,114 +1,156 @@
+{% from "_ikon.html" import ikon %}
 {% set pending = namespace(n=0, total=0) %}
 {% for vs in st.sets.values() %}{% set pending.n = pending.n + vs.pending()|length %}{% set pending.total = pending.total + vs.variants|length - 1 %}{% endfor %}
-<section class="card" aria-labelledby="langkah3">
-  <h2 id="langkah3"><span class="step">3</span>Kalimat aman <span class="chip chip-neutral">opsional</span></h2>
+{% if oob %}
+{# The progress header sits outside #semantik; it follows the review state. #}
+{% set cur = 3 if st.units and (not st.sets or pending.n) else 4 %}
+<ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan" hx-swap-oob="true">
+  {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
+  <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
+  {% endfor %}
+</ol>
+{% endif %}
+<section class="card sem" aria-labelledby="langkah3">
+  <h2 id="langkah3">Kalimat aman <span class="field-optional">(opsional)</span></h2>
   <p class="lead">Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Ini satu-satunya kanal yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.</p>
   {% if st.candidates %}
   {% set decided = namespace(n=0) %}
   {% for vs in st.sets.values() %}{% for x in vs.status[1:] %}{% if x != "menunggu" %}{% set decided.n = decided.n + 1 %}{% endif %}{% endfor %}{% endfor %}
-  <form hx-post="/terbitkan/{{ st.sid }}/varian" hx-target="#semantik" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]"
+  {% set held = st.candidates|selectattr("1")|list %}
+  <form class="sem-form" hx-post="/terbitkan/{{ st.sid }}/varian" hx-target="#semantik" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]"
         {% if decided.n %}hx-confirm="Buat ulang varian? Keputusan untuk varian yang teksnya tetap sama dipertahankan; varian baru harus ditinjau lagi."{% endif %}>
-    {% for unit, reasons in st.candidates %}
-      {% if not reasons %}
-      <label class="check-row">
+    {% if st.units %}
+    <fieldset class="sentences">
+      <legend class="label">Pilih kalimat yang diparafrasekan</legend>
+      {% for unit, reasons in st.candidates if not reasons %}
+      <label class="check-row sentence">
         <input type="checkbox" name="unit" value="{{ unit.unit_id }}" {% if unit.unit_id in st.sets or not st.sets %}checked{% endif %}>
-        <span><span class="small muted">Halaman {{ unit.page + 1 }}</span><br>{{ unit.text }}</span>
+        <span class="sentence-body"><span class="sentence-page">Halaman {{ unit.page + 1 }}</span><span class="sentence-text">{{ unit.text }}</span></span>
       </label>
-      {% else %}
-      <div class="check-row" aria-disabled="true">
-        <input type="checkbox" disabled>
-        <span class="muted"><span class="small">Halaman {{ unit.page + 1 }}: tidak ditawarkan ({{ reasons|join(", ") }})</span><br>{{ unit.text }}</span>
-      </div>
-      {% endif %}
-    {% endfor %}
-    <div class="row">
+      {% endfor %}
+    </fieldset>
+    {% else %}
+    <p class="empty">Tidak ada kalimat yang aman untuk diparafrasekan. Kanal semantik tidak dipakai.</p>
+    {% endif %}
+    {% if held %}
+    <details class="more held">
+      <summary>{{ held|length }} kalimat tidak ditawarkan</summary>
+      <ul class="held-list">
+        {% for unit, reasons in held %}
+        <li><span class="sentence-page">Halaman {{ unit.page + 1 }}</span><span class="sentence-text">{{ unit.text }}</span><span class="hint">Alasan: {{ reasons|join(", ") }}.</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% if st.units %}
+    <div class="form-actions">
       <button class="btn btn-secondary" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        <span class="idle-label">{% if st.sets %}Buat ulang varian{% else %}Buat varian dengan LLM lokal{% endif %}</span>
+        <span class="idle-label">{% if st.sets %}{{ ikon("refresh") }}Buat ulang varian{% else %}Buat varian dengan LLM lokal{% endif %}</span>
         <span class="htmx-indicator">Membuat varian…</span>
       </button>
+      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>LLM lokal memparafrasekan kalimat terpilih.</span></div>
     </div>
+    {% endif %}
   </form>
   {% else %}
   <p class="empty">Tidak ada kalimat pembuka, penutup, atau tembusan yang dikenali di dokumen ini. Kanal semantik tidak dipakai.</p>
   {% endif %}
 
   {% if st.sets %}
-  <div class="stack" style="margin-top: 20px">
-    {% set status_text %}{% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.{% else %}Semua varian sudah ditinjau.{% endif %}{% endset %}
-    <p class="small {% if pending.n %}muted{% endif %}">{{ status_text }}</p>
+  {% set status_text %}{% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.{% else %}Semua varian sudah ditinjau.{% endif %}{% endset %}
+  <div class="review">
+    <div class="review-head">
+      <h3>Tinjau varian</h3>
+      <div class="review-progress">
+        <span class="bar{% if pending.n %} bar-warn{% endif %}" style="--value: {{ ((pending.total - pending.n) / pending.total)|round(3) if pending.total else 1 }}"></span>
+        <p class="small">{{ status_text }}</p>
+      </div>
+    </div>
     {# The live region sits outside #semantik, so it survives the swap and is announced. #}
     {% if oob %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}</p>{% endif %}
     {% for unit in st.units if unit.unit_id in st.sets %}
     {% set vs = st.sets[unit.unit_id] %}
-    <div class="unit">
-      <div class="unit-head">
-        <div class="unit-text"><span class="label">Asli, halaman {{ unit.page + 1 }}</span><br>{{ vs.variants[0] }}</div>
+    {% set page = unit.page + 1 %}
+    {# one equivalence note shared by every variant is shown once, under the original #}
+    {% set notes = vs.equivalence[1:]|map(attribute="1")|unique|list %}
+    {% set shared_note = notes[0] if notes|length == 1 and vs.variants|length > 2 else "" %}
+    <article class="unit-review" aria-labelledby="asli-{{ unit.unit_id }}">
+      <div class="unit-review-head">
+        <div class="original">
+          <span class="label" id="asli-{{ unit.unit_id }}">Asli, halaman {{ page }}</span>
+          <p class="original-text">{{ vs.variants[0] }}</p>
+          {% if shared_note %}<p class="judge"><span class="judge-label">Pemeriksa kesetaraan, semua varian</span> {{ shared_note }}</p>{% endif %}
+        </div>
         {% if vs.variants|length > 1 %}
-        <button class="btn btn-secondary btn-small nowrap" type="button" id="all-{{ unit.unit_id }}"
-                {% if not vs.pending() %}aria-disabled="true"{% endif %}
-                hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/semua" hx-target="#semantik">
-          {% if vs.pending() %}Setujui semua ({{ vs.pending()|length }}){% else %}Semua sudah ditinjau{% endif %}
+        {# Once nothing is pending the button stays (same id, aria-disabled) but posts nothing. #}
+        <button class="btn btn-secondary btn-small" type="button" id="all-{{ unit.unit_id }}"
+                {% if vs.pending() %}hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/semua" hx-target="#semantik"{% else %}aria-disabled="true"{% endif %}>
+          {% if vs.pending() %}{{ ikon("check") }}Setujui semua ({{ vs.pending()|length }}){% else %}Semua sudah ditinjau{% endif %}
         </button>
         {% endif %}
       </div>
       {% if vs.variants|length > 1 %}
-      <ul class="variants">
+      <ol class="variant-list">
         {% for v in vs.variants[1:] %}
         {% set i = loop.index %}
-        <li class="variant">
-          <div>
-            <p>{{ v }}</p>
-            <span class="small muted">
-              {% if vs.status[i] == "disetujui" %}<span class="chip chip-ok">disetujui</span>
-              {% elif vs.status[i] == "ditolak" %}<span class="chip chip-no">ditolak</span>
-              {% else %}<span class="chip chip-wait">menunggu</span>{% endif %}
-              {% if vs.equivalence[i][1] %} pemeriksa kesetaraan: {{ vs.equivalence[i][1] }}{% endif %}
-            </span>
+        <li class="variant-row is-{{ vs.status[i] }}">
+          <span class="variant-num" aria-hidden="true">{{ i }}</span>
+          <div class="variant-body">
+            <p class="variant-text">{{ vs.variants[0]|beda(v) }}</p>
+            <p class="variant-meta">
+              {% if vs.status[i] == "disetujui" %}<span class="stamp stamp-ok">Disetujui</span>
+              {% elif vs.status[i] == "ditolak" %}<span class="stamp stamp-danger">Ditolak</span>
+              {% else %}<span class="stamp stamp-neutral">Menunggu</span>{% endif %}
+              {% if vs.equivalence[i][1] and not shared_note %}<span class="judge"><span class="judge-label">Pemeriksa kesetaraan</span> {{ vs.equivalence[i][1] }}</span>{% endif %}
+            </p>
           </div>
-          <div class="actions">
-            {# Buttons stay enabled (state shown with aria-pressed) and keep stable ids, so htmx
-               returns keyboard focus to the same button after the list re-renders. #}
-            <button class="btn btn-secondary btn-small btn-approve" type="button" id="v-{{ unit.unit_id }}-{{ i }}-ok"
+          {# Buttons stay enabled (state shown with aria-pressed) and keep stable ids, so htmx
+             returns keyboard focus to the same button after the list re-renders. #}
+          <div class="segmented" role="group" aria-label="Putusan varian {{ i }} kalimat halaman {{ page }}">
+            <button type="button" class="btn-approve" id="v-{{ unit.unit_id }}-{{ i }}-ok"
                     aria-pressed="{{ 'true' if vs.status[i] == 'disetujui' else 'false' }}"
-                    aria-label="Setujui varian {{ i }} kalimat halaman {{ unit.page + 1 }}"
-                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/disetujui" hx-target="#semantik">Setujui</button>
-            <button class="btn btn-secondary btn-small btn-reject" type="button" id="v-{{ unit.unit_id }}-{{ i }}-no"
+                    aria-label="Setujui varian {{ i }} kalimat halaman {{ page }}"
+                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/disetujui" hx-target="#semantik">{{ ikon("check") }}Setujui</button>
+            <button type="button" class="btn-reject" id="v-{{ unit.unit_id }}-{{ i }}-no"
                     aria-pressed="{{ 'true' if vs.status[i] == 'ditolak' else 'false' }}"
-                    aria-label="Tolak varian {{ i }} kalimat halaman {{ unit.page + 1 }}"
-                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/ditolak" hx-target="#semantik">Tolak</button>
+                    aria-label="Tolak varian {{ i }} kalimat halaman {{ page }}"
+                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/ditolak" hx-target="#semantik">{{ ikon("x") }}Tolak</button>
           </div>
         </li>
         {% endfor %}
-      </ul>
+      </ol>
       {% else %}
-      <p class="small muted">Tidak ada varian yang lolos pemeriksaan otomatis untuk kalimat ini.</p>
+      <p class="empty">Tidak ada varian yang lolos pemeriksaan otomatis untuk kalimat ini.</p>
       {% endif %}
       {% if vs.dropped %}
-      <details class="small muted"><summary>{{ vs.dropped|length }} usulan ditolak otomatis</summary>
+      <details class="more dropped"><summary>{{ vs.dropped|length }} usulan ditolak otomatis</summary>
         <ul class="notes">{% for t, why in vs.dropped %}<li>{{ t }}: {{ why }}</li>{% endfor %}</ul>
       </details>
       {% endif %}
-    </div>
+    </article>
     {% endfor %}
   </div>
   {% endif %}
 </section>
 
-<section class="card" aria-labelledby="langkah4">
-  <h2 id="langkah4"><span class="step">4</span>Terbitkan</h2>
-  {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}
-  <p class="lead" id="langkah4-status">
-    {% if pending.n %}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
-    {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
-  </p>
-  <form hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="find button[type=submit]">
-    <div class="row">
+<section class="card publish{% if not pending.n %} is-ready{% endif %}" aria-labelledby="langkah4">
+  <div class="publish-row">
+    <div class="publish-text">
+      <h2 id="langkah4">Terbitkan</h2>
+      <p class="lead{% if pending.n %} is-blocked{% endif %}" id="langkah4-status">
+        {% if pending.n %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
+        {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
+      </p>
+    </div>
+    <form class="publish-form" hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="find button[type=submit]">
       <button class="btn btn-primary" type="submit" {% if pending.n %}disabled{% endif %} aria-describedby="langkah4-status">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
         <span class="htmx-indicator">Menerbitkan…</span>
       </button>
-    </div>
-  </form>
+      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.</span></div>
+    </form>
+  </div>
+  {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}
 </section>

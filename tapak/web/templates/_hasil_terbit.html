@@ -1,25 +1,54 @@
-<section class="card" aria-labelledby="hasil-terbit">
-  <h2 id="hasil-terbit" tabindex="-1" data-autofocus>{{ manifest.copies|length }} salinan siap dibagikan</h2>
-  <p class="lead">{{ manifest.doc_name }} · diterbitkan {{ manifest.issued_at|waktu }} oleh {{ manifest.issuer }} · {{ manifest.elapsed_s|num(1) }} detik.
-    {% if out.registry_entries %}Registri: {{ out.registry_entries }} entri {% if out.signed %}ditandatangani{% else %}menunggu tanda tangan eselon atas{% endif %}.{% endif %}</p>
-  {% for w in out.warnings %}<div class="notice notice-warn" role="alert" style="margin-bottom: 16px">{{ w }}</div>{% endfor %}
-  <div class="row" style="margin-bottom: 20px">
-    <a class="btn btn-primary" href="/dokumen/{{ manifest.doc_hash[:16] }}/salinan.zip">Unduh semua salinan (ZIP)</a>
-    <a class="btn btn-secondary" href="/terbitkan">Terbitkan dokumen lain</a>
+{% from "_ikon.html" import ikon %}
+{% set key = manifest.doc_hash[:16] %}
+{% set thumb = pratinjau_url(manifest) %}
+<ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
+  {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
+  <li class="stepper-item is-done"><span class="stepper-num">{{ ikon("check", 14) }}</span> <span class="stepper-label">{{ label }}<span class="sr-only"> (selesai)</span></span></li>
+  {% endfor %}
+</ol>
+<section class="card issued" aria-labelledby="hasil-terbit">
+  <div class="issued-body">
+    <span class="thumb">{% if thumb %}<img src="{{ thumb }}" alt="Halaman 1 {{ manifest.doc_name }}" width="120" height="170">{% endif %}</span>
+    <div class="issued-main">
+      {% if out.registry_entries %}
+      <p class="issued-registry">
+        {% if out.signed %}<span class="stamp stamp-ok">Tercatat</span><span class="small muted">Registri {{ out.registry_entries|num }} entri, ditandatangani</span>
+        {% else %}<span class="stamp stamp-warn">Belum bertanda tangan</span><span class="small muted">Registri {{ out.registry_entries|num }} entri, menunggu tanda tangan eselon atas</span>{% endif %}
+      </p>
+      {% endif %}
+      <h2 id="hasil-terbit" tabindex="-1" data-autofocus>{{ manifest.copies|length }} salinan siap dibagikan</h2>
+      <p class="lead"><span class="mono">{{ manifest.doc_name }}</span>, diterbitkan {{ manifest.issued_at|waktu }} oleh {{ manifest.issuer }} dalam {{ manifest.elapsed_s|num(1) }} detik.</p>
+      <div class="issued-actions">
+        <a class="btn btn-primary" href="/dokumen/{{ key }}/salinan.zip">{{ ikon("download") }}Unduh semua salinan (ZIP)</a>
+        <a class="btn btn-secondary" href="/lacak?dokumen={{ key }}">{{ ikon("scan") }}Lacak dokumen ini</a>
+        <a class="btn btn-ghost" href="/terbitkan">{{ ikon("files") }}Terbitkan dokumen lain</a>
+      </div>
+    </div>
+  </div>
+  {% for w in out.warnings %}<div class="notice notice-warn" role="alert">{{ w }}</div>{% endfor %}
+</section>
+<section class="card card-flush" aria-labelledby="salinan-h">
+  <div class="card-head">
+    <div>
+      <h2 id="salinan-h">Daftar salinan</h2>
+      <p class="lead">Bagikan setiap salinan hanya kepada penerimanya. Komitmen kode tercatat di registri; kodenya sendiri tidak disimpan.</p>
+    </div>
   </div>
   <div class="table-wrap">
-    <table>
-      <thead><tr><th class="num">No.</th><th>ID penerima</th><th>Nama</th><th class="hide-sm">Satuan</th><th class="hide-sm">Varian kalimat</th><th class="hide-sm">Komitmen kode</th><th><span class="sr-only">Unduh</span></th></tr></thead>
+    <table class="copies">
+      <thead><tr><th scope="col" class="num">No.</th><th scope="col">Penerima</th><th scope="col" class="hide-sm">Satuan</th><th scope="col" class="num hide-sm">Kalimat diubah</th><th scope="col" class="hide-sm">Komitmen kode</th><th scope="col"><span class="sr-only">Unduh</span></th></tr></thead>
       <tbody>
       {% for c in manifest.copies %}
         <tr>
-          <td class="num">{{ c.seq }}</td>
-          <td class="mono">{{ c.recipient.recipient_id }}</td>
-          <td>{{ c.recipient.nama }}</td>
-          <td class="muted hide-sm">{{ c.recipient.satuan }}</td>
-          <td class="mono small hide-sm">{{ c.semantic_variant_ids|join(", ") or "-" }}</td>
-          <td class="mono small hide-sm" title="{{ c.code_digest }}">{{ c.code_digest[:12] }}…</td>
-          <td><a class="link small" href="/dokumen/{{ manifest.doc_hash[:16] }}/salinan/{{ c.seq }}">Unduh</a></td>
+          <td class="num seq">{{ c.seq }}</td>
+          <td><span class="who">{{ c.recipient.nama }}</span><span class="who-id mono">{{ c.recipient.recipient_id }}</span></td>
+          <td class="muted hide-sm">{{ c.recipient.satuan or "-" }}</td>
+          {% set vids = c.semantic_variant_ids %}
+          {% set changed = namespace(n=0) %}
+          {% for v in vids if not v.endswith(":v0") %}{% set changed.n = changed.n + 1 %}{% endfor %}
+          <td class="num hide-sm">{% if vids %}<span title="{{ vids|join(', ') }}">{{ changed.n }} dari {{ vids|length }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
+          <td class="small hide-sm"><span class="hash" title="{{ c.code_digest }}">{{ c.code_digest }}</span></td>
+          <td class="dl"><a class="btn btn-ghost btn-small" href="/dokumen/{{ key }}/salinan/{{ c.seq }}" aria-label="Unduh salinan {{ c.seq }}, {{ c.recipient.nama }}">{{ ikon("download") }}<span class="hide-sm">Unduh</span></a></td>
         </tr>
       {% endfor %}
       </tbody>

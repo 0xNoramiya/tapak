@@ -110,4 +110,4 @@ Kami memilih menjawab "tidak cukup bukti" daripada menebak. Daftar lengkapnya, d
 
 ---
 
-<sub>Dibuat untuk Kartika Cyber Hackathon 2026, kategori Core Infra. Setiap halaman contoh bertanda "CONTOH SINTETIS - BUKAN DOKUMEN ASLI". Font DejaVu (lisensi Bitstream Vera, `tapak/assets/fonts/LICENSE-DejaVu.txt`) dan HTMX 1.9.12 (lisensi BSD, `tapak/web/static/`) disertakan di repositori.</sub>
+<sub>Dibuat untuk Kartika Cyber Hackathon 2026, kategori Core Infra. Setiap halaman contoh bertanda "CONTOH SINTETIS - BUKAN DOKUMEN ASLI". Font DejaVu untuk dokumen dan berita acara (lisensi Bitstream Vera, `tapak/assets/fonts/LICENSE-DejaVu.txt`), font IBM Plex untuk antarmuka (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`), dan HTMX 1.9.12 (lisensi BSD, `tapak/web/static/`) disertakan di repositori.</sub>
