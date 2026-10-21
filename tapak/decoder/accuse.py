@@ -3,7 +3,10 @@
 Order of operations (this order is the audit guarantee):
 
 1. The threshold Z is computed from (bias vector p, reliability weights, eps1) and
-   recorded with a timestamp. Nothing about any recipient enters this step.
+   recorded with a timestamp. Nothing about any recipient enters this step. eps1 is the
+   budget of this trace over n_max: trace number k of a document spends only
+   eps * 6 / (pi^2 k^2) (see ``tapak.tardos.spending``), a trace that is not logged spends
+   all of eps.
 2. Only then are scores computed for every issued copy.
 3. A copy is named only if its score reaches Z, and always together with its score, Z and
    the bound on the probability that an innocent recipient would score that high.
@@ -24,6 +27,7 @@ import numpy as np
 from tapak.decoder.fuse import FusedEstimate
 from tapak.tardos.accuse import log_tail_bound, scores, threshold
 from tapak.tardos.params import TardosParams
+from tapak.tardos.spending import TraceSpending
 
 VERDICT_IDENTIFIED = "teridentifikasi"
 VERDICT_INSUFFICIENT = "tidak cukup bukti"
@@ -47,7 +51,12 @@ class CopyRef:
 
 @dataclass
 class CopyCandidate:
-    """Score of one issued copy."""
+    """Score of one issued copy.
+
+    ``log10_bound`` is log10 P(innocent score >= score) in this trace. The false-accusation
+    probability is (copies - 1) times that bound, divided by the share of eps this trace
+    spends (see :class:`ThresholdRecord`), so it holds for all traces of the document.
+    """
 
     copy: CopyRef
     score: float
@@ -61,7 +70,12 @@ class CopyCandidate:
 
 @dataclass
 class ThresholdRecord:
-    """The pre-registered threshold and its inputs."""
+    """The pre-registered threshold and its inputs.
+
+    ``eps`` is the document's total budget, ``eps_share`` the part this trace spends and
+    ``eps1 = eps_share / n_max``. ``trace_no`` is the number of this trace of the document in
+    the registry log (None: the trace is not logged and spends all of eps).
+    """
 
     rule: str
     eps: float
@@ -71,6 +85,24 @@ class ThresholdRecord:
     effective_positions: float
     threshold: float
     fixed_at: str
+    trace_no: int | None = None
+    eps_share: float | None = None
+
+    @property
+    def spent(self) -> float:
+        """eps spent by this trace (``eps_share``; all of ``eps`` when not recorded)."""
+        return self.eps if self.eps_share is None else self.eps_share
+
+    @property
+    def share(self) -> float:
+        """Fraction of the document's budget spent by this trace (1 when not logged)."""
+        return self.spent / self.eps
+
+    def budget_text(self) -> str:
+        """'pelacakan ke-2 dokumen ini, jatah eps = 1.52e-07 dari eps = 1e-06' or 'eps = 1e-06'."""
+        if self.trace_no is None:
+            return f"eps = {self.eps:g}"
+        return f"pelacakan ke-{self.trace_no} dokumen ini, jatah eps = {self.spent:.3g} dari eps = {self.eps:g}"
 
 
 @dataclass
@@ -111,7 +143,7 @@ class Attribution:
         lines = [
             f"Putusan: {self.verdict.upper()}",
             f"Posisi kode terbaca: {t.n_observed} (efektif {t.effective_positions:.0f}); "
-            f"ambang Z = {t.threshold:.1f} untuk eps = {t.eps:g} (eps1 = {t.eps1:.2e}), "
+            f"ambang Z = {t.threshold:.1f} untuk {t.budget_text()} (eps1 = {t.eps1:.2e}), "
             f"ditetapkan {t.fixed_at} sebelum skor dihitung",
         ]
         for c in self.accused:
@@ -180,17 +212,28 @@ def attribute(
     codewords: np.ndarray,
     refs: list[CopyRef],
     params: TardosParams,
+    spending: TraceSpending | None = None,
 ) -> Attribution:
-    """Accuse according to the fixed rule and assemble the explanation."""
+    """Accuse according to the fixed rule and assemble the explanation.
+
+    ``spending`` is this trace's part of the budget (trace number known before decoding);
+    None means a trace that is not logged, which spends all of ``params.eps``. The fused
+    threshold, every channel threshold and the false-accusation probability of every copy
+    use that same part: the probability is the per-trace bound divided by the share, so it
+    covers every trace of the document together and stays comparable with eps.
+    """
     if codewords.shape != (len(refs), params.length):
         raise ValueError("kata kode harus berukuran (jumlah salinan, m)")
-    eps1 = params.eps1
+    spending = TraceSpending.unlogged(params.eps) if spending is None else spending
+    if not math.isclose(spending.eps, params.eps, rel_tol=1e-9):
+        raise ValueError("jatah eps pelacakan tidak berasal dari eps dokumen ini")
+    eps1 = spending.eps1(params.n_max)
     # Step 1: threshold first, from p and the decoder weights only.
     z = threshold(p, eps1, fused.weights)
     record = ThresholdRecord(
         rule=THRESHOLD_RULE, eps=params.eps, eps1=eps1, n_max=params.n_max,
         n_observed=fused.n_observed, effective_positions=float(np.sum(fused.weights**2)),
-        threshold=z, fixed_at=_now(),
+        threshold=z, fixed_at=_now(), trace_no=spending.trace_no, eps_share=spending.eps_share,
     )
     notes: list[str] = []
     if fused.n_observed == 0:
@@ -198,6 +241,7 @@ def attribute(
     # Step 2: scores.
     s = scores(codewords, fused.y, p, fused.weights) if fused.n_observed else np.zeros(len(refs))
     n_others = max(len(refs) - 1, 1)
+    log10_share = math.log10(spending.share)
 
     channel_rows: list[ChannelEvidence] = []
     per_scores: dict[str, np.ndarray] = {}
@@ -210,8 +254,9 @@ def attribute(
     candidates = []
     for j, ref in enumerate(refs):
         lb = log_tail_bound(float(s[j]), p, fused.weights)
-        fap = min(1.0, n_others * math.exp(lb)) if lb > -math.inf else 0.0
-        log10_fap = min(0.0, math.log10(n_others) + lb / math.log(10)) if lb > -math.inf else -math.inf
+        fap = min(1.0, n_others * math.exp(lb) / spending.share) if lb > -math.inf else 0.0
+        log10_fap = (min(0.0, math.log10(n_others) + lb / math.log(10) - log10_share)
+                     if lb > -math.inf else -math.inf)
         candidates.append(
             CopyCandidate(
                 copy=ref,

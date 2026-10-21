@@ -49,6 +49,7 @@ from tapak.decoder.accuse import (
     Attribution,
     CopyCandidate,
     CopyRef,
+    ThresholdRecord,
 )
 from tapak.decoder.softbits import SoftBits
 from tapak.fonts import FONT_DIR, font_path
@@ -479,24 +480,27 @@ def _seq_list_text(seqs: list[int], shown_seqs: set[int]) -> str:
 # --- view model: the only data the template sees ----------------------------------------
 
 
-def _log10_false_accusation(c: CopyCandidate, n_copies: int) -> float:
-    """log10 of the bound (n - 1) * P(innocent >= S), exact even where the float underflows.
+def _log10_false_accusation(c: CopyCandidate, n_copies: int, share: float = 1.0) -> float:
+    """log10 of the bound (n - 1) * P(innocent >= S) / share, exact where the float underflows.
 
-    The float ``false_accusation_probability`` loses precision below about 1e-308 (subnormal
-    numbers), so it is never used here: a rounded-down bound would understate the risk.
+    ``share`` is the fraction of eps this trace spends (1 for a trace that is not logged):
+    dividing by it makes the bound hold for all traces of the document together, as in
+    ``attribute``. The float ``false_accusation_probability`` loses precision below about
+    1e-308 (subnormal numbers), so it is never used here: a rounded-down bound would
+    understate the risk.
     """
     if math.isfinite(c.log10_bound):
-        return min(0.0, math.log10(max(n_copies - 1, 1)) + c.log10_bound)
+        return min(0.0, math.log10(max(n_copies - 1, 1)) + c.log10_bound - math.log10(share))
     return -math.inf
 
 
-def _score_cells(c: CopyCandidate, z: float, n_copies: int, n_read: int) -> dict[str, Any]:
+def _score_cells(c: CopyCandidate, z: float, n_copies: int, n_read: int, share: float = 1.0) -> dict[str, Any]:
     """Score, Z, probability bound (rounded up) and agreeing channels of one copy."""
     return {
         "score": format_number(c.score),
         "threshold": format_number(z),
         "probability": format_probability_html(c.false_accusation_probability,
-                                               _log10_false_accusation(c, n_copies)),
+                                               _log10_false_accusation(c, n_copies, share)),
         "channels": f"{len(c.channels_agreeing)} dari {n_read}"
                     + (f": {', '.join(c.channels_agreeing)}" if c.channels_agreeing else ""),
     }
@@ -506,13 +510,14 @@ def _accused_rows(attribution: Attribution, n_read: int) -> list[dict[str, Any]]
     """Identity rows, one per accused copy; each carries score, Z and probability."""
     z = attribution.threshold.threshold
     n_copies = len(attribution.candidates)
+    share = attribution.threshold.share
     return [
         {
             "seq": f"#{c.copy.seq}",
             "recipient_id": c.copy.recipient_id,
             "nama": c.copy.nama,
             "jabatan": ", ".join(x for x in (c.copy.jabatan, c.copy.satuan) if x),
-            **_score_cells(c, z, n_copies, n_read),
+            **_score_cells(c, z, n_copies, n_read, share),
         }
         for c in attribution.accused
     ]
@@ -524,11 +529,12 @@ def _anonymous_rows(attribution: Attribution, n_read: int) -> list[dict[str, Any
     if not math.isfinite(z):
         return []
     n_copies = len(attribution.candidates)
+    share = attribution.threshold.share
     rows = []
     for rank, c in enumerate(attribution.candidates, 1):
         if c.accused:
             continue
-        rows.append({"rank": rank, **_score_cells(c, z, n_copies, n_read)})
+        rows.append({"rank": rank, **_score_cells(c, z, n_copies, n_read, share)})
         if len(rows) == RUNNER_UP_ROWS:
             break
     return rows
@@ -623,14 +629,31 @@ def _registry_text(info: ReportInfo) -> str:
     return f"TIDAK UTUH ({format_int(info.registry_entries)} entri); lihat Bagian VII"
 
 
-def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None) -> str:
-    """The command that repeats this examination (file names optionally redacted)."""
+def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None,
+                  trace_no: int | None = None) -> str:
+    """The command that repeats this examination (file names optionally redacted).
+
+    For a logged trace, ``--pelacakan-ke`` repeats it with that trace's share of eps, so the
+    threshold and the verdict come out the same.
+    """
     evidence = list(info.evidence_names) or [info.evidence_name]
     names = evidence + [info.document_name, info.manifest_name]
     if redact is not None:
         names = [redact(n) for n in names]
     args = names[:-2] + ["--master", names[-2], "--manifest", names[-1]]
+    if trace_no is not None:
+        args += ["--pelacakan-ke", str(trace_no)]
     return "tapak trace " + " ".join(shlex.quote(a) for a in args)
+
+
+def _trace_text(t: ThresholdRecord) -> str:
+    """Section V and VI: which trace of the document this was and the eps it spent."""
+    if t.trace_no is None:
+        return ("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; "
+                "ambang memakai seluruh eps")
+    return (f"pelacakan ke-{t.trace_no} untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps "
+            f"pelacakan ini 6 / (\u03c0\u00b2 \u00d7 {t.trace_no}\u00b2) = "
+            f"{_strip_zeros(format_number(100 * t.share, 2))} % dari eps")
 
 
 def _canary_rows(info: ReportInfo, shown_seqs: set[int], redact: Callable[[str], str]) -> list[dict[str, str]]:
@@ -699,6 +722,9 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "m": format_int(p.length),
         "eps1": format_probability_html(t.eps1, round_up=False),
         "eps": format_probability_html(t.eps, round_up=False),
+        "trace_no": t.trace_no,
+        "eps_share": format_probability_html(t.spent, round_up=False),
+        "trace_text": _trace_text(t),
         "channel_rows": channel_rows,
         "unread_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_UNREAD],
         "unexamined_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_NOT_EXAMINED],
@@ -711,7 +737,7 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "canary_rows": _canary_rows(info, shown_seqs, redact),
         "digests": [(f"#{c.copy.seq}", info.code_digests.get(c.copy.seq, "tidak tersedia"))
                     for c in attribution.accused],
-        "command": rerun_command(info, redact),
+        "command": rerun_command(info, redact, t.trace_no),
         "examined_at": format_datetime(info.examined_at, with_day=True),
         "received_at": format_datetime(info.evidence_received_at) if info.evidence_received_at else "",
         "issued_at": format_datetime(info.issued_at),

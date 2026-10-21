@@ -9,7 +9,8 @@
   * parameter kode, id penerima, id salinan, dan komitmen kode;
   * nama kanal, id varian, waktu, dan penerbit;
   * hash berkas salinan dan digest token kanari;
-  * komitmen berkunci identitas penerima.
+  * komitmen berkunci identitas penerima;
+  * untuk setiap pelacakan: nomor urut, hash berkas bukti, dan jatah eps, tanpa nama dan tanpa putusan.
 
   Registri tidak menyimpan teks dokumen, gambar, maupun nama penerima.
 * Nama penerima hanya ada di catatan penerbitan lokal (`manifest.json`).
@@ -26,7 +27,8 @@ Sebelum dekode dan sebelum menyebut nama, pelacakan memeriksa tiga hal:
 Pelacakan berhenti tanpa menyebut nama bila:
 * kunci publik ada tetapi dokumen tidak ditemukan di registri, misalnya berkas hilang atau terpotong, atau dokumen diterbitkan dengan `--no-registry` di instalasi yang memiliki kunci;
 * rantai gagal diverifikasi;
-* salah satu pencocokan di atas gagal.
+* salah satu pencocokan di atas gagal;
+* pelacakan tidak dapat dicatat di registri (lihat [batasan 13](#batasan)). Pencatatan dilakukan setelah ketiga pemeriksaan lulus dan sebelum bukti dibaca.
 
 Tanpa kunci publik, rantai tidak diverifikasi; pelacakan tetap berjalan dan hasilnya menyebut hal itu.
 
@@ -67,6 +69,7 @@ Pendengar DNS kanari adalah satu-satunya bagian yang menghadap internet.
 * **Jenis `copy`.** Memuat `doc_hash`, `recipient_id`, `copy_id`, `seq`, `code_digest`, `channels_used`, `semantic_variant_ids`, `issued_at`, `issuer`, dan `file_sha256`.
   * `canary_token` disimpan sebagai hash `sha256:`, bukan token aslinya.
   * `recipient_mac` adalah HMAC-SHA256 dengan rahasia kode atas id, nama, jabatan, dan satuan penerima. Nama jadi terikat ke entri bertanda tangan tanpa tersimpan di registri, dan tidak dapat ditebak dari daftar personel.
+* **Jenis `trace`.** Satu entri per pelacakan dokumen yang tercatat, ditulis sebelum bukti dibaca. Memuat `doc_hash`, `trace_no` (1, 2, 3, ... per dokumen), `evidence_sha256` (daftar hash berkas bukti), `eps` (target dokumen), `eps_share` (= eps x 6 / (pi^2 k^2) untuk pelacakan ke-k), dan `created_at` (sama dengan waktu entri). Tidak ada nama, putusan, atau isi dokumen. Selain rantai dan tanda tangan, verifikator memeriksa bahwa nomor pelacakan per dokumen berurutan tanpa ganda atau lompatan, `eps_share` sesuai jadwal, dan `eps` sama dengan entri dokumennya. Registri lama tanpa entri `trace` tetap lulus verifikasi.
 * **Akar Merkle harian.**
   * Daun adalah 32 byte mentah `entry_hash`. Simpul adalah SHA-256(kiri || kanan); simpul ganjil digandakan, dan satu daun adalah akarnya sendiri.
   * Berkas `merkle-YYYY-MM-DD.txt` hanya dibuat untuk hari UTC yang sudah selesai; hari berjalan ditulis sebagai `.partial.txt` (sementara).
@@ -95,4 +98,7 @@ Pendengar DNS kanari adalah satu-satunya bagian yang menghadap internet.
 10. **Foto sintetis bukan foto ponsel sungguhan.** Simulator mencakup perspektif, pencahayaan, bayangan, blur, derau, penajaman, dan JPEG ganda. Simulator tidak memodelkan printer, jadi pola latar pada foto sintetis tetap utuh; hasil foto di README (benchmark 38 dari 40, gambar alur, tangkapan layar Lacak) karenanya lebih mirip foto layar daripada foto kertas cetak. Simulator juga tidak meniru pemrosesan gambar di kamera ponsel (pengurangan derau agresif, HDR, moire layar), dan kami belum menguji dengan ponsel sungguhan.
 11. **Tanda air berbasis model (StegaStamp) belum dilatih.** Kerangkanya ada di `tapak/learned_wm/` (model, degradasi, pelatihan, ekspor ONNX) dan masih berisi TODO. Yang dipakai sekarang adalah dekoder korelasi.
 12. **Konstanta 2 pi^2 dengan skor simetris belum terbukti untuk c kecil** (hanya asimtotik). Ini memengaruhi deteksi, bukan tuduhan salah; deteksi diukur dengan simulasi di [cara kerja](cara-kerja.md#angka-simulasi). Konstanta 100 tersedia sebagai pilihan konservatif.
-13. **Batas tuduhan salah bersyarat dan berlaku per pelacakan.** Batas 10^-6 hanya berlaku bila rahasia kode tidak bocor dan catatan penerbitan tidak diubah. TAPAK menunjuk salinan dan penerima yang tercatat untuk salinan itu, bukan orang yang membocorkannya. Pelacakan tidak dicatat di registri, jadi melacak satu kebocoran berulang kali dengan potongan atau gabungan bukti yang berbeda menaikkan batas totalnya menjadi jumlah pelacakan dikali 10^-6.
+13. **Batas tuduhan salah bersyarat.** Batas 10^-6 hanya berlaku bila rahasia kode tidak bocor dan catatan penerbitan tidak diubah. TAPAK menunjuk salinan dan penerima yang tercatat untuk salinan itu, bukan orang yang membocorkannya.
+    * **Pelacakan berulang diperhitungkan.** Setiap pelacakan dokumen yang tercatat lebih dulu ditulis sebagai entri `trace`, sebelum bukti dibaca. Pelacakan ke-k hanya memakai jatah eps x 6 / (pi^2 k^2): sekitar 61 %, 15 %, dan 7 % dari eps untuk k = 1, 2, 3. Jumlah semua jatah tepat eps, jadi batas 10^-6 berlaku untuk semua pelacakan dokumen itu bersama, berapa pun banyaknya dan apa pun potongan buktinya. Peluang tuduhan salah per salinan juga dibagi dengan 6 / (pi^2 k^2). Jadwalnya tetap dan nomor k diketahui sebelum dekode, jadi tidak ada yang disesuaikan setelah melihat hasil.
+    * **Harganya kecil.** Untuk N = 20 dan c = 3 dengan pembacaan penuh, ambang Z naik dari 339 (seluruh eps) menjadi 345 pada pelacakan pertama, 359 pada pelacakan kedua, 392 pada pelacakan kesepuluh, dan 435 pada pelacakan keseratus. Pelacakan yang gagal setelah dicatat tetap memakai nomornya.
+    * **Yang masih tersisa.** Mode lepas `tapak trace --master --manifest` dan dokumen yang diterbitkan dengan `--no-registry` tanpa kunci publik tidak dicatat. Keduanya memakai seluruh eps dan hasilnya menyatakan bahwa pelacakan berulang tidak diperhitungkan; mode lepas juga tidak membuat berita acara. `--pelacakan-ke K` di mode lepas hanya mengulang pelacakan ke-K dengan jatahnya, sehingga ambangnya justru lebih tinggi. Menghapus registri atau entri pelacakan juga tidak menolong: bila kunci publik terpasang, dokumen yang tidak ada di registri tidak dilacak dengan nama, perubahan entri memutus rantai dan tanda tangan, dan entri yang dihapus dari ujung rantai terdeteksi lewat jangkar atau akar Merkle. Yang tidak terlihat: pelacakan pada salinan berkas registri di komputer lain hanya tercatat di salinan itu.

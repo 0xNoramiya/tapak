@@ -16,7 +16,11 @@ checks:
    hash chain, which anyone with write access can recompute. ``require_signed=False``
    (``--izinkan-belum-bertanda-tangan``) accepts unsigned entries for the deferred
    signing workflow, and the verdict then names them;
-8. an empty registry is a problem (nothing to verify, or every entry deleted).
+8. an empty registry is a problem (nothing to verify, or every entry deleted);
+9. every ``trace`` entry is valid (fields, hashes, eps share on the schedule
+   eps * 6 / (pi^2 k^2)), follows the ``document`` entry of its document with the same eps,
+   and its number continues that document's count (1, 2, 3, ...): a duplicate or skipped
+   number means the trace log was not written by TAPAK.
 
 What a hash chain cannot show by itself is entries deleted from the *end*: a shorter
 chain is still a valid chain. That needs a value kept outside the file: a recorded
@@ -32,6 +36,8 @@ can run ``tapak-verify-registry data/registry.db --public-key keys/registry_sign
 
 from __future__ import annotations
 
+import json
+import math
 import re
 import sqlite3
 import sys
@@ -40,7 +46,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from tapak.registry.chain import KIND_LABELS, ZERO_HASH, entry_content_problems, parse_time, trigger_problems
+from tapak.registry.chain import (
+    KIND_DOCUMENT,
+    KIND_LABELS,
+    KIND_TRACE,
+    ZERO_HASH,
+    entry_content_problems,
+    parse_time,
+    trace_payload_problems,
+    trigger_problems,
+)
 from tapak.registry.merkle import check_daily_roots
 from tapak.registry.signing import (
     IndonesianArgumentParser,
@@ -67,6 +82,7 @@ class VerifyReport:
         warnings: facts worth knowing that do not by themselves prove tampering.
         unsigned_first, unsigned_last: range of the unsigned entries, if any.
         merkle_files, anchors_checked: None when that check was not requested.
+        traces: number of ``trace`` entries per document hash.
     """
 
     db_path: str
@@ -83,6 +99,7 @@ class VerifyReport:
     head_hash: str | None = None
     merkle_files: int | None = None
     anchors_checked: int | None = None
+    traces: dict[str, int] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -111,7 +128,7 @@ class VerifyReport:
                 "unsigned_last": self.unsigned_last, "problems": [list(p) for p in self.problems],
                 "warnings": list(self.warnings), "kinds": dict(self.kinds), "head_seq": self.head_seq,
                 "head_hash": self.head_hash, "merkle_files": self.merkle_files,
-                "anchors_checked": self.anchors_checked}
+                "anchors_checked": self.anchors_checked, "traces": dict(self.traces)}
 
     def lines(self) -> list[str]:
         """Human-readable report in Indonesian."""
@@ -123,6 +140,9 @@ class VerifyReport:
             f"  Jumlah entri     : {self.entries}" + (f" ({kinds})" if kinds else ""),
             f"  Bertanda tangan  : {self.entries - self.unsigned}, belum: {self.unsigned}",
         ]
+        if self.traces:
+            out.append(f"  Pelacakan        : {sum(self.traces.values())} untuk {len(self.traces)} dokumen "
+                       f"(terbanyak {max(self.traces.values())} untuk satu dokumen)")
         if self.head_seq is not None:
             out.append(f"  Ujung rantai     : entri #{self.head_seq}, hash {self.head_hash}")
             out.append(f"                     (catat di luar sistem; periksa lagi nanti dengan "
@@ -177,6 +197,50 @@ def _check_entry(row: tuple[Any, ...], prev_hash_expected: str, hash_to_seq: dic
                                   "bukan entri tepat sebelumnya (urutan diubah)"))
         else:
             problems.append((seq, "mata rantai terputus: prev_hash tidak sama dengan hash entri sebelumnya"))
+
+
+def _payload(text: Any) -> Any:
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError, RecursionError):
+        return None  # already reported by entry_content_problems
+
+
+def _document_eps(payload: Any) -> float | None:
+    params = payload.get("params") if isinstance(payload, dict) else None
+    eps = params.get("eps") if isinstance(params, dict) else None
+    if not isinstance(eps, (int, float)) or isinstance(eps, bool):
+        return None
+    try:
+        return float(eps)
+    except OverflowError:  # an integer beyond the float range
+        return None
+
+
+def _check_trace(row: tuple[Any, ...], doc_eps: dict[str, float | None], counts: dict[str, int],
+                 problems: list[tuple[int, str]]) -> None:
+    """One ``trace`` entry: valid values, a recorded document with the same eps, the next number."""
+    seq, created_at = row[0], row[4]
+    payload = _payload(row[2])
+    if payload is None:
+        return
+    found = trace_payload_problems(payload)
+    problems.extend((seq, f"entri pelacakan: {text}") for text in found)
+    if found:
+        return
+    doc = payload["doc_hash"]
+    if doc not in doc_eps:
+        problems.append((seq, "entri pelacakan untuk dokumen yang tidak tercatat sebelumnya di registri"))
+        return
+    if doc_eps[doc] is None or not math.isclose(payload["eps"], doc_eps[doc], rel_tol=1e-9):
+        problems.append((seq, "eps entri pelacakan berbeda dari eps entri dokumennya"))
+    expected = counts.get(doc, 0) + 1
+    if payload["trace_no"] != expected:
+        problems.append((seq, f"nomor pelacakan ke-{payload['trace_no']}, seharusnya ke-{expected} untuk dokumen "
+                              f"{doc[:16]} (nomor ganda atau terlewat: catatan pelacakan tidak ditulis TAPAK)"))
+    counts[doc] = counts.get(doc, 0) + 1
+    if payload["created_at"] != created_at:
+        problems.append((seq, "waktu di isi entri pelacakan berbeda dari waktu entri"))
 
 
 def _check_anchors(rows: list[tuple[Any, ...]], anchors: Sequence[tuple[int, str]],
@@ -236,8 +300,15 @@ def verify_registry(
     prev_time = None
     pending_unsigned: list[int] = []
     unsigned_seqs: list[int] = []
+    doc_eps: dict[str, float | None] = {}
     for row in rows:
-        seq, kind, _payload, _prev, created_at, entry_hash, signature, signer = row
+        seq, kind, payload_text, _prev, created_at, entry_hash, signature, signer = row
+        if kind == KIND_DOCUMENT:
+            payload = _payload(payload_text)
+            if isinstance(payload, dict) and isinstance(payload.get("doc_hash"), str):
+                doc_eps.setdefault(payload["doc_hash"], _document_eps(payload))
+        elif kind == KIND_TRACE and isinstance(seq, int):
+            _check_trace(row, doc_eps, report.traces, problems)
         report.entries += 1
         report.kinds[str(kind)] = report.kinds.get(str(kind), 0) + 1
         if not isinstance(seq, int):

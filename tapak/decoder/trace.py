@@ -3,7 +3,8 @@
 ``load_context`` rebuilds everything the decoder needs from the master PDF, the issuance
 record and the code secret, and checks every regenerated codeword against the commitment
 stored at issuance. The ``collect_*`` functions run the channel decoders that apply to an
-input type; ``run_trace`` fuses and accuses.
+input type; ``run_trace`` fuses and accuses with the false-accusation budget of this trace
+(``TraceSpending``: trace number k of a document spends eps * 6 / (pi^2 k^2)).
 """
 
 from __future__ import annotations
@@ -26,8 +27,11 @@ from tapak.marker.pdf_shift import ShiftSettings
 from tapak.marker.plan import EmbeddingPlan, plan_key
 from tapak.tardos.code import code_digest, derive_bias, derive_codeword
 from tapak.tardos.params import TardosParams
+from tapak.tardos.spending import TraceSpending
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+TEXT_SUFFIXES = {".txt", ".md", ""}
+EVIDENCE_SUFFIXES = {".pdf", ".docx"} | TEXT_SUFFIXES | IMAGE_SUFFIXES
 
 
 class TraceError(RuntimeError):
@@ -272,11 +276,12 @@ def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str,
     return obs, notes
 
 
-def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] | None = None) -> Attribution:
-    """Fuse, accuse, explain."""
+def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] | None = None,
+              spending: TraceSpending | None = None) -> Attribution:
+    """Fuse, accuse, explain. ``spending`` is this trace's part of eps (None: not logged, all of eps)."""
     fused = fuse(observations, ctx.params.length)
     per_channel = fuse_by_physical_channel(observations, ctx.params.length)
-    result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params)
+    result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params, spending)
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
     return result
 
@@ -297,6 +302,15 @@ def decode_text_evidence(data: bytes) -> str:
         if even.count(0) > 0.2 * len(even):
             return data.decode("utf-16-be", errors="replace")
     return data.decode("utf-8", errors="replace")
+
+
+def check_evidence_types(names: list[str]) -> None:
+    """Refuse (TraceError) an evidence file whose type no decoder reads, before anything is
+    logged or decoded: a file that cannot be read should not use up a trace number."""
+    for name in names:
+        suffix = Path(name).suffix.lower()
+        if suffix not in EVIDENCE_SUFFIXES:
+            raise TraceError(f"jenis berkas tidak dikenal: {suffix}")
 
 
 def collect_file(name: str, data: bytes, ctx: TraceContext,
@@ -320,7 +334,7 @@ def collect_file(name: str, data: bytes, ctx: TraceContext,
             raise TraceError(f"{name}: berkas PDF tidak dapat dibuka atau rusak") from exc
         obs += raster_obs
         notes += raster_notes
-    elif suffix in (".txt", ".md", ""):
+    elif suffix in TEXT_SUFFIXES:
         text = decode_text_evidence(data)
         if "\ufffd" in text:
             notes.append(f"{name}: sebagian karakter tidak dapat diterjemahkan (pengodean teks tidak dikenal)")
@@ -354,10 +368,12 @@ def collect_file(name: str, data: bytes, ctx: TraceContext,
     return obs, notes
 
 
-def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext) -> tuple[Attribution, list[SoftBits]]:
+def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext,
+                spending: TraceSpending | None = None) -> tuple[Attribution, list[SoftBits]]:
     """Trace several evidence files of the same leak together (for example one photo per page
     of a printed copy): their observations are fused before the single accusation, so slices
-    carried by different pages add up. The threshold covers the combined set."""
+    carried by different pages add up. The threshold covers the combined set and uses this
+    trace's part of eps (``spending``; None: a trace that is not logged spends all of eps)."""
     obs: list[SoftBits] = []
     notes: list[str] = []
     budget = RasterBudget.for_context(ctx)
@@ -367,10 +383,11 @@ def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext) -> tuple[Attr
         notes += n
     if len(items) > 1:
         notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
-    return run_trace(obs, ctx, notes), obs
+    return run_trace(obs, ctx, notes, spending), obs
 
 
-def trace_file(path: Path, ctx: TraceContext) -> tuple[Attribution, list[SoftBits]]:
+def trace_file(path: Path, ctx: TraceContext,
+               spending: TraceSpending | None = None) -> tuple[Attribution, list[SoftBits]]:
     """Trace one evidence file (PDF, DOCX, text or image)."""
     path = Path(path)
-    return trace_files([(path.name, path.read_bytes())], ctx)
+    return trace_files([(path.name, path.read_bytes())], ctx, spending)

@@ -226,6 +226,9 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     paths = [Path(e) for e in args.evidence]
     evidence = paths[0]
     items = [(p.name, p.read_bytes()) for p in paths]
+    if args.trace_no is not None and not (args.master or args.manifest):
+        raise ValueError("--pelacakan-ke hanya untuk mode lepas (--master dan --manifest); dengan --doc nomor "
+                         "pelacakan diambil dari registri")
     if args.master or args.manifest:
         if not (args.master and args.manifest):
             raise ValueError("--master dan --manifest harus diberikan bersama")
@@ -234,6 +237,8 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         from tapak.decoder.trace import load_context, trace_files
         from tapak.keys import load_code_secret
         from tapak.marker.issue import IssueManifest
+        from tapak.service import UNLOGGED_TRACE_NOTE
+        from tapak.tardos.spending import TraceSpending
 
         try:
             manifest = IssueManifest.from_json(Path(args.manifest).read_text(encoding="utf-8"))
@@ -243,13 +248,23 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         secret = load_code_secret(Path(args.secret) if args.secret else s.code_secret_path)
         if not (master.startswith(b"PK") or b"%PDF-" in master[:1024]):
             raise ValueError(f"{args.master}: dokumen induk harus berkas PDF atau DOCX")
+        eps = manifest.tardos_params.eps
+        # Repeating a recorded trace with its own share only raises the threshold; without
+        # --pelacakan-ke the trace spends all of eps and is not counted anywhere.
+        spending = (TraceSpending.unlogged(eps) if args.trace_no is None
+                    else TraceSpending.logged(eps, args.trace_no))
         if master.startswith(b"PK"):  # a DOCX master: text-layer channel only
             from tapak.service import _trace_docx
 
-            result, obs, _ = _trace_docx(master, manifest, secret, items)
+            result, obs, _ = _trace_docx(master, manifest, secret, items, spending)
         else:
             ctx = load_context(master, manifest, secret, folder=Path(args.manifest).parent)
-            result, obs = trace_files(items, ctx)
+            result, obs = trace_files(items, ctx, spending)
+        if args.trace_no is None:
+            result.notes.append(UNLOGGED_TRACE_NOTE)
+        else:
+            result.notes.append(f"mengulang pelacakan ke-{args.trace_no} dengan jatah eps-nya; pengulangan ini tidak "
+                                "dicatat di registri dan, dengan bukti yang sama, memberi hasil yang sama")
         _print_attribution(result, obs, ["Mode lepas: registri tidak diperiksa; identitas penerima hanya berasal "
                                          "dari catatan penerbitan yang diberikan"])
         if args.json:
@@ -273,6 +288,11 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     else:
         state = f"rantai belum diverifikasi ({reg.entries} entri)"
     extra = [f"Registri: {state}; {reg.copies_confirmed}/{reg.copies_total} salinan cocok"]
+    if outcome.trace_entry is not None:
+        signed = "bertanda tangan" if outcome.trace_signed else "belum bertanda tangan"
+        extra.append(f"Pelacakan ke-{outcome.attribution.threshold.trace_no} dicatat sebelum dekode sebagai entri "
+                     f"registri #{outcome.trace_entry} ({signed}); jatah eps semua pelacakan dokumen ini "
+                     "berjumlah paling banyak eps")
     accused = {c.copy.seq for c in outcome.attribution.accused}
     for a in outcome.canary:
         # As in the berita acara: a copy that is not accused is not identified, not even by number.
@@ -344,7 +364,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
 
 def _cmd_registry_sign(args: argparse.Namespace) -> int:
-    from tapak.registry.chain import Registry, sign_pending
+    from tapak.registry.chain import KIND_LABELS, Registry, sign_pending
     from tapak.registry.signing import load_signer
 
     s = _settings(args)
@@ -352,7 +372,7 @@ def _cmd_registry_sign(args: argparse.Namespace) -> int:
     with Registry.open(Path(args.registry) if args.registry else s.registry_path) as reg:
         pending = reg.pending() if hasattr(reg, "pending") else []
         for e in pending:
-            print(f"  menunggu: entri #{e.seq} ({e.kind}) {e.created_at}")
+            print(f"  menunggu: entri #{e.seq} ({KIND_LABELS.get(e.kind, e.kind)}) {e.created_at}")
         n = sign_pending(reg, signer, up_to=args.up_to)
     print(f"{n} entri ditandatangani")
     return 0
@@ -464,6 +484,9 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--master", default=None, help="PDF induk (mode tanpa folder data)")
     t.add_argument("--manifest", default=None, help="manifest penerbitan (mode tanpa folder data)")
     t.add_argument("--secret", default=None)
+    t.add_argument("--pelacakan-ke", dest="trace_no", type=int, default=None, metavar="K",
+                   help="mode lepas: ulangi pelacakan ke-K yang tercatat dengan jatah eps-nya, 6/(pi^2 K^2) dari "
+                        "eps (lihat berita acara); tanpa ini mode lepas memakai seluruh eps")
     t.add_argument("--report", default=None, help="tulis berita acara PDF ke berkas ini")
     t.add_argument("--nomor-perkara", default=None, help="nomor perkara untuk berita acara")
     t.add_argument("--pemeriksa", default=None, help="nama pemeriksa untuk berita acara")

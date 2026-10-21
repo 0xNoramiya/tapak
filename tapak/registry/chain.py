@@ -31,9 +31,16 @@ Signing rules (signed entries always form a prefix of the chain):
 An unsigned entry followed by a signed one is therefore evidence that a signature was
 removed.
 
+Entry kinds: ``document`` (one per issued document), ``copy`` (one per copy) and
+``trace`` (one per trace of a recorded document, appended before the evidence is decoded;
+trace number k spends eps * 6 / (pi^2 k^2) of the document's false-accusation budget, see
+``tapak.tardos.spending``). Other kinds, such as the canary log's ``canary_anchor``, are
+accepted as any JSON object.
+
 Data minimization: payloads carry hashes, identifiers and parameters only. Recipient
 names, document text and images never enter the registry; a copy is tied to its
-recipient through ``recipient_id`` alone. The canary token is stored as a commitment
+recipient through ``recipient_id`` alone. A trace entry holds the document hash, the
+SHA-256 of each evidence file and numbers, never a name or a verdict. The canary token is stored as a commitment
 (``"sha256:" + SHA-256 of the token``, see :func:`canary_token_digest`), not in clear:
 the registry is handed to outside auditors, and a clear token would let any reader fake
 a canary hit for any recipient.
@@ -61,7 +68,8 @@ ZERO_HASH = "0" * 64
 SCHEMA_VERSION = 1
 KIND_DOCUMENT = "document"
 KIND_COPY = "copy"
-KIND_LABELS = {KIND_DOCUMENT: "dokumen", KIND_COPY: "salinan"}
+KIND_TRACE = "trace"
+KIND_LABELS = {KIND_DOCUMENT: "dokumen", KIND_COPY: "salinan", KIND_TRACE: "pelacakan"}
 CANARY_DIGEST_PREFIX = "sha256:"
 _HEX = frozenset("0123456789abcdef")
 
@@ -74,7 +82,10 @@ COPY_FIELDS = frozenset({
     "doc_hash", "recipient_id", "copy_id", "seq", "code_digest", "channels_used",
     "semantic_variant_ids", "issued_at", "issuer", "canary_token", "file_sha256",
 })
-KIND_FIELDS: dict[str, frozenset[str]] = {KIND_DOCUMENT: DOCUMENT_FIELDS, KIND_COPY: COPY_FIELDS}
+TRACE_FIELDS = frozenset({"doc_hash", "trace_no", "evidence_sha256", "eps_share", "eps", "created_at"})
+KIND_FIELDS: dict[str, frozenset[str]] = {
+    KIND_DOCUMENT: DOCUMENT_FIELDS, KIND_COPY: COPY_FIELDS, KIND_TRACE: TRACE_FIELDS,
+}
 # Fields a row may carry in addition (added later; older rows stay valid without them).
 KIND_OPTIONAL: dict[str, frozenset[str]] = {KIND_COPY: frozenset({"recipient_mac"})}
 
@@ -166,6 +177,51 @@ def canary_token_digest(token: str) -> str:
 def _is_canary_digest(value: str) -> bool:
     rest = value[len(CANARY_DIGEST_PREFIX):]
     return value.startswith(CANARY_DIGEST_PREFIX) and len(rest) == 64 and set(rest) <= _HEX
+
+
+def _is_sha256_hex(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and set(value) <= _HEX
+
+
+def _is_number(value: object) -> bool:
+    try:  # math.isfinite raises OverflowError for an integer beyond the float range
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def trace_payload_problems(payload: object) -> list[str]:
+    """Problems (Indonesian) with the values of a ``trace`` payload; empty when it is valid.
+
+    Checks the field set, the hashes (64 lowercase hex), the trace number (whole number from
+    1), that ``eps_share`` follows the fixed schedule eps * 6 / (pi^2 k^2) for that number,
+    and the timestamp. Never raises, whatever the payload holds.
+    """
+    from tapak.tardos.spending import eps_for_trace
+
+    if not isinstance(payload, dict):
+        return ["isi entri pelacakan bukan objek JSON"]
+    problems = []
+    if set(payload) != TRACE_FIELDS:
+        problems.append(f"kolom entri pelacakan tidak sesuai skema: kurang {sorted(TRACE_FIELDS - set(payload))}, "
+                        f"berlebih {sorted(set(payload) - TRACE_FIELDS)}")
+    if not _is_sha256_hex(payload.get("doc_hash")):
+        problems.append("doc_hash entri pelacakan bukan SHA-256 heksadesimal")
+    evidence = payload.get("evidence_sha256")
+    if not isinstance(evidence, list) or not evidence or not all(_is_sha256_hex(d) for d in evidence):
+        problems.append("evidence_sha256 harus daftar SHA-256 heksadesimal yang tidak kosong")
+    k, eps, share = payload.get("trace_no"), payload.get("eps"), payload.get("eps_share")
+    if not isinstance(k, int) or isinstance(k, bool) or not 1 <= k <= 10**9:
+        problems.append("trace_no harus bilangan bulat mulai dari 1")
+    elif not (_is_number(eps) and 0.0 < eps < 1.0):
+        problems.append("eps entri pelacakan harus di antara 0 dan 1")
+    elif not (_is_number(share) and math.isclose(share, eps_for_trace(eps, k), rel_tol=1e-9)):
+        problems.append(f"eps_share tidak sesuai jadwal eps x 6 / (pi^2 k^2) untuk pelacakan ke-{k}")
+    try:
+        parse_time(payload.get("created_at"))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        problems.append("created_at entri pelacakan bukan waktu ISO 8601 dengan zona waktu")
+    return problems
 
 
 def utc_now() -> str:
@@ -284,6 +340,8 @@ def describe_entry(entry: Entry) -> str:
     for key in ("doc_name", "recipient_id", "copy_id"):
         if key in p:
             parts.append(f"{key} {p[key]}")
+    if entry.kind == KIND_TRACE:
+        parts.append(f"pelacakan ke-{p.get('trace_no')}, {len(p.get('evidence_sha256') or [])} berkas bukti")
     if entry.kind not in KIND_FIELDS:
         parts.append("kolom: " + ", ".join(sorted(map(str, p))))
     return "  ".join(parts)
@@ -309,6 +367,9 @@ def _check_payload(kind: str, payload: object) -> None:
         missing = sorted(expected - present)
         extra = sorted(present - expected)
         raise ValueError(f"isi entri '{kind}' tidak sesuai skema: kurang {missing}, berlebih {extra}")
+    problems = trace_payload_problems(payload) if kind == KIND_TRACE else []
+    if problems:
+        raise ValueError("isi entri 'trace' tidak sah: " + "; ".join(problems))
 
 
 class Registry:
@@ -435,6 +496,13 @@ class Registry:
         rows = self._conn.execute(
             "SELECT payload FROM entries WHERE kind = ? AND json_extract(payload, '$.doc_hash') = ? "
             "ORDER BY seq", (KIND_COPY, doc_hash))
+        return [json.loads(r[0]) for r in rows]
+
+    def traces(self, doc_hash: str) -> list[dict[str, Any]]:
+        """Payloads of all ``trace`` entries of ``doc_hash``, in registry order."""
+        rows = self._conn.execute(
+            "SELECT payload FROM entries WHERE kind = ? AND json_extract(payload, '$.doc_hash') = ? "
+            "ORDER BY seq", (KIND_TRACE, doc_hash))
         return [json.loads(r[0]) for r in rows]
 
     def find_copy_by_canary(self, token: str) -> dict[str, Any] | None:
@@ -598,6 +666,40 @@ class Registry:
         if recipient_mac is not None:
             payload["recipient_mac"] = recipient_mac
         return self.append(KIND_COPY, payload, signer=signer, created_at=created_at)
+
+    def record_trace(
+        self,
+        *,
+        doc_hash: str,
+        evidence_sha256: list[str],
+        eps: float,
+        signer: Signer | None = None,
+    ) -> Entry:
+        """Log one trace of a recorded document before its evidence is decoded; return the entry.
+
+        The trace number is 1 + the number of earlier ``trace`` entries of ``doc_hash``. It is
+        counted and appended in one write transaction, so two concurrent traces never get the
+        same number. The payload holds the document hash, the SHA-256 of every evidence file,
+        the trace number, the document's budget ``eps`` and the part this trace spends
+        (``eps_share`` = eps * 6 / (pi^2 k^2)), and the time: no name, verdict or content.
+        Refuses (ValueError) a document without a ``document`` entry.
+        """
+        from tapak.tardos.spending import eps_for_trace
+
+        evidence = [str(d).lower() for d in evidence_sha256]
+        with self.transaction():
+            if self.find_document(doc_hash) is None:
+                raise ValueError("dokumen ini tidak tercatat di registri; pelacakan tidak dapat dicatat")
+            trace_no = 1 + int(self._conn.execute(
+                "SELECT COUNT(*) FROM entries WHERE kind = ? AND json_extract(payload, '$.doc_hash') = ?",
+                (KIND_TRACE, doc_hash)).fetchone()[0])
+            head = self.head()
+            stamp = utc_now()
+            if head and parse_time(stamp) < parse_time(head.created_at):
+                stamp = head.created_at  # clock stepped back: keep timestamps monotonic
+            payload = {"doc_hash": doc_hash, "trace_no": trace_no, "evidence_sha256": evidence,
+                       "eps_share": eps_for_trace(float(eps), trace_no), "eps": float(eps), "created_at": stamp}
+            return self.append(KIND_TRACE, payload, signer=signer, created_at=stamp)  # validates the values
 
 
 def sign_pending(registry: Registry, signer: Signer, up_to: int | None = None) -> int:

@@ -27,6 +27,7 @@ tapak issue samples/nota_dinas.pdf samples/recipients.csv --canary-domain kanari
 tapak docs                                       # daftar dokumen terbitan
 tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
 tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu kebocoran, digabung
+tapak trace foto_bocor.jpg --master induk.pdf --manifest manifest.json --pelacakan-ke 2   # ulangi pelacakan ke-2 (perintah di berita acara)
 tapak verify                                     # verifikasi registri dengan kunci publik saja
 tapak verify --jangkar 63:<hash>                 # juga mendeteksi entri yang dihapus setelah jangkar itu
 tapak registry export-merkle                     # akar Merkle harian

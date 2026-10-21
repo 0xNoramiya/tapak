@@ -7,7 +7,8 @@ A *workspace* is one folder per issued document under ``data/dokumen/<doc>``:
     varian.json      approved semantic variant sets, if any (document text, kept local)
     salinan/         the marked copies
 
-The registry (``data/registry.db``) receives only hashes, ids and code commitments.
+The registry (``data/registry.db``) receives only hashes, ids and code commitments, and
+logs every trace of a recorded document (hashes and numbers only) before decoding.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from tapak.config import Settings
 from tapak.keys import load_code_secret
 from tapak.marker.issue import IssueManifest, IssueSettings, Recipient, SemanticSelection, issue
 from tapak.marker.layout import sha256_hex
+from tapak.tardos.spending import TraceSpending
 
 
 @dataclass
@@ -443,9 +445,22 @@ def canary_alerts(settings: Settings, manifest: IssueManifest) -> list[dict[str,
     return out
 
 
+# Added to the result of every trace that the registry does not log.
+UNLOGGED_TRACE_NOTE = ("pelacakan ini tidak dicatat di registri, jadi pelacakan berulang atas dokumen ini tidak "
+                       "diperhitungkan: ambang memakai seluruh eps dan batas peluang tuduhan salah hanya berlaku "
+                       "untuk pelacakan ini saja")
+UNSIGNED_TRACE_NOTE = ("entri pelacakan ini dicatat di registri tanpa tanda tangan; pemegang kunci "
+                       "menandatanganinya dengan tapak registry sign")
+
+
 @dataclass
 class TraceOutcome:
-    """Everything a trace produced, ready for display or a report."""
+    """Everything a trace produced, ready for display or a report.
+
+    ``trace_entry`` is the registry entry number that logged this trace (None when it was not
+    logged); the trace number and the eps it spent are in ``attribution.threshold``
+    (``trace_no``, ``eps_share``).
+    """
 
     attribution: object
     observations: list
@@ -455,13 +470,44 @@ class TraceOutcome:
     registry: RegistryCheck
     canary: list[dict[str, object]]
     evidence_names: list[str] = field(default_factory=list)
+    trace_entry: int | None = None
+    trace_signed: bool = False
+
+
+def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str], eps: float):
+    """Append the ``trace`` entry of this trace before decoding and return it.
+
+    Signed when the signing key is here, unless older entries still await review: signing now
+    would be refused, since a signature must never cover rows nobody reviewed. A trace that
+    cannot be logged is not performed, so a read-only or locked registry is no way around
+    the count.
+    """
+    import sqlite3
+
+    from tapak.decoder.trace import TraceError
+    from tapak.registry.chain import Registry, RegistryError
+
+    try:
+        with Registry.open(settings.registry_path) as reg, reg.transaction():
+            signer = keys.signer if keys.signer is not None and not reg.pending() else None
+            return reg.record_trace(doc_hash=doc_hash, evidence_sha256=digests, eps=eps,
+                                    signer=signer)  # type: ignore[arg-type]
+    except (sqlite3.Error, RegistryError, OSError, ValueError) as exc:
+        raise TraceError(f"pelacakan tidak dapat dicatat di registri ({exc}); pelacakan dibatalkan dan "
+                         "tidak ada nama yang disebut") from exc
 
 
 def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidence: bytes,
                    keys: Keys | None = None, more: list[tuple[str, bytes]] | None = None) -> TraceOutcome:
     """Decode evidence against an issued document; ``more`` adds further files of the same leak
-    (for example photos of the other pages), fused into one attribution."""
-    from tapak.decoder.trace import load_context, trace_files
+    (for example photos of the other pages), fused into one attribution.
+
+    For a document recorded in the registry, the trace is logged before decoding and spends
+    only its share of eps: trace number k gets eps * 6 / (pi^2 k^2), so all traces of the
+    document together stay within eps. Without a registry record the trace spends all of eps
+    and the result says that repeated traces are not accounted for.
+    """
+    from tapak.decoder.trace import check_evidence_types, load_context, trace_files
 
     # Tracing never creates keys: a missing code secret is an error, not a reason to make one.
     keys = keys or ensure_keys(settings, create_signing_key=False, create_secret=False)
@@ -487,24 +533,41 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
         raise TraceError("catatan penerbitan lokal tidak cocok dengan registri bertanda tangan untuk salinan #"
                          + ", #".join(str(n) for n in reg.mismatched[:10]) + refuse)
     items = [(evidence_name, evidence)] + list(more or [])
-    if (folder / "induk.docx").exists():
-        attribution, obs, ctx = _trace_docx(master, manifest, keys.code_secret, items)
-    else:
+    is_docx = (folder / "induk.docx").exists()
+    ctx = None
+    if not is_docx:  # checks that need no evidence come first, so they never use up a trace number
+        check_evidence_types([n for n, _ in items])
         ctx = load_context(master, manifest, keys.code_secret, folder=folder)
-        attribution, obs = trace_files(items, ctx)
+    digests = [sha256_hex(d) for _, d in items]
+    eps = manifest.tardos_params.eps
+    entry = None
+    if reg.recorded:  # logged first: the trace number, and so the threshold, is fixed before decoding
+        entry = _log_trace(settings, keys, manifest.doc_hash, digests, eps)
+        spending = TraceSpending.logged(eps, entry.payload["trace_no"])
+    else:
+        spending = TraceSpending.unlogged(eps)
+    if ctx is None:
+        attribution, obs, ctx = _trace_docx(master, manifest, keys.code_secret, items, spending)
+    else:
+        attribution, obs = trace_files(items, ctx, spending)
     if not reg.recorded:
         attribution.notes.append("dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari "
                                  "catatan lokal dan tidak dapat dikonfirmasi pihak ketiga")
+        attribution.notes.append(UNLOGGED_TRACE_NOTE)
+    elif not entry.signed:
+        attribution.notes.append(UNSIGNED_TRACE_NOTE)
     names = ", ".join(n for n, _ in items)
-    digest = sha256_hex(evidence) if len(items) == 1 else ", ".join(sha256_hex(d) for _, d in items)
-    return TraceOutcome(attribution, obs, ctx, names, digest, reg, canary_alerts(settings, manifest),
-                        [n for n, _ in items])
+    return TraceOutcome(attribution, obs, ctx, names, ", ".join(digests), reg, canary_alerts(settings, manifest),
+                        [n for n, _ in items], trace_entry=entry.seq if entry else None,
+                        trace_signed=bool(entry and entry.signed))
 
 
 def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
-                items: list[tuple[str, bytes]]) -> tuple[object, list, object]:
+                items: list[tuple[str, bytes]],
+                spending: TraceSpending | None = None) -> tuple[object, list, object]:
     """Trace text, DOCX or PDF evidence against a DOCX master (text-layer channel); several
-    files of the same leak are fused."""
+    files of the same leak are fused. ``spending`` is this trace's part of eps
+    (``TraceSpending``; None: not logged, all of eps)."""
     from types import SimpleNamespace
 
     import numpy as np
@@ -554,7 +617,7 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
         obs += decode_docx(text, master, plan)
     codewords = np.vstack(rows)
     result = attribute(fuse(obs, params.length), fuse_by_physical_channel(obs, params.length), p,
-                       codewords, refs, params)
+                       codewords, refs, params, spending)
     if len(items) > 1:
         notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
     result.notes = notes + result.notes

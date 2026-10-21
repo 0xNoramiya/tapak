@@ -5,7 +5,8 @@ Modules (import from them directly; this package file stays empty so that
 
 * ``tapak.registry.chain``: the SQLite registry (``Registry``, ``sign_pending``,
   ``registry_from_manifest``, ``describe_entry``, ``canary_token_digest``,
-  ``canonical_json``, ``compute_entry_hash``).
+  ``canonical_json``, ``compute_entry_hash``, ``trace_payload_problems``); entry kinds
+  ``document``, ``copy`` and ``trace`` (the log of traces, ``Registry.record_trace``).
 * ``tapak.registry.signing``: the Ed25519 key file (``Signer``, ``load_signer``,
   ``generate_signing_key``, ``load_public_key``, ``verify_signature``) and the key
   holder's tool ``python -m tapak.registry.signing generate|sign-pending``.

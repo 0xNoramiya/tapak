@@ -113,11 +113,18 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
   Perhitungan ini tidak memakai data penerima mana pun. Ambang dicatat beserta waktunya sebelum
   skor salinan mana pun dihitung, sehingga ambang tidak dapat disesuaikan dengan hasil. Tidak ada
   pendekatan distribusi normal yang dipakai.</li>
+  <li><strong>Pelacakan berulang.</strong> Setiap pelacakan dokumen yang tercatat di registri lebih
+  dulu dicatat di registri dengan nomor urut k, sebelum bukti dibaca. Pelacakan ke-k hanya memakai
+  jatah eps &times; 6 / (&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max.
+  Jumlah 6 / (&pi;&sup2; k&sup2;) untuk semua k adalah 1, sehingga semua pelacakan dokumen yang sama,
+  berapa pun banyaknya, bersama-sama tetap dalam batas eps.</li>
   <li><strong>Arti peluang tuduhan salah.</strong> Angka peluang tuduhan salah pada Bagian V adalah
   batas atas peluang bahwa, di antara semua penerima lain yang tidak bersalah, ada yang secara
   kebetulan memperoleh skor setinggi skor salinan tersebut. Contohnya, 2,3 &times; 10<sup>&minus;12</sup>
   berarti kejadian seperti itu terjadi tidak lebih sering dari sekali dalam sekitar 430 miliar
-  pemeriksaan serupa. Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang
+  pemeriksaan serupa.{% if trace_no is not none %} Angka itu sudah dibagi dengan bagian eps yang
+  dipakai pelacakan ini, sehingga berlaku untuk semua pelacakan dokumen yang sama, bukan hanya
+  pelacakan ini.{% endif %} Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang
   sebenarnya dapat lebih kecil.</li>
   <li><strong>Aturan tidak cukup bukti.</strong> Bila tidak ada salinan yang skornya mencapai Z,
   putusannya adalah "tidak cukup bukti" dan tidak ada nama yang disebutkan, termasuk pemilik skor
@@ -170,7 +177,10 @@ tidak ada pernyataan apa pun tentang keadaan kanal tersebut pada bukti.</p>
 <h2><span class="no">V.</span>HASIL ATRIBUSI</h2>
 <p>Posisi kode terbaca (gabungan semua kanal): {{ n_observed }} dari {{ m }}; posisi efektif
 setelah pembobotan keyakinan: {{ effective_positions }}. Ambang Z = {{ z }} untuk
-eps = {{ eps }} (eps1 = {{ eps1 }}), ditetapkan pada {{ z_fixed_at }}, sebelum skor dihitung.</p>
+{% if trace_no is not none %}pelacakan ke-{{ trace_no }} dengan jatah eps {{ eps_share }} dari
+eps = {{ eps }}{% else %}eps = {{ eps }}{% endif %} (eps1 = {{ eps1 }}), ditetapkan pada
+{{ z_fixed_at }}, sebelum skor dihitung.</p>
+<p>Pelacakan: {{ trace_text }}.</p>
 
 {% if identified %}
 <div class="putusan">PUTUSAN: TERIDENTIFIKASI</div>
@@ -259,8 +269,10 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
   <tr><th>SHA-256 barang bukti</th><td class="mono">{{ case.evidence_sha256 }}</td></tr>
   <tr><th>Parameter kode</th><td>c = {{ case.c }}; eps = {{ eps }}; n_max = {{ case.n_max }};
     m = {{ m }}; konstanta {{ case.constant }}; batas bias t = {{ case.cutoff }}</td></tr>
+  <tr><th>Pelacakan</th><td>{{ trace_text }}; jatah eps = {{ eps_share }}, eps1 = {{ eps1 }}</td></tr>
   <tr><th>Aturan ambang</th><td>Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak
-    bersalah tidak melebihi eps1, dihitung hanya dari vektor bias dan bobot dekoder.
+    bersalah tidak melebihi eps1 (jatah eps pelacakan dibagi n_max), dihitung hanya dari vektor bias
+    dan bobot dekoder.
     <div class="label-rumus">Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya,
     dalam bahasa Inggris):</div>
     <div class="mono rumus">{{ threshold_rule }}</div></td></tr>
@@ -318,6 +330,11 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
   <li>Batas peluang tuduhan salah berlaku dengan syarat rahasia kode tidak bocor dan catatan
   penerbitan tidak diubah. Keutuhan catatan diperiksa melalui komitmen kode setiap salinan dan
   registri penerbitan (status: {{ registry }}).</li>
+  {% if trace_no is none %}
+  <li>Pelacakan ini tidak dicatat di registri. Bila dokumen yang sama dilacak berulang kali, misalnya
+  dengan potongan atau gabungan bukti yang berbeda, batas peluang tuduhan salah hanya berlaku untuk
+  setiap pelacakan secara terpisah.</li>
+  {% endif %}
   {% if registry_failed %}
   <li class="tegas">Registri penerbitan TIDAK UTUH. Hasil atribusi tidak boleh dipakai sebelum
   penyebabnya diperiksa.</li>
