@@ -1,0 +1,8 @@
+.venv
+.git
+out
+data
+keys
+**/__pycache__
+.pytest_cache
+samples/photos

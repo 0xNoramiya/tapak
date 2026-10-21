@@ -168,7 +168,8 @@ def _intended_offsets(sample_pdf, secret, manifest, copy):
     plan = build_document_plan(master, params, secret, tuple(manifest.channels))
     p = derive_bias(secret, master.doc_hash, params)
     x = derive_codeword(secret, master.doc_hash, copy.copy_id, p)
-    return master, marks_for_codeword(master, plan, x, IssueSettings())
+    marks, _ = marks_for_codeword(master, plan, x, IssueSettings())
+    return master, marks
 
 
 def test_pairwise_displacement_within_visibility_bound(sample_pdf, issued):
@@ -188,7 +189,11 @@ def test_pairwise_displacement_within_visibility_bound(sample_pdf, issued):
 def test_600dpi_difference_is_confined_to_shifted_words(sample_pdf, secret, issued):
     """At 600 dpi two copies differ only inside the boxes of words whose offsets differ,
     and there the ink centroid moves by the intended offset. Words that differ only by
-    homoglyphs or zero-width symbols render pixel-identically."""
+    homoglyphs or zero-width symbols render identically. Everywhere else the only
+    difference is the background pattern (channel 2), at most 2 x amplitude gray levels."""
+    from tapak.marker.background import BackgroundSettings
+
+    bg_limit = int(2 * BackgroundSettings().amplitude)
     out, manifest = issued
     ca, cb = manifest.copies[0], manifest.copies[1]
     master, ma = _intended_offsets(sample_pdf, secret, manifest, ca)
@@ -200,7 +205,9 @@ def test_600dpi_difference_is_confined_to_shifted_words(sample_pdf, secret, issu
         mask = np.zeros(diff.shape, dtype=bool)
         moved = 0
         h_err, v_err = [], []
-        ink_a, ink_b = 255.0 - a, 255.0 - b
+        # Ink below gray 250: the background pattern (251..255) does not count as ink.
+        ink_a = np.clip(250.0 - a, 0, None)
+        ink_b = np.clip(250.0 - b, 0, None)
         for row in master.layout.pages[page_idx].rows:
             for g in row.groups:
                 dx = (mb.group_dx.get(g.id, 0.0) - ma.group_dx.get(g.id, 0.0)) * PX_PER_PT
@@ -217,14 +224,14 @@ def test_600dpi_difference_is_confined_to_shifted_words(sample_pdf, secret, issu
                 h_err.append((pb * xs).sum() / pb.sum() - (pa * xs).sum() / pa.sum() - dx)
                 v_err.append((pb * ys).sum() / pb.sum() - (pa * ys).sum() / pa.sum() - dy)
         assert moved > 0
-        assert int(diff[~mask].max(initial=0)) == 0, "pixels changed outside the shifted words"
+        assert int(diff[~mask].max(initial=0)) <= bg_limit, "visible change outside the shifted words"
         # The rasterizer quantizes glyph placement (large glyphs at 600 dpi snap to whole
         # pixels; 1 px = 0.042 mm), so the pixel-domain check allows that quantization.
         # The exact displacement check is the vector one above.
         assert np.sqrt(np.mean(np.square(h_err))) < 0.2 and np.max(np.abs(h_err)) < 0.6
         assert np.max(np.abs(v_err)) < 0.8
-        # Fraction of the page that differs at all (reported, small).
-        assert np.count_nonzero(diff) / diff.size < 0.05
+        # Pixels that differ by more than the background modulation: only around shifted words.
+        assert np.count_nonzero(diff > bg_limit) / diff.size < 0.05
 
 
 def test_issue_refuses_when_visual_gate_fails(sample_pdf, tmp_path, secret, recipients, monkeypatch):

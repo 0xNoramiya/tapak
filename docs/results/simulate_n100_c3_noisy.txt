@@ -1,0 +1,12 @@
+Simulasi Tardos: N=100, c=3, eps=1e-06 (eps1=1.0e-08), m=3273, konstanta=skoric, koalisi=3, percobaan=1000, BER=0.05, hapus=0.35
+strategi     tuduhan salah   deteksi  semua tertangkap  Z rata2  skor koalisi maks  maks inosen/Z
+majority         0 (0.0000)    1.0000            0.9840    306.1              461.3          0.629
+minority         0 (0.0000)    1.0000            0.9880    306.1              460.3          0.626
+random-mix       0 (0.0000)    1.0000            0.9850    306.1              462.0          0.605
+coin             0 (0.0000)    1.0000            0.9830    306.1              462.4          0.728
+all-1            0 (0.0000)    1.0000            0.9840    306.1              463.4          0.682
+all-0            0 (0.0000)    1.0000            0.9800    306.1              462.3          0.641
+erase            0 (0.0000)    1.0000            1.0000    255.1              422.7          0.561
+Uji batas: target 0.01, empiris nan dari 0 skor inosen
+Uji batas: target 0.001, empiris nan dari 0 skor inosen
+Waktu: 69.1 s

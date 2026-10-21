@@ -1,0 +1,442 @@
+{
+  "rows": [
+    {
+      "file": "photo_s013_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 8.503871147283607e-91
+    },
+    {
+      "file": "photo_s013_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 3.9294308061253175e-15
+    },
+    {
+      "file": "photo_s013_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 1.1863820760352683e-11
+    },
+    {
+      "file": "photo_s013_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 2.6679920982848074e-22
+    },
+    {
+      "file": "photo_s013_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 3.610509128778282e-90
+    },
+    {
+      "file": "photo_s013_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 1.0221711269536618e-83
+    },
+    {
+      "file": "photo_s013_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 2.140187814143718e-51
+    },
+    {
+      "file": "photo_s013_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 3.9589756265037056e-85
+    },
+    {
+      "file": "screenshot_s013_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 7.842445314460613e-91
+    },
+    {
+      "file": "screenshot_s013_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "fa": 3.188140749624519e-89
+    },
+    {
+      "file": "photo_s007_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 3.024686021790596e-91
+    },
+    {
+      "file": "photo_s007_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 7.476192527827016e-93
+    },
+    {
+      "file": "photo_s007_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 1.781519718257271e-87
+    },
+    {
+      "file": "photo_s007_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 6.822358642066143e-92
+    },
+    {
+      "file": "photo_s007_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 3.239422975598862e-18
+    },
+    {
+      "file": "photo_s007_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 8.560373300764564e-89
+    },
+    {
+      "file": "photo_s007_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 7.244422360393331e-84
+    },
+    {
+      "file": "photo_s007_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "fa": null
+    },
+    {
+      "file": "screenshot_s007_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 6.452484946818735e-93
+    },
+    {
+      "file": "screenshot_s007_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "fa": 4.722746154066671e-92
+    },
+    {
+      "file": "photo_s001_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 8.88972549695557e-91
+    },
+    {
+      "file": "photo_s001_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 5.586269309593375e-91
+    },
+    {
+      "file": "photo_s001_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 1.7889505256067013e-87
+    },
+    {
+      "file": "photo_s001_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 1.296989320334557e-91
+    },
+    {
+      "file": "photo_s001_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 8.747987557205317e-44
+    },
+    {
+      "file": "photo_s001_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 1.0726463235120701e-85
+    },
+    {
+      "file": "photo_s001_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 8.096029591195713e-92
+    },
+    {
+      "file": "photo_s001_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 2.4117443487763302e-85
+    },
+    {
+      "file": "screenshot_s001_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 1.4556275112622404e-92
+    },
+    {
+      "file": "screenshot_s001_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "fa": 6.506108635875957e-92
+    },
+    {
+      "file": "photo_s020_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 9.124057122570493e-87
+    },
+    {
+      "file": "photo_s020_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 5.774690423969012e-92
+    },
+    {
+      "file": "photo_s020_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 7.381003771871957e-75
+    },
+    {
+      "file": "photo_s020_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 5.738533609579116e-86
+    },
+    {
+      "file": "photo_s020_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 2.994914000926116e-91
+    },
+    {
+      "file": "photo_s020_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 2.685233247797144e-92
+    },
+    {
+      "file": "photo_s020_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 2.9274650873676286e-90
+    },
+    {
+      "file": "photo_s020_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 2.066589932074201e-87
+    },
+    {
+      "file": "screenshot_s020_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 4.738727845657699e-91
+    },
+    {
+      "file": "screenshot_s020_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "fa": 9.170844232949753e-92
+    }
+  ]
+}

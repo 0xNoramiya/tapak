@@ -1,0 +1,36 @@
+# Two services sharing one data volume (registry and canary events live in data/registry.db).
+# Keys are mounted read-only from ./keys; the registry signing key may be left out so that
+# a higher echelon signs pending rows elsewhere (tapak registry sign).
+services:
+  app:
+    build: .
+    image: tapak:latest
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+      - ./keys:/keys
+    environment:
+      TAPAK_CANARY_DOMAIN: ${TAPAK_CANARY_DOMAIN:-kanari.tapak.test}
+      TAPAK_LLM: ${TAPAK_LLM:-mock}
+    restart: unless-stopped
+
+  canary-dns:
+    image: tapak:latest
+    depends_on:
+      - app
+    command: >
+      python -m tapak.canary_dns
+      --domain ${TAPAK_CANARY_DOMAIN:-kanari.tapak.test}
+      --db /data/registry.db
+      --host 0.0.0.0 --port 53
+      --answer-ip ${TAPAK_CANARY_ANSWER_IP:-127.0.0.1}
+    environment:
+      # Public IPv4 of this listener (same as the registrar glue record for ns1.<domain>).
+      TAPAK_CANARY_NS_IP: ${TAPAK_CANARY_NS_IP:-}
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

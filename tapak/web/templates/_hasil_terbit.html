@@ -1,0 +1,27 @@
+<section class="card" aria-labelledby="hasil-terbit">
+  <h2 id="hasil-terbit">{{ manifest.copies|length }} salinan siap dibagikan</h2>
+  <p class="lead">{{ manifest.doc_name }} · diterbitkan {{ manifest.issued_at|waktu }} oleh {{ manifest.issuer }} · {{ manifest.elapsed_s|num(1) }} detik.
+    {% if out.registry_entries %}Registri: {{ out.registry_entries }} entri {% if out.signed %}ditandatangani{% else %}menunggu tanda tangan eselon atas{% endif %}.{% endif %}</p>
+  <div class="row" style="margin-bottom: 20px">
+    <a class="btn btn-primary" href="/dokumen/{{ manifest.doc_hash[:16] }}/salinan.zip">Unduh semua salinan (ZIP)</a>
+    <a class="btn btn-secondary" href="/terbitkan">Terbitkan dokumen lain</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th class="num">No.</th><th>ID penerima</th><th>Nama</th><th>Satuan</th><th>Varian kalimat</th><th>Komitmen kode</th><th></th></tr></thead>
+      <tbody>
+      {% for c in manifest.copies %}
+        <tr>
+          <td class="num">{{ c.seq }}</td>
+          <td class="mono">{{ c.recipient.recipient_id }}</td>
+          <td>{{ c.recipient.nama }}</td>
+          <td class="muted">{{ c.recipient.satuan }}</td>
+          <td class="mono small">{{ c.semantic_variant_ids|join(", ") or "-" }}</td>
+          <td class="mono small" title="{{ c.code_digest }}">{{ c.code_digest[:12] }}…</td>
+          <td><a class="link small" href="/dokumen/{{ manifest.doc_hash[:16] }}/salinan/{{ c.seq }}">Unduh</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

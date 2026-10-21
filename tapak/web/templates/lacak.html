@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>Lacak sumber kebocoran</h1>
+  <p>Unggah apa pun yang bocor: foto layar atau kertas, tangkapan layar, berkas PDF atau DOCX yang diteruskan, atau teks yang disalin. TAPAK hanya menyebut nama bila buktinya melewati ambang yang ditetapkan sebelum analisis.</p>
+</div>
+<div class="stack">
+  <div id="form-lacak">{% include "_lacak_form.html" %}</div>
+  <div id="hasil" class="stack" aria-live="polite"></div>
+</div>
+{% endblock %}

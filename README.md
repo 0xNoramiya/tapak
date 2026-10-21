@@ -1,0 +1,231 @@
+# TAPAK: Tanda Atribusi Penerima Anti-Kolusi
+
+Prototipe atribusi kebocoran dokumen rahasia untuk Kartika Cyber Hackathon 2026 (kategori Core Infra).
+
+Setiap salinan PDF rahasia yang dibagikan diberi sidik per penerima yang tidak terlihat mata. Bila foto, tangkapan layar, berkas yang diteruskan, atau teks salinan itu bocor, dekoder forensik TAPAK menunjuk salinan sumbernya **beserta peluang tuduhan salahnya**, lalu menulis berita acara. Kodenya adalah kode Tardos yang tahan kolusi: dua atau tiga penerima yang membandingkan salinan tidak dapat menghapus sidik atau memfitnah orang lain. Seluruh pemrosesan berjalan di perangkat sendiri; tidak ada data yang dikirim ke awan.
+
+Semua dokumen, satuan, nama, dan nomor di repositori ini **fiktif** dan setiap halaman contoh bertanda "CONTOH SINTETIS - BUKAN DOKUMEN ASLI".
+
+## Ringkasan hasil
+
+| Pengujian | Hasil |
+|---|---|
+| Simulasi kolusi Tardos, N=100, c=3, eps=1e-6, 1000 percobaan x 7 strategi | **0 tuduhan salah**, deteksi **100 %**, semua anggota koalisi tertangkap 100 % |
+| Set foto sintetis (`make photos` + `make bench`): 32 foto 0 sampai 30 derajat dan 8 tangkapan layar, JPEG ganda gaya WhatsApp | **39 dari 40 benar**, 1 "tidak cukup bukti", **0 tuduhan salah** |
+| Foto 10 sampel sampai 30 derajat (uji M3) | 10 dari 10 benar |
+| Halaman gabungan setengah atas salinan A dan setengah bawah salinan B | A dan B dituduh, tidak ada orang lain |
+| Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |
+| Teks diketik ulang dengan 5 % salah ketik (kanal semantik) | bit semantik pulih 20 dari 20 percobaan |
+| Penerbitan 20 salinan dokumen 2 halaman | sekitar 4 sampai 5 detik |
+| Kanari DNS setelah salinan dibuka | tercatat dalam sekitar 0,1 detik (syarat: di bawah 5 detik) |
+| Registri: verifikasi hanya dengan kunci publik, setiap perubahan baris terdeteksi | lulus |
+| `make demo` (skenario lengkap) | sekitar 15 detik |
+
+## Cara kerja
+
+Kode penerima yang sama ditanam di lima kanal. Kanal mana pun boleh rusak; dekoder menggabungkan apa yang tersisa.
+
+| Kanal | Apa yang ditanam | Bertahan terhadap |
+|---|---|---|
+| 1. Geser kata dan baris | kelompok kata bergeser horizontal dan baris bergeser vertikal sebesar 0,05 mm; bit dikodekan secara *relatif* terhadap tetangga (kontrol, data, kontrol) sehingga sisa distorsi perspektif saling meniadakan | cetak, foto, tangkapan layar |
+| 2. Pola latar | pola acak berfrekuensi rendah +/-2 tingkat abu-abu (sel 2 mm), setiap posisi kode menguasai 8 sel yang tersebar; didekode secara buta per bit | layar, tangkapan layar, foto layar |
+| 3. Karakter tak terlihat | sepasang simbol lebar-nol sebelum dan sesudah kata (2 bit per simbol) serta huruf kembar Kiril pada kata huruf kecil | salin-tempel, berkas diteruskan |
+| 4. Varian semantik | parafrasa kalimat pembuka, penutup, dan tembusan oleh LLM lokal, disetujui manusia | pengetikan ulang |
+| 5. Token kanari | satu subdomain unik per salinan di bawah domain kanari; pendengar DNS mencatat siapa yang membukanya | berkas dibuka di luar jaringan satuan |
+
+**Kode Tardos.** Setiap dokumen memiliki vektor bias p (distribusi arcsine dengan batas t = 1/(300c)) dan setiap salinan memiliki kata kode biner x_j. Panjang kode m = K c^2 ln(1/eps1) dengan eps1 = eps/N (batas gabungan untuk N penerima), K = 2 pi^2 (bawaan) atau 100 (konservatif). Skor tuduhan memakai skor simetris Skoric dkk.: S_j = jumlah w_i U(y_i, x_ji, p_i).
+
+**Ambang ditetapkan sebelum analisis.** Ambang Z dihitung dari batas Chernoff yang ketat terhadap vektor bias yang sebenarnya dan bobot dekoder, dengan bit bocor terburuk di setiap posisi. Perhitungannya sama sekali tidak melihat kode penerima mana pun, dicatat dengan cap waktu, baru kemudian skor dihitung. Jaminan tuduhan salah karenanya **tidak bergantung pada konstanta K maupun pendekatan Gauss**; K hanya memengaruhi tingkat deteksi, yang diukur dengan simulasi.
+
+**Fusi bukti.** Setiap kanal menghasilkan rasio log-kemungkinan (LLR) per posisi kode tanpa pernah melihat kode penerima. LLR dijumlahkan, keputusan y_i = tanda LLR, bobot w_i = tanh(|LLR|/2). Akusasi dijalankan pada hasil fusi dan pada setiap kanal fisik secara terpisah, sehingga laporan menyebut berapa kanal yang sepakat secara independen. Kanal yang saling bertentangan dilaporkan sebagai kemungkinan manipulasi.
+
+**Aturan keluaran.** Nama hanya muncul bersama skor, ambang, dan peluang tuduhan salahnya. Bila tidak ada salinan yang melewati ambang, keluarannya "tidak cukup bukti" dan tidak ada nama yang disebut.
+
+## Arsitektur
+
+```
+            +---------------- Terbitkan ----------------+          +------------------ Lacak ------------------+
+ PDF induk  |  layout   rencana penyematan (kunci)      |  salinan | foto / tangkapan layar / PDF / DOCX / teks |
+ + penerima |  model -> geser, latar, teks, semantik,   |--------->|  rectify (kontur, SIFT, Tesseract) + ECC   |
+            |           kanari -> render ulang + gerbang |          |  ch_shift  ch_background  ch_zerowidth      |
+            |           visual -> 20 salinan PDF          |          |  ch_semantic  ch_docx                       |
+            +----------------------+---------------------+          |        -> fuse (LLR) -> accuse (Chernoff) |
+                                   |                                |        -> berita acara (WeasyPrint)        |
+                                   v                                +--------------------+-----------------------+
+           registri SQLite tambah-saja: rantai SHA-256, tanda tangan Ed25519,           |
+           akar Merkle harian; hanya hash, id, dan komitmen kode   <--------------------+  verifikasi silang
+                                   ^
+                                   |  peristiwa kanari (rantai hash sendiri)
+                       pendengar DNS otoritatif (dnslib)
+```
+
+```
+tapak/
+  tardos/       params, code (SHAKE-256), accuse (skor simetris, ambang Chernoff), attacks, simulate
+  marker/       layout, master (font), plan, pdf_shift, background, pdf_zerowidth, semantic, canary,
+                docx_marker, render (gambar ulang + gerbang visual), issue (paralel)
+  decoder/      rectify, lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_docx,
+                image, fuse, accuse, trace, report (berita acara)
+  registry/     chain (rantai hash, trigger tambah-saja), signing (Ed25519), verify, merkle
+  canary_dns/   server (dnslib), store (log berantai)
+  llm/          provider (antarmuka), mock (deterministik), llamacpp (lokal, loopback saja)
+  learned_wm/   kerangka tanda air terlatih (opsional, belum dilatih)
+  web/          FastAPI + HTMX, antarmuka berbahasa Indonesia
+  photos.py     simulator degradasi foto dan tangkapan layar
+  service.py    alur bersama CLI, web, dan demo
+  cli.py        tapak issue | trace | simulate | verify | demo | ...
+samples/        templat nota dinas dan surat telegram fiktif, PDF contoh, daftar penerima
+tests/          pytest (tanpa GPU, tanpa model LLM, tanpa jaringan)
+docs/results/   keluaran simulasi dan benchmark
+```
+
+## Menjalankan
+
+Prasyarat: Python 3.11 atau lebih baru, `uv` (atau pip), Tesseract dengan bahasa Indonesia, poppler-utils, pango (untuk WeasyPrint). Di Ubuntu:
+
+```bash
+sudo apt-get install -y tesseract-ocr tesseract-ocr-ind poppler-utils libpango-1.0-0 libharfbuzz-subset0
+make setup          # memasang dependensi (sekali, perlu jaringan)
+make demo           # skenario lengkap tanpa interaksi
+make test           # seluruh pengujian
+make simulate       # angka simulasi Tardos
+make photos bench   # set foto sintetis lalu uji regresi dekoder
+make web            # antarmuka web di http://127.0.0.1:8000
+```
+
+Setelah `make setup`, semuanya berjalan luring.
+
+### Baris perintah
+
+```bash
+tapak keys init                                  # rahasia kode + kunci tanda tangan registri
+tapak issue samples/nota_dinas.pdf samples/recipients.csv --canary-domain kanari.satuan.mil
+tapak docs                                       # daftar dokumen terbitan
+tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
+tapak verify                                     # verifikasi registri dengan kunci publik saja
+tapak registry export-merkle                     # akar Merkle harian
+tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
+tapak semantic approve varian.json --unit u0 --variant 2   # keputusan manusia
+tapak issue dok.pdf penerima.csv --semantic varian.json    # ditolak jika masih ada varian menunggu
+tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000
+tapak simulate --table
+tapak canary-dns --domain kanari.satuan.mil --db data/registry.db --port 53
+```
+
+Pihak ketiga cukup memegang berkas registri dan kunci publik:
+
+```bash
+tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub
+```
+
+### Antarmuka web
+
+Dua pintu masuk berbahasa Indonesia:
+
+* **Terbitkan**: unggah PDF dan CSV penerima, lihat rencana penandaan dan gerbang visual, pilih kalimat aman, tinjau setiap varian LLM (tombol terbit terkunci sampai semua varian disetujui atau ditolak), terbitkan, unduh ZIP.
+* **Lacak**: pilih dokumen, unggah foto, tangkapan layar, PDF, DOCX, atau tempel teks. Hasil menampilkan putusan, skor, ambang, peluang tuduhan salah, kanal yang sepakat, status registri, peringatan kanari, dan tombol unduh berita acara.
+
+Halaman **Registri** menampilkan status rantai, kunci publik, akar Merkle, dan peringatan kanari.
+
+### Docker
+
+```bash
+.venv/bin/tapak keys init                       # kunci di ./keys (dipasang ke kontainer)
+docker compose up --build -d                     # layanan app (127.0.0.1:8000) dan canary-dns (port 53)
+```
+
+Kunci tanda tangan registri boleh tidak dipasang di server; entri baru lalu dicatat tanpa tanda tangan dan eselon atas menandatanganinya dengan `tapak registry sign --key ...` di mesinnya sendiri.
+
+### Kunci dan konfigurasi
+
+| Berkas | Isi | Pemegang |
+|---|---|---|
+| `keys/code_secret.key` | rahasia 32 byte; menurunkan vektor bias, kata kode, dan rencana penyematan | operator TAPAK |
+| `keys/registry_signing.key` | benih Ed25519 penanda tangan registri | dapat dipegang eselon atas, terpisah dari konfigurasi aplikasi |
+| `keys/registry_signing.pub` | kunci publik verifikasi | siapa saja |
+
+Konfigurasi lain lewat variabel lingkungan: `TAPAK_DATA`, `TAPAK_KEY_DIR`, `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM` (`mock` atau `llamacpp`), `TAPAK_LLM_MODEL` (berkas GGUF 7 sampai 8B yang mampu berbahasa Indonesia), `TAPAK_LLM_URL` (server llama.cpp lokal; alamat selain loopback ditolak).
+
+## Angka simulasi
+
+Perintah: `tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000` (m = 3273 bit).
+
+| Strategi kolusi | Tuduhan salah | Deteksi (minimal 1 anggota) | Semua anggota tertangkap | Z rata-rata | Skor koalisi tertinggi |
+|---|---|---|---|---|---|
+| mayoritas | 0 / 1000 | 1,000 | 1,000 | 372,5 | 772,6 |
+| minoritas | 0 / 1000 | 1,000 | 1,000 | 372,5 | 768,1 |
+| campuran acak | 0 / 1000 | 1,000 | 1,000 | 372,5 | 773,3 |
+| lempar koin | 0 / 1000 | 1,000 | 1,000 | 372,5 | 769,7 |
+| selalu 1 | 0 / 1000 | 1,000 | 1,000 | 372,5 | 770,9 |
+| selalu 0 | 0 / 1000 | 1,000 | 1,000 | 372,5 | 770,6 |
+| hapus (rata-rata dua salinan) | 0 / 1000 | 1,000 | 1,000 | 306,5 | 722,8 |
+
+Skor inosen tertinggi di seluruh percobaan adalah 72 % dari ambang. Nol tuduhan salah dalam 1000 percobaan hanya membuktikan lajunya di bawah sekitar 3 x 10^-3, sehingga batasnya juga diuji pada tingkat yang dapat diukur: pada target 10^-2 laju empirisnya 6,8 x 10^-4 dan pada target 10^-3 lajunya 3,3 x 10^-5 (dari 582.000 skor inosen). Batas Chernoff terbukti konservatif.
+
+Uji tambahan (berkas lengkap di `docs/results/`):
+
+| Skenario | Tuduhan salah | Deteksi | Semua tertangkap |
+|---|---|---|---|
+| N=20, c=3 (m=2987) | 0 | 100 % | 100 % |
+| N=100, c=3, kanal berderau: 5 % bit salah, 35 % terhapus | 0 | 100 % | 98 sampai 100 % |
+| N=100, kode untuk c=3 diserang **5** orang (di luar rancangan) | 0 | 100 % | 42 sampai 49 % |
+
+Tabel parameter (eps = 10^-6 untuk seluruh daftar, `tapak simulate --table`):
+
+| N | c | eps1 | m (K=2 pi^2) | m (K=100) | Z Chernoff | Z Gauss | rata-rata skor kolusi per anggota |
+|---|---|---|---|---|---|---|---|
+| 20 | 2 / 3 / 5 | 5e-8 | 1328 / 2987 / 8297 | 6725 / 15131 / 42029 | 233 / 340 / 552 | 194 / 291 / 485 | 423 / 634 / 1056 |
+| 50 | 2 / 3 / 5 | 2e-8 | 1400 / 3150 / 8749 | 7092 / 15955 / 44319 | 246 / 359 / 582 | 205 / 308 / 514 | 446 / 668 / 1114 |
+| 100 | 2 / 3 / 5 | 1e-8 | 1455 / 3273 / 9091 | 7369 / 16579 / 46052 | 256 / 373 / 605 | 214 / 321 / 535 | 463 / 695 / 1158 |
+| 500 | 2 / 3 / 5 | 2e-9 | 1582 / 3559 / 9885 | 8013 / 18028 / 50076 | 278 / 405 / 658 | 234 / 351 / 585 | 504 / 755 / 1259 |
+
+## Keputusan desain yang menyimpang dari spesifikasi awal
+
+| Spesifikasi | Yang dibangun | Alasan |
+|---|---|---|
+| Kode penuh ditanam di setiap kanal | kanal teks membawa seluruh m bit; setiap halaman membawa irisannya sendiri di kanal fisik; akusasi hanya atas posisi yang terbaca dengan ambang ketat untuk himpunan itu | c=3, eps=10^-6 memerlukan sekitar 3000 bit, sedangkan geser kata dan baris hanya memuat sekitar 90 bit per halaman. Skala c^2 ln(1/eps) adalah batas bawah untuk kode tahan kolusi apa pun |
+| Geser 0,01 sampai 0,03 mm | 0,05 mm (dapat diatur, maksimum 0,05 mm) | 0,01 sampai 0,03 mm hanya 0,1 sampai 0,3 piksel pada foto ponsel satu halaman A4; tidak terukur setelah JPEG |
+| "Selisih piksel tak terlihat" | didefinisikan secara geometris: di antara dua salinan mana pun, tidak ada glif yang bergeser lebih dari 0,1 mm per sumbu (1 menit busur pada jarak baca 35 cm); diuji pada 600 dpi bahwa perbedaan piksel hanya ada di kotak kata yang digeser (di luar itu hanya pola latar, maksimum 4 tingkat abu-abu) dan pusat tinta bergeser sesuai rencana | tanda geometris mengubah posisi tepi, bukan kontras; ambang tingkat abu-abu tidak bermakna untuk itu |
+| Pola latar didekode dengan korelasi terhadap kandidat | korelasi buta per bit (spread spectrum) | korelasi terhadap kandidat menggunakan kode penerima dan merusak jaminan tuduhan salah Tardos |
+| Registri menyimpan kode | registri menyimpan komitmen (`code_digest`); kode diturunkan ulang dari rahasia kode | siapa pun yang dapat membaca kode dapat memfitnah penerima |
+| Kanari DOCX lewat referensi font eksternal | relasi gambar eksternal | Word tidak mengambil font eksternal |
+| Banyak simbol lebar-nol di akhir kata | paling banyak dua simbol per posisi (sebelum dan sesudah kata), dari alfabet berbeda | MuPDF dan poppler membuang glif identik yang ditumpuk di posisi yang sama (dianggap tebal palsu) |
+| Konstanta "Skoric 2006, 2 pi^2" | dipertahankan sebagai bawaan, atribusi dikoreksi | 2 pi^2 berasal dari Skoric, Vladimirova, Celik, dan Talstra untuk skor asimetris (pendekatan Gauss). Dengan skor simetris konstanta asimtotiknya pi^2/2, jadi ada margin sekitar 4 kali; untuk c kecil ini bukan batas yang terbukti, tetapi jaminan tuduhan salah TAPAK tetap ketat karena berasal dari ambang Chernoff |
+
+## Keamanan dan minimisasi data
+
+* Registri dan log hanya berisi hash, id penerima, id salinan, komitmen kode, nama kanal, id varian, waktu, dan penerbit. Tidak ada teks dokumen, gambar, maupun nama penerima.
+* Teks varian semantik adalah isi dokumen; disimpan di folder dokumen (`varian.json`) bersama PDF induk, dan registri hanya menyimpan hash-nya.
+* Kode setiap penerima diturunkan dari rahasia kode dengan SHAKE-256 (dapat dibangkitkan ulang bit demi bit bertahun-tahun kemudian, tidak bergantung versi numpy) dan diperiksa terhadap komitmen sebelum pelacakan.
+* Tabel registri dijaga trigger tambah-saja; perubahan yang melewati trigger tetap terdeteksi karena rantai hash dan tanda tangan.
+* Satu-satunya lalu lintas keluar adalah pendengar DNS kanari yang menerima kueri. Antarmuka web memuat HTMX dan font dari server lokal.
+
+## Batasan (jujur)
+
+1. **Pengetikan ulang penuh dengan kalimat pembuka dan penutup ditulis ulang mengalahkan atribusi.** Kanal geser, latar, dan teks hilang; kanal semantik hanya membawa sedikit bit (contoh nota dinas: 2 kalimat, 4 bit). Teks ketikan ulang yang mempertahankan kalimat itu tetap dapat dibaca bitnya, tetapi 4 bit tidak cukup untuk menuduh pada eps = 10^-6, sehingga keluarannya "tidak cukup bukti".
+2. **Kapasitas kanal semantik kecil**: sekitar 2 bit per kalimat aman yang disetujui, dan hanya kalimat yang tidak memuat angka, nama, waktu, koordinat, atau perintah.
+3. **Kanal latar tidak bertahan dicetak**: printer menggambar tingkat abu-abu di atas sekitar 250 sebagai kertas polos. Foto kertas cetak hanya membawa kanal geser (sekitar 90 bit per halaman), cukup untuk penerima tunggal dengan resolusi foto yang baik, tetapi **ketahanan kolusi dari foto kertas cetak tidak tercapai** pada c=3. Ketahanan kolusi dari foto bergantung pada kanal latar (layar dan tangkapan layar).
+4. **Foto yang terlalu terang** (banyak piksel kertas jenuh 255) juga menghapus pola latar. Dekoder lalu menjawab "tidak cukup bukti", seperti pada 1 dari 40 gambar benchmark.
+5. **Geser baris rentan pada tangkapan layar beresolusi rendah** karena penampil PDF membulatkan garis dasar ke piksel. Dekoder menaksir derau per jenis dan otomatis memberi bobot kecil; geser kata (horizontal) tetap terbaca.
+6. **Kanal teks tidak aman terhadap lawan yang paham**: simbol lebar-nol dan huruf Kiril dapat dibersihkan atau diubah. Mengubahnya tidak dapat memfitnah orang lain (lawan tidak tahu kode penerima lain), tetapi dapat menghapus bukti kanal itu. Pencarian frasa lintas kata di penampil PDF dapat gagal pada salinan bertanda; pencarian satu kata tetap berfungsi.
+7. **Kanari bergantung pada penampil**: Adobe Reader menghubungi alamat aksi pembuka (dan menampilkan peringatan izin), Word mengambil gambar eksternal, sedangkan penampil peramban dan MuPDF tidak mengambil apa pun. Demo mensimulasikan pencarian DNS yang dilakukan penampil. Di dalam jaringan satuan, DNS internal harus menjawab zona kanari secara lokal agar penerima sah tidak memicu peringatan.
+8. **Masukan harus PDF berlapis teks.** TAPAK menggambar ulang setiap glif; gerbang visual menolak penerbitan bila gambar ulang tanpa tanda tidak identik dengan aslinya (misalnya font tidak dapat dipakai ulang).
+9. **Koalisi melebihi c** tetap tidak menimbulkan tuduhan salah, tetapi tidak semua anggotanya tertangkap (sekitar 45 % pada 5 orang melawan kode c=3).
+10. **Foto sintetis bukan foto ponsel sungguhan.** Simulator mencakup perspektif, pencahayaan, bayangan, blur, derau, penajaman, dan JPEG ganda, tetapi tidak meniru pipeline kamera nyata (denoising agresif, HDR, moire layar). Pengujian dengan ponsel nyata belum dilakukan.
+11. **Tanda air terlatih (StegaStamp) belum dilatih.** Kerangkanya ada di `tapak/learned_wm/` (model, degradasi, pelatihan, ekspor ONNX) dengan TODO; dekoder korelasi adalah jalur produksi.
+12. **Konstanta 2 pi^2 dengan skor simetris belum terbukti untuk c kecil** (hanya asimtotik). Ini memengaruhi deteksi, bukan tuduhan salah; deteksi diukur dengan simulasi di atas. Konstanta 100 tersedia sebagai pilihan konservatif.
+
+## Pengujian
+
+`make test` menjalankan seluruh suite pytest: kode Tardos (setiap fungsi publik), penanda, dekoder (setiap fungsi publik), kanal 3 lewat MuPDF dan poppler, ketidakterlihatan pada 600 dpi, foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti", registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik, DOCX, berita acara, antarmuka web end-to-end, serta aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang). Tidak memerlukan GPU, model LLM, atau jaringan; uji foto ditandai `slow` (`make test-fast` melewatinya).
+
+## Referensi
+
+1. G. Tardos. Optimal probabilistic fingerprint codes. Proc. 35th ACM STOC, 2003, hlm. 116-125. Versi jurnal: J. ACM 55(2), 2008.
+2. B. Skoric, T. U. Vladimirova, M. Celik, J. C. Talstra. Tardos fingerprinting is better than we thought. IEEE Trans. Inf. Theory 54(8):3663-3676, 2008. arXiv:cs/0607131.
+3. B. Skoric, S. Katzenbeisser, M. U. Celik. Symmetric Tardos fingerprinting codes for arbitrary alphabet sizes. Des. Codes Cryptogr. 46(2):137-166, 2008. IACR ePrint 2007/041.
+4. T. Laarhoven, B. de Weger. Optimal symmetric Tardos traitor tracing schemes. Des. Codes Cryptogr. 71(1):83-103, 2014. arXiv:1107.3441.
+5. J. T. Brassil, S. Low, N. F. Maxemchuk. Copyright protection for the electronic distribution of text documents. Proc. IEEE 87(7), 1999 (pergeseran baris dan kata).
+6. M. Tancik, B. Mildenhall, R. Ng. StegaStamp: Invisible hyperlinks in physical photographs. CVPR 2020.
+
+Font DejaVu dibundel dengan lisensi Bitstream Vera (lihat `tapak/assets/fonts/LICENSE-DejaVu.txt`); HTMX 1.9.12 (lisensi BSD) disertakan di `tapak/web/static/`.

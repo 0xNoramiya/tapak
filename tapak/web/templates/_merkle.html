@@ -1,0 +1,5 @@
+{% if files %}
+<ul class="notes" style="margin-top:12px">{% for f in files %}<li class="mono small">{{ f }}{% if f.name.endswith(".partial.txt") %} <span class="muted">(sementara, hari berjalan)</span>{% endif %}</li>{% endfor %}</ul>
+{% else %}
+<p class="empty">Tidak ada entri untuk diekspor.</p>
+{% endif %}

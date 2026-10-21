@@ -1,0 +1,32 @@
+<section class="card" aria-labelledby="langkah2">
+  <h2 id="langkah2"><span class="step">2</span>Rencana penandaan</h2>
+  <p class="lead">{{ st.doc_name }} untuk {{ st.recipients|length }} penerima. Gerbang visual
+    {% if gate.passed %}<span class="chip chip-ok">lulus</span>{% else %}<span class="chip chip-no">gagal</span>{% endif %}:
+    tanpa tanda, dokumen digambar ulang identik dengan aslinya (selisih maksimum {{ gate.max_diff }} tingkat abu-abu).</p>
+  <div class="figures">
+    <div class="figure"><span class="label">Halaman</span><b>{{ st.plan.pages }}</b><small>{{ st.plan.words|num }} kata</small></div>
+    <div class="figure"><span class="label">Panjang kode</span><b>{{ st.plan.params.length|num }}</b><small>bit Tardos per penerima</small></div>
+    <div class="figure"><span class="label">Tahan kolusi</span><b>{{ st.plan.params.c }}</b><small>penerima bersekongkol</small></div>
+    <div class="figure"><span class="label">Ambang penuh</span><b>{{ st.plan.threshold|num(0) }}</b><small>skor minimum untuk menuduh</small></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Kanal</th><th class="num">Slot</th><th class="num">Posisi kode</th><th>Bertahan terhadap</th></tr></thead>
+      <tbody>
+        {% set survives = {"shift": "cetak, foto, tangkapan layar", "background": "layar, tangkapan layar, foto layar",
+                           "zw": "salin-tempel, berkas diteruskan", "homoglyph": "salin-tempel, teks dinormalkan sebagian"} %}
+        {% for ch, info in st.plan.summary.items() %}
+        <tr><td>{{ channel_name(ch) }}</td><td class="num">{{ info.slots|num }}</td><td class="num">{{ info.positions|num }}</td>
+            <td class="muted">{{ survives.get(ch, "") }}</td></tr>
+        {% endfor %}
+        {% if st.settings.canary_domain %}
+        <tr><td>Token kanari</td><td class="num">{{ st.recipients|length }}</td><td class="num">-</td>
+            <td class="muted">berkas dibuka di luar jaringan satuan (DNS ke {{ st.settings.canary_domain }})</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<div id="semantik" class="stack">
+  {% include "_semantik.html" %}
+</div>

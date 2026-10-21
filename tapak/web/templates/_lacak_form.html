@@ -1,0 +1,37 @@
+<section class="card" aria-labelledby="bukti-h">
+  <h2 id="bukti-h">Bukti</h2>
+  {% if not docs %}
+  <p class="empty">Belum ada dokumen yang diterbitkan. <a class="link" href="/terbitkan">Terbitkan dokumen</a> lebih dulu, lalu kembali ke sini untuk melacak kebocorannya.</p>
+  {% else %}
+  <form hx-post="/lacak" hx-encoding="multipart/form-data" hx-target="#hasil" hx-swap="innerHTML"
+        hx-disabled-elt="find button[type=submit]">
+    <div class="field">
+      <label for="dokumen">Dokumen yang diduga bocor</label>
+      <select id="dokumen" name="dokumen" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
+        {% for m in docs %}
+        <option value="{{ m.doc_hash[:16] }}" {% if selected == m.doc_hash[:16] %}selected{% endif %}>{{ m.doc_name }} · {{ m.issued_at|waktu }} · {{ m.copies|length }} salinan</option>
+        {% endfor %}
+      </select>
+      {% if errors.dokumen %}<span class="field-error">{{ errors.dokumen }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="bukti">Berkas bukti</label>
+      <input id="bukti" name="bukti" type="file" accept="image/*,.pdf,.docx,.txt" {% if errors.bukti %}aria-invalid="true" aria-describedby="bukti-err"{% endif %}>
+      <span class="hint">Foto (JPEG/PNG), tangkapan layar, PDF, DOCX, atau berkas teks.</span>
+    </div>
+    <div class="field">
+      <label for="teks">Atau tempel teks yang bocor</label>
+      <textarea id="teks" name="teks" spellcheck="false" placeholder="Tempel teks dari pesan atau dokumen di sini"></textarea>
+      {% if errors.bukti %}<span class="field-error" id="bukti-err">{{ errors.bukti }}</span>{% endif %}
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" type="submit">
+        <span class="htmx-indicator spinner" aria-hidden="true"></span>
+        <span class="idle-label">Lacak sumber</span>
+        <span class="htmx-indicator">Menganalisis bukti…</span>
+      </button>
+      <span class="hint">Foto memerlukan beberapa detik untuk diluruskan dan dibaca.</span>
+    </div>
+  </form>
+  {% endif %}
+</section>

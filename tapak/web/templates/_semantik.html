@@ -1,0 +1,102 @@
+{% set pending = namespace(n=0, total=0) %}
+{% for vs in st.sets.values() %}{% set pending.n = pending.n + vs.pending()|length %}{% set pending.total = pending.total + vs.variants|length - 1 %}{% endfor %}
+<section class="card" aria-labelledby="langkah3">
+  <h2 id="langkah3"><span class="step">3</span>Kalimat aman <span class="chip chip-neutral">opsional</span></h2>
+  <p class="lead">Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Ini satu-satunya kanal yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.</p>
+  {% if st.candidates %}
+  <form hx-post="/terbitkan/{{ st.sid }}/varian" hx-target="#semantik" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
+    {% for unit, reasons in st.candidates %}
+      {% if not reasons %}
+      <label class="check-row">
+        <input type="checkbox" name="unit" value="{{ unit.unit_id }}" {% if unit.unit_id in st.sets or not st.sets %}checked{% endif %}>
+        <span><span class="small muted">Halaman {{ unit.page + 1 }}</span><br>{{ unit.text }}</span>
+      </label>
+      {% else %}
+      <div class="check-row" aria-disabled="true">
+        <input type="checkbox" disabled>
+        <span class="muted"><span class="small">Halaman {{ unit.page + 1 }}: tidak ditawarkan ({{ reasons|join(", ") }})</span><br>{{ unit.text }}</span>
+      </div>
+      {% endif %}
+    {% endfor %}
+    <div class="row">
+      <button class="btn btn-secondary" type="submit">
+        <span class="htmx-indicator spinner" aria-hidden="true"></span>
+        <span class="idle-label">{% if st.sets %}Buat ulang varian{% else %}Buat varian dengan LLM lokal{% endif %}</span>
+        <span class="htmx-indicator">Membuat varian…</span>
+      </button>
+    </div>
+  </form>
+  {% else %}
+  <p class="empty">Tidak ada kalimat pembuka, penutup, atau tembusan yang dikenali di dokumen ini. Kanal semantik tidak dipakai.</p>
+  {% endif %}
+
+  {% if st.sets %}
+  <div class="stack" style="margin-top: 20px">
+    <p class="small {% if pending.n %}muted{% endif %}" aria-live="polite">
+      {% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.
+      {% else %}Semua varian sudah ditinjau.{% endif %}
+    </p>
+    {% for unit in st.units if unit.unit_id in st.sets %}
+    {% set vs = st.sets[unit.unit_id] %}
+    <div class="unit">
+      <div class="unit-head">
+        <div class="unit-text"><span class="label">Asli, halaman {{ unit.page + 1 }}</span><br>{{ vs.variants[0] }}</div>
+        {% if vs.pending() %}
+        <button class="btn btn-secondary btn-small" type="button" hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/semua"
+                hx-target="#semantik">Setujui semua ({{ vs.pending()|length }})</button>
+        {% endif %}
+      </div>
+      {% if vs.variants|length > 1 %}
+      <ul class="variants">
+        {% for v in vs.variants[1:] %}
+        {% set i = loop.index %}
+        <li class="variant">
+          <div>
+            <p>{{ v }}</p>
+            <span class="small muted">
+              {% if vs.status[i] == "disetujui" %}<span class="chip chip-ok">disetujui</span>
+              {% elif vs.status[i] == "ditolak" %}<span class="chip chip-no">ditolak</span>
+              {% else %}<span class="chip chip-wait">menunggu</span>{% endif %}
+              {% if vs.equivalence[i][1] %} pemeriksa kesetaraan: {{ vs.equivalence[i][1] }}{% endif %}
+            </span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary btn-small btn-approve" type="button" {% if vs.status[i] == "disetujui" %}disabled{% endif %}
+                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/disetujui" hx-target="#semantik">Setujui</button>
+            <button class="btn btn-secondary btn-small btn-reject" type="button" {% if vs.status[i] == "ditolak" %}disabled{% endif %}
+                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/ditolak" hx-target="#semantik">Tolak</button>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="small muted">Tidak ada varian yang lolos pemeriksaan otomatis untuk kalimat ini.</p>
+      {% endif %}
+      {% if vs.dropped %}
+      <details class="small muted"><summary>{{ vs.dropped|length }} usulan ditolak otomatis</summary>
+        <ul class="notes">{% for t, why in vs.dropped %}<li>{{ t }}: {{ why }}</li>{% endfor %}</ul>
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="langkah4">
+  <h2 id="langkah4"><span class="step">4</span>Terbitkan</h2>
+  {% if block_error %}<div class="notice notice-error" role="alert">{{ block_error }}</div>{% endif %}
+  <p class="lead">
+    {% if pending.n %}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
+    {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
+  </p>
+  <form hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
+    <div class="row">
+      <button class="btn btn-primary" type="submit" {% if pending.n %}disabled aria-describedby="langkah4"{% endif %}>
+        <span class="htmx-indicator spinner" aria-hidden="true"></span>
+        <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
+        <span class="htmx-indicator">Menerbitkan…</span>
+      </button>
+    </div>
+  </form>
+</section>

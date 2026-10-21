@@ -1,0 +1,59 @@
+<section class="card" aria-labelledby="langkah1">
+  <h2 id="langkah1"><span class="step">1</span>Dokumen dan penerima</h2>
+  <p class="lead">Unggah PDF induk (berlapis teks) dan daftar penerima. Dokumen induk tetap di perangkat ini; registri hanya menyimpan hash dan komitmen kode.</p>
+  <form hx-post="/terbitkan/analisis" hx-encoding="multipart/form-data" hx-target="#alur" hx-swap="innerHTML"
+        hx-disabled-elt="find button[type=submit]">
+    <div class="field">
+      <label for="dokumen">Dokumen induk (PDF)</label>
+      <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" required
+             {% if errors.dokumen %}aria-invalid="true" aria-describedby="dokumen-err"{% endif %}>
+      {% if errors.dokumen %}<span class="field-error" id="dokumen-err">{{ errors.dokumen }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="penerima">Daftar penerima (CSV)</label>
+      <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" required
+             {% if errors.penerima %}aria-invalid="true" aria-describedby="penerima-err"{% endif %}>
+      <span class="hint">Kolom wajib: <span class="mono">recipient_id</span>, <span class="mono">nama</span>. Kolom opsional: <span class="mono">jabatan</span>, <span class="mono">satuan</span>.</span>
+      {% if errors.penerima %}<span class="field-error" id="penerima-err">{{ errors.penerima }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="penerbit">Penerbit</label>
+      <input id="penerbit" name="penerbit" type="text" value="{{ values.penerbit or '' }}" autocomplete="name"
+             placeholder="contoh: Kasi Ops Brigif 9905">
+    </div>
+    <details class="more" {% if errors.c or errors.eps %}open{% endif %}>
+      <summary>Parameter kode dan kanari</summary>
+      <div class="grid-2">
+        <div class="field">
+          <label for="c">Ukuran koalisi yang ditahan (c)</label>
+          <input id="c" name="c" type="number" min="1" max="10" value="{{ values.c or 3 }}"
+                 {% if errors.c %}aria-invalid="true"{% endif %}>
+          <span class="hint">Jumlah penerima yang mungkin bersekongkol membandingkan salinan.</span>
+          {% if errors.c %}<span class="field-error">{{ errors.c }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="eps">Peluang tuduhan salah maksimum</label>
+          <select id="eps" name="eps">
+            {% for v, label in eps_choices %}
+            <option value="{{ v }}" {% if (values.eps or '1e-6') == v %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <span class="hint">Untuk seluruh daftar penerima, ditetapkan sebelum analisis apa pun.</span>
+        </div>
+        <div class="field">
+          <label for="kanari">Domain kanari</label>
+          <input id="kanari" name="kanari" type="text" value="{{ values.kanari if values.kanari is defined else canary_domain }}"
+                 spellcheck="false" autocomplete="off">
+          <span class="hint">Kosongkan untuk menonaktifkan token kanari.</span>
+        </div>
+      </div>
+    </details>
+    <div class="row">
+      <button class="btn btn-primary" type="submit">
+        <span class="htmx-indicator spinner" aria-hidden="true"></span>
+        <span class="idle-label">Analisis dokumen</span>
+        <span class="htmx-indicator">Menganalisis dokumen…</span>
+      </button>
+    </div>
+  </form>
+</section>

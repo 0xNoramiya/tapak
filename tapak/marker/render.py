@@ -33,8 +33,11 @@ class CopyMarks:
         group_dx: horizontal offset (pt) per shift group.
         row_dy: vertical offset (pt) per row.
         text: zero-width suffixes and homoglyph swaps.
-        row_text: replacement text for whole rows (semantic variants), drawn from the row's
-            first glyph origin with the row's first font.
+        row_text: replacement text for whole rows, drawn from the row's first glyph origin
+            with the row's first font (simple left-aligned replacement).
+        row_words: replacement words for whole rows with explicit x positions (points),
+            drawn on the row's baseline with the row's first font and size; used by the
+            semantic channel to re-justify a variant sentence into the original rows.
         page_hooks: callables run on each page after the text is drawn (background
             pattern, canary actions); they receive (document, page).
     """
@@ -43,6 +46,7 @@ class CopyMarks:
     row_dy: dict[RowId, float] = field(default_factory=dict)
     text: TextMarks | None = None
     row_text: dict[RowId, str] = field(default_factory=dict)
+    row_words: dict[RowId, list[tuple[float, str]]] = field(default_factory=dict)
     page_hooks: list[Callable[[pymupdf.Document, pymupdf.Page], None]] = field(default_factory=list)
     doc_hooks: list[Callable[[pymupdf.Document], None]] = field(default_factory=list)
 
@@ -130,6 +134,15 @@ def render_copy(master: MasterDocument, marks: CopyMarks, cache: _AdvanceCache |
     for page_layout, page in zip(master.layout.pages, doc):
         for row in page_layout.rows:
             dy = marks.row_dy.get(row.id, 0.0)
+            words_override = marks.row_words.get(row.id)
+            if words_override is not None:
+                g0 = row.words[0].glyphs[0]
+                font = master.fonts[g0.font].font
+                for x, text in words_override:
+                    tw = pymupdf.TextWriter(page.rect)
+                    tw.append((x, g0.y + dy), text, font=font, fontsize=g0.size)
+                    tw.write_text(page, color=_rgb(g0.color))
+                continue
             override = marks.row_text.get(row.id)
             if override is not None:
                 g0 = row.words[0].glyphs[0]

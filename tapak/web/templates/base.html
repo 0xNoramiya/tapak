@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · TAPAK</title>
+  <link rel="stylesheet" href="/static/tapak.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body hx-boost="false">
+  <div class="banner" role="note" aria-label="Klasifikasi">RAHASIA</div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">
+        <b>TAPAK</b>
+        <span>Tanda Atribusi Penerima Anti-Kolusi</span>
+      </a>
+      <nav class="nav" aria-label="Menu utama">
+        <a href="/terbitkan" {% if active == 'terbitkan' %}aria-current="page"{% endif %}>Terbitkan</a>
+        <a href="/lacak" {% if active == 'lacak' %}aria-current="page"{% endif %}>Lacak</a>
+        <a href="/registri" {% if active == 'registri' %}aria-current="page"{% endif %}>Registri</a>
+      </nav>
+      <span class="offline" title="Tidak ada data yang dikirim keluar dari perangkat ini">Luring: semua diproses di perangkat ini</span>
+    </div>
+  </header>
+  <main id="konten">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>TAPAK {{ version }} · prototipe Kartika Cyber Hackathon 2026 · data contoh sepenuhnya fiktif</span>
+      <span>Registri: {{ registry_path }}</span>
+    </div>
+  </footer>
+</body>
+</html>
