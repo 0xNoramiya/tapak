@@ -29,7 +29,11 @@
 
 <section class="card" aria-labelledby="kanal-h">
   <h2 id="kanal-h">Bukti per kanal</h2>
+  {% if t.n_observed %}
   <p class="lead">Ambang Z = {{ t.threshold|num(1) if t.threshold != inf else "tak hingga" }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (peluang tuduhan salah maksimum {{ eps_label }} untuk seluruh daftar penerima).</p>
+  {% else %}
+  <p class="lead">Tidak ada posisi kode yang terbaca pada bukti ini, sehingga tidak ada ambang maupun skor yang berlaku.</p>
+  {% endif %}
   <div class="table-wrap">
     <table>
       <thead><tr><th>Kanal</th><th class="num">Posisi terbaca</th><th class="num hide-sm">Ambang kanal</th><th>Menunjuk salinan</th></tr></thead>
@@ -64,17 +68,18 @@
   </details>
 </section>
 
+{% if t.n_observed %}
 <section class="card" aria-labelledby="skor-h">
   <h2 id="skor-h">Peringkat skor</h2>
   <p class="lead">Nama hanya ditampilkan untuk salinan yang melewati ambang. Salinan lain disebut dengan nomornya saja.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Salinan</th><th>Penerima</th><th class="num">Skor</th><th class="num hide-sm">Ambang</th><th>Status</th></tr></thead>
+      <thead><tr><th class="num">Salinan</th><th class="hide-sm">Penerima</th><th class="num">Skor</th><th class="num hide-sm">Ambang</th><th>Status</th></tr></thead>
       <tbody>
       {% for c in a.candidates[:6] %}
         <tr>
           <td class="num">#{{ c.copy.seq }}</td>
-          <td>{% if c.accused %}{{ c.copy.nama }} <span class="muted mono small">{{ c.copy.recipient_id }}</span>{% else %}<span class="muted">disembunyikan</span>{% endif %}</td>
+          <td class="hide-sm">{% if c.accused %}{{ c.copy.nama }} <span class="muted mono small">{{ c.copy.recipient_id }}</span>{% else %}<span class="muted">disembunyikan</span>{% endif %}</td>
           <td class="num">{{ c.score|num(1) }}</td>
           <td class="num hide-sm">{{ t.threshold|num(1) if t.threshold != inf else "-" }}</td>
           <td>{% if c.accused %}<span class="chip chip-ok">melewati ambang</span>{% else %}<span class="chip chip-neutral">di bawah ambang</span>{% endif %}</td>
@@ -84,6 +89,7 @@
     </table>
   </div>
 </section>
+{% endif %}
 
 <section class="card" aria-labelledby="sah-h">
   <h2 id="sah-h">Keabsahan dan peringatan</h2>
