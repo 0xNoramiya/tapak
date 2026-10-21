@@ -57,6 +57,7 @@ from tapak.marker.layout import sha256_hex
 from tapak.marker.plan import (
     CHANNEL_BACKGROUND,
     CHANNEL_HOMOGLYPH,
+    CHANNEL_LEXICAL,
     CHANNEL_SEMANTIC,
     CHANNEL_SHIFT,
     CHANNEL_ZW,
@@ -88,12 +89,14 @@ SUBCHANNEL_LABELS = {
     CHANNEL_ZW: "Karakter tak terlihat (zero-width)",
     CHANNEL_HOMOGLYPH: "Huruf kembar (homoglyph)",
     CHANNEL_SEMANTIC: "Variasi kalimat (semantik)",
+    CHANNEL_LEXICAL: "Pilihan kata (leksikal)",
 }
 PHYSICAL_LABELS = {
     "geser": "Geser (pergeseran kata dan baris)",
     "latar": "Latar (pola latar halus)",
     "teks": "Teks (karakter tak terlihat dan huruf kembar)",
     "semantik": "Semantik (variasi kalimat)",
+    "leksikal": "Leksikal (pilihan kata; teks ketikan ulang, satu pembocor, tidak tahan kolusi)",
 }
 _DIGITAL_SUBCHANNELS = {CHANNEL_ZW, CHANNEL_HOMOGLYPH}
 

@@ -3,6 +3,7 @@
     tapak keys init                      create the code secret and the registry signing key
     tapak issue DOC.pdf|DOC.docx RECIPIENTS.csv
     tapak semantic suggest DOC.pdf -o varian.json   /   tapak semantic approve varian.json --all
+    tapak leksikal scan DOC.pdf -o leksikal.json   /   review | show   (word choice, opt-in)
     tapak trace EVIDENCE --doc <doc>     (or --master/--manifest for a loose issuance)
     tapak docs                           list issued documents
     tapak verify                         verify the registry with the public key only
@@ -123,8 +124,9 @@ def _cmd_issue(args: argparse.Namespace) -> int:
     semantic = None
     if args.semantic:
         semantic = SemanticSelection.from_dict(json.loads(Path(args.semantic).read_text(encoding="utf-8")))
+    lexical = _read_lexical(Path(args.leksikal)) if args.leksikal else None
     out = issue_document(s, Path(args.doc), recipients, issue_settings, args.issuer, keys,
-                         record=not args.no_registry, semantic=semantic)
+                         record=not args.no_registry, semantic=semantic, lexical=lexical)
     m = out.manifest
     p = m.tardos_params
     is_docx = m.gate.get("note") == "DOCX"
@@ -134,6 +136,13 @@ def _cmd_issue(args: argparse.Namespace) -> int:
         print(f"  kanal {ch:<10} {info['slots']:>5} slot, {info['bits']:>5} bit, {info['positions']:>5} posisi kode")
     if m.canary_domain:
         print(f"  kanal canary     satu subdomain per salinan di bawah {m.canary_domain}")
+    if m.lexical_digest:  # only documents that opted into word choice
+        from tapak.marker.lexical import capacity_verdict
+
+        lex_bits = m.plan_summary.get("lexical", {}).get("bits", 0)
+        sem_bits = m.plan_summary.get("semantic", {}).get("bits", 0)
+        print(f"Tahan ketik ulang: {lex_bits} bit pilihan kata + {sem_bits} bit semantik, posisi pita bias "
+              f"0,3 sampai 0,7. {capacity_verdict(lex_bits + sem_bits)}")
     if is_docx:
         print("Gerbang visual: tidak berlaku untuk DOCX (Word yang menata ulang dokumen)")
     else:
@@ -216,6 +225,157 @@ def _cmd_semantic_approve(args: argparse.Namespace) -> int:
     path.write_text(json.dumps(sel.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
     pending = sum(len(vs.pending()) for vs in sel.sets)
     print(f"{changed} varian diperbarui; {pending} masih menunggu persetujuan")
+    return 0
+
+
+# --- leksikal (word choice) -------------------------------------------------------------------
+
+
+def _read_lexical(path: Path):
+    """A lexical selection file; ValueError (Indonesian) if it is not one."""
+    from tapak.marker.lexical import LexicalSelection
+
+    try:
+        return LexicalSelection.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError(f"{path}: bukan berkas pilihan kata TAPAK yang sah") from exc
+
+
+def _lexical_summary(sel) -> list[str]:
+    """Counts and capacity of a selection; refusals by category only (no document words)."""
+    from tapak.marker.lexical import LONE_LEAKER_BITS, capacity_verdict
+
+    c = sel.counts()
+    lines = [f"{len(sel.points)} titik dari {sel.body_words} kata isi: {c['disetujui']} disetujui, "
+             f"{c['ditolak']} ditolak, {c['menunggu']} menunggu",
+             f"Bit pilihan kata: {sel.bits} disetujui, {sel.candidate_bits} bila semua yang belum ditolak disetujui. "
+             f"Untuk satu pembocor dari teks ketikan ulang perlu sekitar {LONE_LEAKER_BITS} bit, termasuk bit "
+             "semantik bila ada.",
+             f"Perkiraan: {capacity_verdict(sel.candidate_bits)}"]
+    if sel.refused:
+        lines.append("Kandidat yang ditolak pemeriksaan otomatis (per kategori): "
+                     + ", ".join(f"{k} {v}" for k, v in sorted(sel.refused.items())))
+    return lines
+
+
+def _cmd_lexical_scan(args: argparse.Namespace) -> int:
+    from tapak.marker.lexical import load_lexicon, scan_candidates
+    from tapak.marker.master import load_master
+
+    data = Path(args.doc).read_bytes()
+    if b"%PDF-" not in data[:1024]:
+        raise ValueError("kanal pilihan kata hanya tersedia untuk dokumen induk PDF")
+    lexicon = load_lexicon(args.leksikon)
+    sel = scan_candidates(load_master(data), lexicon, tiers=args.tingkat)
+    Path(args.out).write_text(sel.to_json(), encoding="utf-8")
+    print(f"Leksikon {lexicon.name} versi {lexicon.version}"
+          + (" (DRAF: belum disahkan peninjau bahasa Tata Naskah Dinas)" if lexicon.is_draft else ""))
+    for line in _lexical_summary(sel):
+        print(line)
+    print(f"Ditulis ke {args.out}. Berkas ini memuat teks dokumen: simpan bersama dokumen induk. "
+          f"Tinjau setiap titik: tapak leksikal show {args.out}, lalu tapak leksikal review {args.out}")
+    return 0
+
+
+def _marked_context(point) -> str:
+    """The row text with the point's words in brackets (shown to the reviewer only)."""
+    words = point.context.split()
+    if point.end > len(words):
+        return point.context
+    return " ".join(words[:point.start] + ["[" + " ".join(words[point.start:point.end]) + "]"] + words[point.end:])
+
+
+def _print_point(sel, point, lexicon) -> None:
+    try:
+        note = lexicon.rule(point.rule_id).note
+    except KeyError:
+        note = ""
+    print(f"{point.point_id:>4} [{point.status}] aturan {point.rule_id}, hal. {point.page + 1}, {point.bits} bit")
+    print(f"      {_marked_context(point)}")
+    print("      bentuk: " + " | ".join(point.forms) + (f"  ({note})" if note else ""))
+
+
+def _cmd_lexical_show(args: argparse.Namespace) -> int:
+    from tapak.marker.lexical import load_lexicon
+
+    sel = _read_lexical(Path(args.file))
+    lexicon = load_lexicon(sel.lexicon)
+    for point in sel.points:
+        if args.status and point.status != args.status:
+            continue
+        _print_point(sel, point, lexicon)
+    for line in _lexical_summary(sel):
+        print(line)
+    return 0
+
+
+def _cmd_lexical_review(args: argparse.Namespace) -> int:
+    from tapak.marker.lexical import load_lexicon
+    from tapak.marker.semantic import STATUS_APPROVED, STATUS_PENDING, STATUS_REJECTED
+
+    path = Path(args.file)
+    sel = _read_lexical(path)
+    decision = STATUS_APPROVED if args.setujui else STATUS_REJECTED if args.tolak else \
+        STATUS_PENDING if args.tunda else None
+    targets: list[str] = []
+    if args.titik:
+        wanted = [t.strip() for t in args.titik.split(",") if t.strip()]
+        known = {p.point_id for p in sel.points}
+        unknown = [t for t in wanted if t not in known]
+        if unknown:
+            raise ValueError("titik tidak dikenal: " + ", ".join(unknown))
+        targets += wanted
+    bulk = bool(args.aturan or args.semua)
+    if args.aturan:
+        rules = {r.strip() for r in args.aturan.split(",") if r.strip()}
+        known_rules = {p.rule_id for p in sel.points}
+        if not rules <= known_rules:
+            raise ValueError("aturan tanpa titik di berkas ini: " + ", ".join(sorted(rules - known_rules)))
+        targets += [p.point_id for p in sel.points if p.rule_id in rules]
+    if args.semua:
+        targets += [p.point_id for p in sel.points]
+    if args.interaktif:
+        if targets or decision:
+            raise ValueError("--interaktif tidak digabung dengan --titik, --aturan, --semua, atau keputusan")
+        return _review_interactive(sel, path, load_lexicon(sel.lexicon))
+    if not targets:
+        raise ValueError("pilih titik dengan --titik, --aturan, --semua, atau --interaktif")
+    if decision is None:
+        raise ValueError("pilih keputusan: --setujui, --tolak, atau --tunda")
+    if bulk and decision == STATUS_APPROVED and not args.ya:
+        raise ValueError(f"persetujuan sekaligus untuk {len(set(targets))} titik memerlukan --ya; tinjau dulu "
+                         f"setiap titik dengan tapak leksikal show {path}")
+    for point_id in dict.fromkeys(targets):
+        sel.set_status(point_id, decision)
+    path.write_text(sel.to_json(), encoding="utf-8")
+    print(f"{len(set(targets))} titik diperbarui menjadi {decision}")
+    for line in _lexical_summary(sel)[:2]:
+        print(line)
+    return 0
+
+
+def _review_interactive(sel, path: Path, lexicon) -> int:
+    """Ask for a decision on every point still awaiting review; saves after each answer."""
+    from tapak.marker.semantic import STATUS_APPROVED, STATUS_REJECTED
+
+    todo = sel.pending()
+    print(f"{len(todo)} titik menunggu. Jawab s (setujui), t (tolak), l (lewati) atau q (selesai).")
+    for point_id in todo:
+        _print_point(sel, sel.point(point_id), lexicon)
+        while True:
+            try:
+                answer = input("      keputusan [s/t/l/q]: ").strip().lower()
+            except EOFError:
+                answer = "q"
+            if answer in ("s", "t", "l", "q"):
+                break
+        if answer == "q":
+            break
+        if answer in ("s", "t"):
+            sel.set_status(point_id, STATUS_APPROVED if answer == "s" else STATUS_REJECTED)
+            path.write_text(sel.to_json(), encoding="utf-8")
+    for line in _lexical_summary(sel)[:2]:
+        print(line)
     return 0
 
 
@@ -475,6 +635,9 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--issuer", default="operator")
     i.add_argument("--canary-domain", default=None, help="domain kanari (kosongkan untuk menonaktifkan)")
     i.add_argument("--semantic", default=None, help="varian.json yang sudah disetujui")
+    i.add_argument("--leksikal", default=None, metavar="BERKAS",
+                   help="leksikal.json yang setiap titiknya sudah disetujui atau ditolak (kanal pilihan kata, "
+                        "opsional); ditolak bila masih ada titik menunggu atau berkas diubah di luar TAPAK")
     i.add_argument("--no-registry", action="store_true")
     i.add_argument("--sign-later", action="store_true", help="catat tanpa tanda tangan (ditandatangani eselon atas)")
     i.set_defaults(func=_cmd_issue)
@@ -493,6 +656,37 @@ def build_parser() -> argparse.ArgumentParser:
     sa.add_argument("--variant", type=int, default=None)
     sa.add_argument("--reject", action="store_true")
     sa.set_defaults(func=_cmd_semantic_approve)
+
+    lk = sub.add_parser("leksikal", help="kanal pilihan kata (opsional, setiap titik ditinjau manusia)")
+    lksub = lk.add_subparsers(dest="lex_cmd", required=True, title="perintah", metavar="PERINTAH",
+                              parser_class=type(ap))
+    lscan = lksub.add_parser("scan", help="cari titik pilihan kata yang aman pada PDF induk")
+    lscan.add_argument("doc", help="dokumen induk PDF")
+    lscan.add_argument("-o", "--out", default="leksikal.json", help="berkas hasil (memuat teks dokumen)")
+    lscan.add_argument("--tingkat", choices=["A", "AB"], default="A",
+                       help="aturan yang dipakai: A (kata tugas dan frasa baku, bawaan) atau AB (juga kata isi)")
+    lscan.add_argument("--leksikon", default="naskah_dinas_v1", help="nama berkas leksikon di tapak/assets/leksikon")
+    lscan.set_defaults(func=_cmd_lexical_scan)
+    lshow = lksub.add_parser("show", help="tampilkan setiap titik dengan konteks, bentuk, dan statusnya")
+    lshow.add_argument("file", help="leksikal.json")
+    lshow.add_argument("--status", choices=["menunggu", "disetujui", "ditolak"], default=None,
+                       help="hanya titik dengan status ini")
+    lshow.set_defaults(func=_cmd_lexical_show)
+    lrev = lksub.add_parser("review", help="setujui atau tolak titik (keputusan manusia)")
+    lrev.add_argument("file", help="leksikal.json")
+    lrev.add_argument("--titik", default=None, metavar="ID", help="id titik, dipisah koma (misalnya l0,l3)")
+    lrev.add_argument("--aturan", default=None, metavar="ID",
+                      help="semua titik dari aturan ini, dipisah koma (misalnya dan,setiap)")
+    lrev.add_argument("--semua", action="store_true", help="semua titik")
+    decision = lrev.add_mutually_exclusive_group()
+    decision.add_argument("--setujui", action="store_true", help="setujui titik yang dipilih")
+    decision.add_argument("--tolak", action="store_true", help="tolak titik yang dipilih")
+    decision.add_argument("--tunda", action="store_true", help="kembalikan ke status menunggu")
+    lrev.add_argument("--ya", action="store_true",
+                      help="konfirmasi persetujuan sekaligus per aturan atau semua titik")
+    lrev.add_argument("--interaktif", action="store_true",
+                      help="tanya keputusan untuk setiap titik yang masih menunggu")
+    lrev.set_defaults(func=_cmd_lexical_review)
 
     t = sub.add_parser("trace", help="lacak sumber kebocoran")
     t.add_argument("evidence", nargs="+",

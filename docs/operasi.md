@@ -34,6 +34,10 @@ tapak registry export-merkle                     # akar Merkle harian
 tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
 tapak semantic approve varian.json --unit u0 --variant 2   # keputusan manusia
 tapak issue dok.pdf penerima.csv --semantic varian.json    # ditolak jika masih ada varian menunggu
+tapak leksikal scan dok.pdf -o leksikal.json     # titik pilihan kata (opsional), semua menunggu tinjauan
+tapak leksikal show leksikal.json                # konteks, bentuk, status, jumlah bit
+tapak leksikal review leksikal.json --interaktif # putuskan titik satu per satu
+tapak issue dok.pdf penerima.csv --leksikal leksikal.json  # ditolak jika masih ada titik menunggu
 tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000
 tapak simulate --table
 tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
@@ -47,6 +51,18 @@ Pihak ketiga cukup memegang berkas registri dan kunci publik:
 ```bash
 tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub
 ```
+
+## Kanal pilihan kata (opsional)
+
+Kanal ini hanya untuk dokumen induk PDF dan hanya aktif bila penerbit memberikan `--leksikal`. Tanpa itu, penerbitan sama persis dengan sebelumnya. Saat ini kanal ini hanya tersedia lewat baris perintah, belum di antarmuka web.
+
+1. **Pindai.** `tapak leksikal scan dok.pdf -o leksikal.json` mencari titik dengan tabel leksikon draf (`tapak/assets/leksikon/naskah_dinas_v1.json`; `--tingkat AB` ikut memakai kata isi tingkat B). Keluarannya menyebut jumlah titik dan bit, penolakan per kategori, dan perkiraan apakah dokumen cukup panjang untuk satu pembocor.
+2. **Tinjau.** `tapak leksikal show leksikal.json` menampilkan setiap titik dengan barisnya, frasa dalam kurung siku, semua bentuknya, dan catatan aturannya (`--status menunggu` hanya menampilkan yang belum diputuskan). Putuskan dengan salah satu cara berikut:
+   * satu per satu: `tapak leksikal review leksikal.json --interaktif` (s = setujui, t = tolak, l = lewati, q = selesai);
+   * per titik: `--titik l0,l3 --setujui`, `--titik l5 --tolak`, atau `--tunda` untuk mengembalikan ke status menunggu;
+   * per aturan: `--aturan dan --tolak`. Persetujuan sekaligus per aturan atau `--semua` memerlukan `--ya`, setelah setiap titiknya dibaca.
+3. **Terbitkan.** `tapak issue dok.pdf penerima.csv --leksikal leksikal.json` (boleh bersama `--semantic`). Penerbitan ditolak bila masih ada titik menunggu, bila berkas disunting di luar TAPAK, atau bila tabel leksikon berubah sejak pemindaian. Keluarannya menyebut jumlah bit tahan ketik ulang (pilihan kata dan semantik). "Cukup untuk satu pembocor" baru muncul pada 64 bit atau lebih.
+4. **Simpan.** `leksikal.json` memuat teks dokumen. TAPAK menyimpannya di folder dokumen, di samping `induk.pdf` dan `varian.json`; registri hanya menyimpan digest-nya. Saat pelacakan, berkas ini dicocokkan dengan digest di catatan penerbitan. Bila hilang atau tidak cocok, kanal pilihan kata dilewati dengan peringatan, dan kanal lain tetap dibaca.
 
 ## Antarmuka web
 
@@ -159,6 +175,7 @@ Variabel lingkungan:
 - penanda, kanal 3 lewat MuPDF dan poppler, ketidakterlihatan pada 600 dpi;
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
+- kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - DOCX, berita acara, antarmuka web end-to-end;
 - aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang).
 

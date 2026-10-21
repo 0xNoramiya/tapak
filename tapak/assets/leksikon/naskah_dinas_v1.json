@@ -1,0 +1,181 @@
+{
+  "id": "naskah_dinas",
+  "version": 1,
+  "status": "draf",
+  "catatan": "DRAF. Tabel ini belum disahkan oleh peninjau bahasa Tata Naskah Dinas. Setiap baris menyatakan bahwa bentuk-bentuknya bermakna sama dalam naskah dinas. Sampai disahkan, setiap titik pilihan kata tetap wajib disetujui manusia sebelum penerbitan.",
+  "rules": [
+    {
+      "id": "sehubungan",
+      "tier": "A",
+      "forms": ["sehubungan dengan", "berkenaan dengan", "berkaitan dengan", "terkait dengan"],
+      "note": "kata penghubung sebab atau acuan",
+      "example": "Sehubungan dengan rencana latihan, ..."
+    },
+    {
+      "id": "sebagai_berikut",
+      "tier": "A",
+      "forms": ["sebagai berikut", "seperti berikut"],
+      "note": "pengantar daftar",
+      "example": "... adalah sebagai berikut:"
+    },
+    {
+      "id": "terdiri",
+      "tier": "A",
+      "forms": ["terdiri atas", "terdiri dari"],
+      "note": "keduanya baku",
+      "example": "tim penilai yang terdiri atas perwira seksi operasi"
+    },
+    {
+      "id": "pada_saat",
+      "tier": "A",
+      "forms": ["pada saat", "ketika"],
+      "note": "keterangan waktu kejadian, bukan penyebutan waktu",
+      "example": "pada saat terjadi gangguan jaringan"
+    },
+    {
+      "id": "untuk_kerja",
+      "tier": "A",
+      "forms": ["untuk", "guna"],
+      "next": "^(?:me|mem|men|meng|meny|di|ber|ter)[a-z]{3,}$",
+      "note": "tujuan, hanya di depan kata kerja",
+      "example": "dilaksanakan untuk menguji prosedur"
+    },
+    {
+      "id": "untuk_keperluan",
+      "tier": "A",
+      "forms": ["untuk keperluan", "guna keperluan"],
+      "note": "tujuan",
+      "example": "untuk keperluan penyusunan organisasi tugas"
+    },
+    {
+      "id": "tentang",
+      "tier": "A",
+      "forms": ["tentang", "mengenai"],
+      "note": "kata depan",
+      "example": "rencana kerja tentang pembinaan kemampuan"
+    },
+    {
+      "id": "dan",
+      "tier": "A",
+      "forms": ["dan", "serta"],
+      "next": "^[a-z][a-z-]{2,}$",
+      "prev": "^[a-z][a-z-]*,?$",
+      "note": "koordinasi dua kata biasa; tidak dipakai di antara bilangan, nama, atau judul paragraf",
+      "example": "merencanakan serta mengendalikan operasi"
+    },
+    {
+      "id": "merupakan",
+      "tier": "A",
+      "forms": ["merupakan", "adalah"],
+      "match": ["merupakan"],
+      "next": "^[a-z][a-z-]{2,}$",
+      "note": "hanya merupakan pada induk diganti; adalah pada induk tidak diubah",
+      "example": "salinan yang diterima merupakan tanggung jawab penerima"
+    },
+    {
+      "id": "yaitu",
+      "tier": "A",
+      "forms": ["yaitu", "yakni"],
+      "note": "kata penjelas",
+      "example": "tiga seksi, yaitu operasi, intelijen, dan logistik"
+    },
+    {
+      "id": "apabila",
+      "tier": "A",
+      "forms": ["apabila", "jika"],
+      "note": "syarat",
+      "example": "apabila terjadi gangguan"
+    },
+    {
+      "id": "oleh_karena_itu",
+      "tier": "A",
+      "forms": ["oleh karena itu", "oleh sebab itu"],
+      "note": "penghubung antarkalimat",
+      "example": "Oleh karena itu, ..."
+    },
+    {
+      "id": "namun",
+      "tier": "A",
+      "forms": ["namun", "akan tetapi"],
+      "note": "penghubung pertentangan",
+      "example": "Namun, ..."
+    },
+    {
+      "id": "selain_itu",
+      "tier": "A",
+      "forms": ["selain itu", "di samping itu"],
+      "note": "penghubung penambahan",
+      "example": "Selain itu, ..."
+    },
+    {
+      "id": "antara_lain",
+      "tier": "A",
+      "forms": ["antara lain", "di antaranya"],
+      "note": "pengantar contoh",
+      "example": "perlengkapan antara lain peta dan kompas"
+    },
+    {
+      "id": "bersama_ini",
+      "tier": "A",
+      "forms": ["bersama ini", "dengan ini"],
+      "note": "pengantar penyampaian",
+      "example": "bersama ini kami sampaikan"
+    },
+    {
+      "id": "setiap",
+      "tier": "A",
+      "forms": ["setiap", "tiap-tiap"],
+      "note": "kata penunjuk tiap anggota; jumlahnya tidak berubah. Tidak dipakai di dekat angka atau waktu",
+      "example": "Setiap tahap latihan dicatat"
+    },
+    {
+      "id": "disimpan_dalam",
+      "tier": "A",
+      "forms": ["disimpan dalam", "disimpan di"],
+      "note": "tempat penyimpanan",
+      "example": "disimpan dalam lemari dokumen berkunci"
+    },
+    {
+      "id": "tersimpan_dalam",
+      "tier": "A",
+      "forms": ["tersimpan dalam", "tersimpan di"],
+      "note": "tempat penyimpanan",
+      "example": "tersimpan dalam lemari berkunci"
+    },
+    {
+      "id": "pada_tingkat",
+      "tier": "A",
+      "forms": ["pada tingkat", "di tingkat"],
+      "note": "kata depan",
+      "example": "operasi gabungan pada tingkat batalyon"
+    },
+    {
+      "id": "hal_tersebut",
+      "tier": "B",
+      "forms": ["hal tersebut", "hal itu"],
+      "note": "tingkat B: kata isi, perlu penilaian peninjau bahasa",
+      "example": "hal tersebut dilaporkan"
+    },
+    {
+      "id": "kendala",
+      "tier": "B",
+      "forms": ["kendala", "hambatan"],
+      "note": "tingkat B: kata isi, perlu penilaian peninjau bahasa",
+      "example": "kendala yang dihadapi"
+    },
+    {
+      "id": "pengecekan",
+      "tier": "B",
+      "forms": ["pengecekan", "pemeriksaan"],
+      "note": "tingkat B: kata isi, perlu penilaian peninjau bahasa",
+      "example": "pengecekan perlengkapan"
+    },
+    {
+      "id": "kebutuhan",
+      "tier": "B",
+      "forms": ["kebutuhan", "keperluan"],
+      "note": "tingkat B: kata isi, perlu penilaian peninjau bahasa",
+      "example": "kebutuhan konsumsi"
+    }
+  ]
+}

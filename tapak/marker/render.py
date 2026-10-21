@@ -37,7 +37,11 @@ class CopyMarks:
             with the row's first font (simple left-aligned replacement).
         row_words: replacement words for whole rows with explicit x positions (points),
             drawn on the row's baseline with the row's first font and size; used by the
-            semantic channel to re-justify a variant sentence into the original rows.
+            semantic channel to re-justify a variant sentence into the original rows. An
+            entry (x, text, word_id) with a master word id redraws that master word at x
+            with its own glyphs and its text marks (zero-width symbols, homoglyph); the
+            lexical channel uses it so that unchanged words of a re-justified row keep
+            their marks. (x, text) and (x, text, None) draw plain text.
         page_hooks: callables run on each page after the text is drawn (background
             pattern, canary actions); they receive (document, page).
     """
@@ -46,7 +50,8 @@ class CopyMarks:
     row_dy: dict[RowId, float] = field(default_factory=dict)
     text: TextMarks | None = None
     row_text: dict[RowId, str] = field(default_factory=dict)
-    row_words: dict[RowId, list[tuple[float, str]]] = field(default_factory=dict)
+    row_words: dict[RowId, list[tuple[float, str] | tuple[float, str, WordId | None]]] = field(
+        default_factory=dict)
     page_hooks: list[Callable[[pymupdf.Document, pymupdf.Page], None]] = field(default_factory=list)
     doc_hooks: list[Callable[[pymupdf.Document], None]] = field(default_factory=list)
 
@@ -138,7 +143,13 @@ def render_copy(master: MasterDocument, marks: CopyMarks, cache: _AdvanceCache |
             if words_override is not None:
                 g0 = row.words[0].glyphs[0]
                 font = master.fonts[g0.font].font
-                for x, text in words_override:
+                for entry in words_override:
+                    x, text = entry[0], entry[1]
+                    wid = entry[2] if len(entry) > 2 else None
+                    if wid is not None:
+                        word = master.layout.word(wid)
+                        _draw_word(page, master, cache, word, x - word.x0, dy, text_marks)
+                        continue
                     tw = pymupdf.TextWriter(page.rect)
                     tw.append((x, g0.y + dy), text, font=font, fontsize=g0.size)
                     tw.write_text(page, color=_rgb(g0.color))

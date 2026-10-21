@@ -84,15 +84,21 @@ def zw_bits_per_word(m: int, n_words: int) -> int:
 
 
 def build_text_slots(
-    master: MasterDocument, m: int, key: bytes, excluded: set[RowId] | None = None
+    master: MasterDocument, m: int, key: bytes, excluded: set[RowId] | None = None,
+    excluded_words: set[WordId] | None = None,
 ) -> list[Slot]:
-    """Slots of both text sub-channels."""
+    """Slots of both text sub-channels.
+
+    Words of ``excluded`` rows and the ``excluded_words`` themselves (point words of the
+    lexical channel, which differ between copies) carry no text mark.
+    """
     excluded = excluded or set()
+    excluded_words = excluded_words or set()
     layout: DocumentLayout = master.layout
     zw_words: list[Word] = []
     hg_refs: list[tuple[int, tuple[int, ...], int]] = []
     for w in layout.words():
-        if (w.id[0], w.id[1]) in excluded:
+        if (w.id[0], w.id[1]) in excluded or w.id in excluded_words:
             continue
         font = master.fonts[w.glyphs[0].font]
         if zw_eligible(w) and font.supports_zero_width():

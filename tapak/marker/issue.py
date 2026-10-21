@@ -8,6 +8,12 @@ For a document the issuer:
    code_digest, renders the marked PDF;
 5. writes a manifest (and, from M2, registry rows). Codewords themselves are never stored.
 
+The lexical channel (word choice) is opt-in: only an explicit, fully reviewed
+``LexicalSelection`` turns it on. Such a document also records ``retype_positions``, and its
+semantic and lexical positions come from the retype band (``plan.RETYPE_BAND``). Without a
+selection, plan, manifest and copies are exactly those of a document issued before the
+channel existed.
+
 Copies are rendered in parallel worker processes.
 """
 
@@ -29,12 +35,25 @@ import numpy as np
 
 from tapak.marker.background import BackgroundSettings, PageGrid, background_hook, build_background_slots, page_grids
 from tapak.marker.canary import canary_token, canary_url, pdf_canary_hook
-from tapak.marker.layout import RowId, sha256_hex
+from tapak.marker.layout import RowId, WordId, sha256_hex
+from tapak.marker.lexical import LexicalSelection, lexical_marks, lexical_slots
+from tapak.marker.lexical import require_reviewed as require_lexical_reviewed
+from tapak.marker.lexical import validate_selection as validate_lexical_selection
 from tapak.marker.master import MasterDocument, load_master
 from tapak.marker.pdf_shift import ShiftSettings, build_shift_slots, shift_marks
 from tapak.marker.pdf_zerowidth import build_text_slots, text_marks
-from tapak.marker.plan import CHANNEL_SEMANTIC, EmbeddingPlan, assign_positions, plan_key
+from tapak.marker.plan import (
+    CHANNEL_LEXICAL,
+    CHANNEL_SEMANTIC,
+    RETYPE_BAND,
+    RETYPE_STREAM,
+    EmbeddingPlan,
+    assign_positions,
+    plan_key,
+    retype_pool,
+)
 from tapak.marker.semantic import (
+    IssuanceBlocked,
     SemanticUnit,
     VariantSet,
     bits_per_unit,
@@ -150,10 +169,22 @@ class IssueManifest:
     background: dict[str, float] | None = None
     canary_domain: str | None = None
     semantic_digest: str | None = None
+    # Lexical channel (opt-in). All None for a document without it, and then left out of the
+    # JSON, so the record of such a document is exactly what it was before the channel.
+    retype_positions: str | None = None
+    lexical_digest: str | None = None
+    lexicon_version: str | None = None
+    lexicon_digest: str | None = None
+    shift_excluded_rows: list[list[int]] | None = None
+    text_excluded_words: list[list[int]] | None = None
 
     def to_json(self) -> str:
-        """Serialize to pretty JSON."""
-        return json.dumps(asdict(self), indent=2, ensure_ascii=False)
+        """Serialize to pretty JSON (lexical fields only when the channel is used)."""
+        d = asdict(self)
+        for key in LEXICAL_MANIFEST_FIELDS:
+            if d.get(key) is None:
+                d.pop(key, None)
+        return json.dumps(d, indent=2, ensure_ascii=False)
 
     @classmethod
     def from_json(cls, text: str) -> "IssueManifest":
@@ -181,6 +212,18 @@ class IssueManifest:
         if not self.background or "background" not in self.channels:
             return None
         return BackgroundSettings(**self.background)  # type: ignore[arg-type]
+
+
+LEXICAL_MANIFEST_FIELDS = ("retype_positions", "lexical_digest", "lexicon_version", "lexicon_digest",
+                           "shift_excluded_rows", "text_excluded_words")
+
+
+def lexical_exclusions(manifest: IssueManifest) -> tuple[set[RowId], set[WordId]]:
+    """Rows left out of the shift channel and words left out of the text channel because of
+    lexical points, as recorded at issuance (empty for a document without the channel)."""
+    rows = {(int(r[0]), int(r[1])) for r in manifest.shift_excluded_rows or []}
+    words = {(int(w[0]), int(w[1]), int(w[2])) for w in manifest.text_excluded_words or []}
+    return rows, words
 
 
 RECIPIENT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
@@ -224,21 +267,39 @@ def build_document_plan(
     excluded_rows: set[RowId] | None = None,
     background: BackgroundSettings | None = None,
     semantic: SemanticSelection | None = None,
+    lexical: LexicalSelection | None = None,
+    retype_positions: str | None = None,
+    shift_excluded_rows: set[RowId] | None = None,
+    text_excluded_words: set[WordId] | None = None,
 ) -> EmbeddingPlan:
-    """The embedding plan for a document (same result at issuance and at decoding)."""
+    """The embedding plan for a document (same result at issuance and at decoding).
+
+    ``retype_positions`` (recorded at issuance) selects the position rule of the semantic and
+    lexical channels; None is the original uniform rule. ``shift_excluded_rows`` and
+    ``text_excluded_words`` are the lexical exclusions recorded at issuance, so the shift and
+    text plans are right even when the lexical selection itself is unavailable.
+    """
     key = plan_key(secret, master.doc_hash)
     m = params.length
     excluded = excluded_rows or set()
     slots = []
     if "shift" in channels:
-        slots += build_shift_slots(master.layout, m, key, excluded)
-    text_slots = build_text_slots(master, m, key, excluded)
+        slots += build_shift_slots(master.layout, m, key, excluded | (shift_excluded_rows or set()))
+    text_slots = build_text_slots(master, m, key, excluded, text_excluded_words)
     slots += [s for s in text_slots if s.channel in channels]
     if "background" in channels:
         grids = document_grids(master, secret, background or BackgroundSettings())
         slots += build_background_slots(grids, m, key)
+    p = derive_bias(secret, master.doc_hash, params) if retype_positions is not None else None
     if semantic is not None and "semantic" in channels:
-        slots += assign_positions(CHANNEL_SEMANTIC, semantic_slot_refs(semantic.units, semantic.sets), m, key)
+        refs = semantic_slot_refs(semantic.units, semantic.sets)
+        if retype_positions is None:
+            slots += assign_positions(CHANNEL_SEMANTIC, refs, m, key)
+        else:
+            slots += assign_positions(CHANNEL_SEMANTIC, refs, m, key, pool=retype_pool(p, retype_positions),
+                                      stream=RETYPE_STREAM)
+    if lexical is not None and "lexical" in channels:
+        slots += lexical_slots(lexical, m, key, p, retype_positions)
     return EmbeddingPlan(m=m, slots=slots)
 
 
@@ -249,8 +310,12 @@ def marks_for_codeword(
     settings: IssueSettings,
     grids: list[PageGrid] | None = None,
     semantic: SemanticSelection | None = None,
+    lexical: LexicalSelection | None = None,
 ) -> tuple[CopyMarks, list[str]]:
-    """All per-copy marks implied by a codeword, plus the semantic variant ids used."""
+    """All per-copy marks implied by a codeword, plus the semantic variant ids used.
+
+    The lexical form choices are code bits and are not returned: they are never stored.
+    """
     group_dx, row_dy = shift_marks(plan, codeword, settings.shift)
     marks = CopyMarks(group_dx=group_dx, row_dy=row_dy, text=text_marks(plan, master, codeword))
     if grids and "background" in settings.channels:
@@ -259,6 +324,11 @@ def marks_for_codeword(
     if semantic is not None and plan.channel(CHANNEL_SEMANTIC):
         marks.row_words, variant_ids = semantic_marks(plan.channel(CHANNEL_SEMANTIC), codeword, master,
                                                       semantic.units, semantic.sets)
+    if lexical is not None and plan.channel(CHANNEL_LEXICAL):
+        rows = lexical_marks(plan.channel(CHANNEL_LEXICAL), codeword, master, lexical)
+        if set(rows) & set(marks.row_words):
+            raise ValueError("baris titik pilihan kata juga dipakai kanal semantik")
+        marks.row_words.update(rows)
     return marks, variant_ids
 
 
@@ -267,25 +337,37 @@ _W: dict[str, object] = {}
 
 
 def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
-                 semantic: SemanticSelection | None = None) -> None:
+                 semantic: SemanticSelection | None = None, lexical: LexicalSelection | None = None) -> None:
     if mp.parent_process() is not None:  # a pool worker (this also runs in-process when serial)
         import signal
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C is handled by the parent, which stops the pool
     master = load_master(pdf_bytes)
     params = _params_for(settings, None)
+    if lexical is not None:
+        validate_lexical_selection(master, lexical)  # once per worker: nothing drawn from an edited file
     _W.update(
         master=master,
         secret=secret,
         settings=settings,
         params=params,
         plan=build_document_plan(master, params, secret, settings.channels, set(settings.excluded_rows),
-                                 settings.background, semantic),
+                                 settings.background, semantic, **_lexical_plan_args(lexical)),
         grids=document_grids(master, secret, settings.background),
         semantic=semantic,
+        lexical=lexical,
         p=derive_bias(secret, master.doc_hash, params),
         cache=_AdvanceCache(master),
     )
+
+
+def _lexical_plan_args(lexical: LexicalSelection | None) -> dict[str, object]:
+    """Plan arguments of an opted-in document (empty without the lexical channel)."""
+    if lexical is None:
+        return {}
+    return {"lexical": lexical, "retype_positions": RETYPE_BAND,
+            "shift_excluded_rows": lexical.shift_excluded_rows(),
+            "text_excluded_words": lexical.excluded_words()}
 
 
 def _params_for(settings: IssueSettings, n_recipients: int | None) -> TardosParams:
@@ -313,7 +395,7 @@ def _render_one(job: tuple[int, str, str]) -> tuple[int, str, str, str | None, l
     settings: IssueSettings = _W["settings"]  # type: ignore[assignment]
     x = derive_codeword(_W["secret"], master.doc_hash, copy_id, _W["p"])  # type: ignore[arg-type]
     marks, variant_ids = marks_for_codeword(master, _W["plan"], x, settings, _W["grids"],  # type: ignore[arg-type]
-                                            _W["semantic"])  # type: ignore[arg-type]
+                                            _W["semantic"], _W["lexical"])  # type: ignore[arg-type]
     token = None
     if _canary_enabled(settings):
         token = canary_token(_W["secret"], master.doc_hash, copy_id)  # type: ignore[arg-type]
@@ -332,14 +414,23 @@ def issue(
     issuer: str = "operator",
     semantic: SemanticSelection | None = None,
     file_stem: str | None = None,
+    lexical: LexicalSelection | None = None,
 ) -> IssueManifest:
     """Render one marked copy per recipient into ``out_dir`` and return the manifest.
 
     With a semantic selection, issuance is refused (IssuanceBlocked) while any variant is
-    still awaiting review, and the unit rows are excluded from the other channels.
+    still awaiting review, and the unit rows are excluded from the other channels. A lexical
+    selection opts the document into the word-choice channel: issuance is refused while any
+    point is undecided or the file fails ``lexical.validate_selection``; rows holding a
+    carrying point leave the shift channel and the point words leave the text channel.
     """
     t0 = time.perf_counter()
     settings = settings or IssueSettings()
+    if lexical is not None:
+        require_lexical_reviewed(lexical)
+        if CHANNEL_LEXICAL not in settings.channels:
+            settings = IssueSettings(**{**settings.__dict__,
+                                        "channels": tuple(settings.channels) + (CHANNEL_LEXICAL,)})
     if semantic is not None and "semantic" in settings.channels:
         require_approved(semantic.sets)
         rows = sorted(set(settings.excluded_rows) | semantic.carrying_rows())
@@ -361,6 +452,10 @@ def issue(
         raise ValueError("PDF ini tidak memiliki lapisan teks (hasil pindai). TAPAK memerlukan PDF teks.")
     if semantic is not None:
         validate_selection(master, semantic.units, semantic.sets)  # fail before any rendering
+    if lexical is not None:
+        validate_lexical_selection(master, lexical)
+        if semantic is not None and lexical.shift_excluded_rows() & semantic.carrying_rows():
+            raise IssuanceBlocked("penerbitan diblokir: baris titik pilihan kata juga dipakai kanal semantik")
     gate = visual_gate(master)
     if not gate.passed:
         raise RuntimeError(
@@ -369,7 +464,7 @@ def issue(
         )
     params = _params_for(settings, len(recipients))
     plan = build_document_plan(master, params, secret, settings.channels, set(settings.excluded_rows),
-                               settings.background, semantic)
+                               settings.background, semantic, **_lexical_plan_args(lexical))
     p = derive_bias(secret, master.doc_hash, params)
     z_full = threshold(p, params.eps1)
 
@@ -388,7 +483,7 @@ def issue(
         workers = 1  # interactive session or stdin script: child processes cannot re-import it
     results: dict[int, tuple[str, str, str | None, list[str]]] = {}
     if workers <= 1:
-        _worker_init(pdf_bytes, secret, settings, semantic)
+        _worker_init(pdf_bytes, secret, settings, semantic, lexical)
         for job in jobs:
             seq, digest, fhash, token, vids = _render_one(job)
             results[seq] = (digest, fhash, token, vids)
@@ -401,7 +496,7 @@ def issue(
         else:
             ctx = mp.get_context("spawn")
         with ProcessPoolExecutor(max_workers=workers, mp_context=ctx, initializer=_worker_init,
-                                 initargs=(pdf_bytes, secret, settings, semantic)) as pool:
+                                 initargs=(pdf_bytes, secret, settings, semantic, lexical)) as pool:
             for seq, digest, fhash, token, vids in pool.map(_render_one, jobs):
                 results[seq] = (digest, fhash, token, vids)
 
@@ -440,5 +535,12 @@ def issue(
         canary_domain=settings.canary_domain if _canary_enabled(settings) else None,
         semantic_digest=semantic.digest if semantic is not None and plan.channel(CHANNEL_SEMANTIC) else None,
     )
+    if lexical is not None:
+        manifest.retype_positions = RETYPE_BAND
+        manifest.lexical_digest = lexical.digest
+        manifest.lexicon_version = lexical.lexicon
+        manifest.lexicon_digest = lexical.lexicon_digest
+        manifest.shift_excluded_rows = [list(r) for r in sorted(lexical.shift_excluded_rows())]
+        manifest.text_excluded_words = [list(w) for w in sorted(lexical.excluded_words())]
     (out_dir / "manifest.json").write_text(manifest.to_json(), encoding="utf-8")
     return manifest
