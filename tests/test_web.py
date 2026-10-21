@@ -149,6 +149,26 @@ def test_regenerating_variants_keeps_decisions(client):
     assert client.post(f"/terbitkan/{sid}/varian/{unit}/99/disetujui").status_code == 400
 
 
+def test_model_variants_are_approved_one_by_one(client):
+    from tapak.web.app import _STAGING
+
+    files = {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
+             "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"})
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    units = re.findall(r'name="unit" value="(u\d+)"', r.text)
+    r = client.post(f"/terbitkan/{sid}/varian", data={"unit": units})
+    unit = re.findall(r"/varian/(u\d+)/(\d+)/disetujui", r.text)[0][0]
+    assert f'id="all-{unit}"' in r.text  # curated phrase table: bulk approval offered
+    for vs in _STAGING[sid].sets.values():
+        vs.provider = "llamacpp"
+    r = client.post(f"/terbitkan/{sid}/varian/{unit}/1/menunggu")  # re-render, nothing decided
+    assert f'id="all-{unit}"' not in r.text and "ditinjau satu per satu" in r.text
+    r = client.post(f"/terbitkan/{sid}/varian/{unit}/semua")
+    assert r.status_code == 400 and "satu per satu" in r.text
+    assert _STAGING[sid].sets[unit].pending()
+
+
 def test_foreign_host_and_origin_refused(client):
     assert client.get("/terbitkan", headers={"host": "evil.example"}).status_code == 400
     r = client.post("/lacak", data={"dokumen": "", "teks": "x"}, headers={"origin": "http://evil.example"})

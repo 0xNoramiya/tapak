@@ -568,6 +568,16 @@ def set_matches_unit(vs: VariantSet | None, unit: SemanticUnit) -> bool:
             and vs.variants[0] == unit.text)
 
 
+# Providers whose variants come from a fixed, human-curated phrase table. Variants from a language
+# model are approved one by one: measured model judges let meaning changes through (docs/keamanan.md).
+BULK_APPROVAL_PROVIDERS = ("mock",)
+
+
+def bulk_approval_allowed(vs: VariantSet) -> bool:
+    """True if all pending variants of ``vs`` may be approved in one action (curated table only)."""
+    return vs.provider in BULK_APPROVAL_PROVIDERS
+
+
 def usable_indices(vs: VariantSet) -> list[int]:
     """Indices of approved variants (original first), truncated to the largest power of two."""
     approved = [i for i, s in enumerate(vs.status) if s == STATUS_APPROVED]

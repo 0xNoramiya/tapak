@@ -193,10 +193,18 @@ def _cmd_semantic_suggest(args: argparse.Namespace) -> int:
 
 def _cmd_semantic_approve(args: argparse.Namespace) -> int:
     from tapak.marker.issue import SemanticSelection
-    from tapak.marker.semantic import STATUS_APPROVED, STATUS_REJECTED
+    from tapak.marker.semantic import STATUS_APPROVED, STATUS_REJECTED, bulk_approval_allowed
 
     path = Path(args.file)
     sel = SemanticSelection.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    if args.all and not args.reject:
+        # Model judges let meaning changes through, so model variants are approved one by one.
+        model_sets = [vs.unit_id for vs in sel.sets
+                      if (not args.unit or vs.unit_id == args.unit) and not bulk_approval_allowed(vs)]
+        if model_sets:
+            print("Galat: varian dari model bahasa harus disetujui satu per satu (--unit ... --variant N), "
+                  "bukan dengan --all. Kalimat: " + ", ".join(model_sets), file=sys.stderr)
+            return 2
     changed = 0
     for vs in sel.sets:
         if args.unit and vs.unit_id != args.unit:

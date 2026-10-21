@@ -118,3 +118,27 @@ def test_demo_scenario_passes(tmp_path):
 
     assert run_demo(tmp_path / "demo") == 0
     assert (tmp_path / "demo" / "berita_acara_salinan13.pdf").exists()
+
+
+def test_cli_refuses_bulk_approval_of_model_variants(tmp_path, capsys):
+    from tapak.marker.semantic import bulk_approval_allowed
+    from tapak.marker.issue import SemanticSelection
+
+    variants = tmp_path / "varian.json"
+    assert _run(tmp_path, "semantic", "suggest", str(SAMPLE), "-o", str(variants)) == 0
+    sel = json.loads(variants.read_text(encoding="utf-8"))
+    assert all(bulk_approval_allowed(vs) for vs in SemanticSelection.from_dict(sel).sets)
+    for s in sel["sets"]:
+        s["provider"] = "llamacpp"
+    variants.write_text(json.dumps(sel), encoding="utf-8")
+    before = variants.read_text(encoding="utf-8")
+    capsys.readouterr()
+    assert _run(tmp_path, "semantic", "approve", str(variants), "--all") == 2
+    assert "satu per satu" in capsys.readouterr().err
+    assert variants.read_text(encoding="utf-8") == before
+    # Rejecting everything at once stays possible, and so does deciding one variant.
+    unit = sel["sets"][0]["unit_id"]
+    assert _run(tmp_path, "semantic", "approve", str(variants), "--unit", unit, "--variant", "1") == 0
+    assert _run(tmp_path, "semantic", "approve", str(variants), "--all", "--reject") == 0
+    after = SemanticSelection.from_dict(json.loads(variants.read_text(encoding="utf-8")))
+    assert not any(vs.pending() for vs in after.sets)

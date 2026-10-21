@@ -756,10 +756,14 @@ def terbitkan_putusan(request: Request, sid: str, unit_id: str, index: int, stat
 @app.post("/terbitkan/{sid}/varian/{unit_id}/semua", response_class=HTMLResponse)
 def terbitkan_setujui_semua(request: Request, sid: str, unit_id: str) -> HTMLResponse:
     """Approve every pending variant of one sentence (still an explicit reviewer decision)."""
+    from tapak.marker.semantic import bulk_approval_allowed
+
     st = _staging(sid)
     vs = st.sets.get(unit_id)
     if vs is None:
         raise HTTPException(400, "Permintaan tidak valid")
+    if not bulk_approval_allowed(vs):
+        raise HTTPException(400, "Varian dari model bahasa harus disetujui satu per satu.")
     for i in vs.pending():
         vs.set_status(i, "disetujui")
     return _page(request, "_semantik.html", oob=True, st=st)
