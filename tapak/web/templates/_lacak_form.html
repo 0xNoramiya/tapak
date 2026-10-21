@@ -3,7 +3,8 @@
   {% if not docs %}
   <p class="empty">Belum ada dokumen yang diterbitkan. <a class="link" href="/terbitkan">Terbitkan dokumen</a> lebih dulu, lalu kembali ke sini untuk melacak kebocorannya.</p>
   {% else %}
-  <form hx-post="/lacak" hx-encoding="multipart/form-data" hx-target="#hasil" hx-swap="innerHTML"
+  <form hx-post="/lacak" hx-encoding="multipart/form-data" hx-target="#hasil" hx-swap="innerHTML show:#hasil:top"
+        hx-trigger="submit, keydown[(metaKey||ctrlKey)&&key=='Enter'] from:#teks"
         hx-disabled-elt="find button[type=submit]">
     <div class="field">
       <label for="dokumen">Dokumen yang diduga bocor</label>
@@ -30,7 +31,7 @@
         <span class="idle-label">Lacak sumber</span>
         <span class="htmx-indicator">Menganalisis bukti…</span>
       </button>
-      <span class="hint">Foto memerlukan beberapa detik untuk diluruskan dan dibaca.</span>
+      <span class="hint">Foto memerlukan beberapa detik untuk diluruskan dan dibaca. Dari kotak teks: Ctrl+Enter.</span>
     </div>
   </form>
   {% endif %}

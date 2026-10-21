@@ -90,7 +90,7 @@
     {% if pending.n %}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
     {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
   </p>
-  <form hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
+  <form hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="find button[type=submit]">
     <div class="row">
       <button class="btn btn-primary" type="submit" {% if pending.n %}disabled aria-describedby="langkah4"{% endif %}>
         <span class="htmx-indicator spinner" aria-hidden="true"></span>

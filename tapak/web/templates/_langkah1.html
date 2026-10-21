@@ -1,7 +1,7 @@
 <section class="card" aria-labelledby="langkah1">
   <h2 id="langkah1"><span class="step">1</span>Dokumen dan penerima</h2>
   <p class="lead">Unggah PDF induk (berlapis teks) dan daftar penerima. Dokumen induk tetap di perangkat ini; registri hanya menyimpan hash dan komitmen kode.</p>
-  <form hx-post="/terbitkan/analisis" hx-encoding="multipart/form-data" hx-target="#alur" hx-swap="innerHTML"
+  <form hx-post="/terbitkan/analisis" hx-encoding="multipart/form-data" hx-target="#alur" hx-swap="innerHTML show:#alur:top"
         hx-disabled-elt="find button[type=submit]">
     <div class="field">
       <label for="dokumen">Dokumen induk (PDF)</label>
