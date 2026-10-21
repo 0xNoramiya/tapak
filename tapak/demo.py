@@ -24,6 +24,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def samples_dir() -> Path:
+    """The samples folder: in the working directory (Docker, installed package) or the checkout."""
+    for base in (Path.cwd(), ROOT):
+        if (base / "samples" / "templates").is_dir():
+            return base / "samples"
+    raise FileNotFoundError("folder samples/templates tidak ditemukan; jalankan dari akar repositori TAPAK")
+
+
 def _say(step: str, text: str) -> None:
     print(f"\n[{step}] {text}", flush=True)
 
@@ -72,12 +80,13 @@ def _run(workdir: Path, keep: bool) -> int:
     from tapak.service import ensure_keys, issue_document, trace_evidence, write_report
 
     settings = load_settings()
-    sample = ROOT / "samples" / "nota_dinas.pdf"
-    recipients_csv = ROOT / "samples" / "recipients.csv"
+    samples = samples_dir()
+    sample = samples / "nota_dinas.pdf"
+    recipients_csv = samples / "recipients.csv"
     if not sample.exists() or not recipients_csv.exists():
         from tapak.samplegen import main as gen
 
-        gen(["--templates", str(ROOT / "samples" / "templates"), "--out", str(ROOT / "samples")])
+        gen(["--templates", str(samples / "templates"), "--out", str(samples)])
     failures: list[str] = []
 
     # 1 --------------------------------------------------------------------------------
@@ -144,8 +153,9 @@ def _run(workdir: Path, keep: bool) -> int:
         server.stop()
     if alerts:
         x = alerts[0]
-        _ok(f"PERINGATAN KANARI: salinan #{x['seq']} ({x['recipient_id']}, {x['nama']}) dibuka "
-            f"{x['time']} dari {x['src_ip']}; tercatat {dt:.2f} s setelah dibuka")
+        _ok(f"PERINGATAN KANARI: nama kanari salinan #{x['seq']} ({x['recipient_id']}, {x['nama']}) "
+            f"di-resolve {x['time']} oleh resolver {x['src_ip']}; tercatat {dt:.2f} s setelah berkas dibuka")
+        _ok("(kueri DNS membuktikan nama itu dicari, bukan siapa pembukanya; alamat adalah resolver, belum tentu komputer pembuka)")
         _ok("(di dalam jaringan satuan, DNS internal menjawab zona kanari secara lokal sehingga tidak ada peringatan)")
     else:
         failures.append("kanari salinan #7 tidak tercatat dalam 5 detik")

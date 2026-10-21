@@ -29,16 +29,16 @@
   </section>
 
   <section class="card" aria-labelledby="kanari-h">
-    <h2 id="kanari-h">Peringatan kanari</h2>
+    <h2 id="kanari-h">Kueri DNS kanari</h2>
     {% if alerts %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Dokumen</th><th class="num">Salinan</th><th>Penerima</th><th>Waktu (UTC)</th><th>Alamat sumber</th></tr></thead>
+        <thead><tr><th>Dokumen</th><th class="num">Salinan</th><th>Penerima</th><th>Waktu (UTC)</th><th>Resolver</th></tr></thead>
         <tbody>{% for k in alerts %}<tr><td>{{ k.doc_name }}</td><td class="num">#{{ k.seq }}</td><td>{{ k.nama }} <span class="muted mono small">{{ k.recipient_id }}</span></td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
       </table>
     </div>
     {% else %}
-    <p class="empty">Belum ada salinan yang dibuka di luar jaringan satuan.</p>
+    <p class="empty">Belum ada kueri kanari: tidak ada salinan yang terdeteksi dibuka di luar jaringan satuan.</p>
     {% endif %}
   </section>
 

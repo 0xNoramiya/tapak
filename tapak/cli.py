@@ -236,7 +236,8 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     extra = [f"Registri: rantai {'terverifikasi' if reg.chain_ok else 'TIDAK terverifikasi' if reg.chain_ok is False else 'belum diverifikasi'}"
              f" ({reg.entries} entri), {reg.copies_confirmed}/{reg.copies_total} salinan cocok"]
     for a in outcome.canary:
-        extra.append(f"Peringatan kanari: salinan #{a['seq']} ({a['recipient_id']}) dibuka {a['time']} dari {a['src_ip']}")
+        extra.append(f"Kueri kanari: nama salinan #{a['seq']} ({a['recipient_id']}) di-resolve {a['time']} "
+                     f"oleh resolver {a['src_ip']}")
     _print_attribution(outcome.attribution, outcome.observations, extra)
     if args.report:
         write_report(outcome, Path(args.report), case_number=args.nomor_perkara or "",

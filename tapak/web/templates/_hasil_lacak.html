@@ -93,13 +93,13 @@
     {% for p in r.problems %}<li>{{ p }}</li>{% endfor %}
   </ul>
   {% if o.canary %}
-  <h3 class="label" style="margin-top:16px">Peringatan kanari untuk dokumen ini</h3>
+  <h3 class="label" style="margin-top:16px">Kueri DNS kanari untuk dokumen ini</h3>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Salinan</th><th>Penerima</th><th>Waktu (UTC)</th><th>Alamat sumber</th></tr></thead>
+      <thead><tr><th class="num">Salinan</th><th>Penerima</th><th>Waktu (UTC)</th><th>Resolver</th></tr></thead>
       <tbody>{% for k in o.canary %}<tr><td class="num">#{{ k.seq }}</td><td>{{ k.nama }} <span class="muted mono small">{{ k.recipient_id }}</span></td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
-  <p class="hint">Kanari menandakan salinan dibuka di luar jaringan satuan; ini bukti pendukung terpisah dari skor di atas.</p>
+  <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas.</p>
   {% endif %}
 </section>
