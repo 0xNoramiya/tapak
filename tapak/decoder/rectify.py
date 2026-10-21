@@ -1,0 +1,273 @@
+"""Find the page in a photo or screenshot and map it onto the master page.
+
+1. Detect the page outline (OpenCV contours) and compute an initial perspective transform.
+   If no outline is found (screenshot, cropped photo), fall back to SIFT feature matching
+   against the master render, then to Tesseract word matching (``lines.py``).
+2. Refine with ECC (enhanced correlation coefficient) image alignment, coarse to fine,
+   against the master page rendered at the analysis resolution. Text strokes give ECC
+   sub-pixel accuracy, which the shift and background decoders need.
+3. Pick the master page with the highest correlation and resample the evidence image into
+   that page's coordinate frame ("rectified" image).
+
+Homographies here map *page pixel coordinates* at the analysis dpi to *image coordinates*.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from functools import lru_cache
+
+import cv2
+import numpy as np
+import pymupdf
+
+DPI_MIN = 100
+DPI_MAX = 300
+
+
+def load_gray(data: bytes) -> np.ndarray:
+    """Decode an image file (JPEG, PNG, ...) to a float32 grayscale array."""
+    arr = np.frombuffer(data, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise ValueError("berkas gambar tidak dapat dibaca")
+    return img.astype(np.float32)
+
+
+def render_page(pdf_bytes: bytes, page: int, dpi: float, supersample: int = 4) -> np.ndarray:
+    """Render a page at ``dpi`` by supersampling and area-averaging.
+
+    Plain low-resolution rendering snaps glyphs to the pixel grid (up to half a pixel),
+    which is larger than the marks being measured; supersampling removes that bias.
+    """
+    return _render_cached(pdf_bytes, page, float(dpi), supersample).copy()
+
+
+@lru_cache(maxsize=16)
+def _render_cached(pdf_bytes: bytes, page: int, dpi: float, supersample: int) -> np.ndarray:
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        p = doc[page]
+        w = int(round(p.rect.width * dpi / 72.0))
+        h = int(round(p.rect.height * dpi / 72.0))
+        mat = pymupdf.Matrix(dpi * supersample / 72.0, dpi * supersample / 72.0)
+        pix = p.get_pixmap(matrix=mat, colorspace=pymupdf.csGRAY, alpha=False)
+        hi = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).astype(np.float32)
+    return cv2.resize(hi, (w, h), interpolation=cv2.INTER_AREA)
+
+
+def flatten_illumination(gray: np.ndarray, sigma: float) -> np.ndarray:
+    """Divide out slow illumination changes (shadows, vignetting); paper becomes about 1.0."""
+    k = int(max(3, round(sigma / 4)) | 1)
+    paper = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)))
+    paper = cv2.GaussianBlur(paper, (0, 0), sigma)
+    return gray / np.maximum(paper, 1.0)
+
+
+def order_corners(pts: np.ndarray) -> np.ndarray:
+    """Order four points as top-left, top-right, bottom-right, bottom-left."""
+    pts = np.asarray(pts, dtype=np.float64).reshape(4, 2)
+    s = pts.sum(axis=1)
+    d = np.diff(pts, axis=1).ravel()
+    return np.array([pts[np.argmin(s)], pts[np.argmin(d)], pts[np.argmax(s)], pts[np.argmax(d)]])
+
+
+def detect_page_quad(gray: np.ndarray) -> np.ndarray | None:
+    """Corners (TL, TR, BR, BL) of the brightest large quadrilateral, or None."""
+    h, w = gray.shape
+    scale = 1000.0 / max(h, w)
+    small = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA).astype(np.uint8)
+    small = cv2.GaussianBlur(small, (5, 5), 0)
+    _, bw = cv2.threshold(small, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25)))
+    contours, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+    best = max(contours, key=cv2.contourArea)
+    area_frac = cv2.contourArea(best) / float(small.shape[0] * small.shape[1])
+    if area_frac < 0.15 or area_frac > 0.985:
+        return None  # nothing page-like, or the page fills the frame (no outline visible)
+    peri = cv2.arcLength(best, True)
+    quad = None
+    for eps in (0.01, 0.02, 0.03, 0.05):
+        approx = cv2.approxPolyDP(best, eps * peri, True)
+        if len(approx) == 4 and cv2.isContourConvex(approx):
+            quad = approx.reshape(4, 2)
+            break
+    if quad is None:
+        quad = cv2.boxPoints(cv2.minAreaRect(best))
+    return order_corners(quad / scale)
+
+
+def page_corners(width_px: float, height_px: float) -> np.ndarray:
+    """Page corners in page pixel coordinates (TL, TR, BR, BL)."""
+    return np.array([[0, 0], [width_px - 1, 0], [width_px - 1, height_px - 1], [0, height_px - 1]], dtype=np.float64)
+
+
+def effective_dpi(h_page_to_img: np.ndarray, page_w_px: float, page_h_px: float, dpi: float) -> float:
+    """Image resolution at the page centre, in dots per inch of the page."""
+    cx, cy = page_w_px / 2.0, page_h_px / 2.0
+    pts = np.array([[[cx, cy]], [[cx + 1, cy]], [[cx, cy + 1]]], dtype=np.float64)
+    q = cv2.perspectiveTransform(pts, h_page_to_img).reshape(3, 2)
+    jac = np.array([q[1] - q[0], q[2] - q[0]])
+    return float(dpi * np.sqrt(abs(np.linalg.det(jac))))
+
+
+def _scale_h(h: np.ndarray, s_page: float, s_img: float) -> np.ndarray:
+    """Homography for page coordinates scaled by s_page and image coordinates by s_img."""
+    return np.diag([s_img, s_img, 1.0]) @ h @ np.diag([1 / s_page, 1 / s_page, 1.0])
+
+
+def _prep(img: np.ndarray) -> np.ndarray:
+    """ECC input: illumination-flattened, inverted (ink positive), lightly blurred."""
+    flat = flatten_illumination(img, sigma=max(img.shape) / 30.0)
+    ink = np.clip(1.0 - flat, 0.0, 1.0).astype(np.float32)
+    return cv2.GaussianBlur(ink, (0, 0), 1.0)
+
+
+def ecc_refine(template: np.ndarray, image: np.ndarray, h_init: np.ndarray,
+               levels: tuple[tuple[float, int], ...] = ((0.25, 60), (0.5, 40), (1.0, 15))) -> tuple[np.ndarray, float]:
+    """Refine a page-to-image homography with ECC, coarse to fine. Returns (H, correlation).
+
+    ``levels`` lists (scale, maximum iterations); the finest level starts close to the
+    answer, so few iterations suffice there.
+    """
+    h = h_init.astype(np.float64)
+    cc = -1.0
+    t_full, i_full = _prep(template), _prep(image)
+    for lv, iters in levels:
+        # The analysis dpi is chosen close to the image resolution, so both are scaled alike.
+        t = cv2.resize(t_full, None, fx=lv, fy=lv, interpolation=cv2.INTER_AREA) if lv != 1.0 else t_full
+        i = cv2.resize(i_full, None, fx=lv, fy=lv, interpolation=cv2.INTER_AREA) if lv != 1.0 else i_full
+        warp = _scale_h(h, lv, lv).astype(np.float32)
+        warp /= warp[2, 2]
+        criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, iters, 1e-6)
+        try:
+            cc, warp = cv2.findTransformECC(t, i, warp, cv2.MOTION_HOMOGRAPHY, criteria, None, 3)
+        except cv2.error:
+            return h, -1.0
+        h = _scale_h(warp.astype(np.float64), 1 / lv, 1 / lv)
+        h /= h[2, 2]
+    return h, float(cc)
+
+
+def quick_score(image_ink: np.ndarray, h_page_to_img: np.ndarray, template_ink: np.ndarray,
+                dpi_template: float, dpi_h: float) -> float:
+    """Correlation of the evidence warped by H with a low-resolution master render (ink images)."""
+    s = dpi_template / dpi_h
+    h = h_page_to_img @ np.diag([1 / s, 1 / s, 1.0])
+    size = (template_ink.shape[1], template_ink.shape[0])
+    warped = cv2.warpPerspective(image_ink, h, size, flags=cv2.INTER_AREA | cv2.WARP_INVERSE_MAP)
+    a = warped - warped.mean()
+    b = template_ink - template_ink.mean()
+    den = float(np.sqrt((a * a).sum() * (b * b).sum()))
+    return float((a * b).sum() / den) if den > 0 else -1.0
+
+
+def feature_homography(template: np.ndarray, image: np.ndarray) -> np.ndarray | None:
+    """Page-to-image homography from SIFT features + RANSAC, or None."""
+    det = cv2.SIFT_create(nfeatures=4000)
+    t8 = np.clip(template, 0, 255).astype(np.uint8)
+    scale = min(1.0, 1600.0 / max(image.shape))
+    i8 = cv2.resize(np.clip(image, 0, 255).astype(np.uint8), None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    k1, d1 = det.detectAndCompute(t8, None)
+    k2, d2 = det.detectAndCompute(i8, None)
+    if d1 is None or d2 is None or len(k1) < 20 or len(k2) < 20:
+        return None
+    matches = cv2.BFMatcher(cv2.NORM_L2).knnMatch(d1, d2, k=2)
+    good = [m for m, n in (p for p in matches if len(p) == 2) if m.distance < 0.8 * n.distance]
+    if len(good) < 25:
+        return None
+    src = np.float32([k1[m.queryIdx].pt for m in good])
+    dst = np.float32([k2[m.trainIdx].pt for m in good]) / scale
+    h, inliers = cv2.findHomography(src, dst, cv2.RANSAC, 4.0)
+    if h is None or inliers is None or inliers.sum() < 20:
+        return None
+    return h
+
+
+@dataclass
+class Registration:
+    """Result of mapping the evidence image onto one master page."""
+
+    page: int
+    dpi: float
+    h_page_to_img: np.ndarray
+    correlation: float
+    method: str
+    rectified: np.ndarray
+    valid: np.ndarray
+    effective_dpi: float
+
+
+def warp_to_page(image: np.ndarray, h_page_to_img: np.ndarray, size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    """Resample the image into page coordinates; also return the mask of valid pixels."""
+    flags = cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP
+    rect = cv2.warpPerspective(image, h_page_to_img, size, flags=flags, borderMode=cv2.BORDER_REPLICATE)
+    valid = cv2.warpPerspective(np.ones_like(image, dtype=np.uint8), h_page_to_img, size,
+                                flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP, borderValue=0)
+    return rect, valid.astype(bool)
+
+
+def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, float]],
+             min_correlation: float = 0.75) -> Registration | None:
+    """Find the best-matching master page and the precise page-to-image transform.
+
+    Candidate (page, initial transform) pairs are scored cheaply at 30 dpi; only the best is
+    refined with full ECC. Initial transforms come from the page outline, then SIFT
+    features, then Tesseract word matching, each tried only if the previous gave nothing
+    convincing.
+    """
+    probe_dpi, score_dpi = 100.0, 30.0
+    img_ink = _prep(image)
+    lo = [(_prep(render_page(pdf_bytes, p, score_dpi))) for p in range(len(page_sizes))]
+
+    def corners_h(page: int, quad: np.ndarray) -> np.ndarray:
+        w_pt, h_pt = page_sizes[page]
+        src = page_corners(w_pt * probe_dpi / 72.0, h_pt * probe_dpi / 72.0).astype(np.float32)
+        return cv2.getPerspectiveTransform(src, quad.astype(np.float32)).astype(np.float64)
+
+    cands: list[tuple[float, int, np.ndarray, str]] = []
+
+    def add(page: int, h0: np.ndarray, method: str) -> None:
+        cands.append((quick_score(img_ink, h0, lo[page], score_dpi, probe_dpi), page, h0, method))
+
+    quad = detect_page_quad(image)
+    if quad is not None:
+        for page in range(len(page_sizes)):
+            add(page, corners_h(page, quad), "kontur")
+    if not cands or max(c[0] for c in cands) < 0.6:
+        for page in range(len(page_sizes)):
+            fh = feature_homography(render_page(pdf_bytes, page, probe_dpi), image)
+            if fh is not None:
+                add(page, fh, "fitur")
+    if not cands or max(c[0] for c in cands) < 0.4:
+        from tapak.decoder.lines import tesseract_homography
+
+        for page in range(len(page_sizes)):
+            th = tesseract_homography(image, pdf_bytes, page, probe_dpi)
+            if th is not None:
+                add(page, th, "tesseract")
+    if not cands:
+        return None
+    cands.sort(key=lambda c: c[0], reverse=True)
+    best: tuple[float, int, np.ndarray, str, float] | None = None
+    for _, page, h0, method in cands[:2]:
+        w_pt, h_pt = page_sizes[page]
+        wp, hp = w_pt * probe_dpi / 72.0, h_pt * probe_dpi / 72.0
+        dpi = float(np.clip(round(effective_dpi(h0, wp, hp, probe_dpi) / 10) * 10, DPI_MIN, DPI_MAX))
+        s = dpi / probe_dpi
+        h, cc = ecc_refine(render_page(pdf_bytes, page, dpi), image, h0 @ np.diag([1 / s, 1 / s, 1.0]))
+        if best is None or cc > best[0]:
+            best = (cc, page, h, method, dpi)
+        if cc > 0.85:
+            break
+    assert best is not None
+    cc, page, h, method, dpi = best
+    if cc < min_correlation:
+        return None
+    w_pt, h_pt = page_sizes[page]
+    size = (int(round(w_pt * dpi / 72.0)), int(round(h_pt * dpi / 72.0)))
+    rect, valid = warp_to_page(image, h, size)
+    return Registration(page=page, dpi=dpi, h_page_to_img=h, correlation=cc, method=method,
+                        rectified=rect, valid=valid,
+                        effective_dpi=effective_dpi(h, size[0], size[1], dpi))

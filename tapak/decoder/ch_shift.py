@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import difflib
 
+import cv2
 import numpy as np
 
 from tapak.decoder.softbits import SoftBits, gaussian_llr
@@ -27,6 +28,7 @@ from tapak.marker.pdf_zerowidth import normalize_text
 from tapak.marker.plan import CHANNEL_SHIFT, EmbeddingPlan
 
 Displacements = dict[WordId, tuple[float, float]]
+OUTLIER_FACTOR = 3.0
 
 
 def estimate_sigma(s: np.ndarray, delta: float, floor: float, iters: int = 30) -> float:
@@ -141,20 +143,29 @@ def decode_displacements(
     kinds_arr = np.array(kinds)
     llr = np.zeros_like(s)
     sigmas = {}
+    implausible = 0
     for kind, delta in (("kata", settings.word_pt), ("baris", settings.row_pt)):
         sel = kinds_arr == kind
-        if not sel.any():
+        # A genuine mark moves a unit by +/-delta; a relative offset beyond 3 delta means the
+        # matcher slipped (blur, a stain). Such units are unreadable, not evidence, and are
+        # kept out of the noise estimate so they cannot silence the whole channel.
+        sane = sel & (np.abs(s) <= OUTLIER_FACTOR * delta)
+        implausible += int(sel.sum() - sane.sum())
+        if not sane.any():
             continue
-        sigma = estimate_sigma(s[sel], delta, floor=sigma_floor_ratio * delta)
+        sigma = estimate_sigma(s[sane], delta, floor=sigma_floor_ratio * delta)
         sigmas[kind] = sigma
-        llr[sel] = gaussian_llr(s[sel], delta, sigma)
-    agree = float(np.mean(np.abs(s) > 0.5 * min(settings.word_pt, settings.row_pt)))
+        llr[sane] = gaussian_llr(s[sane], delta, sigma)
+    keep = llr != 0
+    s, llr, kinds_arr = s[keep], llr[keep], kinds_arr[keep]
+    pos = [q for q, k in zip(pos, keep) if k]
+    agree = float(np.mean(np.abs(s) > 0.5 * min(settings.word_pt, settings.row_pt))) if len(s) else 0.0
     return SoftBits(
         CHANNEL_SHIFT,
-        np.array(pos),
+        np.array(pos, dtype=np.int64),
         llr,
         {"slots_read": len(pos), "slots_total": len(plan.channel(CHANNEL_SHIFT)),
-         "sigma_pt": sigmas, "fraction_clear": agree},
+         "slots_implausible": implausible, "sigma_pt": sigmas, "fraction_clear": agree},
     )
 
 
@@ -187,3 +198,81 @@ def decode_vector(
 ) -> SoftBits:
     """Channel 1 soft bits from a forwarded PDF (exact digital readout)."""
     return decode_displacements(master, plan, measure_vector(pdf_bytes, master), settings, excluded)
+
+
+ECC_TRANSLATION = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 60, 1e-5)
+
+
+def _parabolic(c_m: float, c_0: float, c_p: float) -> float:
+    """Sub-sample offset of a peak from three samples around it."""
+    den = c_m - 2.0 * c_0 + c_p
+    return 0.0 if den >= 0 else 0.5 * (c_m - c_p) / den
+
+
+def match_offset(tmpl: np.ndarray, win: np.ndarray, m: int) -> tuple[float, float, float] | None:
+    """(dx, dy, peak correlation) of ``tmpl`` inside ``win`` (``win`` is larger by m on each side).
+
+    An exhaustive normalized cross-correlation over every integer offset finds the right
+    peak even on blurry, repetitive text, where a local optimizer can lock onto a wrong
+    character; a parabola through the neighbours gives the sub-pixel part, and ECC then
+    polishes from there (kept only if it stays within half a pixel).
+    """
+    res = cv2.matchTemplate(win, tmpl, cv2.TM_CCOEFF_NORMED)
+    _, peak, _, (ix, iy) = cv2.minMaxLoc(res)
+    if not (0 < ix < res.shape[1] - 1 and 0 < iy < res.shape[0] - 1):
+        return None
+    fx = ix + _parabolic(res[iy, ix - 1], res[iy, ix], res[iy, ix + 1])
+    fy = iy + _parabolic(res[iy - 1, ix], res[iy, ix], res[iy + 1, ix])
+    warp = np.array([[1, 0, fx], [0, 1, fy]], dtype=np.float32)
+    try:
+        _, warp = cv2.findTransformECC(tmpl, win, warp, cv2.MOTION_TRANSLATION, ECC_TRANSLATION, None, 1)
+        if abs(warp[0, 2] - fx) <= 0.5 and abs(warp[1, 2] - fy) <= 0.5:
+            fx, fy = float(warp[0, 2]), float(warp[1, 2])
+    except cv2.error:
+        pass
+    return fx - m, fy - m, float(peak)
+
+
+def measure_image(
+    rectified: np.ndarray,
+    valid: np.ndarray,
+    master_render: np.ndarray,
+    master: MasterDocument,
+    page: int,
+    dpi: float,
+    search_px: int = 5,
+    pad_px: int = 3,
+    min_peak: float = 0.6,
+) -> Displacements:
+    """Displacement of every shift group on a rectified page image.
+
+    For each group the template is the master render around the group's box and the search
+    window is the same box in the evidence, enlarged by ``search_px``; see
+    :func:`match_offset`. Matches with a weak correlation peak are discarded. All words of a
+    group get the group's displacement (in points).
+    """
+    s = dpi / 72.0
+    disp: Displacements = {}
+    h, w = rectified.shape
+    tmpl_all = cv2.GaussianBlur(master_render.astype(np.float32), (0, 0), 0.7)
+    img_all = cv2.GaussianBlur(rectified.astype(np.float32), (0, 0), 0.7)
+    for row in master.layout.pages[page].rows:
+        for g in row.groups:
+            x0, y0, x1, y1 = g.bbox
+            X0, Y0 = int(np.floor(x0 * s)) - pad_px, int(np.floor(y0 * s)) - pad_px
+            X1, Y1 = int(np.ceil(x1 * s)) + pad_px, int(np.ceil(y1 * s)) + pad_px
+            m = search_px
+            if X0 - m < 0 or Y0 - m < 0 or X1 + m > w or Y1 + m > h:
+                continue
+            if not valid[Y0 - m:Y1 + m, X0 - m:X1 + m].all():
+                continue
+            tmpl = tmpl_all[Y0:Y1, X0:X1]
+            if float(tmpl.std()) < 10.0:
+                continue
+            found = match_offset(tmpl, img_all[Y0 - m:Y1 + m, X0 - m:X1 + m], m)
+            if found is None or found[2] < min_peak:
+                continue
+            dx, dy = found[0] / s, found[1] / s
+            for wi in g.word_indices:
+                disp[row.words[wi].id] = (dx, dy)
+    return disp
