@@ -37,6 +37,9 @@
       </div>
     </div>
     {% endfor %}
+    {% for n in peringatan_terlihat(a.notes) %}
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
+    {% endfor %}
     {% if a.accused|length > 1 %}<p class="notice verdict-note">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
     {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
     {% set r = o.registry %}
@@ -210,7 +213,7 @@
       <div class="lacak-catatan">
         <span class="label">Catatan</span>
         <ul class="notes">
-          {% for n in a.notes %}<li>{{ redact(n) }}</li>{% endfor %}
+          {% for n in a.notes if n not in peringatan_terlihat(a.notes) %}<li>{{ redact(n) }}</li>{% endfor %}
         </ul>
         {% if r.problems %}
         <div class="notice notice-warn"><ul class="notes">{% for p in r.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>

@@ -374,3 +374,17 @@ def test_registri_checks_canary_log_and_lists_use_small_thumbnails(client):
     full = client.get(f"/dokumen/{doc}/pratinjau.png")
     assert small.status_code == 200 and small.content.startswith(b"\x89PNG")
     assert len(small.content) < len(full.content) / 2
+
+
+def test_visible_marks_caveat_is_split_from_the_notes():
+    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+    from tapak.web.app import templates
+
+    notes = ["catatan biasa", f"salinan #3: {VISIBLE_MARKS_NOTE}"]
+    tpl = templates.env.from_string(
+        "{% for n in peringatan_terlihat(notes) %}[P]{{ n }}{% endfor %}"
+        "{% for n in notes if n not in peringatan_terlihat(notes) %}[C]{{ n }}{% endfor %}")
+    out = tpl.render(notes=notes)
+    assert out.startswith("[P]salinan #3: ") and out.endswith("[C]catatan biasa") and out.count("[P]") == 1
+    src = (ROOT / "tapak" / "web" / "templates" / "_hasil_lacak.html").read_text(encoding="utf-8")
+    assert src.index("peringatan_terlihat(a.notes)") < src.index('class="verdict-actions"')

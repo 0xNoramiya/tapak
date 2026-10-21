@@ -150,6 +150,16 @@ templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
 templates.env.globals["inf"] = float("inf")
 
 
+def _visible_marks_caveats(notes: list[str]) -> list[str]:
+    """Notes warning that a name rests only on marks visible on paper (word choices, variants)."""
+    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+
+    return [n for n in notes if VISIBLE_MARKS_NOTE in n]
+
+
+templates.env.globals["peringatan_terlihat"] = _visible_marks_caveats
+
+
 def _fap(candidate, n_copies: int):
     """False-accusation probability of a named copy, exact even when it underflows a float."""
     import math
