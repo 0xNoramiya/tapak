@@ -14,6 +14,7 @@ from tapak.decoder.accuse import (
     THRESHOLD_RULE,
     VERDICT_IDENTIFIED,
     VERDICT_INSUFFICIENT,
+    VISIBLE_MARKS_NOTE,
     Attribution,
     ChannelEvidence,
     CopyCandidate,
@@ -257,6 +258,19 @@ def test_identifiers_in_free_text_are_masked_for_both_verdicts():
     assert not re.search(r"ID00\d|nama\W*uji|#\d|salinan\W*\d", text, re.I)
     assert f"salinan{REDACTED}_{REDACTED}.pdf" in text
     assert "203.0.113.45" in text  # time and IP stay, the copy number does not
+
+
+def test_visible_marks_caveat_is_shown_under_the_verdict():
+    """A name that rests only on word choice and sentence variants gets its caveat right under
+    the verdict, once, and not repeated among the examination notes."""
+    caveat = f"salinan #3: {VISIBLE_MARKS_NOTE}"
+    html = render_html(_synthetic(VERDICT_IDENTIFIED, [3], notes=["catatan lain", caveat]), _info())
+    block = re.search(r'<p class="peringatan">(.*?)</p>', html, re.S)
+    assert block and "bukan pengetiknya" in block.group(1) and "#3" in block.group(1)
+    assert html.index("PUTUSAN: TERIDENTIFIKASI") < block.start() < html.index('<table class="grid hasil">')
+    assert _visible(html).count("bukan pengetiknya") == 1 and "catatan lain" in _visible(html)
+    plain = render_html(_synthetic(VERDICT_IDENTIFIED, [3]), _info())
+    assert 'class="peringatan"' not in plain
 
 
 def test_redactor_masks_ids_names_and_copy_numbers():

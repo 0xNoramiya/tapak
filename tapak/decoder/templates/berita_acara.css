@@ -136,6 +136,13 @@ sup { font-size: 70%; line-height: 0; vertical-align: super; }
   letter-spacing: 0.04em;
   break-after: avoid;
 }
+.peringatan {
+  border: 1pt solid #000;
+  padding: 5pt 6pt;
+  margin: 0 0 8pt;
+  font-weight: bold;
+  text-align: justify;
+}
 .putusan.tidak-cukup {
   border: 3pt double #000;
   font-size: 18pt;

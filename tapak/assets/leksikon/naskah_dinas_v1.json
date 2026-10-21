@@ -29,15 +29,16 @@
       "id": "pada_saat",
       "tier": "A",
       "forms": ["pada saat", "ketika"],
-      "note": "keterangan waktu kejadian, bukan penyebutan waktu",
+      "next": "^(?!(?:ini|itu|yang|tersebut)$)",
+      "note": "keterangan waktu kejadian, bukan penyebutan waktu; tidak dipakai pada ungkapan \"pada saat ini\", \"pada saat itu\", \"pada saat yang sama\", atau \"pada saat tersebut\"",
       "example": "pada saat terjadi gangguan jaringan"
     },
     {
       "id": "untuk_kerja",
       "tier": "A",
       "forms": ["untuk", "guna"],
-      "next": "^(?:me|mem|men|meng|meny|di|ber|ter)[a-z]{3,}$",
-      "note": "tujuan, hanya di depan kata kerja",
+      "next": "^(?!(?:mereka|medan|media|mesin|menteri|meriam|metode|meter|dinas|direktur|direktorat|divisi|distrik|diri|dirinya|dirimu|diskusi|berapa|berkas|berita|bersama|beras|berat|beberapa)$)(?:me|mem|men|meng|meny|di|ber)[a-z]{3,}$",
+      "note": "tujuan, hanya di depan kata kerja (bukan di depan kata ganti atau kata benda seperti mereka, dirinya, dinas, berkas)",
       "example": "dilaksanakan untuk menguji prosedur"
     },
     {
@@ -58,9 +59,9 @@
       "id": "dan",
       "tier": "A",
       "forms": ["dan", "serta"],
-      "next": "^[a-z][a-z-]{2,}$",
+      "next": "^(?!(?:lain-lain|lain|lainnya|sebagainya|seterusnya|merta)$)[a-z][a-z-]{2,}$",
       "prev": "^[a-z][a-z-]*,?$",
-      "note": "koordinasi dua kata biasa; tidak dipakai di antara bilangan, nama, atau judul paragraf",
+      "note": "koordinasi dua kata biasa; tidak dipakai di antara bilangan, nama, atau judul paragraf, dan tidak pada ungkapan tetap (dan lain-lain, dan sebagainya, dan seterusnya, serta merta)",
       "example": "merencanakan serta mengendalikan operasi"
     },
     {
@@ -97,7 +98,8 @@
       "id": "namun",
       "tier": "A",
       "forms": ["namun", "akan tetapi"],
-      "note": "penghubung pertentangan",
+      "next": "^(?!(?:demikian|begitu)$)",
+      "note": "penghubung pertentangan; tidak dipakai pada ungkapan tetap \"namun demikian\" atau \"namun begitu\"",
       "example": "Namun, ..."
     },
     {

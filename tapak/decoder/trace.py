@@ -14,14 +14,14 @@ from pathlib import Path
 
 import numpy as np
 
-from tapak.decoder.accuse import Attribution, CopyRef, attribute
+from tapak.decoder.accuse import VISIBLE_MARKS_NOTE, Attribution, CopyRef, attribute
 from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
 from tapak.marker.issue import IssueManifest, SemanticSelection, build_document_plan, lexical_exclusions
 from tapak.marker.layout import RowId, sha256_hex
-from tapak.marker.lexical import LONE_LEAKER_BITS, LONE_LEAKER_WORDS, LexicalSelection
+from tapak.marker.lexical import LONE_LEAKER_BITS, LexicalSelection, format_count, words_for_bits
 from tapak.marker.master import MasterDocument, load_master
 from tapak.marker.background import BackgroundSettings
 from tapak.marker.pdf_shift import ShiftSettings
@@ -337,14 +337,19 @@ def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str,
     return obs, notes
 
 
+# Physical channels whose marks survive retyping. They are also the marks a reader can see on
+# paper, so anyone who has read a copy can copy them.
 RETYPE_PHYSICAL = frozenset({"semantik", "leksikal"})
 
 
-def retyped_text_note(observations: list[SoftBits], attribution: Attribution) -> str | None:
+def retyped_text_note(observations: list[SoftBits], attribution: Attribution,
+                      body_words: int | None = None, lexical_bits: int | None = None) -> str | None:
     """Plain note when only retype-surviving channels (semantic, word choice) were read and they
     carry fewer bits than the lone-leaker level; None otherwise (also when someone was named).
 
-    The note explains a "tidak cukup bukti" verdict; it never changes the threshold.
+    ``body_words`` and ``lexical_bits`` (the document's body words and issued lexical bits)
+    turn the missing bits into an indicative word count. The note explains a "tidak cukup
+    bukti" verdict; it never changes the threshold.
     """
     read = {PHYSICAL_CHANNEL.get(sb.channel, sb.channel) for sb in observations if len(sb)}
     if not read or not read <= RETYPE_PHYSICAL or attribution.accused:
@@ -352,9 +357,42 @@ def retyped_text_note(observations: list[SoftBits], attribution: Attribution) ->
     bits = attribution.threshold.n_observed
     if bits >= LONE_LEAKER_BITS:
         return None
+    doc = f" Dokumen ini memuat {format_count(body_words)} kata isi." if body_words else ""
+    words = format_count(words_for_bits(LONE_LEAKER_BITS, body_words, lexical_bits))
     return (f"tidak cukup bukti: bukti ini hanya memuat tanda yang bertahan saat diketik ulang (pilihan kata dan "
-            f"varian kalimat), {bits} bit. Untuk menyebut satu pembocor dari teks ketikan ulang perlu sekitar "
-            f"{LONE_LEAKER_BITS} bit, kira-kira dokumen dengan {LONE_LEAKER_WORDS} kata isi")
+            f"varian kalimat), {bits} bit. TAPAK baru menyebut satu pembocor dari teks ketikan ulang mulai "
+            f"{LONE_LEAKER_BITS} bit, kira-kira dokumen dengan {words} kata isi.{doc}")
+
+
+def visible_marks_note(observations: list[SoftBits], attribution: Attribution, ctx: TraceContext,
+                       spending: TraceSpending | None = None) -> str | None:
+    """Caveat when a named copy is named only thanks to marks visible on paper; None otherwise.
+
+    Word choice and sentence variants can be read off a printed copy. A leaker who has seen
+    another recipient's copy can retype the leak with that copy's forms, and the text then
+    carries that copy's marks: the statistics name it correctly as the source of the word
+    choices, not as the typist. The caveat is added when some accused copy is not accused by
+    the other channels alone (always the case when only these channels were read). The check
+    reruns the same code-blind accusation on the other channels with the same budget; it
+    never changes the verdict or the threshold.
+    """
+    if not attribution.accused:
+        return None
+    visible = [sb for sb in observations if len(sb) and PHYSICAL_CHANNEL.get(sb.channel, sb.channel) in RETYPE_PHYSICAL]
+    if not visible:
+        return None
+    hidden = [sb for sb in observations
+              if len(sb) and PHYSICAL_CHANNEL.get(sb.channel, sb.channel) not in RETYPE_PHYSICAL]
+    named: set[int] = set()
+    if hidden:
+        m = ctx.params.length
+        alone = attribute(fuse(hidden, m), fuse_by_physical_channel(hidden, m), ctx.p, ctx.codewords, ctx.refs,
+                          ctx.params, spending)
+        named = {c.copy.seq for c in alone.accused}
+    only_visible = [c.copy.seq for c in attribution.accused if c.copy.seq not in named]
+    if not only_visible:
+        return None
+    return "salinan " + ", ".join(f"#{k}" for k in only_visible) + ": " + VISIBLE_MARKS_NOTE
 
 
 def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] | None = None,
@@ -365,9 +403,12 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
     result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params, spending)
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
     if ctx.plan.channel(CHANNEL_LEXICAL):  # documents without the channel keep their output unchanged
-        note = retyped_text_note(observations, result)
-        if note is not None:
-            result.notes.append(note)
+        lexical_bits = sum(len(s.positions) for s in ctx.plan.channel(CHANNEL_LEXICAL))
+        body_words = ctx.lexical.body_words if ctx.lexical is not None else None
+        for note in (retyped_text_note(observations, result, body_words, lexical_bits),
+                     visible_marks_note(observations, result, ctx, spending)):
+            if note is not None:
+                result.notes.append(note)
     return result
 
 

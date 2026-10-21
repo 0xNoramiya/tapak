@@ -50,13 +50,46 @@ def lexicon():
     return lx.load_lexicon()
 
 
-@pytest.fixture(scope="module", params=DOCS, ids=lambda p: p.stem)
-def doc(request):
-    master = load_master(request.param.read_bytes())
+def _approve_all(master):
     sel = lx.scan_candidates(master)
     for p in sel.points:
         sel.set_status(p.point_id, STATUS_APPROVED)
     return master, sel
+
+
+def _long_template(r: int) -> dict:
+    """The body paragraphs of both sample templates repeated r times (as research/ketik/ukur.py)."""
+    from tapak.samplegen import load_template
+
+    nota = load_template(ROOT / "samples" / "templates" / "nota_dinas.json")
+    tele = load_template(ROOT / "samples" / "templates" / "surat_telegram.json")
+    template = dict(nota)
+    template["isi"] = (nota["isi"] + tele["isi"]) * r
+    return template
+
+
+def _render(template: dict):
+    from tapak.samplegen import render_template
+
+    return load_master(render_template(template))
+
+
+@pytest.fixture(scope="module", params=DOCS, ids=lambda p: p.stem)
+def doc(request):
+    return _approve_all(load_master(request.param.read_bytes()))
+
+
+@pytest.fixture(scope="module")
+def long_doc():
+    """About 6 pages (R = 3) with paragraph numbers 1 to 36 and every point approved."""
+    return _approve_all(_render(_long_template(3)))
+
+
+@pytest.fixture(scope="module", params=["nota_dinas", "surat_telegram", "panjang"])
+def any_doc(request, long_doc):
+    if request.param == "panjang":
+        return long_doc
+    return _approve_all(load_master((ROOT / "samples" / f"{request.param}.pdf").read_bytes()))
 
 
 def _plan(master, sel, n=20, secret=SECRET):
@@ -131,6 +164,46 @@ def test_lexicon_problems_catch_bad_tables():
     assert lx.lexicon_problems({"rules": []})
 
 
+# Fixed expressions where the other form is ungrammatical or changes the meaning; the draft
+# table's context conditions must refuse them (also listed for the Tata Naskah Dinas reviewer).
+_MUST_REFUSE = [
+    ("dan", "lain-lain"), ("dan", "sebagainya"), ("dan", "seterusnya"), ("serta", "merta"),
+    ("namun", "demikian"), ("namun", "begitu"), ("untuk", "mereka"), ("untuk", "dirinya"), ("untuk", "berapa"),
+    ("untuk", "dinas"), ("untuk", "berkas"), ("untuk", "terakhir"), ("pada saat", "ini"),
+    ("pada saat", "yang"), ("pada saat", "tersebut"),
+]
+_MUST_ACCEPT = [("dan", "seksi"), ("namun", "latihan"), ("untuk", "menguji"), ("untuk", "dibahas"),
+                ("untuk", "berlatih"), ("pada saat", "terjadi")]
+
+
+def _next_ok(lexicon, phrase: str, nxt: str) -> bool:
+    rules = [r for r in lexicon.rules if phrase in r.matchable and r.tier == "A"]
+    return any(r.next_re is None or re.match(r.next_re, nxt) for r in rules)
+
+
+def test_lexicon_context_refuses_fixed_expressions(lexicon):
+    for phrase, nxt in _MUST_REFUSE:
+        assert not _next_ok(lexicon, phrase, nxt), (phrase, nxt)
+    for phrase, nxt in _MUST_ACCEPT:
+        assert _next_ok(lexicon, phrase, nxt), (phrase, nxt)
+    from tapak.samplegen import load_template
+
+    probes = [
+        "Perlengkapan yang dibawa meliputi ransel, tenda, alat masak, dan lain-lain sesuai daftar perorangan.",
+        "Alat tulis, buku catatan, dan sebagainya dibawa oleh peserta latihan dari satuan asal masing-masing.",
+        "Namun demikian, koordinasi antara satuan manuver dan satuan bantuan tetap dilaksanakan melalui jaringan.",
+        "Bantuan logistik tersebut disediakan untuk mereka yang bertugas di pos komando utama selama latihan.",
+        "Pada saat ini satuan jajaran menyusun rencana pembinaan yang menyeluruh bagi perwira staf operasi.",
+        "Laporan disusun pada saat yang sama oleh perwira seksi operasi beserta perwira seksi intelijen.",
+    ]
+    template = dict(load_template(ROOT / "samples" / "templates" / "nota_dinas.json"))
+    template["isi"] = [f"{_FILLER} {probe} {_FILLER}" for probe in probes]
+    rep = lx.scan_points(_render(template), lexicon, layout=False)
+    for marked in ("[dan] lain-lain", "[dan] sebagainya", "[Namun] demikian", "[untuk] mereka", "[Pada saat] ini",
+                   "[pada saat] yang"):
+        assert not any(marked in p.context for p in rep.points), marked
+
+
 def test_load_lexicon_refuses_bad_files(tmp_path):
     bad = tmp_path / "rusak.json"
     bad.write_text(json.dumps({"id": "x", "version": 1, "rules": [{"id": "a", "tier": "A",
@@ -196,8 +269,106 @@ def test_protected_tokens_unchanged_on_a_long_document():
         assert _protected(words) == _protected([w.text for w in master.layout.row(rid).words]), rid
 
 
-def test_headings_semantic_units_and_other_blocks_untouched(doc):
-    master, sel = doc
+# Independent of tapak.marker.lexical: what the spec says may never change or sit next to a
+# changed word (numbers, names, units, times, coordinates, commands, negations).
+_TIME = {"pukul", "jam", "tanggal", "hari", "pagi", "siang", "sore", "malam", "minggu", "pekan", "bulan", "tahun",
+         "menit", "detik", "waktu", "sekarang", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "selama",
+         "sampai", "hingga", "lambat", "januari", "februari", "maret", "april", "mei", "juni", "juli", "agustus",
+         "september", "oktober", "november", "desember"}
+_NUMBER = {"satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas",
+           "puluh", "belas", "ratus", "ribu", "juta", "pertama", "kedua", "ketiga", "setengah", "beberapa",
+           "seluruh", "semua"}
+_ORDER = {"wajib", "harus", "dilarang", "larangan", "segera", "perintah", "agar", "supaya", "harap", "mohon",
+          "diminta", "dimohon", "perlu", "paling"}
+_NEGATION = {"tidak", "tak", "bukan", "belum", "tanpa", "jangan"}
+_COORD = {"koordinat", "lintang", "bujur", "derajat", "grid"}
+_HEADING = re.compile(r"^(?:\d{1,3}|[a-zA-Z])\.\s+((?:\S+\s+){0,4}?\S+\.)(?:\s|$)")
+
+
+def _unsafe(token: str, sentence_start: bool) -> bool:
+    bare = token.strip(".,;:!?\"'()[]")
+    low = bare.lower()
+    return bool(bare) and (any(ch.isdigit() for ch in bare) or (bare[:1].isupper() and not sentence_start)
+                           or low in _TIME | _NUMBER | _ORDER | _NEGATION | _COORD)
+
+
+def _guard_violations(sel) -> list[str]:
+    """Carrying points with an unsafe token within two words in the same sentence (from the
+    reviewer context, which holds exactly the point's sentence, "..." where it is cut)."""
+    bad = []
+    for p in sel.carrying():
+        before, rest = p.context.split("[", 1)
+        phrase, after = rest.split("]", 1)
+        cut = before.startswith("...")
+        left = [t for t in before.split() if t != "..."]
+        right = [t for t in after.split() if t != "..."]
+        tokens = left + phrase.split() + right
+        lo, hi = max(0, len(left) - 2), len(left) + len(phrase.split()) + 2
+        if any(_unsafe(tokens[k], k == 0 and not cut) for k in range(lo, min(hi, len(tokens)))):
+            bad.append(f"{p.point_id}: {p.context}")
+    return bad
+
+
+def test_guard_window_never_touches_protected_tokens(any_doc):
+    master, sel = any_doc
+    assert sel.carrying() and _guard_violations(sel) == []
+
+
+_GUARD_CASES = [  # (sentence, phrase that must not become a point, refusal category)
+    ("Laporan diserahkan kepada pengendali setiap pukul enam pagi oleh perwira jaga yang bertugas.", "setiap",
+     lx.REFUSE_TIME),
+    ("Naskah yang diterima oleh penerima dan wajib disimpan rapi oleh perwira administrasi brigade.", "dan",
+     lx.REFUSE_ORDER),
+    ("Naskah disimpan dalam lemari berkunci dan tidak dipindahkan ke tempat lain oleh siapa pun juga.", "dan",
+     lx.REFUSE_NEGATION),
+    ("Perlengkapan disiapkan oleh regu satu serta regu cadangan sebelum kegiatan pembinaan berlangsung.", "serta",
+     lx.REFUSE_NUMBER),
+    ("Hasil pembinaan dilaporkan kepada staf serta Komandan sesudah kegiatan pembinaan selesai dilaksanakan.",
+     "serta", lx.REFUSE_NAME),
+]
+_FILLER = "Kegiatan pembinaan staf berlangsung secara tertib, terukur, dan terarah sesuai rencana kerja satuan."
+
+
+def _guard_master():
+    from tapak.samplegen import load_template
+
+    template = dict(load_template(ROOT / "samples" / "templates" / "nota_dinas.json"))
+    template["isi"] = [f"{_FILLER} {sentence} {_FILLER}" for sentence, _, _ in _GUARD_CASES]
+    return _render(template)
+
+
+def test_guard_cases_are_refused_with_their_category(lexicon):
+    """Known protected neighbours, each in a justified body row: the phrase never becomes a
+    point and the refusal names the category (the guard itself, called on the sentence, too)."""
+    master = _guard_master()
+    rep = lx.scan_points(master, lexicon, layout=False)
+    for sentence, phrase, category in _GUARD_CASES:
+        words = sentence.split()
+        i = words.index(phrase)
+        marked = " ".join(words[max(0, i - 2):i] + [f"[{phrase}]"] + words[i + 1:i + 3])
+        assert not any(marked in p.context for p in rep.points), marked
+        rule = next(r for r in lexicon.rules if phrase in r.forms)
+        assert lx._guard(words, i, i + 1, set(), rule, "lokal") == category, sentence
+        assert rep.refused.get(category, 0) >= 1, category
+
+
+def test_disabling_the_guard_window_is_caught(monkeypatch, lexicon):
+    """Mutation check: with the guard window switched off, the independent checks above fail."""
+    master = _guard_master()
+    monkeypatch.setattr(lx, "GUARD_WINDOW", 0)
+    rep = lx.scan_points(master, lexicon, layout=False)
+    sel = lx.LexicalSelection(master.doc_hash, lexicon.name, lexicon.digest, "A", "lokal", rep.points)
+    for p in sel.points:
+        sel.set_status(p.point_id, STATUS_APPROVED)
+    assert _guard_violations(sel)
+    sentence, phrase, category = _GUARD_CASES[0]
+    words = sentence.split()
+    i = words.index(phrase)
+    assert lx._guard(words, i, i + 1, set(), lexicon.rule("setiap"), "lokal") is None
+
+
+def test_headings_semantic_units_and_other_blocks_untouched(any_doc):
+    master, sel = any_doc
     unit_rows = {rid for u in sem.find_candidate_units(master) for rid in u.row_ids}
     body = {r.id for r in lx.body_rows(master)}
     for p in sel.points:
@@ -205,13 +376,99 @@ def test_headings_semantic_units_and_other_blocks_untouched(doc):
         row = master.layout.row(p.row_id)
         phrase = [w.text for w in row.words[p.start:p.end]]
         assert not any(ch.isdigit() for w in phrase for ch in w)
-        assert " ".join(phrase) == p.forms[0] and p.context == row.text
-        # never a paragraph heading such as "Maksud dan tujuan."
-        assert not re.match(r"^\w{1,3}\. \w+ dan \w+\.", row.text) or p.start > 3
+        assert " ".join(phrase) == p.forms[0] and f"[{p.forms[0]}]" in p.context
+        # never inside a paragraph heading such as "14. Maksud dan tujuan.", whatever its number
+        m = _HEADING.match(row.text)
+        assert m is None or p.start >= 1 + len(m.group(1).split()), (p.point_id, row.text)
 
 
-def test_every_combination_fits_its_row(doc):
+def test_headings_with_two_digit_numbers_are_refused(long_doc):
+    master, sel = long_doc
+    headings = [r for r in master.layout.rows() if re.match(r"^\d{2}\. Maksud dan tujuan\.", r.text)]
+    assert len(headings) >= 2  # "14." and "26."
+    assert not any(p.row_id == r.id and p.start <= 3 for p in sel.points for r in headings)
+
+
+def test_labelled_rows_keep_the_hanging_indent(any_doc):
+    """A row that starts with a list label ("1.", "14.", "b.") keeps the label and the first
+    text word at their master x under every combination of forms."""
+    master, sel = any_doc
+    edges = lx.page_edges(master)
+    labelled = 0
+    for rid, pts, choice in _row_combinations(master, sel.points):
+        row = master.layout.row(rid)
+        if not re.fullmatch(r"(?:\d{1,3}|[a-zA-Z])[.)]", row.words[0].text):
+            continue
+        assert lx.label_count(master, row) == 1, row.text
+        placed = lx.fit_row(master, row, lx.row_words_for(row, pts, choice), edges[rid[0]])
+        assert placed[0][0] == pytest.approx(row.words[0].x0, abs=1e-3)
+        assert placed[1][0] == pytest.approx(row.words[1].x0, abs=1e-3), (row.text, choice)
+        labelled += 1
+    assert labelled
+
+
+def test_label_detection_by_shape_and_column(long_doc):
+    master, _ = long_doc
+    rows = list(master.layout.rows())
+    two_digit = [r for r in rows if re.fullmatch(r"\d{2}\.", r.words[0].text)]
+    assert two_digit and all(lx.label_count(master, r) == 1 for r in two_digit)
+    letters = [r for r in rows if re.fullmatch(r"[a-d]\.", r.words[0].text)]
+    assert letters and all(lx.label_count(master, r) == 1 for r in letters)
+    plain = [r for r in rows if not re.fullmatch(r"\w{1,3}[.)]", r.words[0].text) and len(r.words) > 2]
+    assert plain and not any(lx.label_count(master, r) for r in plain)
+
+
+def test_context_shows_the_whole_sentence_across_rows(doc):
     master, sel = doc
+    for p in sel.points:
+        assert p.context.count("[") == 1 and f"[{p.forms[0]}]" in p.context
+    nota = sel.points[0].context if "ND/" in master.layout.pages[0].rows[4].text else None
+    if nota is None:
+        return
+    at_row_start = [p for p in sel.points if p.start == 0]
+    assert at_row_start
+    for p in at_row_start:  # the words before the phrase come from the row above
+        prev_row = master.layout.row((p.page, p.row - 1))
+        assert prev_row.words[-1].text in p.context.split("[", 1)[0], p.context
+
+
+def test_body_rows_skip_signature_tembusan_and_footer():
+    from tapak.samplegen import load_template
+
+    template = dict(load_template(ROOT / "samples" / "templates" / "surat_telegram.json"))
+    template["tembusan"] = ["Panglima Kodam Latihan Fiktif XIV", "perwira pengaman dokumen dan arsip satuan jajaran"]
+    master = _render(template)
+    body = lx.body_rows(master)
+    rows = list(master.layout.rows())
+    tembusan = next(r for r in rows if r.text == "Tembusan:")
+    after = {r.id for r in rows if (r.page, r.index) > tembusan.id}
+    footer = {r.id for r in rows if r.text in ("CONTOH SINTETIS - BUKAN DOKUMEN ASLI", "RAHASIA")}
+    signature = {r.id for r in rows if r.words[0].x0 > 300}
+    assert after and footer and signature
+    assert not {r.id for r in body} & (after | footer | signature)
+    edges = lx.page_edges(master)
+    assert all(r.words[0].x0 < (72 + edges[r.page]) / 2 for r in body)  # never the signature column
+    rep = lx.scan_points(master, layout=False)
+    assert not any(p.page == 1 for p in rep.points)  # the tembusan list on page 2 holds no point
+    tele = load_master(DOCS[1].read_bytes())  # body words: body rows outside semantic units, labels excluded
+    units = {rid for u in sem.find_candidate_units(tele) for rid in u.row_ids}
+    rows = [r for r in lx.body_rows(tele) if r.id not in units]
+    assert lx.scan_candidates(tele).body_words == sum(len(r.words) - lx.label_count(tele, r) for r in rows)
+    assert not any(r.words[0].x0 > 300 or r.page == 1 for r in rows)  # no signature, no tembusan, no footer
+
+
+def test_repeated_contexts_are_flagged(doc, long_doc):
+    _, sel = doc
+    assert sel.points and not any(p.repeated for p in sel.points)  # the sample notes do not repeat
+    master, long_sel = long_doc
+    assert all(p.repeated for p in long_sel.points)  # every paragraph appears three times
+    assert lx.repeated_points(master, []) == set()
+    again = lx.LexPoint.from_dict(long_sel.points[0].to_dict())
+    assert again.repeated and again.structure()["repeated"] is True
+
+
+def test_every_combination_fits_its_row(any_doc):
+    master, sel = any_doc
     edges = lx.page_edges(master)
     for rid, pts, choice in _row_combinations(master, sel.points):
         row = master.layout.row(rid)
@@ -392,6 +649,26 @@ def test_excerpt_reads_nothing_outside_the_excerpt(doc):
     assert wrong <= max(1, 0.05 * inside)
 
 
+def test_reordered_sentences_without_repeated_contexts_read_nothing_wrong(doc):
+    """Shuffled sentences of a document whose points are not flagged as repeated: a point is
+    found at its own sentence or not at all, never read wrong."""
+    master, sel = doc
+    assert not any(p.repeated for p in sel.carrying())
+    params, p, slots = _plan(master, sel)
+    ref = LexReference(master, sel.carrying())
+    rng = random.Random(12)
+    read = wrong = 0
+    for k in range(15):
+        x = derive_codeword(SECRET, master.doc_hash, f"acak{k}", p)
+        text = " ".join(lx.copy_text(master, sel.carrying(), lx.choices_for_codeword(slots, x, sel.points)).split())
+        sentences = text.replace(". ", ".\n").split("\n")
+        rng.shuffle(sentences)
+        sb = decode_lexical(" ".join(sentences), ref, sel.points, slots)
+        read += len(sb)
+        wrong += int(np.sum((sb.llr > 0).astype(int) != x[sb.positions]))
+    assert read > 0 and wrong == 0
+
+
 def test_threshold_identical_for_different_codeword_matrices(doc):
     master, sel = doc
     params, p, slots = _plan(master, sel)
@@ -526,9 +803,22 @@ def test_lexical_marks_keep_zero_width_marks_on_unchanged_words():
 
 def test_capacity_verdict_says_enough_only_from_64_bits():
     assert "cukup untuk satu pembocor" in lx.capacity_verdict(lx.LONE_LEAKER_BITS)
-    assert "tidak tahan kolusi" in lx.capacity_verdict(100)
+    assert "tidak tahan kolusi" in lx.capacity_verdict(100, 2800, 100)
     low = lx.capacity_verdict(lx.LONE_LEAKER_BITS - 1)
-    assert "belum cukup" in low and "cukup untuk satu pembocor" not in low
+    assert "belum mencapai 64 bit" in low and "cukup untuk satu pembocor" not in low
+    assert "kurang 1 bit" in low and "rata-rata tabel" in low
+
+
+def test_capacity_verdict_word_figures_follow_the_bit_level():
+    """The word figure is derived from the 64-bit level, never a separate range: a document
+    is told how many bits and roughly how many more body words it lacks at its own density."""
+    assert lx.LONE_LEAKER_WORDS == lx.words_for_bits(lx.LONE_LEAKER_BITS) == 1800
+    assert lx.words_for_bits(0) == 0 and lx.words_for_bits(36) == 1000
+    assert lx.words_for_bits(47, 1318, 47) == 1400  # the document's own density
+    text = lx.capacity_verdict(47, 1318, 47)
+    assert "dari 1.318 kata isi" in text and "kurang 17 bit" in text and "kira-kira 500 kata isi lagi" in text
+    assert "dengan kepadatan dokumen ini" in text
+    assert lx.format_count(1318) == "1.318" and lx.format_count(64) == "64"
 
 
 def test_retype_noise_model_is_reproducible():

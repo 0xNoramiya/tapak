@@ -15,9 +15,10 @@ Workflow:
    refusal counts per category (never document words).
 2. A person approves or rejects every point (``set_status``, CLI ``tapak leksikal review``).
    ``require_reviewed`` blocks issuance while any point is undecided, and
-   ``validate_selection`` re-checks the file before any copy is drawn: the scan digest (a
-   hand-edited file is refused), the lexicon digest, a fresh scan of the master that must
-   give exactly the same points, and the layout fit.
+   ``validate_selection`` re-checks the file before any copy is drawn: the scan digest (points
+   or forms edited by hand are refused), the lexicon digest, a fresh scan of the master that
+   must give exactly the same points, and the layout fit. The review decisions themselves are
+   not authenticated: a status edited by hand is accepted, so the file is kept like the master.
 3. An approved point with 2^b forms carries b code bits: the copy shows the form whose index
    is the point's whitened bits read as a binary number, most significant first, as in the
    semantic channel. Positions come from the shared retype band (``plan.RETYPE_BAND``).
@@ -32,16 +33,17 @@ What is never changed:
   word, or a negation (the ``semantic.safety_check`` categories plus a few function words
   such as "agar", "harap", "paling", "sampai");
 * policy "kalimat" (stricter): the whole sentence must pass ``semantic.safety_check``;
-* paragraph headings ("Maksud dan tujuan."), header fields, the signature block, tembusan
-  lists, rows of suggested semantic units and rows that mix fonts are never touched, and a
-  phrase never spans two rows;
+* paragraph headings ("14. Maksud dan tujuan."), header fields, the signature block,
+  tembusan lists, page headers and footers, rows of suggested semantic units and rows that
+  mix fonts are never touched (``body_rows``), and a phrase never spans two rows;
 * forms of one rule differ by at least ``MIN_FORM_DISTANCE`` characters and no form is
   another form minus a word, so a dropped word or a typo cannot turn one form into another.
 
 Layout: a row holding points is redrawn word by word (``CopyMarks.row_words``). Unchanged
 words keep their master glyphs, kerning, zero-width marks and homoglyph; only the point
-words are new text. Every combination of forms must keep the left and right edge and any
-hanging label ("1.", "a.") in place, with gaps between ``MIN_GAP_FACTOR`` and
+words are new text. Every combination of forms must keep the left and right edge, any
+hanging label ("1.", "14.", "a.", see ``label_count``) and the first word after it in place,
+with gaps between ``MIN_GAP_FACTOR`` and
 ``MAX_GAP_FACTOR`` spaces (or the row's widest original gap); otherwise the point with the
 largest width change is dropped. Rows that hold a carrying point leave the shift channel.
 
@@ -56,6 +58,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -79,16 +82,21 @@ GUARD_WINDOW = 2          # words on each side of a point that must be harmless
 MIN_GAP_FACTOR = 1.0      # a justified gap is never narrower than a normal space
 MAX_GAP_FACTOR = 3.0      # nor wider than 3 spaces (or the row's widest original gap)
 FULL_TOL = 1.5            # pt: a row ending this close to the right margin is justified
-LABEL_GAP_FACTOR = 1.5    # first gap this much wider than the median gap: a hanging label
 EDGE_TOL = 0.5            # pt: overshoot tolerated for a left-aligned row
 MIN_FORM_DISTANCE = 3     # characters between any two forms of a rule
 MAX_ROW_COMBINATIONS = 256
+CONTEXT_WORDS = 30        # words shown on each side of a point to the reviewer
 
-# Lone-leaker level for retyped text (simulation with the measured retype noise: about 95 %
-# detection at eps = 1e-6 from 48 to 64 band bits, N = 20 to 100). The issuer sees whether a
-# document reaches it; below it a retyped leak ends in "tidak cukup bukti".
+# Lone-leaker level for retyped text, fixed before the measurements of this table: about 95 %
+# detection at eps = 1e-6 from 48 to 64 band bits under heavy noise or a typist's habit
+# (research simulation, N = 20 to 100). The issuer sees whether a document reaches it; it says
+# "cukup untuk satu pembocor" only from this level on.
 LONE_LEAKER_BITS = 64
-LONE_LEAKER_WORDS = "1.000 sampai 1.400"
+# Average bits per 100 body words with this table (tier A), measured on the two sample notes
+# and the long synthetic documents (research/ketik/ukur.py kapasitas). Used only to turn a bit
+# count into an indicative word count for the issuer and the berita acara.
+BITS_PER_100_WORDS = 3.6
+LONE_LEAKER_WORDS = 1800  # LONE_LEAKER_BITS at BITS_PER_100_WORDS, rounded to 100 words
 
 POLICIES = ("lokal", "kalimat")
 _STRIP = ".,;:!?\"'()[]{}"
@@ -298,8 +306,14 @@ class LexPoint:
         rule_id: lexicon rule.
         forms: forms as drawn in a copy (case and trailing punctuation applied); forms[0] is
             the master text; the count is a power of two.
-        context: the master row's text (shown to the reviewer; document content).
+        context: the sentence holding the phrase, with the phrase in square brackets, across
+            rows (at most ``CONTEXT_WORDS`` words on each side; shown to the reviewer, document
+            content, part of the scan digest).
         status: "menunggu" | "disetujui" | "ditolak".
+        repeated: another place of the master text fits this point's phrase with its context
+            closely enough for the decoder to read it there (``repeated_points``). If the
+            leaker reorders sentences, such a point can be read at that other place; this
+            lowers the leaker's score and never points at another copy. Shown to the reviewer.
     """
 
     point_id: str
@@ -311,6 +325,7 @@ class LexPoint:
     forms: tuple[str, ...]
     context: str = ""
     status: str = STATUS_PENDING
+    repeated: bool = False
 
     @property
     def row_id(self) -> RowId:
@@ -334,7 +349,8 @@ class LexPoint:
     def structure(self) -> dict[str, object]:
         """Every field except the review status (what the scan determines)."""
         return {"point_id": self.point_id, "page": self.page, "row": self.row, "start": self.start,
-                "end": self.end, "rule_id": self.rule_id, "forms": list(self.forms), "context": self.context}
+                "end": self.end, "rule_id": self.rule_id, "forms": list(self.forms), "context": self.context,
+                "repeated": self.repeated}
 
     def to_dict(self) -> dict[str, object]:
         """JSON-friendly form."""
@@ -345,7 +361,7 @@ class LexPoint:
         """Inverse of :meth:`to_dict`."""
         return cls(str(d["point_id"]), int(d["page"]), int(d["row"]), int(d["start"]),  # type: ignore[arg-type]
                    int(d["end"]), str(d["rule_id"]), tuple(str(f) for f in d["forms"]),  # type: ignore[arg-type,union-attr]
-                   str(d.get("context", "")), str(d.get("status", STATUS_PENDING)))
+                   str(d.get("context", "")), str(d.get("status", STATUS_PENDING)), bool(d.get("repeated", False)))
 
 
 @dataclass
@@ -364,7 +380,7 @@ class LexicalSelection:
         body_words: words of justified body rows (capacity context).
         refused: refusal counts per category (no document words).
         scan_digest: digest of the scan result without review statuses; a file whose points
-            were edited by hand no longer matches it.
+            or forms were edited by hand no longer matches it (statuses are not covered).
     """
 
     doc_hash: str
@@ -469,30 +485,71 @@ def _bare(word: str) -> str:
     return word.strip(_STRIP).lower()
 
 
-def _right_margin(rows: Sequence[Row]) -> float:
-    """Most common right edge of rows with at least 3 words (the justified column edge)."""
+def _common_edge(rows: Iterable[Row]) -> float | None:
+    """Most common right edge (rounded) of rows with at least 3 words, or None."""
     ends = [round(r.words[-1].x1) for r in rows if len(r.words) >= 3]
-    if not ends:
-        return max(r.words[-1].x1 for r in rows)
-    common = max(set(ends), key=ends.count)
-    return max(r.words[-1].x1 for r in rows if abs(r.words[-1].x1 - common) <= 1.0)
+    return max(sorted(set(ends)), key=ends.count) if ends else None
 
 
 def page_edges(master: MasterDocument) -> dict[int, float]:
-    """Right edge of the justified column per page."""
-    return {p.index: _right_margin(p.rows) for p in master.layout.pages if p.rows}
+    """Right edge of the justified column per page.
+
+    The column edge is the most common right edge of the whole document, so a page without
+    body text (a tembusan list, a signature) does not get an edge of its own; on each page it
+    is refined to the widest row ending within 1 pt of it.
+    """
+    common = _common_edge(r for p in master.layout.pages for r in p.rows)
+    out: dict[int, float] = {}
+    for p in master.layout.pages:
+        if not p.rows:
+            continue
+        if common is None:
+            out[p.index] = max(r.words[-1].x1 for r in p.rows)
+            continue
+        near = [r.words[-1].x1 for r in p.rows if abs(r.words[-1].x1 - common) <= 1.0]
+        out[p.index] = max(near) if near else float(common)
+    return out
+
+
+def _running_rows(master: MasterDocument) -> set[tuple[str, int]]:
+    """(text, baseline) of rows repeated at the same height on several pages (running header,
+    classification, footer)."""
+    seen: dict[tuple[str, int], set[int]] = {}
+    for p in master.layout.pages:
+        for r in p.rows:
+            seen.setdefault((r.text, round(r.baseline)), set()).add(p.index)
+    return {key for key, pages in seen.items() if len(pages) > 1}
+
+
+_TEMBUSAN_RE = re.compile(r"^tembusan\s*:$", re.IGNORECASE)
 
 
 def body_rows(master: MasterDocument) -> list[Row]:
-    """Rows of justified paragraphs: a full row, or the row right after a full body row."""
+    """Rows of justified paragraphs: a full row, or the row right after a full body row.
+
+    A full row ends at the column edge (within FULL_TOL, never beyond it) and starts in the
+    left half of the column. Rows repeated on several pages (header, footer) and everything
+    from a "Tembusan:" row on are never body rows, so signature blocks, tembusan lists and
+    page footers are not counted as body text and never hold a point.
+    """
+    edges = page_edges(master)
+    running = _running_rows(master)
+    left = min((r.words[0].x0 for p in master.layout.pages for r in p.rows), default=0.0)
     out: list[Row] = []
     for page in master.layout.pages:
         if not page.rows:
             continue
-        edge = _right_margin(page.rows)
+        edge = edges[page.index]
+        middle = (left + edge) / 2
         prev_full = False
         for k, row in enumerate(page.rows):
-            full = edge - row.words[-1].x1 <= FULL_TOL and len(row.words) > 2
+            if _TEMBUSAN_RE.match(row.text.strip()):
+                return out
+            if (row.text, round(row.baseline)) in running:
+                prev_full = False
+                continue
+            full = (abs(edge - row.words[-1].x1) <= FULL_TOL and len(row.words) > 2
+                    and row.words[0].x0 < middle)
             cont = prev_full and k > 0 and sem._same_block(page.rows[k - 1], row)
             if full or cont:
                 out.append(row)
@@ -500,13 +557,34 @@ def body_rows(master: MasterDocument) -> list[Row]:
     return out
 
 
-def _label_count(row: Row) -> int:
-    """Number of leading words that form a hanging label ("1.", "a.") kept in place."""
-    if len(row.words) < 3:
+LABEL_RE = re.compile(r"(?:\d{1,3}|[a-zA-Z]|[ivxIVX]{2,4})[.)]")
+LABEL_COLUMN_TOL = 1.0    # pt: the word after a label starts at a text column of the page
+
+
+def _text_columns(rows: Sequence[Row]) -> list[float]:
+    """Left edges where text rows of a page start: rows that do not begin with a label, and the
+    word after a label when at least two labelled rows share it."""
+    cols = [r.words[0].x0 for r in rows if not LABEL_RE.fullmatch(r.words[0].text)]
+    after = [r.words[1].x0 for r in rows if len(r.words) > 1 and LABEL_RE.fullmatch(r.words[0].text)]
+    cols += [x for x in after if sum(abs(x - y) <= LABEL_COLUMN_TOL for y in after) >= 2]
+    return cols
+
+
+def label_count(master: MasterDocument, row: Row) -> int:
+    """Number of leading words that form a hanging label ("1.", "14.", "a.") kept in place.
+
+    A label is a list marker by its shape (digits, one letter or a roman numeral, then "." or
+    ")") whose next word starts at a text column of the page (where other rows start), so the
+    text stays in its hanging indent. The gap after the label plays no part: "10." leaves a
+    narrower gap than "1.".
+    """
+    if len(row.words) < 2 or not LABEL_RE.fullmatch(row.words[0].text):
         return 0
-    gaps = [b.x0 - a.x1 for a, b in zip(row.words, row.words[1:])]
-    med = float(np.median(gaps[1:])) if len(gaps) > 1 else gaps[0]
-    return 1 if gaps[0] > LABEL_GAP_FACTOR * med and re.fullmatch(r"\w{1,3}[.)]", row.words[0].text) else 0
+    x = row.words[1].x0
+    if x <= row.words[0].x1:
+        return 0
+    cols = _text_columns(master.layout.pages[row.page].rows)
+    return 1 if any(abs(x - c) <= LABEL_COLUMN_TOL for c in cols) else 0
 
 
 def _row_state(row: Row) -> tuple[str, float, int] | None:
@@ -543,6 +621,19 @@ def _token_problem(tok: str, sentence_start: bool) -> str | None:
     if any(sem._NEGATION_RE.match(p) for p in parts):
         return REFUSE_NEGATION
     return None
+
+
+def _display_context(stream: Sequence[str], gi: int, ge: int, labels: set[int]) -> str:
+    """The sentence holding stream[gi:ge] with the phrase in square brackets, for the reviewer.
+
+    The sentence may span several rows, so the reviewer sees what a phrase at the start or
+    end of a row joins. At most CONTEXT_WORDS words are shown on each side ("..." marks a cut).
+    """
+    s, e = _sentence_bounds(stream, gi)
+    lo, hi = max(s, gi - CONTEXT_WORDS), min(e, ge + CONTEXT_WORDS)
+    words = ([stream[i] for i in range(lo, gi) if i not in labels] + ["[" + " ".join(stream[gi:ge]) + "]"]
+             + [stream[i] for i in range(ge, hi) if i not in labels])
+    return ("... " if lo > s else "") + " ".join(words) + (" ..." if hi < e else "")
 
 
 def _sentence_bounds(tokens: Sequence[str], i: int) -> tuple[int, int]:
@@ -610,7 +701,7 @@ def fit_row(master: MasterDocument, row: Row, words: Sequence[tuple[str, WordId 
     g0 = row.words[0].glyphs[0]
     font = master.fonts[g0.font].font
     space = font.text_length(" ", g0.size)
-    lab = _label_count(row)
+    lab = label_count(master, row)
     if any(wid is None and not all(font.has_glyph(ord(ch)) for ch in text) for text, wid in words):
         return None
     placed: list[tuple[float, str, WordId | None]] = [
@@ -708,7 +799,7 @@ def scan_points(master: MasterDocument, lexicon: Lexicon | None = None, tiers: s
     index: dict[tuple[RowId, int], int] = {}
     labels: set[int] = set()
     for row in rows:
-        lab = _label_count(row)
+        lab = label_count(master, row)
         for k, w in enumerate(row.words):
             if k < lab:
                 labels.add(len(stream))
@@ -717,7 +808,7 @@ def scan_points(master: MasterDocument, lexicon: Lexicon | None = None, tiers: s
     rep.body_words = len(stream) - len(labels)
     candidates: list[LexPoint] = []
     for row in rows:
-        k, n = _label_count(row), len(row.words)
+        k, n = label_count(master, row), len(row.words)
         while k < n:
             hit = None
             for rule, form in by_first.get(_bare(row.words[k].text), []):
@@ -749,7 +840,7 @@ def scan_points(master: MasterDocument, lexicon: Lexicon | None = None, tiers: s
                 trail = tail[len(tail.rstrip(_STRIP)):]
                 shown = (master_text,) + tuple(_apply_case(master_text, f) + trail for f in usable[1:])
                 candidates.append(LexPoint(f"c{len(candidates)}", row.page, row.index, k, k + size,
-                                           rule.rule_id, shown, row.text))
+                                           rule.rule_id, shown, _display_context(stream, gi, gi + size, labels)))
             else:
                 rep.refuse(why)
             k += size
@@ -784,9 +875,41 @@ def scan_points(master: MasterDocument, lexicon: Lexicon | None = None, tiers: s
                 pts = [p for p in pts if p is not worst]
                 rep.refuse(REFUSE_FIT)
         kept += pts
-    rep.points = [LexPoint(f"l{i}", p.page, p.row, p.start, p.end, p.rule_id, p.forms, p.context)
-                  for i, p in enumerate(kept)]
+    points = [LexPoint(f"l{i}", p.page, p.row, p.start, p.end, p.rule_id, p.forms, p.context)
+              for i, p in enumerate(kept)]
+    repeated = repeated_points(master, points)
+    for p in points:
+        p.repeated = p.point_id in repeated
+    rep.points = points
     return rep
+
+
+def repeated_points(master: MasterDocument, points: Sequence[LexPoint]) -> set[str]:
+    """Ids of points whose pattern (decoder context + any form) also fits elsewhere in the master.
+
+    Uses the decoder's own reference text and context (``ch_lexical.LexReference``): the
+    point's own stretch is blanked out and every form's pattern is searched in the rest. A
+    point is repeated when the closest other place needs at most the decoder's
+    ``MAX_EDIT_FRACTION`` of the pattern length in edits, i.e. when the decoder could read the
+    point there. Documents without repeated passages have none (the sample notes: the closest
+    other place needs at least a third of the pattern in edits).
+    """
+    from tapak.decoder.ch_lexical import MAX_EDIT_FRACTION, LexReference
+    from tapak.decoder.ch_semantic import semiglobal_distance
+
+    if not points:
+        return set()
+    ref = LexReference(master, points)
+    out: set[str] = set()
+    for p in points:
+        left, right, lo, hi = ref.context(p.point_id)
+        masked = ref.text[:lo] + "\x00" * (hi - lo) + ref.text[hi:]
+        for form in p.forms:
+            pattern = left + sem.match_key(form) + right
+            if semiglobal_distance(pattern, masked) <= MAX_EDIT_FRACTION * len(pattern):
+                out.add(p.point_id)
+                break
+    return out
 
 
 def scan_candidates(master: MasterDocument, lexicon: Lexicon | None = None, tiers: str = "A",
@@ -930,11 +1053,42 @@ def lexical_marks(slots: Iterable[Slot], codeword: np.ndarray, master: MasterDoc
     return out
 
 
-def capacity_verdict(bits: int) -> str:
+def format_count(n: int) -> str:
+    """An integer with the Indonesian thousands separator (1.800)."""
+    return f"{n:,}".replace(",", ".")
+
+
+def words_for_bits(bits: int, body_words: int | None = None, lexical_bits: int | None = None) -> int:
+    """Indicative body words that carry ``bits`` lexical bits, rounded up to 100 words.
+
+    Uses the document's own density (``lexical_bits`` per ``body_words``) when both are known
+    and positive, else the table average BITS_PER_100_WORDS.
+    """
+    if bits <= 0:
+        return 0
+    if body_words and lexical_bits:
+        per_word = lexical_bits / body_words
+    else:
+        per_word = BITS_PER_100_WORDS / 100
+    return math.ceil(round(bits / per_word / 100, 6)) * 100
+
+
+def capacity_verdict(bits: int, body_words: int | None = None, lexical_bits: int | None = None) -> str:
     """Plain Indonesian verdict for the issuer: is a retyped leak of this document enough to name
-    one leaker?"""
+    one leaker?
+
+    ``bits`` counts every retype-surviving bit (word choice and semantic). Below
+    LONE_LEAKER_BITS the verdict says how many bits are missing and, from the document's own
+    density (``lexical_bits`` per ``body_words``), roughly how many more body words that is.
+    """
+    words = f" dari {format_count(body_words)} kata isi" if body_words else ""
     if bits >= LONE_LEAKER_BITS:
-        return (f"{bits} bit tahan ketik ulang: cukup untuk satu pembocor (teks ketikan ulang dari satu "
+        return (f"{bits} bit tahan ketik ulang{words}: cukup untuk satu pembocor (teks ketikan ulang dari satu "
                 "salinan); tidak tahan kolusi")
-    return (f"{bits} bit tahan ketik ulang: belum cukup untuk menyebut satu pembocor dari teks ketikan "
-            f"ulang (perlu sekitar {LONE_LEAKER_BITS} bit, kira-kira {LONE_LEAKER_WORDS} kata isi)")
+    missing = LONE_LEAKER_BITS - bits
+    more = words_for_bits(missing, body_words, lexical_bits)
+    density = ("dengan kepadatan dokumen ini" if body_words and lexical_bits
+               else f"dengan rata-rata tabel ini ({str(BITS_PER_100_WORDS).replace('.', ',')} bit per 100 kata isi)")
+    return (f"{bits} bit tahan ketik ulang{words}: belum mencapai {LONE_LEAKER_BITS} bit, batas TAPAK untuk "
+            f"menyebut satu pembocor dari teks ketikan ulang (kurang {missing} bit, {density} kira-kira "
+            f"{format_count(more)} kata isi lagi)")

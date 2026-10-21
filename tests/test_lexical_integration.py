@@ -19,7 +19,15 @@ import pytest
 
 from tapak.config import Settings
 from tapak.decoder.ch_zerowidth import extract_pdf_text
-from tapak.decoder.trace import collect_from_text, load_context, load_lexical, retyped_text_note, run_trace
+from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+from tapak.decoder.trace import (
+    collect_from_text,
+    load_context,
+    load_lexical,
+    retyped_text_note,
+    run_trace,
+    visible_marks_note,
+)
 from tapak.ketik import retype
 from tapak.llm.provider import get_provider
 from tapak.marker import lexical as lx
@@ -204,6 +212,9 @@ def test_forwarded_copy_still_named_and_lexical_bits_read(lex_doc):
     assert len(lex) == sel.bits and np.all((lex.llr > 0) == (x[lex.positions] == 1))
     lexical_row = next(ch for ch in att.channels if ch.channel == "leksikal")  # its own independent row
     assert lexical_row.n_observed == sel.bits and lexical_row.accused_seqs == []  # too few bits alone
+    # The text marks name copy 7 without the visible word choices: no caveat.
+    assert not any(VISIBLE_MARKS_NOTE in n for n in att.notes)
+    assert visible_marks_note(outcome.observations, att, outcome.ctx) is None
 
 
 def test_retyped_nota_gives_insufficient_evidence_with_a_plain_note(lex_doc):
@@ -217,6 +228,9 @@ def test_retyped_nota_gives_insufficient_evidence_with_a_plain_note(lex_doc):
     assert att.verdict == "tidak cukup bukti" and att.accused == []
     note = next(n for n in att.notes if "diketik ulang" in n)
     assert f"{lx.LONE_LEAKER_BITS} bit" in note and "tidak cukup bukti" in note
+    # word figure at this document's own density, and its body words
+    assert f"{lx.format_count(sel.body_words)} kata isi" in note
+    assert lx.format_count(lx.words_for_bits(lx.LONE_LEAKER_BITS, sel.body_words, sel.bits)) in note
     phys = {ch.channel for ch in att.channels}
     assert "leksikal" in phys and phys <= {"leksikal", "semantik"}
     info = build_report_info(outcome.ctx, "ketikan.txt", text.encode("utf-8"), outcome.observations,
@@ -237,6 +251,8 @@ def test_retyped_text_note_only_for_retype_channels(lex_doc):
     only = [o for o in obs if o.channel == CHANNEL_LEXICAL]
     result = run_trace(only, ctx)
     assert "bit" in retyped_text_note(only, result)
+    assert "1.800 kata isi" in retyped_text_note(only, result)  # table average without the document's density
+    assert "Dokumen ini memuat 300 kata isi" in retyped_text_note(only, result, 300, 11)
 
 
 def test_digest_mismatch_skips_only_the_lexical_channel(lex_doc, tmp_path):
@@ -331,7 +347,7 @@ def test_long_document_retyped_names_the_right_copy_text_level():
 
     master = load_master(_long_master(3))
     sel = _approved_lexical(master)
-    assert len(master.layout.pages) == 6 and sel.bits >= 48
+    assert len(master.layout.pages) == 6 and sel.bits >= 45
     ref = LexReference(master, sel.carrying())
     rng = random.Random(20)
     for trial in range(10):
@@ -367,6 +383,89 @@ def test_long_document_issued_retyped_and_traced(tmp_path):
         assert {o.channel for o in obs} <= {"semantic", "lexical"}  # retyping removed the text marks
         result = run_trace(obs, ctx)
         assert [c.copy.seq for c in result.accused] == [seq]
+        # Only marks visible on paper were read: the name comes with the caveat that anyone who
+        # has read copy `seq` could have typed these word choices.
+        assert any(n.startswith(f"salinan #{seq}: ") and VISIBLE_MARKS_NOTE in n for n in result.notes)
+
+
+def test_copying_another_copys_word_choices_names_that_copy_with_a_caveat():
+    """A leaker who has read a colleague's printed copy retypes the leak with the colleague's
+    visible word choices: the text then carries that copy's marks and names it. The trace
+    must say that the name rests only on marks anyone who read that copy could copy."""
+    from types import SimpleNamespace
+
+    from tapak.decoder.accuse import CopyRef, attribute
+    from tapak.decoder.ch_lexical import LexReference, decode_lexical
+    from tapak.decoder.fuse import fuse, fuse_by_physical_channel
+    from tapak.decoder.softbits import SoftBits
+    from tapak.marker.plan import plan_key
+    from tapak.tardos.code import derive_bias, derive_codeword
+
+    master = load_master(_long_master(4))
+    sel = _approved_lexical(master)
+    ref = LexReference(master, sel.carrying())
+    rng = random.Random(31)
+    secret = rng.randbytes(32)
+    params = TardosParams(c=3, eps=1e-6, n_max=20)
+    p = derive_bias(secret, master.doc_hash, params)
+    slots = lx.lexical_slots(sel, params.length, plan_key(secret, master.doc_hash), p, RETYPE_BAND)
+    x = np.vstack([derive_codeword(secret, master.doc_hash, f"s{j}", p) for j in range(20)])
+    refs = [CopyRef(j + 1, f"s{j}", f"R{j:03d}", f"Penerima {j}") for j in range(20)]
+    ctx = SimpleNamespace(params=params, p=p, codewords=x, refs=refs)
+    attacker, victim = 2, 9
+    copied = lx.choices_for_codeword(slots, x[victim], sel.points)  # read off the victim's paper copy
+    assert copied != lx.choices_for_codeword(slots, x[attacker], sel.points)
+    text = retype(lx.copy_text(master, sel.carrying(), copied), rng, "sedang")
+    sb = decode_lexical(text, ref, sel.points, slots)
+    m = params.length
+    att = attribute(fuse([sb], m), fuse_by_physical_channel([sb], m), p, x, refs, params)
+    assert [c.copy.seq for c in att.accused] == [victim + 1]  # the statistics follow the copied forms
+    note = visible_marks_note([sb], att, ctx)
+    assert note == f"salinan #{victim + 1}: {VISIBLE_MARKS_NOTE}"
+    assert "bukan pengetiknya" in note and "bukti pendukung" in note
+    att.notes.append(note)
+    lines = att.summary_lines()  # CLI: the caveat follows the named copy, not among the notes
+    accused_line = next(k for k, line in enumerate(lines) if line.startswith(f"  Salinan #{victim + 1} "))
+    assert lines[accused_line + 1] == f"  PERHATIAN: {note}" and not any(VISIBLE_MARKS_NOTE in line
+                                                                         for line in lines[accused_line + 2:])
+    # The same leak pasted with the attacker's own invisible marks: those name the attacker by
+    # themselves, so a name they support carries no caveat.
+    zw_pos = np.arange(0, m, 2)
+    zw = SoftBits("zw", zw_pos, np.where(x[attacker][zw_pos] == 1, 6.0, -6.0))
+    both = attribute(fuse([sb, zw], m), fuse_by_physical_channel([sb, zw], m), p, x, refs, params)
+    assert attacker + 1 in [c.copy.seq for c in both.accused]
+    note = visible_marks_note([sb, zw], both, ctx)
+    assert note is None or f"#{attacker + 1}" not in note
+    assert visible_marks_note([zw], both, ctx) is None  # no visible marks read at all
+
+
+def test_band_too_small_for_both_channels_blocks_issuance(tmp_path, monkeypatch):
+    from tapak.marker.issue import check_retype_band
+    from tapak.marker.plan import EmbeddingPlan, Slot
+
+    p = np.full(10, 0.5)
+    check_retype_band(EmbeddingPlan(10, [Slot("semantic", 0, (0,), (1, 2), (0, 0)),
+                                         Slot("lexical", 0, (0,), (3,), (1,))]), p)
+    clash = EmbeddingPlan(10, [Slot("semantic", 0, (0,), (1, 2), (0, 0)), Slot("lexical", 0, (0,), (2,), (1,))])
+    with pytest.raises(IssuanceBlocked, match="pita bias 0,3 sampai 0,7 hanya memuat 10 posisi"):
+        check_retype_band(clash, p)
+    # Through issuance: a band of 5 positions cannot hold the nota's lexical bits.
+    master = load_master(SAMPLE.read_bytes())
+    sel = _approved_lexical(master)
+    assert sel.bits > 5
+    real_pool = lx.retype_pool
+
+    def tiny_pool(bias, rule):
+        pool = real_pool(bias, rule)
+        keep = np.flatnonzero(pool)[:5]
+        out = np.zeros_like(pool)
+        out[keep] = True
+        return out
+
+    monkeypatch.setattr(lx, "retype_pool", tiny_pool)
+    with pytest.raises(IssuanceBlocked, match="tolak sebagian titik"):
+        issue(SAMPLE, read_recipients(RECIPIENTS)[:2], tmp_path, SECRET, IssueSettings(workers=1), lexical=sel)
+    assert not list(tmp_path.glob("*.pdf"))
 
 
 # --- command line -------------------------------------------------------------------------------
@@ -409,6 +508,8 @@ def test_cli_scan_review_issue_and_trace(tmp_path, capsys, monkeypatch):
     assert _run(tmp_path, "leksikal", "show", str(lexfile)) == 0
     shown = capsys.readouterr().out
     assert "[disetujui]" in shown and "[ditolak]" in shown and "menunggu" in shown and "bentuk:" in shown
+    for p in sel.points:  # the reviewer sees the whole sentence, across rows, with the phrase marked
+        assert p.context in shown
     sel = lx.LexicalSelection.from_dict(json.loads(lexfile.read_text(encoding="utf-8")))
     assert sel.pending() == [] and sel.point("l1").status == "ditolak"
 
@@ -421,7 +522,8 @@ def test_cli_scan_review_issue_and_trace(tmp_path, capsys, monkeypatch):
 
     assert _run(tmp_path, "issue", str(SAMPLE), str(recipients), "--leksikal", str(lexfile)) == 0
     out = capsys.readouterr().out
-    assert f"{sel.bits} bit pilihan kata" in out and "belum cukup" in out and "Tahan ketik ulang" in out
+    assert f"{sel.bits} bit pilihan kata" in out and "belum mencapai 64 bit" in out and "Tahan ketik ulang" in out
+    assert f"dari {lx.format_count(sel.body_words)} kata isi" in out
     folder = next((tmp_path / "data" / "dokumen").glob("*/manifest.json")).parent
     assert (folder / "leksikal.json").exists()
     copy3 = next(folder.glob("salinan/*salinan003_*.pdf"))

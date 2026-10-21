@@ -184,6 +184,9 @@ eps = {{ eps }}{% else %}eps = {{ eps }}{% endif %} (eps1 = {{ eps1 }}), ditetap
 
 {% if identified %}
 <div class="putusan">PUTUSAN: TERIDENTIFIKASI</div>
+{% for c in caveats %}
+<p class="peringatan">Perhatian, {{ c }}.</p>
+{% endfor %}
 {% else %}
 <div class="putusan tidak-cukup">TIDAK CUKUP BUKTI</div>
 <p>Tidak ada salinan yang skornya mencapai ambang Z.

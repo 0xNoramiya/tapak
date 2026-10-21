@@ -102,7 +102,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 ## Batasan
 
 - Foto dari salinan yang dicetak hanya membawa kanal geser. Satu halaman belum cukup untuk menyebut nama, sedangkan dua halaman dari salinan yang sama cukup pada 5 dari 6 salinan uji. Untuk foto cetakan, ketahanan kolusi belum tercapai.
-- Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional: dokumen 1 sampai 2 halaman tetap "tidak cukup bukti", dan satu pembocor baru dapat disebut mulai sekitar 1.000 sampai 1.400 kata isi, tanpa ketahanan kolusi.
+- Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional: dokumen 1 sampai 2 halaman tetap "tidak cukup bukti", satu pembocor baru terukur dapat disebut mulai sekitar 1.300 kata isi (TAPAK menyatakan cukup mulai 64 bit, sekitar 1.800 kata isi), tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama dari teks ketikan ulang selalu diberi peringatan.
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
 - Semua foto uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
 

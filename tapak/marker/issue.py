@@ -303,6 +303,23 @@ def build_document_plan(
     return EmbeddingPlan(m=m, slots=slots)
 
 
+def check_retype_band(plan: EmbeddingPlan, p: np.ndarray, rule: str = RETYPE_BAND) -> None:
+    """Refuse (IssuanceBlocked) a plan whose semantic and lexical bits do not fit the retype band.
+
+    Both channels walk one shared sequence of band positions from opposite ends, so they
+    never collide while the band has room. With a small code (``--c 1``) or many points the
+    sequence wraps: positions would repeat and the two channels would share some, so the
+    stated retype capacity would be overstated. Issuance stops instead.
+    """
+    positions = [q for name in (CHANNEL_SEMANTIC, CHANNEL_LEXICAL) for s in plan.channel(name) for q in s.positions]
+    if len(set(positions)) < len(positions):
+        pool = int(retype_pool(p, rule).sum())
+        raise IssuanceBlocked(
+            f"penerbitan diblokir: pita bias 0,3 sampai 0,7 hanya memuat {pool} posisi kode, sedangkan kanal "
+            f"semantik dan pilihan kata memerlukan {len(positions)} posisi berbeda; tolak sebagian titik pilihan "
+            "kata atau terbitkan dengan c lebih besar")
+
+
 def marks_for_codeword(
     master: MasterDocument,
     plan: EmbeddingPlan,
@@ -466,6 +483,8 @@ def issue(
     plan = build_document_plan(master, params, secret, settings.channels, set(settings.excluded_rows),
                                settings.background, semantic, **_lexical_plan_args(lexical))
     p = derive_bias(secret, master.doc_hash, params)
+    if lexical is not None:
+        check_retype_band(plan, p)
     z_full = threshold(p, params.eps1)
 
     out_dir = Path(out_dir)

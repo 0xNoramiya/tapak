@@ -139,10 +139,11 @@ def _cmd_issue(args: argparse.Namespace) -> int:
     if m.lexical_digest:  # only documents that opted into word choice
         from tapak.marker.lexical import capacity_verdict
 
-        lex_bits = m.plan_summary.get("lexical", {}).get("bits", 0)
-        sem_bits = m.plan_summary.get("semantic", {}).get("bits", 0)
+        # Distinct band positions (issuance refuses a band too small for both channels).
+        lex_bits = m.plan_summary.get("lexical", {}).get("positions", 0)
+        sem_bits = m.plan_summary.get("semantic", {}).get("positions", 0)
         print(f"Tahan ketik ulang: {lex_bits} bit pilihan kata + {sem_bits} bit semantik, posisi pita bias "
-              f"0,3 sampai 0,7. {capacity_verdict(lex_bits + sem_bits)}")
+              f"0,3 sampai 0,7. {capacity_verdict(lex_bits + sem_bits, lexical.body_words, lex_bits)}")
     if is_docx:
         print("Gerbang visual: tidak berlaku untuk DOCX (Word yang menata ulang dokumen)")
     else:
@@ -249,9 +250,14 @@ def _lexical_summary(sel) -> list[str]:
     lines = [f"{len(sel.points)} titik dari {sel.body_words} kata isi: {c['disetujui']} disetujui, "
              f"{c['ditolak']} ditolak, {c['menunggu']} menunggu",
              f"Bit pilihan kata: {sel.bits} disetujui, {sel.candidate_bits} bila semua yang belum ditolak disetujui. "
-             f"Untuk satu pembocor dari teks ketikan ulang perlu sekitar {LONE_LEAKER_BITS} bit, termasuk bit "
-             "semantik bila ada.",
-             f"Perkiraan: {capacity_verdict(sel.candidate_bits)}"]
+             f"TAPAK menyatakan cukup untuk satu pembocor dari teks ketikan ulang mulai {LONE_LEAKER_BITS} bit, "
+             "termasuk bit semantik bila ada.",
+             f"Perkiraan: {capacity_verdict(sel.candidate_bits, sel.body_words, sel.candidate_bits)}"]
+    repeated = sum(1 for p in sel.points if p.repeated)
+    if repeated:
+        lines.append(f"{repeated} titik berkonteks berulang (frasa dan kata di sekitarnya juga ada di bagian lain "
+                     "dokumen). Bila pembocor menukar urutan kalimat, titik ini dapat terbaca di tempat lain: skor "
+                     "pembocor turun, tetapi salinan lain tidak pernah tertuduh karenanya. Tolak titik ini bila perlu.")
     if sel.refused:
         lines.append("Kandidat yang ditolak pemeriksaan otomatis (per kategori): "
                      + ", ".join(f"{k} {v}" for k, v in sorted(sel.refused.items())))
@@ -277,21 +283,16 @@ def _cmd_lexical_scan(args: argparse.Namespace) -> int:
     return 0
 
 
-def _marked_context(point) -> str:
-    """The row text with the point's words in brackets (shown to the reviewer only)."""
-    words = point.context.split()
-    if point.end > len(words):
-        return point.context
-    return " ".join(words[:point.start] + ["[" + " ".join(words[point.start:point.end]) + "]"] + words[point.end:])
-
-
 def _print_point(sel, point, lexicon) -> None:
+    """One point for the reviewer: its whole sentence (across rows) with the phrase in brackets."""
     try:
         note = lexicon.rule(point.rule_id).note
     except KeyError:
         note = ""
-    print(f"{point.point_id:>4} [{point.status}] aturan {point.rule_id}, hal. {point.page + 1}, {point.bits} bit")
-    print(f"      {_marked_context(point)}")
+    repeated = ", konteks berulang" if point.repeated else ""
+    print(f"{point.point_id:>4} [{point.status}] aturan {point.rule_id}, hal. {point.page + 1}, {point.bits} bit"
+          f"{repeated}")
+    print(f"      {point.context}")
     print("      bentuk: " + " | ".join(point.forms) + (f"  ({note})" if note else ""))
 
 
@@ -637,7 +638,8 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--semantic", default=None, help="varian.json yang sudah disetujui")
     i.add_argument("--leksikal", default=None, metavar="BERKAS",
                    help="leksikal.json yang setiap titiknya sudah disetujui atau ditolak (kanal pilihan kata, "
-                        "opsional); ditolak bila masih ada titik menunggu atau berkas diubah di luar TAPAK")
+                        "opsional); ditolak bila masih ada titik menunggu atau titik dan bentuknya diubah di luar "
+                        "TAPAK (keputusan setuju atau tolak tidak diautentikasi)")
     i.add_argument("--no-registry", action="store_true")
     i.add_argument("--sign-later", action="store_true", help="catat tanpa tanda tangan (ditandatangani eselon atas)")
     i.set_defaults(func=_cmd_issue)
