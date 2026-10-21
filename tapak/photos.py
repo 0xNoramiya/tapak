@@ -49,6 +49,7 @@ KIND_PHOTO = "photo"
 KIND_SCREENSHOT = "screenshot"
 _KIND_SEED = {KIND_PHOTO: 1, KIND_SCREENSHOT: 2}
 INK_REFLECTANCE = 0.06  # printed black toner reflects a few percent of the light
+PAPER_GRAY = 245        # page gray levels at or above this count as blank paper (pattern: 251 to 255)
 MIN_LONG_SIDE = 64      # smallest accepted output long side (px)
 DPI_RANGE = (72, 1200)  # accepted render resolutions of make_photo_set
 
@@ -427,7 +428,8 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
     ``view_angle_deg(homography, camera_matrix)`` recovers the view angle),
     ``page_size`` and ``image_size`` as [width, height], ``settings`` (the PhotoParams)
     and ``params`` (every random value drawn, plus ``highlight_clip_frac``, the share of
-    camera pixels that clipped to white).
+    camera pixels that clipped to white, and ``paper_clip_frac``, the same share among the
+    blank paper pixels that carry the background pattern).
     """
     _check_page(page_img)
     params = params or PhotoParams()
@@ -460,6 +462,8 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
                                  borderMode=cv2.BORDER_CONSTANT, borderValue=0)
     mask = cv2.warpPerspective(np.ones(page.shape, dtype=np.float32), warp, (cw, ch),
                                flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+    # Blank paper (inside the page, no ink): where the background pattern lives.
+    on_paper = (mask >= 0.999) & (warped >= INK_REFLECTANCE + (albedo - INK_REFLECTANCE) * PAPER_GRAY / 255.0)
     scene = warped + (1.0 - mask) * _desk(rng, cw, ch, drawn)
     del warped, mask
 
@@ -487,6 +491,8 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
     if sharpen > 0.0:
         img += np.float32(sharpen) * (img - cv2.GaussianBlur(img, (0, 0), sigmaX=params.sharpen_sigma / down))
     drawn["highlight_clip_frac"] = float(np.mean(img >= 255.0))
+    drawn["paper_clip_frac"] = float(np.mean(img[on_paper] >= 255.0)) if on_paper.any() else 0.0
+    del on_paper
     img = np.clip(img, 0.0, 255.0)
     img = 255.0 * np.power(img / np.float32(255.0), np.float32(gamma))
     camera_img = np.clip(np.rint(img), 0, 255).astype(np.uint8)

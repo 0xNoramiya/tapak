@@ -113,7 +113,7 @@ Tabel parameter (eps = 10^-6, `tapak simulate --table`):
 
 | Pengujian | Hasil |
 |---|---|
-| Kumpulan foto sintetis (`make photos` lalu `make bench`): 32 foto bersudut 0 sampai 30 derajat dan 8 tangkapan layar dari 4 salinan (halaman 1), dikompresi JPEG dua kali seperti WhatsApp. Simulator tidak memodelkan printer, jadi pola latar tetap utuh | 38 dari 40 benar, 2 "tidak cukup bukti", 0 tuduhan salah |
+| Kumpulan foto sintetis (`make photos` lalu `make bench`): 32 foto bersudut 0 sampai 30 derajat dan 8 tangkapan layar dari 4 salinan (halaman 1), dikompresi JPEG dua kali seperti WhatsApp. Simulator tidak memodelkan printer, jadi pola latar tetap utuh | 39 dari 40 benar, 1 "tidak cukup bukti" (foto dengan 95 % kertas jenuh putih), 0 tuduhan salah |
 | 10 foto sintetis bersudut sampai 30 derajat | 10 dari 10 benar |
 | Halaman gabungan digital: setengah atas salinan A, setengah bawah salinan B (2 pasangan) | penerima A dan B dituduh, tidak ada orang lain |
 | Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |

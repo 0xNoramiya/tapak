@@ -50,12 +50,12 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/benchmark-dark.svg">
-  <img alt="Uji sintetis 32 foto dan 8 tangkapan layar: 38 benar, 2 tidak cukup bukti, 0 salah" src="docs/img/benchmark-light.svg" width="100%">
+  <img alt="Uji sintetis 32 foto dan 8 tangkapan layar: 39 benar, 1 tidak cukup bukti, 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
 Simulator foto tidak memodelkan printer, jadi pola latarnya tetap utuh seperti pada foto layar. Pada kertas cetak pola itu hilang (lihat [batasan](#batasan)).
 
-Dua jawaban "tidak cukup bukti" berasal dari foto yang terlalu terang, sehingga pola latarnya hilang atau terlalu lemah. Kami tidak menurunkan ambang untuk meloloskan keduanya. Untuk 38 jawaban yang benar, batas peluang tuduhan salahnya paling besar 2,1 &times; 10<sup>-20</sup>.
+Satu jawaban "tidak cukup bukti" berasal dari foto yang 95 % kertasnya jenuh putih, sehingga pola latarnya terhapus. Foto terang lain, dengan 88 % kertas jenuh, kini terbaca: dekoder menimbang setiap sel menurut sinyal yang tersisa dan memakai uji pola yang lebih peka ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban yang benar, batas peluang tuduhan salahnya paling besar 2,3 &times; 10<sup>-21</sup>.
 
 Uji lainnya:
 

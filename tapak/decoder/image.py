@@ -42,7 +42,7 @@ def collect_from_gray(gray: np.ndarray, ctx: "TraceContext") -> list[SoftBits]:
     if ctx.plan.channel(CHANNEL_BACKGROUND) and ctx.background is not None:
         grid = page_grids(sizes, ctx.key, ctx.background)[reg.page]
         sb = decode_background(reg.rectified, reg.valid, master_render, reg.dpi, grid,
-                               ctx.plan.channel(CHANNEL_BACKGROUND))
+                               ctx.plan.channel(CHANNEL_BACKGROUND), bias=ctx.p)
         sb.meta.update(reg_meta)
         out.append(sb)
     return out

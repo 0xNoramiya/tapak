@@ -7,21 +7,40 @@ Steps:
 2. flatten illumination: divide by a smooth estimate of the paper level computed from the
    unmasked pixels only, so shadows and vignetting vanish and the pattern becomes a
    relative modulation of about +/- amplitude/base (0.8 % with the defaults);
-3. average the modulation over every cell of the grid;
-4. for every code position, correlate its cells with their keyed signs pn_c:
-   t_b = sum_c pn_c * v_c * n_c / sum_c n_c, which estimates s_b times an unknown gain;
-5. calibrate with a decoy: the same cells and bit assignment, but each cell's sign is
-   multiplied by an independent keyed random sign, so the pattern cancels and only noise
-   remains. Its spread is the noise level sigma. With no pattern, t and the decoy have the
-   same energy in expectation (whatever the noise per cell); with a pattern of amplitude mu,
-   t^2 exceeds the decoy by about mu^2 * 7/8. A paired z-test on the clipped per-bit energy
-   difference (its standard error shrinks with the number of bits seen) decides whether a
-   pattern is present. If not (a printed page, an overexposed photo, another document), the
-   channel reports nothing, so noise cannot dilute the other channels. Otherwise mu is
-   fitted with sigma held at the decoy value and LLR = 2 mu t / sigma^2.
+3. average the modulation over every cell of the grid and despread it with the cell's keyed
+   sign: u_c = pn_c * v_c is s_b times the cell's gain plus noise, b being the cell's bit;
+4. decide whether a pattern is present. Two tests, each with its fixed threshold z = 3
+   (p ~ 1.35e-3 on a page without pattern, so at most about 3e-3 for the pair):
+   a. decoy test: per bit, t_b = sum_c pn_c v_c n_c / sum_c n_c, and its decoy with each
+      cell's sign multiplied by an independent keyed random sign, so the pattern cancels and
+      only noise remains. With no pattern, t and the decoy have the same energy in
+      expectation (whatever the noise per cell); with a pattern of amplitude mu, t^2 exceeds
+      the decoy by about mu^2 * 7/8. A paired z-test on the clipped per-bit energy difference
+      decides. The energy difference comes from pairs of informative cells of the same bit,
+      so the test fades when only scattered cells still carry the pattern;
+   b. pilot test (images, where the trace passes the bias vector p): a code position whose
+      Tardos bias p is near 0 or 1 carries nearly the same bit in every copy, so
+      e_b = (2 p - 1) * (whitening sign) predicts s_b without looking at any codeword. With
+      no pattern, Z = sum_c e_b u_c is a sum of terms with independent random keyed signs
+      pn_c, so its spread is exactly sqrt(sum_c (e_b u_c)^2) whatever the noise. With a
+      pattern it grows with every informative cell, paired or not.
+   If neither test passes (a printed page, a photo clipped to white, another document), the
+   channel reports nothing, so noise cannot dilute the other channels;
+5. weigh the cells. An overexposed photo clips bright paper to 255: a clipped cell carries
+   no pattern and almost no noise, a cell on the shoulder of the clipping an attenuated
+   pattern. With the bias vector, cells are sorted into strata by the share of pixels at or
+   near white around them (SAT_LEVEL, smoothed over about one cell on the grid, so the
+   stratum follows the light rather than the cell's own pattern value). Per stratum j the
+   gain is the regression of u_c on the pilot, g_j = sum e_b u_c / sum e_b^2, and the noise
+   variance v_j = E[u_c^2] - g_j^2; the LLR of bit b is the matched filter
+   sum_c 2 g_j u_c / v_j over its cells. Clipped cells get a weight near 0, so they neither
+   dilute nor bias the statistic, and partly clipped cells count as much as their signal
+   deserves. Without the bias vector (a page rendered from a PDF, which never clips), mu is
+   fitted on t with sigma held at the decoy value and LLR = 2 mu t / sigma^2.
 
-The gate is a detection aid only. The false-accusation bound never depends on it: the
-weights use no codeword, so the bound holds for any input, noise included.
+The tests are a detection aid only. The false-accusation bound never depends on them: the
+weights use no codeword (only the evidence, the master, the keyed cell layout and the bias
+vector, which is the same for every copy), so the bound holds for any input, noise included.
 
 No codeword is consulted at any step.
 """
@@ -36,8 +55,13 @@ from tapak.marker.background import PageGrid
 from tapak.marker.plan import CHANNEL_BACKGROUND, Slot
 
 MIN_VALID_FRACTION = 0.3
-SIGNAL_Z = 3.0  # z of the paired energy test needed to call the pattern present (p ~ 1e-3 by chance)
+SIGNAL_Z = 3.0  # z needed by either presence test to call the pattern present (p ~ 1e-3 by chance)
 CLIP_SIGMAS = 4.0  # per-bit statistics are clipped here before the energy test (stains, folds)
+SAT_LEVEL = 254.5  # rectified gray level counted as clipped white
+SAT_EDGES = (0.0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98)  # lower edges of the saturation strata
+SAT_SMOOTH_CELLS = 1.0  # Gaussian sigma (in cells) of the saturated share that picks the stratum
+MIN_STRATUM_CELLS = 40  # a stratum with fewer cells gets weight 0 (its gain cannot be estimated)
+CELL_CLIP = 5.0  # despread cell values beyond this many robust deviations are clipped
 
 
 def pattern_z(t: np.ndarray, t_decoy: np.ndarray, sigma: float) -> float:
@@ -51,6 +75,30 @@ def pattern_z(t: np.ndarray, t_decoy: np.ndarray, sigma: float) -> float:
     return float(np.mean(d)) / se if se > 0 else 0.0
 
 
+def pilot_z(u: np.ndarray, e: np.ndarray) -> float:
+    """z of sum_c e_c u_c against its exact spread without a pattern.
+
+    Without a pattern u_c = pn_c * m_c with independent random keyed signs pn_c, so the sum
+    is a Rademacher sum of variance sum_c (e_c u_c)^2, whatever the noise m_c. Positive and
+    growing with sqrt(sum of per-cell SNR^2) when u_c carries s_b and e_c predicts it."""
+    a = np.asarray(e, dtype=np.float64) * np.asarray(u, dtype=np.float64)
+    var = float(np.sum(a * a))
+    return float(np.sum(a) / np.sqrt(var)) if var > 0 else 0.0
+
+
+def robust_bound(t: np.ndarray, k: float = CELL_CLIP) -> float:
+    """Median magnitude of t plus k robust (MAD) deviations of the magnitude: a clipping bound
+    for a two-sided mixture 0.5 N(+mu, s^2) + 0.5 N(-mu, s^2) that a few outliers cannot move.
+    It depends on |t| only, so it never sees a keyed sign."""
+    t = np.asarray(t, dtype=np.float64)
+    if t.size == 0:
+        return 0.0
+    mag = np.abs(t)
+    centre = float(np.median(mag))
+    spread = 1.4826 * float(np.median(np.abs(mag - centre))) or float(np.std(t)) or 1e-9
+    return centre + k * spread
+
+
 def estimate_mixture(t: np.ndarray, iters: int = 50) -> tuple[float, float]:
     """(mu, sigma) of t ~ 0.5 N(+mu, s^2) + 0.5 N(-mu, s^2) by EM.
 
@@ -60,10 +108,8 @@ def estimate_mixture(t: np.ndarray, iters: int = 50) -> tuple[float, float]:
     t = np.asarray(t, dtype=np.float64)
     if t.size < 4:
         return 0.0, 1.0
-    mag = np.abs(t)
-    centre = float(np.median(mag))
-    spread = 1.4826 * float(np.median(np.abs(mag - centre))) or float(np.std(t)) or 1e-9
-    t = np.clip(t, -(centre + 5 * spread), centre + 5 * spread)
+    bound = robust_bound(t, 5.0)
+    t = np.clip(t, -bound, bound)
     mu = float(np.median(np.abs(t)))
     sigma = float(np.std(t)) or 1e-9
     for _ in range(iters):
@@ -128,6 +174,59 @@ def cell_means(mod: np.ndarray, usable: np.ndarray, grid: PageGrid, dpi: float) 
     return means, frac
 
 
+def saturated_share(rectified: np.ndarray, usable: np.ndarray, grid: PageGrid, dpi: float,
+                    frac: np.ndarray) -> np.ndarray:
+    """Share of usable pixels at or above SAT_LEVEL around every cell, shaped (ny, nx).
+
+    The per-cell share is smoothed over the grid with a Gaussian of SAT_SMOOTH_CELLS cells
+    (cells below MIN_VALID_FRACTION do not count), so it follows the exposure of the region:
+    in a screenshot the brightest pattern cells touch 255 themselves, and their own share
+    alone would sort them by the sign they carry.
+    """
+    own, _ = cell_means((rectified >= SAT_LEVEL).astype(np.float64), usable, grid, dpi)
+    w = (frac >= MIN_VALID_FRACTION).astype(np.float64)
+    num = cv2.GaussianBlur(own * w, (0, 0), SAT_SMOOTH_CELLS)
+    den = cv2.GaussianBlur(w, (0, 0), SAT_SMOOTH_CELLS)
+    return np.where(den > 1e-9, num / np.maximum(den, 1e-9), own)
+
+
+def saturation_strata(share: np.ndarray) -> np.ndarray:
+    """Stratum index (0 .. len(SAT_EDGES) - 1) of every cell from its saturated share."""
+    return np.searchsorted(np.asarray(SAT_EDGES), np.asarray(share, dtype=np.float64), side="right") - 1
+
+
+def stratum_gains(u: np.ndarray, e: np.ndarray, stratum: np.ndarray,
+                  n_strata: int) -> tuple[np.ndarray, np.ndarray]:
+    """Gain g_j and noise variance v_j per stratum for despread cells u_c = g_j s_b + noise.
+
+    g_j = sum e_c u_c / sum e_c^2 is the regression of the cells on the pilot e_c (the bit
+    predicted by the bias vector, the same for every copy): linear, so it cannot reinforce
+    itself on noise the way a decision-directed fit does. v_j = E[u_c^2] - g_j^2 (at least
+    1 % of E[u_c^2]). Strata with fewer than MIN_STRATUM_CELLS cells and negative gains get
+    g_j = 0. No codeword is used.
+    """
+    u = np.asarray(u, dtype=np.float64)
+    e = np.asarray(e, dtype=np.float64)
+    n = np.bincount(stratum, minlength=n_strata)
+    power = np.bincount(stratum, weights=u * u, minlength=n_strata) / np.maximum(n, 1)
+    num = np.bincount(stratum, weights=e * u, minlength=n_strata)
+    den = np.bincount(stratum, weights=e * e, minlength=n_strata)
+    ok = (n >= MIN_STRATUM_CELLS) & (den > 0) & (power > 0)
+    gain = np.where(ok, np.maximum(num / np.maximum(den, 1e-300), 0.0), 0.0)
+    var = np.maximum(power - gain ** 2, np.maximum(0.01 * power, 1e-300))
+    return gain, var
+
+
+def _clip_by_stratum(u: np.ndarray, stratum: np.ndarray, n_strata: int) -> np.ndarray:
+    out = u.copy()
+    for j in range(n_strata):
+        m = stratum == j
+        if m.any():
+            b = robust_bound(u[m])
+            out[m] = np.clip(u[m], -b, b)
+    return out
+
+
 def decode_background(
     rectified: np.ndarray,
     valid: np.ndarray,
@@ -135,8 +234,14 @@ def decode_background(
     dpi: float,
     grid: PageGrid,
     slots: list[Slot],
+    bias: np.ndarray | None = None,
 ) -> SoftBits:
-    """Soft bits of the background channel for one page."""
+    """Soft bits of the background channel for one page.
+
+    ``bias`` is the document's Tardos bias vector p (one value per code position, the same
+    for every copy). With it the pilot test and the saturation strata are used (photos and
+    screenshots); without it the decoder keeps a single amplitude for the whole page.
+    """
     page_slots = [s for s in slots if s.page == grid.page and s.channel == CHANNEL_BACKGROUND]
     if not page_slots:
         return SoftBits.empty(CHANNEL_BACKGROUND)
@@ -169,20 +274,44 @@ def decode_background(
     t_decoy = np.where(seen, num_d / np.maximum(den, 1e-12), 0.0)
     noise2 = float(np.median(t_decoy[seen] ** 2)) if seen.any() else 0.0
     sigma = float(np.sqrt(noise2 / 0.4549)) if noise2 > 0 else 1.0  # median of chi2(1) is 0.4549
-    z = pattern_z(t[seen], t_decoy[seen], sigma) if noise2 > 0 else 0.0
-    mu = fit_mu(t[seen], sigma) if z >= SIGNAL_Z else 0.0
-    llr = 2.0 * mu * t / (sigma * sigma) if mu > 0 else np.zeros_like(t)
+    z_decoy = pattern_z(t[seen], t_decoy[seen], sigma) if noise2 > 0 else 0.0
+    share = saturated_share(rectified, usable, grid, dpi, frac)
+    meta: dict[str, object] = {"page": grid.page, "bits_total": len(page_slots), "decoy_z": round(z_decoy, 2),
+                               "clipped_share": round(float(np.mean(share[sel] >= 0.5)) if sel.any() else 0.0, 3)}
+
+    if bias is None:
+        mu = fit_mu(t[seen], sigma) if z_decoy >= SIGNAL_Z else 0.0
+        llr = 2.0 * mu * t / (sigma * sigma) if mu > 0 else np.zeros_like(t)
+        reported = seen
+        meta.update(mu=mu, sigma=sigma, snr=mu / sigma if sigma > 0 else 0.0, signal_z=round(z_decoy, 2),
+                    cells_used=int(sel.sum()))
+        found = mu > 0
+    else:
+        n_strata = len(SAT_EDGES)
+        stratum = saturation_strata(share[sel])
+        u = _clip_by_stratum(contrib, stratum, n_strata)
+        e_bit = np.zeros(grid.n_bits)
+        for s in page_slots:
+            e_bit[s.ref[0]] = (2.0 * float(bias[s.positions[0]]) - 1.0) * (1 - 2 * s.whiten[0])
+        e = e_bit[bits]
+        z_pilot = pilot_z(u, e)
+        gain, var = stratum_gains(u, e, stratum, n_strata)
+        found = (z_decoy >= SIGNAL_Z or z_pilot >= SIGNAL_Z) and bool(np.any(gain > 0))
+        info = np.bincount(bits, weights=(gain ** 2 / var)[stratum], minlength=grid.n_bits)  # per-bit SNR^2
+        llr = np.bincount(bits, weights=(2.0 * gain / var)[stratum] * u, minlength=grid.n_bits)
+        reported = info > 0
+        best = int(np.argmax(gain / np.sqrt(var)))
+        meta.update(mu=float(gain[best]) if found else 0.0, sigma=float(np.sqrt(var[best])),
+                    snr=float(np.sqrt(np.mean(info[reported]))) if found and reported.any() else 0.0,
+                    signal_z=round(max(z_decoy, z_pilot), 2), pilot_z=round(z_pilot, 2),
+                    cells_used=int(np.count_nonzero(gain[stratum] > 0)) if found else 0)
     pos, val = [], []
-    for s in page_slots:
-        b = s.ref[0]
-        if not seen[b]:
-            continue
-        pos.append(s.positions[0])
-        val.append(llr[b] * (1 - 2 * s.whiten[0]))
-    snr = mu / sigma if sigma > 0 else 0.0
-    if mu <= 0:  # no pattern detected: report nothing rather than noise
-        pos, val = [], []
-    return SoftBits(CHANNEL_BACKGROUND, np.array(pos, dtype=np.int64), np.array(val),
-                    {"page": grid.page, "bits_read": len(pos), "bits_total": len(page_slots),
-                     "mu": mu, "sigma": sigma, "snr": snr, "signal_z": round(z, 2),
-                     "pattern_found": bool(mu > 0), "cells_used": int(sel.sum())})
+    if found:  # no pattern detected: report nothing rather than noise
+        for s in page_slots:
+            b = s.ref[0]
+            if not reported[b]:
+                continue
+            pos.append(s.positions[0])
+            val.append(llr[b] * (1 - 2 * s.whiten[0]))
+    meta.update(bits_read=len(pos), pattern_found=bool(found))
+    return SoftBits(CHANNEL_BACKGROUND, np.array(pos, dtype=np.int64), np.array(val), meta)
