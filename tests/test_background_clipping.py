@@ -142,6 +142,11 @@ def test_unclipped_photo_same_verdict_as_before(fixed):
         assert result.verdict == VERDICT_IDENTIFIED and [c.copy.seq for c in result.accused] == [seq]
         assert _agreement(obs[1], x) > 0.95
     assert len(new[1]) == len(old[1]) == old[1].meta["bits_total"]
+    # Without clipping every cell sits in one stratum and is weighted by its valid-pixel
+    # fraction, as in the old statistic, so the new decoder makes no more bit errors (it made
+    # 21 against 13 when it weighted all cells alike).
+    errors = [int(np.sum((o[1].llr > 0) != (x[o[1].positions] == 1))) for o in (old, new)]
+    assert errors[1] <= errors[0]
 
 
 def test_fully_white_photo_reads_nothing_and_accuses_nobody(fixed):
@@ -209,6 +214,21 @@ def test_stratum_gains_follow_the_signal_per_stratum():
     assert gain[:3] == pytest.approx(true_gain[:3], abs=0.05)
     assert gain[3] < 0.03 and gain[4] == 0.0
     assert np.sqrt(var[:4]) == pytest.approx(noise[:4], rel=0.1)
+
+
+def test_stratum_gains_weight_cells_by_valid_fraction():
+    """A cell mean over a fraction w of its pixels has noise variance v / w: the weighted fit
+    recovers g and v (equal weights would report the average noise of all cells instead)."""
+    rng = np.random.default_rng(8)
+    n = 40000
+    stratum = np.zeros(n, dtype=np.int64)
+    w = rng.choice([0.3, 0.6, 1.0], n)
+    p = np.clip(0.5 - 0.5 * np.cos(np.pi * rng.random(n)), 1e-3, 1 - 1e-3)
+    s = np.where(rng.random(n) < p, 1.0, -1.0)
+    u = 0.5 * s + rng.normal(0, 1, n) / np.sqrt(w)
+    gain, var = bg.stratum_gains(u, 2 * p - 1, stratum, 1, w)
+    assert gain[0] == pytest.approx(0.5, abs=0.03) and var[0] == pytest.approx(1.0, rel=0.05)
+    assert bg.stratum_gains(u, 2 * p - 1, stratum, 1)[1][0] > 1.5  # unweighted: E[1/w] = 2
 
 
 def test_saturation_helpers():

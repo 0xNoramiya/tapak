@@ -30,13 +30,15 @@ Steps:
    no pattern and almost no noise, a cell on the shoulder of the clipping an attenuated
    pattern. With the bias vector, cells are sorted into strata by the share of pixels at or
    near white around them (SAT_LEVEL, smoothed over about one cell on the grid, so the
-   stratum follows the light rather than the cell's own pattern value). Per stratum j the
-   gain is the regression of u_c on the pilot, g_j = sum e_b u_c / sum e_b^2, and the noise
-   variance v_j = E[u_c^2] - g_j^2; the LLR of bit b is the matched filter
-   sum_c 2 g_j u_c / v_j over its cells. Clipped cells get a weight near 0, so they neither
-   dilute nor bias the statistic, and partly clipped cells count as much as their signal
-   deserves. Without the bias vector (a page rendered from a PDF, which never clips), mu is
-   fitted on t with sigma held at the decoy value and LLR = 2 mu t / sigma^2.
+   stratum follows the light rather than the cell's own pattern value). A cell mean over
+   fewer usable pixels is noisier, so, as in t, a cell's noise variance is taken as
+   v_j / n_c with n_c its valid-pixel fraction. Per stratum j the gain is the weighted
+   regression of u_c on the pilot, g_j = sum n_c e_b u_c / sum n_c e_b^2, and
+   v_j = E[n_c u_c^2] - g_j^2 E[n_c]; the LLR of bit b is the matched filter
+   sum_c 2 g_j n_c u_c / v_j over its cells. Clipped cells get a weight near 0, so they
+   neither dilute nor bias the statistic, and partly clipped cells count as much as their
+   signal deserves. Without the bias vector (a page rendered from a PDF, which never clips),
+   mu is fitted on t with sigma held at the decoy value and LLR = 2 mu t / sigma^2.
 
 The tests are a detection aid only. The false-accusation bound never depends on them: the
 weights use no codeword (only the evidence, the master, the keyed cell layout and the bias
@@ -195,25 +197,28 @@ def saturation_strata(share: np.ndarray) -> np.ndarray:
     return np.searchsorted(np.asarray(SAT_EDGES), np.asarray(share, dtype=np.float64), side="right") - 1
 
 
-def stratum_gains(u: np.ndarray, e: np.ndarray, stratum: np.ndarray,
-                  n_strata: int) -> tuple[np.ndarray, np.ndarray]:
-    """Gain g_j and noise variance v_j per stratum for despread cells u_c = g_j s_b + noise.
+def stratum_gains(u: np.ndarray, e: np.ndarray, stratum: np.ndarray, n_strata: int,
+                  w: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Gain g_j and noise variance v_j per stratum for despread cells u_c = g_j s_b + noise,
+    the noise of cell c having variance v_j / w_c (w_c: its valid-pixel fraction, 1 if None).
 
-    g_j = sum e_c u_c / sum e_c^2 is the regression of the cells on the pilot e_c (the bit
-    predicted by the bias vector, the same for every copy): linear, so it cannot reinforce
-    itself on noise the way a decision-directed fit does. v_j = E[u_c^2] - g_j^2 (at least
-    1 % of E[u_c^2]). Strata with fewer than MIN_STRATUM_CELLS cells and negative gains get
-    g_j = 0. No codeword is used.
+    g_j = sum w_c e_c u_c / sum w_c e_c^2 is the weighted regression of the cells on the
+    pilot e_c (the bit predicted by the bias vector, the same for every copy): linear, so it
+    cannot reinforce itself on noise the way a decision-directed fit does.
+    v_j = E[w_c u_c^2] - g_j^2 E[w_c] (at least 1 % of E[w_c u_c^2]). Strata with fewer than
+    MIN_STRATUM_CELLS cells and negative gains get g_j = 0. No codeword is used.
     """
     u = np.asarray(u, dtype=np.float64)
     e = np.asarray(e, dtype=np.float64)
+    w = np.ones_like(u) if w is None else np.asarray(w, dtype=np.float64)
     n = np.bincount(stratum, minlength=n_strata)
-    power = np.bincount(stratum, weights=u * u, minlength=n_strata) / np.maximum(n, 1)
-    num = np.bincount(stratum, weights=e * u, minlength=n_strata)
-    den = np.bincount(stratum, weights=e * e, minlength=n_strata)
+    mean_w = np.bincount(stratum, weights=w, minlength=n_strata) / np.maximum(n, 1)
+    power = np.bincount(stratum, weights=w * u * u, minlength=n_strata) / np.maximum(n, 1)
+    num = np.bincount(stratum, weights=w * e * u, minlength=n_strata)
+    den = np.bincount(stratum, weights=w * e * e, minlength=n_strata)
     ok = (n >= MIN_STRATUM_CELLS) & (den > 0) & (power > 0)
     gain = np.where(ok, np.maximum(num / np.maximum(den, 1e-300), 0.0), 0.0)
-    var = np.maximum(power - gain ** 2, np.maximum(0.01 * power, 1e-300))
+    var = np.maximum(power - gain ** 2 * mean_w, np.maximum(0.01 * power, 1e-300))
     return gain, var
 
 
@@ -295,10 +300,10 @@ def decode_background(
             e_bit[s.ref[0]] = (2.0 * float(bias[s.positions[0]]) - 1.0) * (1 - 2 * s.whiten[0])
         e = e_bit[bits]
         z_pilot = pilot_z(u, e)
-        gain, var = stratum_gains(u, e, stratum, n_strata)
+        gain, var = stratum_gains(u, e, stratum, n_strata, weight)
         found = (z_decoy >= SIGNAL_Z or z_pilot >= SIGNAL_Z) and bool(np.any(gain > 0))
-        info = np.bincount(bits, weights=(gain ** 2 / var)[stratum], minlength=grid.n_bits)  # per-bit SNR^2
-        llr = np.bincount(bits, weights=(2.0 * gain / var)[stratum] * u, minlength=grid.n_bits)
+        info = np.bincount(bits, weights=(gain ** 2 / var)[stratum] * weight, minlength=grid.n_bits)  # per-bit SNR^2
+        llr = np.bincount(bits, weights=(2.0 * gain / var)[stratum] * weight * u, minlength=grid.n_bits)
         reported = info > 0
         best = int(np.argmax(gain / np.sqrt(var)))
         meta.update(mu=float(gain[best]) if found else 0.0, sigma=float(np.sqrt(var[best])),
