@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib.machinery
 import importlib.util
 import json
 import socket
+import sys
 import threading
 import time
+import types
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -19,12 +22,17 @@ from tapak.decoder.ch_semantic import alignment_ops, decode_semantic, densest_ed
 from tapak.llm import get_provider
 from tapak.llm.llamacpp import (
     DEFAULT_SERVER_URL,
+    DEFAULT_TIMEOUT,
+    JUDGE_MAX_TOKENS,
     MODEL_ENV,
+    TIMEOUT_ENV,
     LlamaCppProvider,
     build_judge_prompt,
     build_paraphrase_prompt,
+    chat_answer,
     parse_judge_answer,
     parse_numbered_lines,
+    server_base,
     validate_local_url,
 )
 from tapak.llm.mock import MockProvider
@@ -217,10 +225,12 @@ def test_parse_numbered_lines():
         "catatan tanpa nomor\n"
         "4. Demikianlah untuk dilaksanakan.\n"
         "5. **Demikian agar dilaksanakan dan dilaporkan.**\n"
+        "6. 1. Demikian disampaikan.\n"  # a model restarting its list (seen with Qwen2.5-3B)
+        "7. 2) Demikian disampaikan.\n"
     )
     assert parse_numbered_lines(answer) == [
         "Demikianlah untuk dilaksanakan.", "Demikian agar dilaksanakan.", "Demikian untuk dilaksanakan.",
-        "Demikian agar dilaksanakan dan dilaporkan.",
+        "Demikian agar dilaksanakan dan dilaporkan.", "Demikian disampaikan.",
     ]
     assert parse_numbered_lines(answer, limit=1) == ["Demikianlah untuk dilaksanakan."]
     assert parse_numbered_lines("") == []
@@ -255,43 +265,164 @@ def test_llamacpp_configured_model_without_library_is_an_error(monkeypatch):
 
 
 class _FakeServer(BaseHTTPRequestHandler):
-    """Loopback stand-in for llama-server: path /teks answers non-JSON, /alih redirects."""
+    """Loopback stand-in for llama-server, keyed by the base path of the configured URL.
 
-    def do_POST(self) -> None:  # noqa: N802 - http.server API
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        if self.path == "/alih":
-            self.send_response(302)
-            self.send_header("Location", "http://203.0.113.5/completion")
-            self.end_headers()
-            return
-        body = b"bukan json" if self.path == "/teks" else json.dumps({"content": "1. Demikianlah."}).encode()
-        self.send_response(200)
+    "" (root) is a working server; "/teks" answers chat requests with non-JSON; "/alih"
+    redirects; "/bukan-llm" is some other local service (its GET /v1/models is not a model
+    list). Every request is recorded so tests can check what reached which path.
+    """
+
+    requests: list[tuple[str, str, dict | None]] = []
+    paraphrase_answer = "1. Demikianlah.\n2. 6. 1. Demikian adanya.\n3. Demikian."
+    judge_answer = "YA: hanya sinonim"
+
+    def _send(self, status: int, body: bytes, location: str | None = None) -> None:
+        self.send_response(status)
+        if location:
+            self.send_header("Location", location)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802 - http.server API
+        _FakeServer.requests.append(("GET", self.path, None))
+        if self.path.startswith("/alih"):
+            self._send(302, b"", location="http://203.0.113.5/v1/models")
+        elif self.path.startswith("/bukan-llm"):
+            self._send(200, json.dumps({"status": "ok"}).encode())
+        elif self.path in ("/v1/models", "/teks/v1/models", "/lambat/v1/models"):
+            self._send(200, json.dumps({"object": "list", "data": [{"id": "uji.gguf"}]}).encode())
+        else:
+            self._send(404, b"")
+
+    def do_POST(self) -> None:  # noqa: N802 - http.server API
+        payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        _FakeServer.requests.append(("POST", self.path, payload))
+        if not self.path.endswith("/v1/chat/completions"):
+            self._send(404, b"")
+            return
+        if self.path.startswith("/teks"):
+            self._send(200, b"bukan json")
+            return
+        if self.path.startswith("/lambat"):
+            time.sleep(1.5)
+        judge = payload.get("temperature") == 0.0
+        content = _FakeServer.judge_answer if judge else _FakeServer.paraphrase_answer
+        body = {"choices": [{"index": 0, "message": {"role": "assistant", "content": content}}]}
+        self._send(200, json.dumps(body).encode())
 
     def log_message(self, *args: object) -> None:  # keep test output clean
         pass
 
 
-def test_llamacpp_http_errors_are_indonesian():
+@pytest.fixture()
+def fake_llm_server():
+    _FakeServer.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _FakeServer)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("suffix", ["", "/", "/completion", "/v1/chat/completions", "/v1"])
+def test_server_base_strips_known_endpoint_paths(suffix):
+    assert server_base("http://127.0.0.1:8799" + suffix) == "http://127.0.0.1:8799"
+    assert server_base("http://[::1]:8080/llm" + suffix) == "http://[::1]:8080/llm"
+
+
+def test_llamacpp_sends_chat_messages_not_a_bare_prompt(fake_llm_server):
+    """Regression: a bare prompt to /completion is continued as text by instruct models (with
+    Qwen2.5-3B-Instruct the judge echoed its instruction and rejected every candidate). The
+    provider must send chat messages, so the server applies the model's chat template."""
+    provider = LlamaCppProvider(server_url=fake_llm_server + "/completion")  # old-style URL still works
+    assert provider.paraphrase("Demikian.", 3) == ["Demikianlah.", "Demikian adanya."]
+    assert provider.judge_equivalent("Demikian.", "Demikianlah.") == (True, "hanya sinonim")
+    gets = [r for r in _FakeServer.requests if r[0] == "GET"]
+    posts = [r for r in _FakeServer.requests if r[0] == "POST"]
+    assert [g[1] for g in gets] == ["/v1/models"]  # server identity checked once, before any text
+    assert [p[1] for p in posts] == ["/v1/chat/completions"] * 2
+    para, judge = posts[0][2], posts[1][2]
+    assert "prompt" not in para and para["messages"] == [
+        {"role": "user", "content": build_paraphrase_prompt("Demikian.", 3)}]
+    assert para["temperature"] == 0.7 and para["stream"] is False
+    assert judge["messages"][0]["content"] == build_judge_prompt("Demikian.", "Demikianlah.")
+    assert judge["temperature"] == 0.0 and judge["max_tokens"] == JUDGE_MAX_TOKENS
+
+
+def test_llamacpp_refuses_a_local_service_that_is_not_an_llm(fake_llm_server):
+    """A loopback port may belong to another service (or a container behind docker-proxy):
+    no document text is sent unless GET /v1/models lists a model."""
+    with pytest.raises(RuntimeError, match="bukan server LLM"):
+        LlamaCppProvider(server_url=fake_llm_server + "/bukan-llm").paraphrase("Demikian disampaikan.", 3)
+    with pytest.raises(RuntimeError, match="pastikan TAPAK_LLM_URL"):
+        LlamaCppProvider(server_url=fake_llm_server + "/tidak-ada").complete("uji")
+    assert not [r for r in _FakeServer.requests if r[0] == "POST"]
+
+
+def test_llamacpp_http_errors_are_indonesian(fake_llm_server):
     with socket.socket() as probe:  # a loopback port with nothing listening
         probe.bind(("127.0.0.1", 0))
         closed = probe.getsockname()[1]
     with pytest.raises(RuntimeError, match="tidak dapat dihubungi"):
-        LlamaCppProvider(server_url=f"http://127.0.0.1:{closed}/completion", timeout=5).complete("uji")
-    server = HTTPServer(("127.0.0.1", 0), _FakeServer)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    try:
-        base = f"http://127.0.0.1:{server.server_address[1]}"
-        assert LlamaCppProvider(server_url=base + "/completion").paraphrase("Demikian.", 3) == ["Demikianlah."]
-        with pytest.raises(RuntimeError, match="tidak dapat dibaca"):
-            LlamaCppProvider(server_url=base + "/teks").complete("uji")
-        with pytest.raises(RuntimeError, match="menolak permintaan"):
-            LlamaCppProvider(server_url=base + "/alih").complete("uji")
-    finally:
-        server.shutdown()
-        server.server_close()
+        LlamaCppProvider(server_url=f"http://127.0.0.1:{closed}", timeout=5).complete("uji")
+    with pytest.raises(RuntimeError, match="tidak dapat dibaca"):
+        LlamaCppProvider(server_url=fake_llm_server + "/teks").complete("uji")
+    with pytest.raises(RuntimeError, match="menolak permintaan"):
+        LlamaCppProvider(server_url=fake_llm_server + "/alih").complete("uji")
+    assert all(not r[1].startswith("/alih") for r in _FakeServer.requests if r[0] == "POST")
+
+
+def test_llamacpp_timeout_is_reported_as_a_timeout(fake_llm_server, monkeypatch):
+    """A slow model (seen with a 3B model on a busy CPU) is not reported as an unreachable server."""
+    with pytest.raises(RuntimeError, match="tidak menjawab dalam 0.5 detik"):
+        LlamaCppProvider(server_url=fake_llm_server + "/lambat", timeout=0.5).complete("uji")
+    monkeypatch.setenv(TIMEOUT_ENV, "300")
+    assert LlamaCppProvider().timeout == 300.0
+    assert LlamaCppProvider(timeout=7).timeout == 7
+    for bad in ("abc", "0", "-5", "99999"):
+        monkeypatch.setenv(TIMEOUT_ENV, bad)
+        with pytest.raises(ValueError, match=TIMEOUT_ENV):
+            LlamaCppProvider()
+    monkeypatch.delenv(TIMEOUT_ENV)
+    assert LlamaCppProvider().timeout == DEFAULT_TIMEOUT
+
+
+@pytest.mark.parametrize("body", [{}, {"choices": []}, {"choices": [{"text": "x"}]}, [],
+                                  {"choices": [{"message": {"content": 3}}]}])
+def test_chat_answer_rejects_malformed_bodies(body):
+    with pytest.raises(RuntimeError, match="tidak dapat dibaca"):
+        chat_answer(body)
+
+
+def test_llamacpp_library_path_uses_the_chat_template(monkeypatch, tmp_path):
+    """In process, llama-cpp-python's create_chat_completion (chat template) is used, not a bare prompt."""
+    calls: list[dict] = []
+
+    class FakeLlama:
+        def __init__(self, model_path: str, n_ctx: int, verbose: bool) -> None:
+            calls.append({"init": model_path})
+
+        def __call__(self, *args, **kwargs):
+            raise AssertionError("bare completion must not be used")
+
+        def create_chat_completion(self, messages, max_tokens, temperature):
+            calls.append({"messages": messages, "max_tokens": max_tokens, "temperature": temperature})
+            return {"choices": [{"message": {"role": "assistant", "content": "TIDAK: makna berubah"}}]}
+
+    module = types.ModuleType("llama_cpp")
+    module.__spec__ = importlib.machinery.ModuleSpec("llama_cpp", None)
+    module.Llama = FakeLlama
+    monkeypatch.setitem(sys.modules, "llama_cpp", module)
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"GGUF")
+    provider = LlamaCppProvider(model_path=model)
+    assert provider.judge_equivalent("Demikian.", "Demikianlah.") == (False, "makna berubah")
+    assert calls[0] == {"init": str(model)}
+    assert calls[1]["messages"] == [{"role": "user", "content": build_judge_prompt("Demikian.", "Demikianlah.")}]
+    assert calls[1]["max_tokens"] == JUDGE_MAX_TOKENS and calls[1]["temperature"] == 0.0
 
 
 # --- units and safety ---------------------------------------------------------------------

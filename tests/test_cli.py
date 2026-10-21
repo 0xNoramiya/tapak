@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -55,6 +57,51 @@ def test_cli_full_flow(tmp_path, capsys, monkeypatch):
     assert "UTUH" in capsys.readouterr().out
     assert _run(tmp_path, "registry", "export-merkle") == 0
     assert "merkle-" in capsys.readouterr().out
+
+
+class _ChatServer(BaseHTTPRequestHandler):
+    """Loopback stand-in for llama-server: two paraphrases per sentence, the judge always says TIDAK."""
+
+    def _json(self, obj: object) -> None:
+        body = json.dumps(obj).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802 - http.server API
+        self._json({"object": "list", "data": [{"id": "uji.gguf"}]})
+
+    def do_POST(self) -> None:  # noqa: N802 - http.server API
+        payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        if payload["temperature"] == 0.0:
+            content = "TIDAK: makna berubah"
+        else:  # one candidate far too long for the rows, one that fits but the judge refuses
+            content = ("1. Dengan hormat, " + "kalimat yang sangat panjang sekali " * 8 + "ini.\n"
+                       "2. Dengan hormat, dengan ini kami sampaikan arahan persiapan latihan sebagai berikut.")
+        self._json({"choices": [{"message": {"role": "assistant", "content": content}}]})
+
+    def log_message(self, *args: object) -> None:
+        pass
+
+
+def test_cli_suggest_with_llamacpp_reports_dropped_candidates(tmp_path, capsys, monkeypatch):
+    """The real-model path through the CLI (fake server): a reviewer sees why nothing was kept."""
+    server = HTTPServer(("127.0.0.1", 0), _ChatServer)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setenv("TAPAK_LLM_URL", f"http://127.0.0.1:{server.server_address[1]}")
+    monkeypatch.delenv("TAPAK_LLM_MODEL", raising=False)
+    try:
+        variants = tmp_path / "varian.json"
+        assert _run(tmp_path, "semantic", "suggest", str(SAMPLE), "-o", str(variants), "--llm", "llamacpp") == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+    out = capsys.readouterr().out
+    assert "2 kandidat dibuang" in out and "tidak muat tepat pada baris yang sama (1)" in out
+    assert "tidak setara menurut pemeriksa (1)" in out
+    sel = json.loads(variants.read_text(encoding="utf-8"))
+    assert all(s["provider"] == "llamacpp" and len(s["variants"]) == 1 for s in sel["sets"])
 
 
 def test_cli_trace_requires_document(tmp_path, capsys):

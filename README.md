@@ -104,7 +104,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 - Foto dari salinan yang dicetak hanya membawa kanal geser. Satu halaman belum cukup untuk menyebut nama, sedangkan dua halaman dari salinan yang sama cukup pada 5 dari 6 salinan uji. Untuk foto cetakan, ketahanan kolusi belum tercapai.
 - Pengetikan ulang hanya menyisakan kanal semantik yang membawa beberapa bit, sehingga jawabannya "tidak cukup bukti".
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
-- Semua foto uji sintetis, dan varian semantik di demo berasal dari tabel frasa tiruan. Kamera ponsel, printer, dan LLM lokal sungguhan belum diuji.
+- Semua foto uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
 
 Kami memilih menjawab "tidak cukup bukti" daripada menebak. Daftar lengkapnya, dengan angka, ada di [keamanan](docs/keamanan.md#batasan).
 

@@ -40,7 +40,7 @@ class Settings:
     canary_domain: str = field(default_factory=lambda: _env("TAPAK_CANARY_DOMAIN", "kanari.tapak.test"))
     llm_provider: str = field(default_factory=lambda: _env("TAPAK_LLM", "mock"))
     llm_model_path: str = field(default_factory=lambda: _env("TAPAK_LLM_MODEL", ""))
-    llm_server_url: str = field(default_factory=lambda: _env("TAPAK_LLM_URL", "http://127.0.0.1:8080/completion"))
+    llm_server_url: str = field(default_factory=lambda: _env("TAPAK_LLM_URL", "http://127.0.0.1:8080"))
 
     @property
     def registry_path(self) -> Path:

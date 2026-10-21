@@ -179,7 +179,15 @@ def _cmd_semantic_suggest(args: argparse.Namespace) -> int:
         print(f"{u.unit_id} (hal. {u.page + 1}): {u.text}")
         for i, v in enumerate(vs.variants[1:], start=1):
             print(f"   v{i} [{vs.status[i]}] {v}")
-    print(f"Ditulis ke {args.out}. Tinjau setiap varian, lalu: tapak semantic approve {args.out} --all")
+        if vs.dropped:
+            from collections import Counter
+
+            why = Counter(reason.split(":")[0] for _, reason in vs.dropped)
+            print(f"   {len(vs.dropped)} kandidat dibuang: " + "; ".join(f"{r} ({k})" for r, k in why.most_common()))
+        elif len(vs.variants) == 1:
+            print("   model tidak mengusulkan kandidat yang berbeda dari kalimat asli")
+    print(f"Ditulis ke {args.out}. Baca setiap varian, lalu putuskan satu per satu: "
+          f"tapak semantic approve {args.out} --unit u0 --variant 1 (tambahkan --reject untuk menolak)")
     return 0
 
 

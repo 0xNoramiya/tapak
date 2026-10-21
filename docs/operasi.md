@@ -64,6 +64,57 @@ Halaman **Registri** menampilkan status rantai, kunci publik, akar Merkle, dan p
   <img alt="Langkah rencana penandaan di halaman Terbitkan: jumlah halaman, panjang kode, ambang, dan kapasitas setiap kanal" src="img/ui-terbitkan-light.png" width="100%">
 </picture>
 
+## LLM lokal untuk kanal semantik
+
+Tanpa konfigurasi, varian semantik berasal dari tabel frasa tiruan (`TAPAK_LLM=mock`). Untuk memakai model sungguhan, jalankan `llama-server` dari llama.cpp di komputer yang sama. Langkah berikut sudah diuji dengan llama.cpp b11669 (v0.7.0) di Linux x64 tanpa GPU dan tanpa sudo.
+
+1. Unduh build CPU resmi dari halaman rilis `ggml-org/llama.cpp` (berkas `llama-<tag>-bin-ubuntu-x64.tar.gz`), cocokkan SHA-256-nya dengan digest di halaman rilis, lalu ekstrak:
+
+   ```bash
+   mkdir -p ~/llm/bin ~/llm/models
+   curl -LO https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-ubuntu-x64.tar.gz
+   sha256sum llama-b11669-bin-ubuntu-x64.tar.gz   # cf07c1c1...07f65ac
+   tar -xzf llama-b11669-bin-ubuntu-x64.tar.gz -C ~/llm/bin
+   ```
+
+2. Unduh model instruct GGUF yang mampu berbahasa Indonesia, lalu cocokkan SHA-256-nya dengan yang tercantum di Hugging Face:
+
+   ```bash
+   curl -L -o ~/llm/models/MODEL.gguf https://huggingface.co/<repo>/resolve/main/<berkas>.gguf
+   sha256sum ~/llm/models/MODEL.gguf
+   ```
+
+3. Jalankan server hanya di loopback, dengan port yang ditulis jelas. Port bawaan llama-server berubah dari 8080 menjadi 9931 pada v0.7.0, dan port 8080 sering dipakai layanan lain.
+
+   ```bash
+   ~/llm/bin/llama-b11669/llama-server -m ~/llm/models/MODEL.gguf \
+     --host 127.0.0.1 --port 8799 -t 4 -c 4096 -np 1 --no-webui
+   ```
+
+4. Arahkan TAPAK ke server itu, lalu jalankan alur biasa:
+
+   ```bash
+   export TAPAK_LLM=llamacpp TAPAK_LLM_URL=http://127.0.0.1:8799
+   tapak semantic suggest dok.pdf -o varian.json   # perlu beberapa menit di CPU
+   tapak semantic approve varian.json --unit u0 --variant 1   # setelah dibaca manusia
+   tapak issue dok.pdf penerima.csv --semantic varian.json
+   ```
+
+Sebelum mengirim kalimat dokumen, TAPAK memeriksa bahwa alamat itu menjawab `GET /v1/models` dengan daftar model. Bila tidak, misalnya karena port itu milik layanan lain atau kontainer, TAPAK berhenti tanpa mengirim teks. Permintaan dikirim ke `/v1/chat/completions`, sehingga templat obrolan model dipakai. Alamat lama yang berakhiran `/completion` tetap diterima. Jangan isi `TAPAK_LLM_MODEL` kecuali llama-cpp-python terpasang, karena variabel itu memilih jalur di dalam proses. Batas waktu per permintaan 120 detik dan dapat diubah dengan `TAPAK_LLM_TIMEOUT`.
+
+`tapak semantic suggest` mencetak varian yang lolos dan jumlah kandidat yang dibuang beserta alasannya. Tiap kalimat memerlukan satu panggilan parafrase dan satu panggilan pemeriksa untuk setiap kandidat yang lolos pemeriksaan otomatis. Baca setiap varian sebelum menyetujuinya. Pemeriksa model meloloskan banyak kalimat yang menambah keterangan atau menghapus "Demikian" dan "Dengan hormat" (lihat [batasan](keamanan.md#batasan)).
+
+Model yang sudah diuji (CPU 4 utas di mesin yang dipakai bersama, 2 dokumen contoh):
+
+| Model (GGUF Q4_K_M) | Berkas, RAM | Median per panggilan (parafrase, pemeriksa) | Varian disetujui manusia |
+|---|---|---|---|
+| Qwen2.5-3B-Instruct (`Qwen/Qwen2.5-3B-Instruct-GGUF`, lisensi Qwen Research) | 2,1 GB, 1,9 GB | 24 s, 9 s | 3 dari 12 varian yang lolos pemeriksa |
+| Gemma 3 4B it (`bartowski/google_gemma-3-4b-it-GGUF`, lisensi Gemma) | 2,5 GB, 2,7 GB | 30 s, 14 s | 2 dari 7 varian yang lolos pemeriksa |
+
+Kedua model belum cukup baik untuk kanal ini. Qwen2.5-3B sering hanya mengulang kalimat asli, sedangkan Gemma 3 4B menulis bahasa Indonesia yang lancar tetapi menulis ulang terlalu bebas. Periksa lisensi model sebelum dipakai di luar penelitian.
+
+Di Docker, loopback kontainer `app` adalah kontainer itu sendiri, jadi server di loopback host tidak terjangkau. Jalur ini belum diuji di Docker.
+
 ## Docker
 
 ```bash
@@ -91,8 +142,9 @@ Variabel lingkungan:
 | `TAPAK_DATA`, `TAPAK_KEY_DIR` | lokasi data dan kunci |
 | `TAPAK_CANARY_DOMAIN` | domain kanari bawaan |
 | `TAPAK_LLM` | `mock` atau `llamacpp` |
-| `TAPAK_LLM_MODEL` | berkas GGUF 7 sampai 8B yang mampu berbahasa Indonesia |
-| `TAPAK_LLM_URL` | server llama.cpp lokal; alamat selain loopback ditolak |
+| `TAPAK_LLM_MODEL` | berkas GGUF untuk llama-cpp-python di dalam proses (opsional; kosongkan untuk memakai `llama-server`) |
+| `TAPAK_LLM_URL` | alamat `llama-server` lokal, misalnya `http://127.0.0.1:8799`; bawaan `http://127.0.0.1:8080`; alamat selain loopback ditolak |
+| `TAPAK_LLM_TIMEOUT` | batas waktu per permintaan ke LLM dalam detik; bawaan 120 |
 | `TAPAK_ALLOWED_HOSTS` | nama host yang dilayani aplikasi web; bawaan `127.0.0.1,localhost` |
 | `TAPAK_SIGNING_KEY`, `TAPAK_PUBLIC_KEY` | lokasi kunci tanda tangan dan kunci publik registri; bawaan di `TAPAK_KEY_DIR` |
 | `TAPAK_CANARY_NS_IP` | alamat IPv4 publik pendengar kanari untuk `ns1.<domain>`, sama dengan glue di registrar |

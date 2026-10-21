@@ -1,0 +1,35 @@
+{
+  "_note": "Pre-registered before any real model output was seen (2026-10-22). Positives are the mock table's own variants (equivalent by construction). Negatives change the meaning while keeping the protected tokens, so only the model judge can catch them.",
+  "units": {
+    "u0": "Dengan hormat, bersama ini kami sampaikan arahan persiapan latihan sebagai berikut.",
+    "u1": "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab."
+  },
+  "positives": [
+    ["u0", "Dengan hormat, dengan ini kami sampaikan arahan persiapan latihan sebagai berikut."],
+    ["u0", "Dengan hormat, melalui surat ini kami sampaikan arahan persiapan latihan sebagai berikut."],
+    ["u0", "Dengan hormat, bersama ini kami beritahukan arahan persiapan latihan sebagai berikut."],
+    ["u0", "Dengan hormat, bersama ini kami sampaikan arahan persiapan latihan seperti berikut."],
+    ["u0", "Dengan hormat, bersama ini kami sampaikan arahan persiapan latihan berikut ini."],
+    ["u0", "Dengan hormat, dengan ini kami beritahukan arahan persiapan latihan sebagai berikut."],
+    ["u1", "Demikianlah nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian nota dinas ini diberitahukan untuk menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan agar menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk diperhatikan dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan secara bertanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan rasa tanggung jawab."]
+  ],
+  "negatives": [
+    ["u0", "Dengan hormat, bersama ini kami sampaikan arahan pembatalan latihan sebagai berikut."],
+    ["u0", "Dengan hormat, bersama ini kami sampaikan arahan persiapan perjalanan sebagai berikut."],
+    ["u0", "Dengan hormat, bersama ini kami tarik arahan persiapan latihan sebagai berikut."],
+    ["u0", "Dengan hormat, bersama ini kami sampaikan arahan persiapan latihan gabungan sebagai berikut."],
+    ["u0", "Dengan hormat, bersama ini kami sampaikan arahan persiapan latihan."],
+    ["u0", "Dengan hormat, bersama ini mereka sampaikan arahan persiapan latihan sebagai berikut."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan penuh kehati-hatian."],
+    ["u1", "Demikian nota dinas ini dibatalkan untuk menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan sedikit tanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk menjadi perhatian saja dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian surat edaran ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan penuh tanggung jawab."],
+    ["u1", "Demikian nota dinas ini disampaikan untuk menjadi perhatian dan dilaksanakan dengan penuh semangat."]
+  ]
+}
