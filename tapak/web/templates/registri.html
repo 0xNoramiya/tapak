@@ -201,7 +201,7 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th scope="col">Dokumen</th><th scope="col" class="hide-sm">Diterbitkan</th><th scope="col" class="num hide-sm">Salinan</th><th scope="col" class="kol-hash">SHA-256</th><th scope="col"><span class="sr-only">Tindakan</span></th></tr></thead>
+        <thead><tr><th scope="col">Dokumen</th><th scope="col" class="kol-lebar">Diterbitkan</th><th scope="col" class="num kol-lebar">Salinan</th><th scope="col" class="kol-hash">SHA-256</th><th scope="col"><span class="sr-only">Tindakan</span></th></tr></thead>
         <tbody>
           {% for m in docs %}
           {% set key = m.doc_hash[:16] %}
@@ -213,13 +213,13 @@
                 <span class="dok-teks">
                   <span class="dok-nama" title="{{ m.doc_name }}">{{ m.doc_name }}</span>
                   {% set n_lacak = report.traces.get(m.doc_hash, 0) if report else 0 %}
-                  <span class="dok-meta hide-sm">Penerbit: {{ m.issuer }}{% if n_lacak %} · dilacak {{ n_lacak|num }} kali{% endif %}</span>
-                  <span class="dok-meta dok-meta-sm">{{ m.copies|length|num }} salinan · {{ (m.issued_at|waktu).split(" pukul ")[0] }}</span>
+                  <span class="dok-meta dok-meta-lg">Penerbit: {{ m.issuer }}{% if n_lacak %} · dilacak {{ n_lacak|num }} kali{% endif %}</span>
+                  <span class="dok-meta dok-meta-sm">{{ m.copies|length|num }} salinan · {{ (m.issued_at|waktu).split(" pukul ")[0] }}{% if n_lacak %} · dilacak {{ n_lacak|num }} kali{% endif %}</span>
                 </span>
               </div>
             </td>
-            <td class="hide-sm">{{ waktu2(m.issued_at) }}</td>
-            <td class="num hide-sm">{{ m.copies|length|num }}</td>
+            <td class="kol-lebar">{{ waktu2(m.issued_at) }}</td>
+            <td class="num kol-lebar">{{ m.copies|length|num }}</td>
             <td class="kol-hash"><span class="hash dok-hash" title="{{ m.doc_hash }}">{{ m.doc_hash[:16] }}…</span></td>
             <td class="aksi">
               <div class="aksi-tombol">

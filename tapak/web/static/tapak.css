@@ -73,14 +73,16 @@
      .list > li.list-row > .thumb + .list-main (.list-title + .list-meta) + .list-actions
      mark.diff             changed words; produced by {{ original|beda(variant) }}
      .empty-state          dashed box: h2 or h3 + optional p + one action; .empty = one muted line
-     .spinner ; .busy.htmx-indicator role="status" > span.busy-bar + text (inside the form,
-                           visible while its request runs)
+     .spinner ; .busy.htmx-indicator > span.busy-bar + text (inside the form, visible while
+                           its request runs; tapak.js reads the text out through #status-global)
      .code-row > .code (mono block, give it an id) + .copy-btn data-copy-target="#id"
    Jinja helpers (app.py): ikon(name, size) and logo() from _ikon.html; filter beda(variant);
      meter(value, mark); pratinjau_url(manifest) (None for DOCX masters); registry_status();
      thumbnails: /dokumen/<16-hex>/pratinjau.png and /terbitkan/<sid>/pratinjau.png
    Data hooks (tapak.js)
      data-autofocus        focus target after an htmx swap
+     data-focus-fallback   (with tabindex="-1") focus target after a swap only when the swap
+                           left focus on <body> and the requesting button is gone
      data-enter            on an hx-target: its new children fade in (always on for #alur,
                            #hasil, #merkle, #galat-global)
      data-preview-from="#select" on an <img>: its src follows the selected option's
@@ -275,11 +277,12 @@ sup { line-height: 0; }  /* a superscript must not push its line down */
 b, strong { font-weight: 600; }
 a { color: inherit; }
 ::selection { background: var(--accent-soft); color: var(--ink); }
-[id] { scroll-margin-top: calc(var(--banner-h) + 16px); }  /* lands below the sticky banner */
+/* anchors, scrolled-to results and controls reached by Shift+Tab land below the sticky banner */
+html { scroll-padding-top: calc(var(--banner-h) + 16px); }
 
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-[data-autofocus]:focus, main:focus, #galat-global:focus { outline: none; }
-[data-autofocus]:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 2px; }
+[data-autofocus]:focus, [data-focus-fallback]:focus, main:focus, #galat-global:focus { outline: none; }
+[data-autofocus]:focus-visible, [data-focus-fallback]:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 2px; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 /* icons from the ikon() macro: sized by the macro argument, or by the component they sit in */
@@ -590,7 +593,7 @@ h2 > .stamp:not(:first-child) { margin-inline: 10px 0; }
   animation: spin 700ms linear infinite;
 }
 @media (pointer: coarse) {
-  .btn-small { min-height: 44px; }  /* touch targets never below 44 px */
+  .btn-small { min-height: 44px; min-width: 44px; }  /* touch targets never below 44 px */
 }
 
 .copy-btn {
@@ -691,6 +694,7 @@ input[type="file"]::file-selector-button {
 }
 .field-error::before {
   content: "!";
+  content: "!" / "";  /* drawn icon, not text: the message is read without it */
   position: absolute;
   left: 0;
   top: 1px;
@@ -817,7 +821,7 @@ details > summary::before {
 details:not(.more) > summary { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; }
 details[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
 details.more[open] > summary { margin-bottom: 12px; }
-@media (pointer: coarse) { details > summary { min-height: 44px; } }
+@media (pointer: coarse) { details > summary, details.more > summary { min-height: 44px; } }
 
 /* segmented control: toggle buttons with aria-pressed */
 .segmented {
@@ -1000,6 +1004,7 @@ td .bar { margin-right: 8px; }
 }
 .notice::before {
   content: "i";
+  content: "i" / "";
   position: absolute;
   left: 14px;
   top: 13px;
@@ -1013,10 +1018,10 @@ td .bar { margin-right: 8px; }
   font: 600 11px/1 var(--font-mono);
 }
 .notice-error { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
-.notice-error::before { content: "!"; background: var(--danger); }
+.notice-error::before { content: "!"; content: "!" / ""; background: var(--danger); }
 .notice-error .link { color: inherit; text-decoration-color: currentColor; }
 .notice-warn { background: var(--warn-soft); border-color: var(--warn-line); }
-.notice-warn::before { content: "!"; background: var(--warn); }
+.notice-warn::before { content: "!"; content: "!" / ""; background: var(--warn); }
 .notice-ok { background: var(--accent-soft); border-color: var(--accent-line); }
 .notice-ok::before { background: var(--accent); content: ""; }
 .notice-ok::after {
@@ -1216,7 +1221,10 @@ mark.diff {
     padding: 10px var(--gutter);
     border-bottom: 1px solid var(--border);
   }
-  .brand { padding: 0; }
+  /* 44 px to tap, laid out as 30 and in place; the ring is drawn inside the box, so it clears
+     the banner and the nav row the box reaches into */
+  .brand { padding: 0 6px; min-height: 44px; margin: -7px -6px; }
+  .brand:focus-visible { outline-offset: -2px; }
   .brand-sub, .sidebar-status { display: none; }
   .nav { margin-left: auto; }
   .nav ul { flex-direction: row; gap: 4px; }
@@ -1261,5 +1269,6 @@ mark.diff {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  .btn:active, .copy-btn:active, .segmented > button:active { transform: none !important; }
   .top-progress::after, .busy-bar::after { width: 100%; transform: none; opacity: 0.6; }
 }

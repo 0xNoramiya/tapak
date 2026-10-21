@@ -39,26 +39,31 @@
 .waktu { display: flex; flex-direction: column; white-space: nowrap; }
 .waktu-jam { font-size: var(--fs-sm); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 
-/* the document column takes the free width and truncates; the others keep their content width */
+/* the document column takes the free width and wraps (a cut name could only be read from a
+   tooltip, out of reach of the keyboard and touch); the others keep their content width */
 .kanari-salinan, .dokumen td:first-child { width: 100%; max-width: 0; }
 .dok { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .dok-teks { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dok-nama { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dok-meta { font-size: var(--fs-sm); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dok-nama { font-weight: 500; overflow-wrap: anywhere; }
+.dok-meta { font-size: var(--fs-sm); color: var(--ink-muted); overflow-wrap: anywhere; }
 .dok-meta-sm { display: none; }
 .dok-hash { max-width: 18ch; color: var(--ink-muted); }
 @container main (max-width: 879px) {
   .kol-hash { display: none; }   /* the document name needs the room more than the hash */
 }
-
 .aksi { width: 1%; white-space: nowrap; text-align: right; }
 .aksi-tombol { display: flex; gap: 8px; justify-content: flex-end; }
 
-@media (max-width: 639px) {
-  /* the date, count and hash columns are hidden on a phone; the count and date move under the name */
+/* a narrow content area (a phone, or 200 % zoom): the date and count move under the name and
+   the two actions stack, so the name keeps a readable width */
+@container main (max-width: 719px) {
+  .kol-lebar, .dok-meta-lg { display: none; }
   .dok { gap: 12px; }
-  .dok-meta-sm { display: block; white-space: normal; }
+  .dok-meta-sm { display: block; }
   .aksi-tombol { flex-direction: column; align-items: stretch; gap: 6px; }
+}
+
+@media (max-width: 639px) {
   .integritas-angka { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .integritas-angka > .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }

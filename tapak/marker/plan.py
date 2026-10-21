@@ -10,6 +10,17 @@ Every carried bit is also XORed with a keyed whitening bit so that the physical 
 (shift directions, which zero-width symbol) looks random even where the code bias p_i is
 close to 0 or 1.
 
+Channels that survive retyping (semantic variants, lexical word choice) carry only a few
+dozen bits. A document that opts into the lexical channel records ``retype_positions =
+"band-0.3-0.7"``: both channels then take their positions only from code positions whose bias
+lies in [0.3, 0.7] (``retype_pool``), from one shared keyed permutation (stream "ketik"),
+semantic from the front and lexical from the back, so neither depends on the other's size
+and they never collide while the band has room. The choice uses only the bias vector, never
+a codeword, so innocent bits there are still independent Bernoulli(p_i) and the Chernoff
+threshold holds. Near p = 1/2 a lone leaker scores up to 1 per bit (2/pi on average over the
+arcsine law), but a coalition voting for the minority bit scores about zero there, so band
+positions are a lone-leaker tool only. Documents without the record keep the uniform rule.
+
 The plan is a pure function of (master layout, m, plan key, settings); issuer and decoder
 compute it independently and get the same result.
 """
@@ -30,6 +41,13 @@ CHANNEL_ZW = "zw"
 CHANNEL_HOMOGLYPH = "homoglyph"
 CHANNEL_BACKGROUND = "background"
 CHANNEL_SEMANTIC = "semantic"
+CHANNEL_LEXICAL = "lexical"
+
+# Position rule of the retype-surviving channels (semantic, lexical) of a new document that
+# opts into the lexical channel. Documents without this record keep the uniform rule.
+RETYPE_BAND = "band-0.3-0.7"
+RETYPE_RULES = {RETYPE_BAND: (0.3, 0.7)}
+RETYPE_STREAM = "ketik"
 
 # Physical channel each sub-channel belongs to (used to count independent agreement).
 PHYSICAL_CHANNEL = {
@@ -38,6 +56,7 @@ PHYSICAL_CHANNEL = {
     CHANNEL_HOMOGLYPH: "teks",
     CHANNEL_BACKGROUND: "latar",
     CHANNEL_SEMANTIC: "semantik",
+    CHANNEL_LEXICAL: "leksikal",
 }
 
 
@@ -98,23 +117,53 @@ def plan_key(secret: bytes, doc_hash: str) -> bytes:
     return hmac.new(secret, b"TAPAK-plan-v1|" + doc_hash.encode(), hashlib.sha256).digest()
 
 
+def retype_pool(p: np.ndarray, rule: str) -> np.ndarray:
+    """Boolean mask of the code positions a retype rule allows (from the bias vector only)."""
+    if rule not in RETYPE_RULES:
+        raise ValueError(f"aturan posisi ketik ulang tidak dikenal: {rule!r}")
+    lo, hi = RETYPE_RULES[rule]
+    p = np.asarray(p, dtype=np.float64)
+    return (p >= lo) & (p <= hi)
+
+
 def assign_positions(
     channel: str,
     refs: Iterable[tuple[int, tuple[int, ...], int]],
     m: int,
     key: bytes,
+    pool: np.ndarray | None = None,
+    stream: str | None = None,
+    from_end: bool = False,
 ) -> list[Slot]:
-    """Turn (page, ref, n_bits) entries into slots with positions and whitening bits."""
+    """Turn (page, ref, n_bits) entries into slots with positions and whitening bits.
+
+    By default positions follow the channel's own keyed permutation of [0, m). ``pool`` (a
+    boolean mask of length m) keeps only the allowed positions, in permutation order;
+    ``stream`` names a permutation shared by several channels; ``from_end`` walks that
+    sequence from its last element backwards, so two channels sharing a stream (one from the
+    front, one from the back) never collide while the pool has room. Whitening always comes
+    from the channel's own stream. Without these options the result is the original rule.
+    """
     refs = list(refs)
     total = sum(n for _, _, n in refs)
     if total == 0:
         return []
-    perm = np.argsort(uniform_stream(key, f"perm|{channel}".encode(), m), kind="stable")
+    perm = np.argsort(uniform_stream(key, f"perm|{stream or channel}".encode(), m), kind="stable")
+    if pool is not None:
+        pool = np.asarray(pool, dtype=bool)
+        if pool.shape != (m,):
+            raise ValueError("kumpulan posisi harus sepanjang kode")
+        perm = perm[pool[perm]]
+        if perm.size == 0:
+            raise ValueError("tidak ada posisi kode yang memenuhi aturan posisi")
+    if from_end:
+        perm = perm[::-1]
     white = (uniform_stream(key, f"white|{channel}".encode(), total) < 0.5).astype(int)
     slots: list[Slot] = []
     cursor = 0
+    size = int(perm.size)
     for page, ref, n in refs:
-        idx = [(cursor + k) % m for k in range(n)]
+        idx = [(cursor + k) % size for k in range(n)]
         slots.append(
             Slot(
                 channel=channel,

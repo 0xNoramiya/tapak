@@ -37,7 +37,7 @@
     <div class="field">
       <span class="field-label" id="bukti-label">Bukti yang bocor</span>
       <label class="dropzone" data-dropzone>
-        <input type="file" id="bukti" name="bukti" multiple accept="image/*,.pdf,.docx,.txt" title="Pilih berkas" aria-labelledby="bukti-label" aria-describedby="hint-bukti bukti-err" {% if errors.bukti %}aria-invalid="true"{% endif %}>
+        <input type="file" id="bukti" name="bukti" multiple accept="image/*,.pdf,.docx,.txt" title="Pilih berkas" aria-labelledby="bukti-label" aria-describedby="hint-bukti berkas-err bukti-err" {% if errors.bukti or errors.berkas %}aria-invalid="true"{% endif %}>
         <span class="dropzone-icon" aria-hidden="true">{{ ikon("file-up") }}</span>
         <span class="dropzone-text">
           <span class="dropzone-title">Foto, tangkapan layar, PDF, DOCX, atau TXT</span>
@@ -46,6 +46,7 @@
         <ul class="dropzone-files" data-dropzone-files></ul>
       </label>
       <span class="hint" id="hint-bukti">Foto tiap halaman dari kebocoran yang sama boleh dipilih sekaligus; buktinya digabung.</span>
+      <span id="berkas-err">{% if errors.berkas %}<span class="field-error" role="alert">{{ errors.berkas }}</span>{% endif %}</span>
       <span id="bukti-err">{% if errors.bukti %}<span class="field-error" role="alert">{{ errors.bukti }}</span>{% endif %}</span>
     </div>
 
@@ -53,8 +54,9 @@
       <summary><span>Atau tempel teks yang bocor<span class="teks-abai"> · diabaikan karena ada berkas</span></span></summary>
       <div class="field">
         <label for="teks">Teks yang bocor</label>
-        <textarea id="teks" name="teks" spellcheck="false" autocomplete="off" aria-describedby="hint-teks bukti-err" placeholder="Tempel teks dari pesan atau dokumen di sini"></textarea>
+        <textarea id="teks" name="teks" spellcheck="false" autocomplete="off" aria-describedby="hint-teks teks-err bukti-err" placeholder="Tempel teks dari pesan atau dokumen di sini"></textarea>
         <span class="hint" id="hint-teks">Dipakai bila tidak ada berkas yang dipilih. Ctrl+Enter untuk melacak.</span>
+        <span id="teks-err"></span>
       </div>
     </details>
 

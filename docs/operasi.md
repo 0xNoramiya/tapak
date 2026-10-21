@@ -36,6 +36,10 @@ tapak registry export-merkle                     # akar Merkle harian
 tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
 tapak semantic approve varian.json --unit u0 --variant 2   # keputusan manusia
 tapak issue dok.pdf penerima.csv --semantic varian.json    # ditolak jika masih ada varian menunggu
+tapak leksikal scan dok.pdf -o leksikal.json     # titik pilihan kata (opsional), semua menunggu tinjauan
+tapak leksikal show leksikal.json                # konteks, bentuk, status, jumlah bit
+tapak leksikal review leksikal.json --interaktif # putuskan titik satu per satu
+tapak issue dok.pdf penerima.csv --leksikal leksikal.json  # ditolak jika masih ada titik menunggu
 tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000
 tapak simulate --table
 tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
@@ -51,6 +55,19 @@ Pihak ketiga cukup memegang berkas registri dan kunci publik:
 ```bash
 tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub
 ```
+
+## Kanal pilihan kata (opsional)
+
+Kanal ini hanya untuk dokumen induk PDF dan hanya aktif bila penerbit memberikan `--leksikal`. Tanpa itu, penerbitan sama persis dengan sebelumnya. Saat ini kanal ini hanya tersedia lewat baris perintah, belum di antarmuka web.
+
+1. **Pindai.** `tapak leksikal scan dok.pdf -o leksikal.json` mencari titik dengan tabel leksikon draf (`tapak/assets/leksikon/naskah_dinas_v1.json`; `--tingkat AB` ikut memakai kata isi tingkat B). Keluarannya menyebut jumlah titik dan bit, penolakan per kategori, dan perkiraan apakah dokumen cukup panjang untuk satu pembocor.
+2. **Tinjau.** `tapak leksikal show leksikal.json` menampilkan setiap titik dengan seluruh kalimatnya (lintas baris), frasa dalam kurung siku, semua bentuknya, dan catatan aturannya (`--status menunggu` hanya menampilkan yang belum diputuskan). Titik bertanda "konteks berulang" memiliki frasa dan konteks yang sama di bagian lain dokumen; tolak titik itu bila bocoran dapat menukar urutan kalimat. Putuskan dengan salah satu cara berikut:
+   * satu per satu: `tapak leksikal review leksikal.json --interaktif` (s = setujui, t = tolak, l = lewati, q = selesai);
+   * per titik: `--titik l0,l3 --setujui`, `--titik l5 --tolak`, atau `--tunda` untuk mengembalikan ke status menunggu;
+   * per aturan: `--aturan dan --tolak`. Persetujuan sekaligus per aturan atau `--semua` memerlukan `--ya`, setelah setiap titiknya dibaca.
+3. **Terbitkan.** `tapak issue dok.pdf penerima.csv --leksikal leksikal.json` (boleh bersama `--semantic`). Penerbitan ditolak bila masih ada titik menunggu, bila titik atau bentuknya disunting di luar TAPAK, bila tabel leksikon berubah sejak pemindaian, atau bila pita bias 0,3 sampai 0,7 tidak cukup untuk semua bit (tolak sebagian titik atau pakai c lebih besar). Keluarannya menyebut jumlah bit tahan ketik ulang (pilihan kata dan semantik) dan jumlah kata isi. "Cukup untuk satu pembocor" baru muncul pada 64 bit atau lebih; di bawahnya keluaran menyebut kekurangan bit dan perkiraan kata isi tambahan.
+4. **Simpan.** `leksikal.json` memuat teks dokumen. TAPAK menyimpannya di folder dokumen, di samping `induk.pdf` dan `varian.json`; registri hanya menyimpan digest-nya. Keputusan setuju atau tolak di berkas ini tidak diautentikasi, jadi simpan berkas itu di tempat yang hanya dapat ditulis penerbit, sebelum dan sesudah penerbitan. Saat pelacakan, berkas ini dicocokkan dengan digest di catatan penerbitan. Bila hilang atau tidak cocok, kanal pilihan kata dilewati dengan peringatan, dan kanal lain tetap dibaca.
+5. **Baca hasilnya dengan hati-hati.** Nama yang hanya didukung pilihan kata dan varian kalimat diberi peringatan di bawah putusan: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya. Nama seperti itu memerlukan bukti pendukung.
 
 ## Antarmuka web
 
@@ -103,6 +120,8 @@ Tanpa konfigurasi, varian semantik berasal dari tabel frasa tiruan (`TAPAK_LLM=m
    tapak semantic approve varian.json --unit u0 --variant 1   # setelah dibaca manusia
    tapak issue dok.pdf penerima.csv --semantic varian.json
    ```
+
+   Varian dari model disetujui satu per satu: `approve --all` dan tombol "Setujui semua" di web hanya tersedia untuk tabel frasa tiruan. `--all --reject` tetap boleh.
 
 Sebelum mengirim kalimat dokumen, TAPAK memeriksa bahwa alamat itu menjawab `GET /v1/models` dengan daftar model. Bila tidak, misalnya karena port itu milik layanan lain atau kontainer, TAPAK berhenti tanpa mengirim teks. Permintaan dikirim ke `/v1/chat/completions`, sehingga templat obrolan model dipakai. Alamat lama yang berakhiran `/completion` tetap diterima. Jangan isi `TAPAK_LLM_MODEL` kecuali llama-cpp-python terpasang, karena variabel itu memilih jalur di dalam proses. Batas waktu per permintaan 120 detik dan dapat diubah dengan `TAPAK_LLM_TIMEOUT`.
 
@@ -162,6 +181,7 @@ Variabel lingkungan:
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
 - simulator printer, profil latar cetak, dan templat induk tepat;
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
+- kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - DOCX, berita acara, antarmuka web end-to-end;
 - aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang).
 

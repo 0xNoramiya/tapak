@@ -102,7 +102,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 ## Batasan
 
 - Dengan pola latar bawaan, foto salinan yang dicetak hanya membawa kanal geser. Pada uji printer simulasi (N = 100), satu halaman tidak menyebut siapa pun (0 dari 80 foto) dan dua halaman cukup pada 5 sampai 8 dari 20 salinan, tanpa ketahanan kolusi. Profil `--latar cetak` mengatasinya dalam simulasi (satu halaman cukup pada 40 dari 40, minimal satu dari tiga anggota koalisi tertangkap pada 32 dari 32), tetapi halaman tampak abu-abu muda.
-- Pengetikan ulang hanya menyisakan kanal semantik yang membawa beberapa bit, sehingga jawabannya "tidak cukup bukti".
+- Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti". Dalam simulasi, satu pembocor baru dapat disebut dari sekitar 1.300 kata isi, tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan.
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
 - Semua foto dan cetakan uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
 

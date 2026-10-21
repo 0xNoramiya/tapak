@@ -14,17 +14,18 @@ from pathlib import Path
 
 import numpy as np
 
-from tapak.decoder.accuse import Attribution, CopyRef, attribute
+from tapak.decoder.accuse import VISIBLE_MARKS_NOTE, Attribution, CopyRef, attribute
 from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
-from tapak.marker.issue import IssueManifest, SemanticSelection, build_document_plan
+from tapak.marker.issue import IssueManifest, SemanticSelection, build_document_plan, lexical_exclusions
 from tapak.marker.layout import RowId, sha256_hex
+from tapak.marker.lexical import LONE_LEAKER_BITS, LexicalSelection, format_count, words_for_bits
 from tapak.marker.master import MasterDocument, load_master
 from tapak.marker.background import BackgroundSettings
 from tapak.marker.pdf_shift import ShiftSettings
-from tapak.marker.plan import EmbeddingPlan, plan_key
+from tapak.marker.plan import CHANNEL_LEXICAL, PHYSICAL_CHANNEL, EmbeddingPlan, plan_key
 from tapak.tardos.code import code_digest, derive_bias, derive_codeword
 from tapak.tardos.params import TardosParams
 from tapak.tardos.spending import TraceSpending
@@ -54,6 +55,8 @@ class TraceContext:
     background: BackgroundSettings | None = None
     semantic: SemanticSelection | None = None
     warnings: list[str] = field(default_factory=list)
+    lexical: LexicalSelection | None = None
+    lexical_ref: object | None = None  # ch_lexical.LexReference, built once per context
 
     @property
     def shift(self) -> ShiftSettings:
@@ -80,13 +83,54 @@ def load_semantic(folder: Path | None) -> SemanticSelection | None:
     return None
 
 
+def load_lexical(folder: Path | None) -> LexicalSelection | None:
+    """The reviewed lexical selection stored with the issuance (``leksikal.json``), if any.
+
+    Looked up in ``folder`` and in its parent, like ``varian.json``.
+    """
+    if folder is None:
+        return None
+    import json
+
+    for candidate in (Path(folder) / "leksikal.json", Path(folder).parent / "leksikal.json"):
+        if candidate.exists():
+            try:
+                return LexicalSelection.from_dict(json.loads(candidate.read_text(encoding="utf-8")))
+            except (ValueError, KeyError, TypeError, AttributeError) as exc:
+                raise TraceError(f"{candidate.name} rusak atau bukan berkas pilihan kata TAPAK") from exc
+    return None
+
+
+LEXICAL_SKIPPED = "kanal pilihan kata dilewati"
+
+
+def _usable_lexical(lexical: LexicalSelection | None, manifest: IssueManifest, doc_hash: str,
+                    warnings: list[str]) -> LexicalSelection | None:
+    """The lexical selection if it is the one recorded at issuance; otherwise warn and skip it."""
+    if not manifest.lexical_digest:
+        return None
+    if lexical is None:
+        warnings.append(f"pilihan kata saat penerbitan (leksikal.json) tidak tersedia; {LEXICAL_SKIPPED}")
+        return None
+    rows, words = lexical_exclusions(manifest)
+    if (lexical.digest != manifest.lexical_digest or lexical.doc_hash != doc_hash
+            or lexical.shift_excluded_rows() != rows or lexical.excluded_words() != words):
+        warnings.append(f"pilihan kata (leksikal.json) tidak cocok dengan catatan penerbitan; {LEXICAL_SKIPPED}")
+        return None
+    return lexical
+
+
 def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
-                 semantic: SemanticSelection | None = None, folder: Path | None = None) -> TraceContext:
+                 semantic: SemanticSelection | None = None, folder: Path | None = None,
+                 lexical: LexicalSelection | None = None) -> TraceContext:
     """Rebuild plan and codewords; refuse if the master or any commitment does not match.
 
     The semantic channel needs the approved variant sets used at issuance; they are taken
     from ``semantic`` or from ``folder/varian.json`` and checked against the digest in the
-    manifest. Without them the semantic channel is skipped (with a warning).
+    manifest. Without them the semantic channel is skipped (with a warning). The lexical
+    channel likewise needs ``lexical`` or ``folder/leksikal.json`` with the recorded digest;
+    on a mismatch it is skipped with a warning, and every other channel is still read with
+    the exclusions recorded in the manifest.
     """
     try:
         master = load_master(master_pdf)
@@ -108,14 +152,25 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
             semantic = None
     else:
         semantic = None
+    if lexical is None and manifest.lexical_digest:
+        lexical = load_lexical(folder)
+    lexical = _usable_lexical(lexical, manifest, master.doc_hash, warnings)
+    shift_rows, text_words = lexical_exclusions(manifest)
+    retype = {"retype_positions": manifest.retype_positions, "shift_excluded_rows": shift_rows,
+              "text_excluded_words": text_words}
     try:
         plan = build_document_plan(master, params, secret, tuple(manifest.channels), excluded,  # type: ignore[arg-type]
-                                   background, semantic)
+                                   background, semantic, lexical, **retype)  # type: ignore[arg-type]
     except ValueError:
         warnings.append("varian semantik tidak cocok dengan catatan penerbitan; kanal semantik dilewati")
         semantic = None
         plan = build_document_plan(master, params, secret, tuple(manifest.channels), excluded,  # type: ignore[arg-type]
-                                   background, None)
+                                   background, None, lexical, **retype)  # type: ignore[arg-type]
+    lexical_ref = None
+    if lexical is not None and plan.channel(CHANNEL_LEXICAL):
+        from tapak.decoder.ch_lexical import LexReference
+
+        lexical_ref = LexReference(master, lexical.carrying())
     p = derive_bias(secret, master.doc_hash, params)
     rows = []
     refs = []
@@ -128,16 +183,22 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
         refs.append(CopyRef(c.seq, c.copy_id, r.recipient_id, r.nama, r.jabatan, r.satuan))
     return TraceContext(master, manifest, params, plan, p, np.vstack(rows), refs, excluded,  # type: ignore[arg-type]
                         key=plan_key(secret, master.doc_hash), background=background, semantic=semantic,
-                        warnings=warnings)
+                        warnings=warnings, lexical=lexical, lexical_ref=lexical_ref)
 
 
 def collect_from_text(text: str, ctx: TraceContext) -> list[SoftBits]:
-    """Channels readable from text: the text layer (channel 3) and semantic variants (channel 4)."""
+    """Channels readable from text: the text layer (channel 3), semantic variants (channel 4) and,
+    for a document that uses it, word choice (channel 6)."""
     obs = decode_text(text, ctx.master, ctx.plan)
     if ctx.semantic is not None and ctx.plan.channel("semantic"):
         from tapak.decoder.ch_semantic import decode_semantic
 
         obs.append(decode_semantic(text, ctx.semantic.units, ctx.semantic.sets, ctx.plan.channel("semantic")))
+    if ctx.lexical is not None and ctx.lexical_ref is not None and ctx.plan.channel(CHANNEL_LEXICAL):
+        from tapak.decoder.ch_lexical import decode_lexical
+
+        obs.append(decode_lexical(text, ctx.lexical_ref, ctx.lexical.points,  # type: ignore[arg-type]
+                                  ctx.plan.channel(CHANNEL_LEXICAL)))
     return obs
 
 
@@ -276,6 +337,64 @@ def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str,
     return obs, notes
 
 
+# Physical channels whose marks survive retyping. They are also the marks a reader can see on
+# paper, so anyone who has read a copy can copy them.
+RETYPE_PHYSICAL = frozenset({"semantik", "leksikal"})
+
+
+def retyped_text_note(observations: list[SoftBits], attribution: Attribution,
+                      body_words: int | None = None, lexical_bits: int | None = None) -> str | None:
+    """Plain note when only retype-surviving channels (semantic, word choice) were read and they
+    carry fewer bits than the lone-leaker level; None otherwise (also when someone was named).
+
+    ``body_words`` and ``lexical_bits`` (the document's body words and issued lexical bits)
+    turn the missing bits into an indicative word count. The note explains a "tidak cukup
+    bukti" verdict; it never changes the threshold.
+    """
+    read = {PHYSICAL_CHANNEL.get(sb.channel, sb.channel) for sb in observations if len(sb)}
+    if not read or not read <= RETYPE_PHYSICAL or attribution.accused:
+        return None
+    bits = attribution.threshold.n_observed
+    if bits >= LONE_LEAKER_BITS:
+        return None
+    doc = f" Dokumen ini memuat {format_count(body_words)} kata isi." if body_words else ""
+    words = format_count(words_for_bits(LONE_LEAKER_BITS, body_words, lexical_bits))
+    return (f"tidak cukup bukti: bukti ini hanya memuat tanda yang bertahan saat diketik ulang (pilihan kata dan "
+            f"varian kalimat), {bits} bit. TAPAK baru menyebut satu pembocor dari teks ketikan ulang mulai "
+            f"{LONE_LEAKER_BITS} bit, kira-kira dokumen dengan {words} kata isi.{doc}")
+
+
+def visible_marks_note(observations: list[SoftBits], attribution: Attribution, ctx: TraceContext,
+                       spending: TraceSpending | None = None) -> str | None:
+    """Caveat when a named copy is named only thanks to marks visible on paper; None otherwise.
+
+    Word choice and sentence variants can be read off a printed copy. A leaker who has seen
+    another recipient's copy can retype the leak with that copy's forms, and the text then
+    carries that copy's marks: the statistics name it correctly as the source of the word
+    choices, not as the typist. The caveat is added when some accused copy is not accused by
+    the other channels alone (always the case when only these channels were read). The check
+    reruns the same code-blind accusation on the other channels with the same budget; it
+    never changes the verdict or the threshold.
+    """
+    if not attribution.accused:
+        return None
+    visible = [sb for sb in observations if len(sb) and PHYSICAL_CHANNEL.get(sb.channel, sb.channel) in RETYPE_PHYSICAL]
+    if not visible:
+        return None
+    hidden = [sb for sb in observations
+              if len(sb) and PHYSICAL_CHANNEL.get(sb.channel, sb.channel) not in RETYPE_PHYSICAL]
+    named: set[int] = set()
+    if hidden:
+        m = ctx.params.length
+        alone = attribute(fuse(hidden, m), fuse_by_physical_channel(hidden, m), ctx.p, ctx.codewords, ctx.refs,
+                          ctx.params, spending)
+        named = {c.copy.seq for c in alone.accused}
+    only_visible = [c.copy.seq for c in attribution.accused if c.copy.seq not in named]
+    if not only_visible:
+        return None
+    return "salinan " + ", ".join(f"#{k}" for k in only_visible) + ": " + VISIBLE_MARKS_NOTE
+
+
 def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] | None = None,
               spending: TraceSpending | None = None) -> Attribution:
     """Fuse, accuse, explain. ``spending`` is this trace's part of eps (None: not logged, all of eps)."""
@@ -283,6 +402,13 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
     per_channel = fuse_by_physical_channel(observations, ctx.params.length)
     result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params, spending)
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
+    if ctx.plan.channel(CHANNEL_LEXICAL):  # documents without the channel keep their output unchanged
+        lexical_bits = sum(len(s.positions) for s in ctx.plan.channel(CHANNEL_LEXICAL))
+        body_words = ctx.lexical.body_words if ctx.lexical is not None else None
+        for note in (retyped_text_note(observations, result, body_words, lexical_bits),
+                     visible_marks_note(observations, result, ctx, spending)):
+            if note is not None:
+                result.notes.append(note)
     return result
 
 

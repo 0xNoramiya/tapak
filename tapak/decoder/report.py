@@ -46,6 +46,7 @@ from markupsafe import Markup, escape
 from tapak.decoder.accuse import (
     VERDICT_IDENTIFIED,
     VERDICT_INSUFFICIENT,
+    VISIBLE_MARKS_NOTE,
     Attribution,
     CopyCandidate,
     CopyRef,
@@ -57,6 +58,7 @@ from tapak.marker.layout import sha256_hex
 from tapak.marker.plan import (
     CHANNEL_BACKGROUND,
     CHANNEL_HOMOGLYPH,
+    CHANNEL_LEXICAL,
     CHANNEL_SEMANTIC,
     CHANNEL_SHIFT,
     CHANNEL_ZW,
@@ -88,12 +90,15 @@ SUBCHANNEL_LABELS = {
     CHANNEL_ZW: "Karakter tak terlihat (zero-width)",
     CHANNEL_HOMOGLYPH: "Huruf kembar (homoglyph)",
     CHANNEL_SEMANTIC: "Variasi kalimat (semantik)",
+    CHANNEL_LEXICAL: "Pilihan kata (leksikal)",
 }
 PHYSICAL_LABELS = {
     "geser": "Geser (pergeseran kata dan baris)",
     "latar": "Latar (pola latar halus)",
     "teks": "Teks (karakter tak terlihat dan huruf kembar)",
     "semantik": "Semantik (variasi kalimat)",
+    "leksikal": ("Leksikal (pilihan kata; bertahan saat diketik ulang, tetapi terlihat di kertas sehingga dapat "
+                 "ditiru; satu pembocor, tidak tahan kolusi)"),
 }
 _DIGITAL_SUBCHANNELS = {CHANNEL_ZW, CHANNEL_HOMOGLYPH}
 
@@ -741,7 +746,8 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "params_rows": _params_rows(p),
         "registry": _registry_text(info),
         "registry_failed": info.registry_ok is False,
-        "notes": [redact(n) for n in attribution.notes],
+        "notes": [redact(n) for n in attribution.notes if VISIBLE_MARKS_NOTE not in n],
+        "caveats": [redact(n) for n in attribution.notes if VISIBLE_MARKS_NOTE in n],
         "canary_rows": _canary_rows(info, shown_seqs, redact),
         "digests": [(f"#{c.copy.seq}", info.code_digests.get(c.copy.seq, "tidak tersedia"))
                     for c in attribution.accused],

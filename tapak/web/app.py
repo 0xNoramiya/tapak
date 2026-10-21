@@ -150,6 +150,16 @@ templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
 templates.env.globals["inf"] = float("inf")
 
 
+def _visible_marks_caveats(notes: list[str]) -> list[str]:
+    """Notes warning that a name rests only on marks visible on paper (word choices, variants)."""
+    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+
+    return [n for n in notes if VISIBLE_MARKS_NOTE in n]
+
+
+templates.env.globals["peringatan_terlihat"] = _visible_marks_caveats
+
+
 def _fap(candidate, n_copies: int):
     """False-accusation probability of a named copy, exact even when it underflows a float."""
     import math
@@ -159,6 +169,24 @@ def _fap(candidate, n_copies: int):
 
 
 templates.env.globals["fap"] = _fap
+
+
+def _fap_spoken(candidate, n_copies: int) -> str:
+    """The value of fap() as it is read aloud: '1,1 kali 10 pangkat minus 133'. Screen readers
+    do not announce a superscript, so the written form would be heard as '10 minus 133'."""
+    import math
+
+    from tapak.decoder.report import _probability_parts
+
+    log10 = candidate.log10_false_accusation
+    mantissa, exponent = _probability_parts(candidate.false_accusation_probability,
+                                            log10 if math.isfinite(log10) else None, True)
+    if exponent is None:
+        return mantissa
+    return f"{mantissa} kali 10 pangkat {'minus ' if exponent < 0 else ''}{abs(exponent)}"
+
+
+templates.env.globals["fap_lisan"] = _fap_spoken
 
 
 def _subchannel_summary(sb) -> str:
@@ -339,16 +367,21 @@ def _preview_url(manifest) -> str | None:
 templates.env.globals["pratinjau_url"] = _preview_url
 
 
-def _notice(request: Request, message: str, status: int, restart: bool = False) -> HTMLResponse:
+def _notice(request: Request, message: str, status: int, restart: bool = False,
+            field: str = "") -> HTMLResponse:
     """An Indonesian error notice. For htmx requests it is placed in the page-level alert
     region (HX-Retarget) so the current form stays intact; a plain link (a download, an old
-    bookmark) gets a full page with navigation."""
+    bookmark) gets a full page with navigation. ``field`` names the error slot of the input
+    at fault: the message is also put there (out of band), which marks that input invalid."""
     if not request.headers.get("HX-Request"):
         resp = _page(request, "galat.html", title="Galat", message=message, restart=restart, code=status)
         resp.status_code = status
         return resp
     link = ' <a class="link" href="/terbitkan">Mulai lagi</a>' if restart else ""
     body = f'<div class="notice notice-error">{html.escape(message)}{link}</div>'
+    if field:
+        body += (f'<span id="{field}" hx-swap-oob="innerHTML"><span class="field-error">'
+                 f'{html.escape(message)}</span></span>')
     headers = {"HX-Retarget": "#galat-global", "HX-Reswap": "innerHTML"} if request.headers.get("HX-Request") else {}
     return HTMLResponse(body, status_code=status, headers=headers)
 
@@ -388,14 +421,17 @@ async def _not_found(request: Request, exc: FileNotFoundError) -> HTMLResponse:
 async def _http_error(request: Request, exc: StarletteHTTPException) -> HTMLResponse:
     """HTTP errors (413, 404, 400) as Indonesian notices instead of JSON. TAPAK's own errors
     (fastapi.HTTPException) already carry Indonesian text; Starlette's are replaced."""
+    field = ""
     if isinstance(exc, HTTPException):
         message = str(exc.detail)
     elif "maximum size" in str(exc.detail):
         message = "Teks yang ditempel terlalu panjang (maksimum 1 MB). Simpan sebagai berkas .txt lalu unggah."
+        if request.url.path == "/lacak":
+            field = "teks-err"
     else:
         message = _FRAMEWORK_MESSAGES.get(exc.status_code, f"Permintaan ditolak (kode {exc.status_code}).")
     restart = bool(exc.headers and exc.headers.get("X-Tapak-Mulai-Lagi"))
-    return _notice(request, message, exc.status_code, restart=restart)
+    return _notice(request, message, exc.status_code, restart=restart, field=field)
 
 
 @app.exception_handler(RequestValidationError)
@@ -435,6 +471,18 @@ async def _read_upload(f: UploadFile | None) -> bytes:
     if len(data) > MAX_UPLOAD:
         raise HTTPException(413, "Berkas terlalu besar (maksimum 40 MB)")
     return data
+
+
+async def _read_field(f: UploadFile | None, errors: dict[str, str], key: str, too_big: str) -> bytes:
+    """An upload, or b"" with ``too_big`` as the error of field ``key`` when it is over the
+    limit: the message then sits next to that field, like any other input error."""
+    try:
+        return await _read_upload(f)
+    except HTTPException as exc:
+        if exc.status_code != 413:
+            raise
+        errors[key] = too_big
+        return b""
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -543,16 +591,16 @@ async def terbitkan_analisis(
 
     errors: dict[str, str] = {}
     values = {"c": c, "eps": eps, "penerbit": penerbit, "kanari": kanari}
-    pdf = await _read_upload(dokumen)
-    csv_bytes = await _read_upload(penerima)
-    if not pdf:
+    pdf = await _read_field(dokumen, errors, "dokumen", "PDF ini terlalu besar (maksimum 40 MB).")
+    csv_bytes = await _read_field(penerima, errors, "penerima", "CSV ini terlalu besar (maksimum 40 MB).")
+    if not pdf and "dokumen" not in errors:
         errors["dokumen"] = "Pilih berkas PDF dokumen induk."
-    elif b"%PDF-" not in pdf[:1024]:
+    elif pdf and b"%PDF-" not in pdf[:1024]:
         errors["dokumen"] = "Berkas ini bukan PDF. Ekspor dokumen ke PDF lalu unggah lagi."
     recipients: list[Recipient] = []
-    if not csv_bytes:
+    if not csv_bytes and "penerima" not in errors:
         errors["penerima"] = "Pilih berkas CSV daftar penerima."
-    else:
+    elif csv_bytes:
         try:
             tmp = io.StringIO(csv_bytes.decode("utf-8-sig"))
             rows = list(csv.DictReader(tmp))
@@ -718,10 +766,14 @@ def terbitkan_putusan(request: Request, sid: str, unit_id: str, index: int, stat
 @app.post("/terbitkan/{sid}/varian/{unit_id}/semua", response_class=HTMLResponse)
 def terbitkan_setujui_semua(request: Request, sid: str, unit_id: str) -> HTMLResponse:
     """Approve every pending variant of one sentence (still an explicit reviewer decision)."""
+    from tapak.marker.semantic import bulk_approval_allowed
+
     st = _staging(sid)
     vs = st.sets.get(unit_id)
     if vs is None:
         raise HTTPException(400, "Permintaan tidak valid")
+    if not bulk_approval_allowed(vs):
+        raise HTTPException(400, "Varian dari model bahasa harus disetujui satu per satu.")
     for i in vs.pending():
         vs.set_status(i, "disetujui")
     return _page(request, "_semantik.html", oob=True, st=st)
@@ -838,25 +890,35 @@ async def lacak_run(
     teks: str = Form(""),
 ) -> HTMLResponse:
     """Run the trace and show the attribution (several evidence files are fused)."""
-    from tapak.decoder.trace import TraceError
+    from tapak.decoder.trace import TraceError, check_evidence_types
     from tapak.service import list_workspaces, trace_evidence
 
+    # A file that is too large or of an unknown type is reported next to the file field
+    # (berkas-err); missing evidence (bukti-err) concerns the file and the text field alike.
     errors: dict[str, str] = {}
     items: list[tuple[str, bytes]] = []
+    too_big = "Bukti terlalu besar (maksimum 40 MB seluruhnya). Pilih lebih sedikit berkas atau foto yang lebih kecil."
     total = 0
     for f in bukti or []:
-        content = await _read_upload(f)
+        content = await _read_field(f, errors, "berkas", too_big)
         total += len(content)
-        if total > MAX_UPLOAD:
-            raise HTTPException(413, "Berkas terlalu besar (maksimum 40 MB seluruhnya)")
+        if "berkas" in errors or total > MAX_UPLOAD:
+            errors["berkas"], items = too_big, []
+            break
         if content:
             items.append((Path(f.filename or "bukti").name, content))
-    if not items and teks.strip():
+    if not items and teks.strip() and "berkas" not in errors:
         items = [("teks_tempel.txt", teks.encode("utf-8"))]
+    for item_name, _ in items:
+        try:
+            check_evidence_types([item_name])
+        except TraceError:
+            errors["berkas"] = f"{item_name}: jenis berkas tidak dikenal. Unggah foto, tangkapan layar, PDF, DOCX, atau TXT."
+            break
     data, name = (items[0][1], items[0][0]) if items else (b"", "")
     if not dokumen:
         errors["dokumen"] = "Pilih dokumen yang diduga bocor."
-    if not data:
+    if not data and "berkas" not in errors:
         errors["bukti"] = "Unggah foto, tangkapan layar, PDF, atau DOCX, atau tempel teksnya."
     if errors:
         resp = _page(request, "_lacak_form.html", docs=list_workspaces(settings()), errors=errors,

@@ -6,6 +6,12 @@ document.addEventListener("DOMContentLoaded", function () {
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   var busyCount = 0;
 
+  // htmx passes its own scroll behaviour to scrollIntoView (show:#hasil:top), which the CSS
+  // reduced-motion rule cannot override: follow the setting here.
+  function syncScroll() { if (window.htmx) { htmx.config.scrollBehavior = reduceMotion.matches ? "auto" : "smooth"; } }
+  syncScroll();
+  if (reduceMotion.addEventListener) { reduceMotion.addEventListener("change", syncScroll); }
+
   // Error responses (4xx/5xx) carry an Indonesian notice; show it instead of failing silently.
   // Only TAPAK's own notices (retargeted HTML) are swapped, never a raw error body.
   body.addEventListener("htmx:beforeSwap", function (e) {
@@ -36,6 +42,11 @@ document.addEventListener("DOMContentLoaded", function () {
       markInvalid();
     }
     loadingButtons(e.detail.elt).forEach(startLoading);
+    // The busy line only appears once the request runs, too late to be announced as a live
+    // region of its own, and the disabled button has lost focus: say it in the page's region.
+    var busy = form && form.querySelector ? form.querySelector(".busy") : null;
+    if (!busy && form && form.matches && form.matches(".lacak-form")) { busy = document.querySelector(".lacak-sibuk"); }
+    if (busy) { announce(busy.textContent.replace(/\s+/g, " ").trim()); }
     if (!hasOwnIndicator(e.detail.elt)) {
       e.detail.xhr.tapakBusy = true;
       busyCount += 1;
@@ -98,23 +109,48 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Mark fields with an error message as invalid (also after out-of-band error updates, which
   // do not settle a target) and move focus to the first one, so its message is read out.
+  // A newly reported error is never left in a closed disclosure (it would be found only after
+  // the visible ones are fixed); each out-of-band slot arrives separately, so this is done per
+  // field as it turns invalid, and again for all of them when focus moves.
   function markInvalid() {
     var first = null;
     document.querySelectorAll("[aria-describedby]").forEach(function (el) {
       var ids = el.getAttribute("aria-describedby").split(/\s+/).filter(function (id) { return id.indexOf("err") !== -1; });
       if (!ids.length) { return; }
       var bad = ids.some(function (id) { var n = document.getElementById(id); return n && n.textContent.trim() !== ""; });
-      if (bad) { el.setAttribute("aria-invalid", "true"); first = first || el; } else { el.removeAttribute("aria-invalid"); }
+      if (bad) {
+        if (el.getAttribute("aria-invalid") !== "true") { openDisclosure(el); }
+        el.setAttribute("aria-invalid", "true");
+        first = first || el;
+      } else {
+        el.removeAttribute("aria-invalid");
+      }
     });
     if (first && fieldErrors) {
       fieldErrors = false;
-      var d = first.closest("details");
-      if (d) { d.open = true; }
+      document.querySelectorAll('[aria-invalid="true"]').forEach(openDisclosure);
       first.focus();
     }
   }
+  function openDisclosure(el) {
+    var d = el.closest("details");
+    if (d) { d.open = true; }
+  }
   body.addEventListener("htmx:afterSettle", markInvalid);
   body.addEventListener("htmx:oobAfterSwap", markInvalid);
+
+  // A request's button is disabled while it runs, which sends focus to <body>; when the swap
+  // brings no heading to focus, put it back on the button (if it survived the swap) or on the
+  // target's [data-focus-fallback], so the next Tab continues from there, not from the top.
+  body.addEventListener("htmx:afterSettle", function (e) {
+    if (document.activeElement && document.activeElement !== body) { return; }
+    var src = e.detail.requestConfig && e.detail.requestConfig.elt;
+    if (!src || src.hasAttribute("data-quiet") || e.detail.target.id === "galat-global") { return; }
+    var btn = src.tagName === "FORM" ? src.querySelector('button[type="submit"]') : src;
+    if (btn && btn.isConnected && !btn.disabled) { btn.focus(); return; }
+    var f = e.detail.target.querySelector("[data-focus-fallback]");
+    if (f) { f.focus(); }
+  });
 
   // Network failure: say so.
   body.addEventListener("htmx:sendError", function () {

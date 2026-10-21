@@ -49,7 +49,7 @@
         <span class="idle-label">{% if st.sets %}{{ ikon("refresh") }}Buat ulang varian{% else %}Buat varian dengan LLM lokal{% endif %}</span>
         <span class="htmx-indicator">Membuat varian…</span>
       </button>
-      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>LLM lokal memparafrasekan kalimat terpilih.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>LLM lokal memparafrasekan kalimat terpilih. Dengan model sungguhan di CPU, ini dapat memakan beberapa menit.</span></div>
     </div>
     {% endif %}
   </form>
@@ -61,7 +61,8 @@
   {% set status_text %}{% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.{% else %}Semua varian sudah ditinjau.{% endif %}{% endset %}
   <div class="review">
     <div class="review-head">
-      <h3>Tinjau varian</h3>
+      {# focused when generating the variants removed the button that had focus #}
+      <h3 id="tinjau-h" tabindex="-1" data-focus-fallback>Tinjau varian</h3>
       <div class="review-progress">
         <span class="bar{% if pending.n %} bar-warn{% endif %}" style="--value: {{ ((pending.total - pending.n) / pending.total)|round(3) if pending.total else 1 }}"></span>
         <p class="small">{{ status_text }}</p>
@@ -82,7 +83,9 @@
           <p class="original-text">{{ vs.variants[0] }}</p>
           {% if shared_note %}<p class="judge"><span class="judge-label">Pemeriksa kesetaraan, semua varian</span> {{ shared_note }}</p>{% endif %}
         </div>
-        {% if vs.variants|length > 1 %}
+        {% if vs.variants|length > 1 and vs.provider != "mock" %}
+        <p class="hint">Varian dari model bahasa ditinjau satu per satu.</p>
+        {% elif vs.variants|length > 1 %}
         {# Once nothing is pending the button stays (same id, aria-disabled) but posts nothing. #}
         <button class="btn btn-secondary btn-small" type="button" id="all-{{ unit.unit_id }}"
                 {% if vs.pending() %}hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/semua" hx-target="#semantik"{% else %}aria-disabled="true"{% endif %}>
@@ -149,7 +152,7 @@
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
         <span class="htmx-indicator">Menerbitkan…</span>
       </button>
-      <div class="busy htmx-indicator" role="status"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.</span></div>
     </form>
   </div>
   {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}

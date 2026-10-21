@@ -31,6 +31,16 @@ from tapak.tardos.spending import TraceSpending
 
 VERDICT_IDENTIFIED = "teridentifikasi"
 VERDICT_INSUFFICIENT = "tidak cukup bukti"
+# Caveat added to a verdict whose named copy is supported only by marks a reader can see on
+# paper (word choice, sentence variants): anyone who has read that copy can copy them into a
+# retyped leak. The statistics are unchanged (the text does carry that copy's marks); what the
+# name means is not. Shown next to the verdict in the berita acara.
+VISIBLE_MARKS_NOTE = (
+    "nama ini hanya didukung tanda yang terlihat di kertas (pilihan kata, varian kalimat); tanpa tanda itu "
+    "salinan ini tidak mencapai ambang. Siapa pun yang pernah membaca salinan ini dapat meniru pilihan katanya "
+    "saat mengetik ulang, jadi hasil ini menunjuk pilihan kata salinan tersebut, bukan pengetiknya, dan "
+    "memerlukan bukti pendukung"
+)
 THRESHOLD_RULE = (
     "Z = min_lambda (Lambda(lambda) + ln(1/eps1)) / lambda, Chernoff bound with the worst case "
     "leaked bit per position, computed from the bias vector and the decoder weights only"
@@ -152,6 +162,7 @@ class Attribution:
                 f"peluang tuduhan salah <= {format_upper_bound(c.log10_false_accusation)}; "
                 f"kanal yang sepakat secara independen: {len(c.channels_agreeing)} ({', '.join(c.channels_agreeing) or '-'})"
             )
+        lines.extend(f"  PERHATIAN: {n}" for n in self.notes if VISIBLE_MARKS_NOTE in n)
         if not self.accused:
             best = self.candidates[0] if self.candidates else None
             if best is not None:
@@ -164,7 +175,7 @@ class Attribution:
                 f"  Kanal {ch.channel}: {ch.n_observed} posisi, ambang {ch.threshold:.1f}, "
                 f"menuduh {len(ch.accused_seqs)} salinan"
             )
-        lines.extend(f"  Catatan: {n}" for n in self.notes)
+        lines.extend(f"  Catatan: {n}" for n in self.notes if VISIBLE_MARKS_NOTE not in n)
         return lines
 
 

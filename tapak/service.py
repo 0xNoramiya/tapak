@@ -5,6 +5,8 @@ A *workspace* is one folder per issued document under ``data/dokumen/<doc>``:
     induk.pdf        the master (stays with the issuing unit, never in the registry)
     manifest.json    issuance record including the recipient roster (names stay here)
     varian.json      approved semantic variant sets, if any (document text, kept local)
+    leksikal.json    reviewed word-choice points, if the document opted in (document text,
+                     kept local; the registry holds only its digest)
     salinan/         the marked copies
 
 The registry (``data/registry.db``) receives only hashes, ids and code commitments, and
@@ -24,6 +26,7 @@ from tapak.config import Settings
 from tapak.keys import load_code_secret
 from tapak.marker.issue import IssueManifest, IssueSettings, Recipient, SemanticSelection, issue
 from tapak.marker.layout import sha256_hex
+from tapak.marker.lexical import LexicalSelection
 from tapak.tardos.spending import TraceSpending
 
 
@@ -130,11 +133,14 @@ def issue_document(
     record: bool = True,
     semantic: "SemanticSelection | None" = None,
     doc_name: str | None = None,
+    lexical: LexicalSelection | None = None,
     latar: str | None = None,
 ) -> IssueOutcome:
     """Issue copies of a PDF or DOCX into a new workspace and record them in the registry.
 
-    ``doc_name`` is the original file name when ``doc_path`` is a temporary upload. ``latar``
+    ``doc_name`` is the original file name when ``doc_path`` is a temporary upload. A
+    ``lexical`` selection (reviewed word-choice points) opts a PDF into the lexical channel;
+    it is stored as ``leksikal.json`` next to the master, never in the registry. ``latar``
     picks the background profile by name ("layar", the default pattern, or "cetak", which
     survives printing but makes the page light gray); None keeps
     ``issue_settings.background``. With the print profile the outcome carries
@@ -160,9 +166,11 @@ def issue_document(
             if hasattr(reg, "pending") and reg.pending():
                 raise ValueError("registri memiliki entri yang belum ditandatangani; pemegang kunci perlu "
                                  "menjalankan tapak registry sign lebih dulu")
-    lock = _claim_workspace(folder)
     doc_name = doc_name or Path(doc_path).name
     is_docx = Path(doc_name).suffix.lower() == ".docx"
+    if lexical is not None and is_docx:
+        raise ValueError("kanal pilihan kata hanya tersedia untuk dokumen induk PDF")
+    lock = _claim_workspace(folder)
     master_path = folder / ("induk.docx" if is_docx else "induk.pdf")
     master_path.write_bytes(data)
     committed = False
@@ -172,7 +180,8 @@ def issue_document(
                                    issue_settings, issuer, file_stem=Path(doc_name).stem)
         else:
             manifest = issue(master_path, recipients, folder / "salinan", keys.code_secret,
-                             issue_settings, issuer=issuer, semantic=semantic, file_stem=Path(doc_name).stem)
+                             issue_settings, issuer=issuer, semantic=semantic, file_stem=Path(doc_name).stem,
+                             lexical=lexical)
         manifest.doc_name = doc_name
         entries = 0
         if record:  # registry first: until it commits, any failure removes the whole workspace
@@ -183,6 +192,8 @@ def issue_document(
         (folder / ".tercatat").touch()  # recorded in the registry: never reclaimed as stale
         if semantic is not None and manifest.semantic_digest:
             _write_atomic(folder / "varian.json", json.dumps(semantic.to_dict(), indent=2, ensure_ascii=False))
+        if lexical is not None and manifest.lexical_digest:
+            _write_atomic(folder / "leksikal.json", lexical.to_json())
         if not is_docx:  # a copy next to the files for tools that read salinan/manifest.json
             _write_atomic(folder / "salinan" / "manifest.json", manifest.to_json())
         _write_atomic(folder / "manifest.json", manifest.to_json())  # last: it marks the issuance complete
@@ -391,6 +402,11 @@ def check_registry(settings: Settings, manifest: IssueManifest, secret: bytes | 
         recorded_doc = doc_rows[0].payload
         local = {"params": manifest.params, "channels": manifest.channels, "shift_mm": manifest.shift_mm,
                  "excluded_rows": manifest.excluded_rows, "threshold_full": manifest.threshold_full}
+        from tapak.registry.chain import LEXICAL_DOCUMENT_FIELDS
+
+        for key in sorted(LEXICAL_DOCUMENT_FIELDS):  # compared only where either side has the channel
+            if getattr(manifest, key, None) is not None or key in recorded_doc:
+                local[key] = getattr(manifest, key, None)
         for key, value in local.items():
             if json.loads(json.dumps(value)) != recorded_doc.get(key):
                 document_mismatch.append(key)

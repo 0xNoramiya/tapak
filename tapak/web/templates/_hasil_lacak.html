@@ -11,11 +11,11 @@
 </div>
 {%- endmacro %}
 
-<section class="verdict {% if identified %}verdict-found{% else %}verdict-none{% endif %}" aria-labelledby="putusan">
+<section class="verdict {% if identified %}verdict-found{% else %}verdict-none{% endif %}" aria-labelledby="{% if identified %}putusan-cap {% endif %}putusan">
   <div class="verdict-head">
     <p class="kicker">Hasil atribusi<span class="kicker-sep"> · </span><span class="mono keep-case">{{ redact(o.evidence_name) }}</span></p>
     {% if identified %}
-    <span class="stamp stamp-lg stamp-ok">Teridentifikasi</span>
+    <span class="stamp stamp-lg stamp-ok" id="putusan-cap">Teridentifikasi</span>
     {% else %}
     <h2 id="putusan" tabindex="-1" data-autofocus><span class="stamp stamp-lg stamp-warn">Tidak cukup bukti</span></h2>
     {% endif %}
@@ -25,15 +25,20 @@
     {% for c in a.accused %}
     <div class="who">
       <div class="who-id">
-        <h2 {% if loop.first %}id="putusan" tabindex="-1" data-autofocus{% endif %}><span class="who-seq">Salinan #{{ c.copy.seq }}</span> <span class="who-name">{{ c.copy.nama }}</span></h2>
+        {# the heading that takes focus carries the verdict stamp printed before it #}
+        <h2 {% if loop.first %}id="putusan" tabindex="-1" data-autofocus aria-describedby="putusan-cap"{% endif %}><span class="who-seq">Salinan #{{ c.copy.seq }}</span> <span class="who-name">{{ c.copy.nama }}</span></h2>
         <p class="who-meta"><span class="mono">{{ c.copy.recipient_id }}</span>{% if c.copy.jabatan %} · {{ c.copy.jabatan }}{% endif %}{% if c.copy.satuan %} · {{ c.copy.satuan }}{% endif %}</p>
       </div>
       <div class="facts">
         {{ meter_block(c.score, "Skor", false) }}
-        <span class="fact"><small>Peluang tuduhan salah</small> <b>≤ {{ fap(c, a.candidates|length) }}</b></span>
+        {# a screen reader hears the superscript exponent as "10 minus 133": it gets the spoken form #}
+        <span class="fact"><small>Peluang tuduhan salah</small> <b aria-hidden="true">≤ {{ fap(c, a.candidates|length) }}</b><b class="sr-only">paling besar {{ fap_lisan(c, a.candidates|length) }}</b></span>
         <span class="fact"><small>Kanal sepakat</small> <b>{{ c.channels_agreeing|length }}</b>{% if c.channels_agreeing %} <i>{{ c.channels_agreeing|map("title")|join(", ") }}{% if c.channels_agreeing|length > 1 %}, masing-masing secara independen{% endif %}</i>{% endif %}</span>
       </div>
     </div>
+    {% endfor %}
+    {% for n in peringatan_terlihat(a.notes) %}
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
     {% endfor %}
     {% if a.accused|length > 1 %}<p class="notice verdict-note">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
     {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
@@ -208,7 +213,7 @@
       <div class="lacak-catatan">
         <span class="label">Catatan</span>
         <ul class="notes">
-          {% for n in a.notes %}<li>{{ redact(n) }}</li>{% endfor %}
+          {% for n in a.notes if n not in peringatan_terlihat(a.notes) %}<li>{{ redact(n) }}</li>{% endfor %}
         </ul>
         {% if r.problems %}
         <div class="notice notice-warn"><ul class="notes">{% for p in r.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>

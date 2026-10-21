@@ -37,6 +37,12 @@ trace number k spends eps * 6 / (pi^2 k^2) of the document's false-accusation bu
 ``tapak.tardos.spending``). Other kinds, such as the canary log's ``canary_anchor``, are
 accepted as any JSON object.
 
+A ``document`` entry of a document that opted into the lexical channel (word choice) also
+carries ``retype_positions``, ``lexical_digest``, ``lexicon_version``, ``lexicon_digest``,
+``shift_excluded_rows`` and ``text_excluded_words``: the position rule, digests and the
+positions of the point words, never the words. Its ``copy`` entries carry no lexical form
+choice: those are code bits, recomputed from the code secret at trace time.
+
 Data minimization: payloads carry hashes, identifiers and parameters only. Recipient
 names, document text and images never enter the registry; a copy is tied to its
 recipient through ``recipient_id`` alone. A trace entry holds the document hash, the
@@ -87,7 +93,13 @@ KIND_FIELDS: dict[str, frozenset[str]] = {
     KIND_DOCUMENT: DOCUMENT_FIELDS, KIND_COPY: COPY_FIELDS, KIND_TRACE: TRACE_FIELDS,
 }
 # Fields a row may carry in addition (added later; older rows stay valid without them).
-KIND_OPTIONAL: dict[str, frozenset[str]] = {KIND_COPY: frozenset({"recipient_mac"})}
+LEXICAL_DOCUMENT_FIELDS = frozenset({
+    "retype_positions", "lexical_digest", "lexicon_version", "lexicon_digest", "shift_excluded_rows",
+    "text_excluded_words",
+})
+KIND_OPTIONAL: dict[str, frozenset[str]] = {
+    KIND_COPY: frozenset({"recipient_mac"}), KIND_DOCUMENT: LEXICAL_DOCUMENT_FIELDS,
+}
 
 _COLUMNS = "seq, kind, payload, prev_hash, created_at, entry_hash, signature, signer"
 
@@ -370,6 +382,39 @@ def _check_payload(kind: str, payload: object) -> None:
     problems = trace_payload_problems(payload) if kind == KIND_TRACE else []
     if problems:
         raise ValueError("isi entri 'trace' tidak sah: " + "; ".join(problems))
+    if kind == KIND_DOCUMENT and set(payload) & LEXICAL_DOCUMENT_FIELDS:
+        lexical = lexical_document_problems(payload)
+        if lexical:
+            raise ValueError("isi entri 'document' tidak sah: " + "; ".join(lexical))
+
+
+def lexical_document_problems(payload: dict[str, Any]) -> list[str]:
+    """Problems (Indonesian) with the lexical fields of a ``document`` payload; empty when valid.
+
+    All six fields come together; digests are 64 lowercase hex, the position rule is a known
+    one, the exclusions are lists of [page, row] and [page, row, word] numbers. No field may
+    hold document words.
+    """
+    from tapak.marker.plan import RETYPE_RULES
+
+    present = set(payload) & LEXICAL_DOCUMENT_FIELDS
+    if present != LEXICAL_DOCUMENT_FIELDS:
+        return [f"kolom pilihan kata tidak lengkap: kurang {sorted(LEXICAL_DOCUMENT_FIELDS - present)}"]
+    problems = []
+    if payload["retype_positions"] not in RETYPE_RULES:
+        problems.append("aturan posisi ketik ulang tidak dikenal")
+    for key in ("lexical_digest", "lexicon_digest"):
+        if not _is_sha256_hex(payload[key]):
+            problems.append(f"{key} bukan SHA-256 heksadesimal")
+    if not isinstance(payload["lexicon_version"], str) or not payload["lexicon_version"].replace("_", "").isalnum():
+        problems.append("lexicon_version tidak sah")
+    for key, size in (("shift_excluded_rows", 2), ("text_excluded_words", 3)):
+        value = payload[key]
+        if not isinstance(value, list) or not all(
+                isinstance(v, list) and len(v) == size and all(isinstance(x, int) and not isinstance(x, bool)
+                                                               and x >= 0 for x in v) for v in value):
+            problems.append(f"{key} harus berupa daftar nomor posisi")
+    return problems
 
 
 class Registry:
@@ -608,10 +653,14 @@ class Registry:
         issued_at: str,
         signer: Signer | None = None,
         created_at: datetime | str | None = None,
+        lexical: dict[str, Any] | None = None,
     ) -> Entry:
         """Record one issued document (parameters and hashes only, never its contents).
 
         A non-finite ``threshold_full`` is stored as null because JSON has no infinity.
+        ``lexical`` holds the six lexical fields of a document that uses the word-choice
+        channel (:data:`LEXICAL_DOCUMENT_FIELDS`); None for any other document, whose entry is
+        then exactly as before.
         """
         if threshold_full is not None:
             threshold_full = float(threshold_full)
@@ -624,6 +673,8 @@ class Registry:
             "threshold_rule": threshold_rule, "threshold_full": threshold_full,
             "issuer": issuer, "issued_at": issued_at,
         }
+        if lexical is not None:
+            payload.update(json.loads(json.dumps(lexical)))
         return self.append(KIND_DOCUMENT, payload, signer=signer, created_at=created_at)
 
     def record_copy(
@@ -713,6 +764,14 @@ def sign_pending(registry: Registry, signer: Signer, up_to: int | None = None) -
         return registry._sign_pending(signer, up_to)
 
 
+def manifest_lexical_fields(manifest: IssueManifest) -> dict[str, Any] | None:
+    """The lexical fields of a manifest for its ``document`` entry (None without the channel)."""
+    values = {key: getattr(manifest, key, None) for key in sorted(LEXICAL_DOCUMENT_FIELDS)}
+    if all(v is None for v in values.values()):
+        return None
+    return values
+
+
 def registry_from_manifest(
     manifest: IssueManifest,
     registry: Registry,
@@ -744,7 +803,7 @@ def registry_from_manifest(
             channels=manifest.channels, shift_mm=manifest.shift_mm, excluded_rows=manifest.excluded_rows,
             plan_summary=manifest.plan_summary, threshold_rule=threshold_rule,
             threshold_full=manifest.threshold_full, issuer=manifest.issuer, issued_at=manifest.issued_at,
-            signer=signer)]
+            signer=signer, lexical=manifest_lexical_fields(manifest))]
         for c in manifest.copies:
             entries.append(registry.record_copy(
                 doc_hash=manifest.doc_hash, recipient_id=c.recipient.recipient_id, copy_id=c.copy_id,
