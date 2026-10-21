@@ -79,15 +79,20 @@ def test_issue_trace_report_registry(client):
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
     assert r.status_code == 200
     assert "Salinan #13" in r.text and "Peluang tuduhan salah" in r.text
+    # The trace is logged in the registry before decoding and spends its share of eps.
+    assert "pelacakan ke-1 atas dokumen ini" in r.text and "Ke-1, entri #" in r.text
+    assert re.search(r"tapak verify --jangkar \d+:[0-9a-f]{64}", r.text)
     tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
     pdf = client.get(f"/lacak/{tid}/berita-acara.pdf")
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
 
     r = client.post("/lacak", data={"dokumen": doc, "teks": "Teks ini tidak berasal dari dokumen mana pun."})
     assert "Tidak cukup bukti" in r.text and "Nama tidak disebutkan" in r.text
+    assert "Ke-2, entri #" in r.text
 
     r = client.get("/registri")
     assert "Utuh" in r.text and "nota_dinas.pdf" in r.text
+    assert "2 pelacakan" in r.text and "dilacak 2 kali" in r.text
     r = client.post("/registri/merkle")
     assert "merkle-" in r.text
 

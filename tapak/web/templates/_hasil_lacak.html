@@ -69,7 +69,11 @@
     <section class="card" aria-labelledby="kanal-h">
       <h2 id="kanal-h">Bukti per kanal</h2>
       {% if t.n_observed %}
+      {% if t.trace_no %}
+      <p class="lead">Ambang Z = {{ z_text }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung. Ini pelacakan ke-{{ t.trace_no }} atas dokumen ini dan sudah dicatat di registri sebelum dekode. Pelacakan ini memakai {{ (t.share * 100)|num(1) }}&nbsp;% dari batas peluang tuduhan salah {{ eps_label }}, sehingga semua pelacakan dokumen ini bersama tetap dalam batas itu untuk seluruh daftar penerima.</p>
+      {% else %}
       <p class="lead">Ambang Z = {{ z_text }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (peluang tuduhan salah maksimum {{ eps_label }} untuk seluruh daftar penerima).</p>
+      {% endif %}
       {% else %}
       <p class="lead">Tidak ada posisi kode yang terbaca pada bukti ini, sehingga tidak ada ambang maupun skor yang berlaku.</p>
       {% endif %}
@@ -179,7 +183,20 @@
         <dd class="tnum">{% if r.chain_ok is none %}-{% else %}{{ r.entries|num }}{% if r.copies_unsigned %}, {{ r.copies_unsigned|num }} salinan belum bertanda tangan{% endif %}{% endif %}</dd>
         <dt>Komitmen</dt>
         <dd class="tnum">{{ r.copies_confirmed|num }} dari {{ r.copies_total|num }} salinan cocok</dd>
+        {% if o.trace_entry is not none %}
+        <dt>Pelacakan</dt>
+        <dd class="tnum">Ke-{{ t.trace_no }}, entri #{{ o.trace_entry }}, {{ "bertanda tangan" if o.trace_signed else "belum bertanda tangan" }}</dd>
+        {% endif %}
       </dl>
+      {% if o.trace_entry is not none and o.trace_entry_hash %}
+      <div class="lacak-hash">
+        <span class="label">Jangkar pelacakan, catat di luar sistem</span>
+        <div class="code-row">
+          <span class="code" id="jangkar-lacak">tapak verify --jangkar {{ o.trace_entry }}:{{ o.trace_entry_hash }}</span>
+          <button type="button" class="copy-btn" data-copy-target="#jangkar-lacak" aria-label="Salin perintah jangkar pelacakan">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
+        </div>
+      </div>
+      {% endif %}
       <div class="lacak-hash">
         <span class="label">SHA-256 bukti</span>
         <div class="code-row">

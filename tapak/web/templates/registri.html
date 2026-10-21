@@ -11,7 +11,7 @@
   <div class="page-head">
     <p class="eyebrow">Rantai hash · Ed25519</p>
     <h1>Registri penerbitan</h1>
-    <p>Setiap dokumen dan salinan yang diterbitkan tercatat di sini, tambah-saja. Pemegang berkas registri dan kunci publik dapat memeriksa rantainya tanpa TAPAK.</p>
+    <p>Setiap dokumen dan salinan yang diterbitkan, juga setiap pelacakan, tercatat di sini, tambah-saja. Pemegang berkas registri dan kunci publik dapat memeriksa rantainya tanpa TAPAK.</p>
   </div>
 
   {# report is none when registry.db or the public key is missing, or the key is unreadable #}
@@ -57,7 +57,7 @@
       <div class="stat">
         <span class="stat-label">Entri</span>
         <span class="stat-value">{{ report.entries|num }}</span>
-        <span class="stat-note">{{ report.kinds.get("document", 0)|num }} dokumen, {{ report.kinds.get("copy", 0)|num }} salinan</span>
+        <span class="stat-note">{{ report.kinds.get("document", 0)|num }} dokumen, {{ report.kinds.get("copy", 0)|num }} salinan{% if report.kinds.get("trace", 0) %}, {{ report.kinds.get("trace", 0)|num }} pelacakan{% endif %}</span>
       </div>
       <div class="stat{% if report.unsigned %} stat-warn{% endif %}">
         <span class="stat-label">Belum ditandatangani</span>
@@ -212,7 +212,8 @@
                 <span class="thumb thumb-sm">{% if src %}<img src="{{ src }}?ukuran=kecil" alt="" width="44" height="62" loading="lazy">{% endif %}</span>
                 <span class="dok-teks">
                   <span class="dok-nama" title="{{ m.doc_name }}">{{ m.doc_name }}</span>
-                  <span class="dok-meta hide-sm">Penerbit: {{ m.issuer }}</span>
+                  {% set n_lacak = report.traces.get(m.doc_hash, 0) if report else 0 %}
+                  <span class="dok-meta hide-sm">Penerbit: {{ m.issuer }}{% if n_lacak %} · dilacak {{ n_lacak|num }} kali{% endif %}</span>
                   <span class="dok-meta dok-meta-sm">{{ m.copies|length|num }} salinan · {{ (m.issued_at|waktu).split(" pukul ")[0] }}</span>
                 </span>
               </div>
