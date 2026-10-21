@@ -1,6 +1,13 @@
-# Two services sharing one data volume (registry and canary events live in data/registry.db).
-# Keys are mounted read-only from ./keys; the registry signing key may be left out so that
-# a higher echelon signs pending rows elsewhere (tapak registry sign).
+# Two services. Both run as the unprivileged user "tapak" (uid 10001).
+#
+# app        web UI on 127.0.0.1:8000 of the host; holds ./data and ./keys.
+# canary-dns the only internet-facing part. It sees nothing but ./data/kanari (its event
+#            log and the digests of issued tokens), listens on 5353 inside the container
+#            (no root needed) and is published on port 53 of the host. It sits on its own
+#            network, so it cannot reach the web app.
+#
+# Prepare once on the host: tapak keys init   (keys/ is mounted into the app only)
+#   mkdir -p data/kanari && sudo chown -R 10001 data keys
 services:
   app:
     build: .
@@ -13,6 +20,7 @@ services:
     environment:
       TAPAK_CANARY_DOMAIN: ${TAPAK_CANARY_DOMAIN:-kanari.tapak.test}
       TAPAK_LLM: ${TAPAK_LLM:-mock}
+    networks: [web]
     restart: unless-stopped
 
   canary-dns:
@@ -22,15 +30,21 @@ services:
     command: >
       python -m tapak.canary_dns
       --domain ${TAPAK_CANARY_DOMAIN:-kanari.tapak.test}
-      --db /data/registry.db
-      --host 0.0.0.0 --port 53
+      --db /data/kanari/kanari.db
+      --allowlist /data/kanari/token_digests.txt
+      --host 0.0.0.0 --port 5353
       --answer-ip ${TAPAK_CANARY_ANSWER_IP:-127.0.0.1}
     environment:
       # Public IPv4 of this listener (same as the registrar glue record for ns1.<domain>).
       TAPAK_CANARY_NS_IP: ${TAPAK_CANARY_NS_IP:-}
     ports:
-      - "53:53/udp"
-      - "53:53/tcp"
+      - "53:5353/udp"
+      - "53:5353/tcp"
     volumes:
-      - ./data:/data
+      - ./data/kanari:/data/kanari
+    networks: [kanari]
     restart: unless-stopped
+
+networks:
+  web: {}
+  kanari: {}

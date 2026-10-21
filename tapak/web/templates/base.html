@@ -6,6 +6,7 @@
   <title>{{ title }} · TAPAK</title>
   <link rel="stylesheet" href="/static/tapak.css">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/tapak.js" defer></script>
 </head>
 <body hx-boost="false">
   <div class="banner" role="note" aria-label="Klasifikasi">RAHASIA</div>
@@ -24,6 +25,7 @@
     </div>
   </header>
   <main id="konten">
+    <div id="galat-global" role="alert"></div>
     {% block content %}{% endblock %}
   </main>
   <footer class="footer">

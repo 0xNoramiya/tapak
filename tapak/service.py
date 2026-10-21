@@ -124,7 +124,9 @@ def issue_document(
     """
     from tapak.registry.chain import Registry, registry_from_manifest
 
-    keys = keys or ensure_keys(settings)
+    # Never create a signing key implicitly: without it rows are recorded unsigned and the
+    # key holder (a higher echelon) signs them later with `tapak registry sign`.
+    keys = keys or ensure_keys(settings, create_signing_key=False)
     data = Path(doc_path).read_bytes()
     folder = workspace_dir(settings, sha256_hex(data))
     if (folder / "manifest.json").exists():
@@ -155,7 +157,24 @@ def issue_document(
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         with Registry.open(settings.registry_path) as reg:
             entries = len(registry_from_manifest(manifest, reg, keys.signer))  # type: ignore[arg-type]
+    publish_canary_allowlist(settings, manifest)
     return IssueOutcome(manifest, folder, entries, keys.signer is not None)
+
+
+def publish_canary_allowlist(settings: Settings, manifest: IssueManifest) -> None:
+    """Add this document's canary token digests to the listener's allowlist (digests only)."""
+    from tapak.registry.chain import canary_token_digest
+
+    tokens = [c.canary_token for c in manifest.copies if c.canary_token]
+    if not tokens:
+        return
+    settings.canary_dir.mkdir(parents=True, exist_ok=True)
+    path = settings.canary_allowlist
+    known = set(path.read_text(encoding="ascii").split()) if path.exists() else set()
+    known.update(canary_token_digest(t) for t in tokens)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("\n".join(sorted(known)) + "\n", encoding="ascii")
+    tmp.replace(path)
 
 
 def _issue_docx(docx_path: Path, recipients: list[Recipient], out_dir: Path, secret: bytes,
@@ -216,6 +235,9 @@ class RegistryCheck:
     copies_total: int
     problems: list[str] = field(default_factory=list)
     canary_log_ok: bool | None = None
+    recorded: bool = True          # False: this document was issued without the registry
+    copies_unsigned: int = 0       # registry rows of this document's copies without a signature
+    mismatched: list[int] = field(default_factory=list)  # copy numbers whose record differs
 
 
 def check_registry(settings: Settings, manifest: IssueManifest) -> RegistryCheck:
@@ -237,34 +259,49 @@ def check_registry(settings: Settings, manifest: IssueManifest) -> RegistryCheck
     else:
         problems.append("kunci publik tidak tersedia; rantai tidak diverifikasi")
     with Registry.open(settings.registry_path) as reg:
-        recorded = {c["copy_id"]: c for c in reg.copies(manifest.doc_hash)}
-    confirmed = sum(1 for c in manifest.copies
-                    if recorded.get(c.copy_id, {}).get("code_digest") == c.code_digest)
-    if confirmed < len(manifest.copies):
-        problems.append(f"hanya {confirmed} dari {len(manifest.copies)} salinan cocok dengan registri")
+        entries_by_copy = {e.payload["copy_id"]: e for e in reg.entries("copy")
+                           if e.payload.get("doc_hash") == manifest.doc_hash}
+    recorded = {k: e.payload for k, e in entries_by_copy.items()}
+    mismatched: list[int] = []
+    for c in manifest.copies:
+        rec = recorded.get(c.copy_id)
+        # Every field that ties a copy to a person must match the signed record, so an edited
+        # local manifest (for example two recipients swapped) can never name the wrong person.
+        if rec is None or (rec.get("recipient_id"), rec.get("seq"), rec.get("code_digest"), rec.get("file_sha256")) != (
+                c.recipient.recipient_id, c.seq, c.code_digest, c.file_sha256):
+            mismatched.append(c.seq)
+    confirmed = len(manifest.copies) - len(mismatched)
+    copies_unsigned = sum(1 for e in entries_by_copy.values() if not e.signed)
+    if recorded and mismatched:
+        problems.append(f"{len(mismatched)} salinan tidak cocok dengan registri: #"
+                        + ", #".join(str(n) for n in mismatched[:10]))
+    if copies_unsigned:
+        problems.append(f"{copies_unsigned} entri salinan dokumen ini belum bertanda tangan; rantai tanpa "
+                        "tanda tangan tidak terlindungi dari pemalsuan oleh pemegang akses tulis")
     canary_ok = None
     try:
         from tapak.canary_dns.store import check_events_chain
 
-        crep = check_events_chain(settings.registry_path)
+        crep = check_events_chain(settings.canary_db)
         if crep.rows:
             canary_ok = crep.ok
             problems += [f"log kanari: {p}" for p in crep.problems][:5]
     except Exception as exc:  # noqa: BLE001 - a broken canary log must not stop the trace
         problems.append(f"log kanari tidak dapat diperiksa: {exc}")
-    return RegistryCheck(chain_ok, entries, unsigned, confirmed, len(manifest.copies), problems, canary_ok)
+    return RegistryCheck(chain_ok, entries, unsigned, confirmed, len(manifest.copies), problems, canary_ok,
+                         recorded=bool(recorded), copies_unsigned=copies_unsigned, mismatched=mismatched)
 
 
 def canary_alerts(settings: Settings, manifest: IssueManifest) -> list[dict[str, object]]:
     """Canary DNS hits for this document's copies (oldest first)."""
-    if not settings.registry_path.exists():
+    if not settings.canary_db.exists():
         return []
     from tapak.canary_dns.store import events
 
     by_token = {c.canary_token: c for c in manifest.copies if c.canary_token}
     out = []
     try:
-        evs = events(settings.registry_path)
+        evs = events(settings.canary_db)
     except Exception:  # noqa: BLE001 - no canary table yet
         return []
     for ev in evs:
@@ -310,8 +347,17 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     reg = check_registry(settings, manifest)
     if reg.chain_ok is False:
         attribution.notes.append("PERINGATAN: verifikasi rantai registri gagal; lihat bagian registri")
-    if reg.copies_confirmed < reg.copies_total:
-        attribution.notes.append("PERINGATAN: catatan penerbitan tidak sepenuhnya cocok dengan registri")
+    if reg.recorded and reg.mismatched:
+        from tapak.decoder.trace import TraceError
+
+        raise TraceError("catatan penerbitan lokal tidak cocok dengan registri bertanda tangan untuk salinan #"
+                         + ", #".join(str(n) for n in reg.mismatched[:10])
+                         + "; tidak ada nama yang disebut sampai perbedaan ini diperiksa")
+    if not reg.recorded:
+        attribution.notes.append("dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari "
+                                 "catatan lokal dan tidak dapat dikonfirmasi pihak ketiga")
+    if reg.copies_unsigned:
+        attribution.notes.append(f"{reg.copies_unsigned} entri registri salinan belum bertanda tangan")
     return TraceOutcome(attribution, obs, ctx, evidence_name, sha256_hex(evidence), reg,
                         canary_alerts(settings, manifest))
 
@@ -374,6 +420,7 @@ def write_report(outcome: TraceOutcome, out_path: Path | None = None, case_numbe
         examiner_name=examiner_name or "(nama pemeriksa)", examiner_rank=examiner_rank or "(pangkat/NRP)",
         registry_ok=reg.chain_ok, registry_entries=reg.entries, canary_events=outcome.canary,
     )
+    info.registry_unsigned = reg.copies_unsigned
     info.evidence_sha256 = outcome.evidence_sha256
     return render_report(outcome.attribution, info, out_path)
 

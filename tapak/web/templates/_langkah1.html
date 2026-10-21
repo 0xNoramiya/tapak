@@ -1,44 +1,43 @@
 <section class="card" aria-labelledby="langkah1">
   <h2 id="langkah1"><span class="step">1</span>Dokumen dan penerima</h2>
   <p class="lead">Unggah PDF induk (berlapis teks) dan daftar penerima. Dokumen induk tetap di perangkat ini; registri hanya menyimpan hash dan komitmen kode.</p>
-  <form hx-post="/terbitkan/analisis" hx-encoding="multipart/form-data" hx-target="#alur" hx-swap="innerHTML show:#alur:top"
+  <form id="form-terbit" hx-post="/terbitkan/analisis" hx-encoding="multipart/form-data" hx-target="#alur" hx-swap="innerHTML show:#alur:top"
         hx-disabled-elt="find button[type=submit]">
     <div class="field">
       <label for="dokumen">Dokumen induk (PDF)</label>
-      <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" required
-             {% if errors.dokumen %}aria-invalid="true" aria-describedby="dokumen-err"{% endif %}>
-      {% if errors.dokumen %}<span class="field-error" id="dokumen-err">{{ errors.dokumen }}</span>{% endif %}
+      <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" required aria-describedby="err-dokumen">
+      <span id="err-dokumen">{% if errors.dokumen %}<span class="field-error">{{ errors.dokumen }}</span>{% endif %}</span>
     </div>
     <div class="field">
       <label for="penerima">Daftar penerima (CSV)</label>
-      <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" required
-             {% if errors.penerima %}aria-invalid="true" aria-describedby="penerima-err"{% endif %}>
-      <span class="hint">Kolom wajib: <span class="mono">recipient_id</span>, <span class="mono">nama</span>. Kolom opsional: <span class="mono">jabatan</span>, <span class="mono">satuan</span>.</span>
-      {% if errors.penerima %}<span class="field-error" id="penerima-err">{{ errors.penerima }}</span>{% endif %}
+      <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" required aria-describedby="hint-penerima err-penerima">
+      <span class="hint" id="hint-penerima">Kolom wajib: <span class="mono">recipient_id</span>, <span class="mono">nama</span>. Kolom opsional: <span class="mono">jabatan</span>, <span class="mono">satuan</span>.</span>
+      <span id="err-penerima">{% if errors.penerima %}<span class="field-error">{{ errors.penerima }}</span>{% endif %}</span>
     </div>
     <div class="field">
       <label for="penerbit">Penerbit</label>
       <input id="penerbit" name="penerbit" type="text" value="{{ values.penerbit or '' }}" autocomplete="name"
              placeholder="contoh: Kasi Ops Brigif 9905">
     </div>
-    <details class="more" {% if errors.c or errors.eps %}open{% endif %}>
+    <details class="more" id="more-params" {% if errors.c or errors.eps %}open{% endif %}>
       <summary>Parameter kode dan kanari</summary>
       <div class="grid-2">
         <div class="field">
           <label for="c">Ukuran koalisi yang ditahan (c)</label>
-          <input id="c" name="c" type="number" min="1" max="10" value="{{ values.c or 3 }}"
-                 {% if errors.c %}aria-invalid="true"{% endif %}>
-          <span class="hint">Jumlah penerima yang mungkin bersekongkol membandingkan salinan.</span>
-          {% if errors.c %}<span class="field-error">{{ errors.c }}</span>{% endif %}
+          <input id="c" name="c" type="number" min="1" max="10" value="{{ values.c if values.c is not none and values.c != '' else 3 }}"
+                 aria-describedby="hint-c err-c">
+          <span class="hint" id="hint-c">Jumlah penerima yang mungkin bersekongkol membandingkan salinan.</span>
+          <span id="err-c">{% if errors.c %}<span class="field-error">{{ errors.c }}</span>{% endif %}</span>
         </div>
         <div class="field">
           <label for="eps">Peluang tuduhan salah maksimum</label>
-          <select id="eps" name="eps">
+          <select id="eps" name="eps" aria-describedby="err-eps">
             {% for v, label in eps_choices %}
             <option value="{{ v }}" {% if (values.eps or '1e-6') == v %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
           <span class="hint">Untuk seluruh daftar penerima, ditetapkan sebelum analisis apa pun.</span>
+          <span id="err-eps">{% if errors.eps %}<span class="field-error">{{ errors.eps }}</span>{% endif %}</span>
         </div>
         <div class="field">
           <label for="kanari">Domain kanari</label>

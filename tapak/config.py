@@ -44,8 +44,23 @@ class Settings:
 
     @property
     def registry_path(self) -> Path:
-        """SQLite registry (hash chain, signatures, canary events)."""
+        """SQLite registry (hash chain, signatures). Canary events live in ``canary_db``."""
         return self.data_dir / "registry.db"
+
+    @property
+    def canary_dir(self) -> Path:
+        """Folder shared with the internet-facing canary listener (nothing else is mounted there)."""
+        return self.data_dir / "kanari"
+
+    @property
+    def canary_db(self) -> Path:
+        """Canary event log (its own SQLite file, separate from the registry)."""
+        return self.canary_dir / "kanari.db"
+
+    @property
+    def canary_allowlist(self) -> Path:
+        """SHA-256 digests of issued canary tokens; the listener logs only these."""
+        return self.canary_dir / "token_digests.txt"
 
     @property
     def workspaces(self) -> Path:

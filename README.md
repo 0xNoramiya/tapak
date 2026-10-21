@@ -130,8 +130,9 @@ Halaman **Registri** menampilkan status rantai, kunci publik, akar Merkle, dan p
 ### Docker
 
 ```bash
-.venv/bin/tapak keys init                       # kunci di ./keys (dipasang ke kontainer)
-docker compose up --build -d                     # layanan app (127.0.0.1:8000) dan canary-dns (port 53)
+.venv/bin/tapak keys init                        # kunci di ./keys (dipasang ke kontainer app saja)
+mkdir -p data/kanari && sudo chown -R 10001 data keys
+docker compose up --build -d                     # app (127.0.0.1:8000) dan canary-dns (port 53 -> 5353)
 ```
 
 Kunci tanda tangan registri boleh tidak dipasang di server; entri baru lalu dicatat tanpa tanda tangan dan eselon atas menandatanganinya dengan `tapak registry sign --key ...` di mesinnya sendiri.
@@ -202,11 +203,16 @@ Tabel parameter (eps = 10^-6 untuk seluruh daftar, `tapak simulate --table`):
 
 ## Keamanan dan minimisasi data
 
-* Registri dan log hanya berisi hash, id penerima, id salinan, komitmen kode, nama kanal, id varian, waktu, dan penerbit. Tidak ada teks dokumen, gambar, maupun nama penerima.
+* Registri hanya berisi hash dokumen, hash nama berkas (bukan namanya), parameter kode, id penerima, id salinan, komitmen kode, nama kanal, id varian, waktu, penerbit, hash berkas salinan, dan digest token kanari. Tidak ada teks dokumen, gambar, maupun nama penerima.
+* Nama penerima hanya ada di catatan penerbitan lokal (`manifest.json`). Sebelum menyebut nama, pelacakan mencocokkan setiap salinan (id penerima, nomor, komitmen kode, hash berkas) dengan registri bertanda tangan; bila ada yang berbeda, pelacakan berhenti tanpa menyebut nama.
 * Teks varian semantik adalah isi dokumen; disimpan di folder dokumen (`varian.json`) bersama PDF induk, dan registri hanya menyimpan hash-nya.
 * `semantic_variant_ids` (misalnya `u0:v2`) dicatat di registri sesuai spesifikasi. Konsekuensinya: pembaca registri dapat melihat salinan mana yang menerima varian sama, yang setara dengan beberapa bit kode (4 dari sekitar 3000 posisi pada contoh). Registri dipegang satuan penerbit dan eselon atas, bukan oleh penerima; bila ini dianggap terlalu banyak, kolom itu dapat dikosongkan karena id varian dapat dihitung ulang dari rahasia kode saat pelacakan.
 * Kode setiap penerima diturunkan dari rahasia kode dengan SHAKE-256 (dapat dibangkitkan ulang bit demi bit bertahun-tahun kemudian, tidak bergantung versi numpy) dan diperiksa terhadap komitmen sebelum pelacakan.
+* Kunci tanda tangan registri tidak pernah dibuat diam-diam: hanya `tapak keys init` yang membuatnya. Tanpa kunci, entri dicatat tanpa tanda tangan, laporan menyebutnya terang-terangan, dan pemegang kunci menandatanganinya kemudian.
 * Tabel registri dijaga trigger tambah-saja; perubahan yang melewati trigger tetap terdeteksi karena rantai hash dan tanda tangan.
+* Pendengar DNS kanari (satu-satunya bagian yang menghadap internet) memakai basis data sendiri di `data/kanari/` dan hanya mencatat token yang benar-benar diterbitkan (daftar digest yang ditulis penerbit), sehingga nama karangan tidak dapat membengkakkan log. Di Docker, kontainernya hanya melihat folder itu, berjalan sebagai pengguna non-root di port 5353, dan berada di jaringan terpisah dari aplikasi web.
+* Aplikasi web tidak memiliki login: jalankan hanya di 127.0.0.1 (bawaan) atau di belakang proksi yang mengautentikasi. Aplikasi menolak header Host asing (melindungi dari DNS rebinding) dan permintaan POST dari asal lain. Berkas data dibuat dengan izin hanya-pemilik (umask 077).
+* Gambar bukti di atas 60 megapiksel ditolak sebelum didekode.
 * Satu-satunya lalu lintas keluar adalah pendengar DNS kanari yang menerima kueri. Antarmuka web memuat HTMX dan font dari server lokal.
 
 ## Batasan (jujur)

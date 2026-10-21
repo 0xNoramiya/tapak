@@ -25,12 +25,45 @@ DPI_MIN = 100
 DPI_MAX = 300
 
 
+MAX_PIXELS = 60_000_000  # a 60 megapixel photo is far beyond any phone camera output
+
+
+def image_size(data: bytes) -> tuple[int, int] | None:
+    """(width, height) from a PNG or JPEG header without decoding; None for other formats."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    if data[:2] == b"\xff\xd8":
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+                i += 2
+                continue
+            length = int.from_bytes(data[i + 2:i + 4], "big")
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                return int.from_bytes(data[i + 7:i + 9], "big"), int.from_bytes(data[i + 5:i + 7], "big")
+            i += 2 + length
+    return None
+
+
 def load_gray(data: bytes) -> np.ndarray:
-    """Decode an image file (JPEG, PNG, ...) to a float32 grayscale array."""
+    """Decode an image file (JPEG, PNG, ...) to a float32 grayscale array.
+
+    Images whose header declares more than MAX_PIXELS are refused before decoding, so a small
+    file cannot make the decoder allocate gigabytes.
+    """
+    size = image_size(data)
+    if size is not None and size[0] * size[1] > MAX_PIXELS:
+        raise ValueError(f"gambar terlalu besar ({size[0]}x{size[1]} piksel); maksimum 60 megapiksel")
     arr = np.frombuffer(data, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
     if img is None:
         raise ValueError("berkas gambar tidak dapat dibaca")
+    if img.shape[0] * img.shape[1] > MAX_PIXELS:
+        raise ValueError("gambar terlalu besar; maksimum 60 megapiksel")
     return img.astype(np.float32)
 
 

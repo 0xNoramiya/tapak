@@ -127,6 +127,8 @@ class HitStats:
 
     received: int = 0  # canary-name queries answered
     deduplicated: int = 0  # not logged: identical hit within dedupe_s
+    unknown: int = 0  # not logged: token not in the allowlist of issued tokens
+    rate_limited: int = 0  # not logged: source exceeded its per-minute budget
     dropped: int = 0  # not logged: queue full
     written: int = 0  # appended to the store
     failed: int = 0  # not logged: the store write raised
@@ -136,7 +138,13 @@ class HitLogger:
     """Deduplication, a bounded queue and one writer thread between DNS answers and SQLite."""
 
     def __init__(self, db_path: str | Path, on_hit: Callable[[CanaryEvent], None] | None = None,
-                 dedupe_s: float = 1.0, queue_size: int = 10_000) -> None:
+                 dedupe_s: float = 1.0, queue_size: int = 10_000, allowlist: str | Path | None = None,
+                 per_source_per_min: int = 0) -> None:
+        """``allowlist``: file of ``sha256:`` token digests written by the issuer; when given,
+        queries for any other token are answered but never stored, so nobody can grow the log
+        with made-up names. ``per_source_per_min`` (0 = off) caps stored hits per source address.
+        It is off by default on purpose: genuine hits usually arrive through shared public
+        resolvers, and a flood through the same resolver would otherwise suppress them."""
         if dedupe_s < 0:
             raise ValueError(f"jendela deduplikasi tidak boleh negatif: {dedupe_s!r}")
         if queue_size < 1:
@@ -149,6 +157,53 @@ class HitLogger:
         self._lock = threading.Lock()
         self._stats = HitStats()
         self._thread: threading.Thread | None = None
+        self.allowlist = Path(allowlist) if allowlist else None
+        self._allowed: frozenset[str] | None = None
+        self._allowed_mtime = -1.0
+        self._allowed_checked = 0.0
+        self.per_source_per_min = per_source_per_min
+        self._buckets: OrderedDict[str, tuple[float, float]] = OrderedDict()
+
+    def _is_known(self, token: str) -> bool:
+        """True if the token's digest is in the allowlist (reloaded when the file changes).
+
+        With no allowlist configured, or while the file does not exist yet (the listener may
+        start before the first issuance), every token is accepted: losing a genuine hit to a
+        missing file would be worse than logging a stray one.
+        """
+        if self.allowlist is None:
+            return True
+        now = time.monotonic()
+        if now - self._allowed_checked > 1.0:
+            self._allowed_checked = now
+            try:
+                mtime = self.allowlist.stat().st_mtime
+            except OSError:
+                mtime = -1.0
+            if mtime != self._allowed_mtime:
+                self._allowed_mtime = mtime
+                try:
+                    self._allowed = frozenset(self.allowlist.read_text(encoding="ascii").split())
+                except OSError:
+                    self._allowed = None  # no file (yet): accept everything
+        if self._allowed is None:
+            return True
+        from tapak.registry.chain import canary_token_digest
+
+        return canary_token_digest(token) in self._allowed
+
+    def _within_budget(self, src_ip: str, now: float) -> bool:
+        """Token bucket per source address (bounded table)."""
+        if self.per_source_per_min <= 0:
+            return True
+        rate = self.per_source_per_min / 60.0
+        tokens, last = self._buckets.pop(src_ip, (float(self.per_source_per_min), now))
+        tokens = min(float(self.per_source_per_min), tokens + (now - last) * rate)
+        ok = tokens >= 1.0
+        self._buckets[src_ip] = (tokens - 1.0 if ok else tokens, now)
+        while len(self._buckets) > MAX_RECENT:
+            self._buckets.popitem(last=False)
+        return ok
 
     def stats(self) -> HitStats:
         """A snapshot of the counters."""
@@ -172,6 +227,12 @@ class HitLogger:
         item = NewEvent(utc_now(), qname, token, qtype, src_ip, int(src_port))
         with self._lock:
             self._stats.received += 1
+            if not self._is_known(token):
+                self._stats.unknown += 1
+                return
+            if not self._within_budget(src_ip, time.monotonic()):
+                self._stats.rate_limited += 1
+                return
             if self.dedupe_s > 0 and self._is_duplicate((token, src_ip, qtype), time.monotonic()):
                 self._stats.deduplicated += 1
                 return
@@ -403,7 +464,8 @@ class CanaryDNSServer:
                  answer_ip: str = "127.0.0.1", ttl: int = 0,
                  on_hit: Callable[[CanaryEvent], None] | None = None, *, ns_ip: str | None = None,
                  dedupe_s: float = 1.0, queue_size: int = 10_000, tcp_timeout: float = 5.0,
-                 max_tcp: int = 64) -> None:
+                 max_tcp: int = 64, allowlist: str | Path | None = None,
+                 per_source_per_min: int = 0) -> None:
         if not isinstance(port, int) or not 0 <= port <= 65535:
             raise ValueError(f"port harus antara 0 dan 65535: {port!r}")
         if tcp_timeout <= 0 or max_tcp < 1:
@@ -422,7 +484,7 @@ class CanaryDNSServer:
                 self.warnings.append(f"ns_ip tidak diisi: ns1.{normalize_domain(domain)} dijawab tanpa alamat. "
                                      "Untuk delegasi sungguhan isi --ns-ip dengan alamat IPv4 publik "
                                      "pendengar (sama dengan glue di registrar)")
-        self.hits = HitLogger(db_path, on_hit, dedupe_s, queue_size)
+        self.hits = HitLogger(db_path, on_hit, dedupe_s, queue_size, allowlist, per_source_per_min)
         self.resolver = CanaryResolver(domain, answer_ip, ns_ip, ttl, on_query=self.hits.submit)
         self.db_path = db_path
         self.host = host

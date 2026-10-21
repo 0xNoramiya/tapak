@@ -16,10 +16,16 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import os
+import time
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from tapak.config import Settings, load_settings
 from tapak.decoder.accuse import VERDICT_IDENTIFIED
@@ -57,7 +63,29 @@ _STAGING: dict[str, Staging] = {}
 _TRACES: dict[str, object] = {}
 _LOCK = threading.Lock()
 
+# Files written by the app (masters, copies, manifests) are readable by the operator only.
+os.umask(0o077)
+
+STAGING_TTL_S = 2 * 3600
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
+    "TAPAK_ALLOWED_HOSTS", "127.0.0.1,localhost,::1,testserver").split(",") if h.strip()]
+
 app = FastAPI(title="TAPAK", docs_url=None, redoc_url=None, openapi_url=None)
+# Host allowlist: a page on another site cannot reach this app through DNS rebinding.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+
+
+@app.middleware("http")
+async def _same_origin_posts(request: Request, call_next):
+    """Refuse state-changing requests sent by another origin (cross-site form posts)."""
+    if request.method == "POST":
+        origin = request.headers.get("origin") or request.headers.get("referer")
+        if origin:
+            host = urlsplit(origin).hostname or ""
+            if host not in ALLOWED_HOSTS:
+                return HTMLResponse('<div class="notice notice-error">Permintaan dari asal lain ditolak.</div>',
+                                    status_code=403)
+    return await call_next(request)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters["num"] = lambda v, d=0: format_number(float(v), d)
@@ -79,10 +107,33 @@ def _fap(candidate, n_copies: int):
 templates.env.globals["fap"] = _fap
 
 
+def _notice(request: Request, message: str, status: int) -> HTMLResponse:
+    """An Indonesian error notice. For htmx requests it is placed in the page-level alert
+    region (HX-Retarget) so the current form stays intact."""
+    body = f'<div class="notice notice-error">{html.escape(message)}</div>'
+    headers = {"HX-Retarget": "#galat-global", "HX-Reswap": "innerHTML"} if request.headers.get("HX-Request") else {}
+    return HTMLResponse(body, status_code=status, headers=headers)
+
+
 @app.exception_handler(FileNotFoundError)
 async def _not_found(request: Request, exc: FileNotFoundError) -> HTMLResponse:
     """Missing or invalid documents become a 404 with an Indonesian message, never a 500."""
-    return HTMLResponse(f'<div class="notice notice-error" role="alert">{html.escape(str(exc))}</div>', status_code=404)
+    return _notice(request, str(exc), 404)
+
+
+@app.exception_handler(HTTPException)
+async def _http_error(request: Request, exc: HTTPException) -> HTMLResponse:
+    """HTTP errors (413, 404, 400) as Indonesian notices instead of JSON."""
+    return _notice(request, str(exc.detail), exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def _unexpected(request: Request, exc: Exception) -> HTMLResponse:
+    """Anything unexpected: a generic Indonesian notice (details stay in the server log)."""
+    import logging
+
+    logging.getLogger("tapak.web").exception("kesalahan tak terduga")
+    return _notice(request, "Terjadi kesalahan tak terduga di server TAPAK. Coba lagi; bila berulang, periksa log server.", 500)
 
 
 def settings() -> Settings:
@@ -173,22 +224,28 @@ async def terbitkan_analisis(
     master = None
     if pdf and "dokumen" not in errors:
         try:
-            master = load_master(pdf)
+            master = await run_in_threadpool(load_master, pdf)
             if not list(master.layout.words()):
                 errors["dokumen"] = "PDF ini tidak memiliki lapisan teks (hasil pindai). TAPAK memerlukan PDF teks."
         except Exception:  # noqa: BLE001 - any parse failure is a user-facing input error
             errors["dokumen"] = "PDF tidak dapat dibaca."
+    existing = False
+    if master is not None and "dokumen" not in errors:
+        from tapak.service import workspace_dir
+
+        if (workspace_dir(settings(), master.doc_hash) / "manifest.json").exists():
+            errors["dokumen"] = "Dokumen ini sudah pernah diterbitkan."
+            existing = True
     if errors:
-        return _page(request, "_langkah1.html", eps_choices=EPS_CHOICES, errors=errors, values=values,
-                     canary_domain=kanari)
+        return _step1_errors(request, errors, values, kanari, existing)
     assert master is not None
-    gate = visual_gate(master)
+    gate = await run_in_threadpool(visual_gate, master)
     if not gate.passed:
         errors["dokumen"] = ("Penerbitan ditolak: TAPAK tidak dapat menggambar ulang dokumen ini tanpa "
                              f"perubahan yang terlihat (selisih maksimum {gate.max_diff} tingkat abu-abu).")
-        return _page(request, "_langkah1.html", eps_choices=EPS_CHOICES, errors=errors, values=values,
-                     canary_domain=kanari)
+        return _step1_errors(request, errors, values, kanari, False)
 
+    _expire_staging()
     sid = secrets.token_hex(8)
     folder = settings().data_dir / "staging" / sid
     folder.mkdir(parents=True, exist_ok=True)
@@ -198,10 +255,38 @@ async def terbitkan_analisis(
     st = Staging(sid, folder, name, recipients, issue_settings, penerbit.strip() or "operator")
     st.candidates = scan_candidates(master)
     st.units = [u for u, reasons in st.candidates if not reasons]
-    st.plan = _plan_summary(master, issue_settings, len(recipients))
+    st.plan = await run_in_threadpool(_plan_summary, master, issue_settings, len(recipients))
     with _LOCK:
         _STAGING[sid] = st
     return _page(request, "_rencana.html", st=st, gate=gate)
+
+
+def _step1_errors(request: Request, errors: dict[str, str], values: dict[str, object], kanari: str,
+                  existing: bool) -> HTMLResponse:
+    """Step-1 validation errors: out-of-band error slots for htmx (the form keeps its files),
+    the whole form otherwise."""
+    if request.headers.get("HX-Request"):
+        resp = _page(request, "_langkah1_galat.html", errors=errors, existing=existing)
+        resp.headers["HX-Reswap"] = "none"
+        return resp
+    return _page(request, "_langkah1.html", eps_choices=EPS_CHOICES, errors=errors, values=values,
+                 canary_domain=kanari)
+
+
+def _expire_staging() -> None:
+    """Drop issuance sessions (and their copy of the master) idle for more than STAGING_TTL_S."""
+    root = settings().data_dir / "staging"
+    now = time.time()
+    with _LOCK:
+        for sid, st in list(_STAGING.items()):
+            stale = not st.folder.exists() or now - st.folder.stat().st_mtime > STAGING_TTL_S
+            if stale:
+                shutil.rmtree(st.folder, ignore_errors=True)
+                _STAGING.pop(sid, None)
+    if root.exists():
+        for d in root.iterdir():
+            if d.is_dir() and d.name not in _STAGING and now - d.stat().st_mtime > STAGING_TTL_S:
+                shutil.rmtree(d, ignore_errors=True)
 
 
 def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
@@ -241,10 +326,22 @@ async def terbitkan_varian(request: Request, sid: str) -> HTMLResponse:
     kwargs = {}
     if s.llm_provider == "llamacpp":
         kwargs = {"model_path": s.llm_model_path or None, "server_url": s.llm_server_url}
-    try:
+    def _generate() -> dict:
         provider = get_provider(s.llm_provider, **kwargs)
         master = load_master((st.folder / "induk.pdf").read_bytes())
-        st.sets = {u.unit_id: generate_variant_set(master, u, provider) for u in st.units if u.unit_id in chosen}
+        return {u.unit_id: generate_variant_set(master, u, provider) for u in st.units if u.unit_id in chosen}
+
+    try:
+        old = st.sets
+        st.sets = await run_in_threadpool(_generate)
+        for uid, vs in st.sets.items():  # keep reviewer decisions for variants whose text is unchanged
+            prev = old.get(uid)
+            if prev is None:
+                continue
+            decided = {t: st_ for t, st_ in zip(prev.variants[1:], prev.status[1:]) if st_ != "menunggu"}
+            for i, text in enumerate(vs.variants[1:], start=1):
+                if text in decided:
+                    vs.set_status(i, decided[text])
     except (RuntimeError, ValueError) as exc:
         return _page(request, "_semantik.html", st=st, block_error=f"Varian tidak dapat dibuat: {exc}")
     return _page(request, "_semantik.html", st=st)
@@ -296,8 +393,8 @@ def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
     except (ValueError, RuntimeError) as exc:
         return _page(request, "_semantik.html", st=st, block_error=f"Penerbitan gagal: {exc}")
     except FileExistsError:
-        return _page(request, "_galat.html", message="Dokumen ini sudah pernah diterbitkan. Lihat halaman Lacak "
-                     "untuk dokumen yang sudah ada, atau unggah dokumen lain.")
+        return _page(request, "_galat.html", message="Dokumen ini sudah pernah diterbitkan. Buka halaman Lacak "
+                     "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain.", restart=True)
     st.issued_doc = out.manifest.doc_hash
     shutil.rmtree(st.folder, ignore_errors=True)
     with _LOCK:
@@ -314,7 +411,7 @@ def unduh_zip(doc: str) -> StreamingResponse:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for c in manifest.copies:
-            z.write(folder / "salinan" / c.file, c.file)
+            z.write(_copy_path(folder, c.file), c.file)
     buf.seek(0)
     name = Path(manifest.doc_name).stem + "_salinan.zip"
     return StreamingResponse(buf, media_type="application/zip",
@@ -330,7 +427,17 @@ def unduh_salinan(doc: str, seq: int) -> FileResponse:
     match = [c for c in manifest.copies if c.seq == seq]
     if not match:
         raise HTTPException(404, "Salinan tidak ditemukan")
-    return FileResponse(folder / "salinan" / match[0].file, filename=match[0].file)
+    return FileResponse(_copy_path(folder, match[0].file), filename=match[0].file)
+
+
+def _copy_path(folder: Path, name: str) -> Path:
+    """A copy's file inside the workspace; a manifest naming anything else is refused."""
+    if not name or name != Path(name).name or name.startswith("."):
+        raise HTTPException(400, "Nama berkas salinan di catatan penerbitan tidak valid")
+    path = (folder / "salinan" / name).resolve()
+    if path.parent != (folder / "salinan").resolve() or not path.is_file():
+        raise HTTPException(404, "Berkas salinan tidak ditemukan")
+    return path
 
 
 # --- Lacak ----------------------------------------------------------------------------------
@@ -366,11 +473,14 @@ async def lacak_run(
     if not data:
         errors["bukti"] = "Unggah foto, tangkapan layar, PDF, atau DOCX, atau tempel teksnya."
     if errors:
-        return _page(request, "_lacak_form.html", docs=list_workspaces(settings()), errors=errors,
+        resp = _page(request, "_lacak_form.html", docs=list_workspaces(settings()), errors=errors,
                      selected=dokumen)
+        resp.headers["HX-Retarget"] = "#form-lacak"
+        resp.headers["HX-Reswap"] = "innerHTML"
+        return resp
     try:
-        outcome = trace_evidence(settings(), dokumen, name, data)
-    except (TraceError, ValueError, FileNotFoundError) as exc:
+        outcome = await run_in_threadpool(trace_evidence, settings(), dokumen, name, data)
+    except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
         return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {exc}")
     tid = secrets.token_hex(8)
     with _LOCK:
@@ -378,7 +488,9 @@ async def lacak_run(
         while len(_TRACES) > 50:
             _TRACES.pop(next(iter(_TRACES)))
     return _page(request, "_hasil_lacak.html", o=outcome, a=outcome.attribution, tid=tid,
-                 identified=outcome.attribution.verdict == VERDICT_IDENTIFIED)
+                 identified=outcome.attribution.verdict == VERDICT_IDENTIFIED,
+                 eps_label=dict(EPS_CHOICES).get(f"{outcome.attribution.threshold.eps:g}".replace("e-0", "e-"),
+                                                 f"{outcome.attribution.threshold.eps:g}"))
 
 
 @app.get("/lacak/{tid}/berita-acara.pdf")

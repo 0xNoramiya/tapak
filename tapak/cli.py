@@ -108,7 +108,9 @@ def _cmd_issue(args: argparse.Namespace) -> int:
     s = _settings(args)
     if args.canary_domain is None:
         args.canary_domain = s.canary_domain
-    keys = ensure_keys(s, create_signing_key=not args.sign_later)
+    # The signing key is never created here (only by `tapak keys init`): without it, rows are
+    # recorded unsigned and the key holder signs them later.
+    keys = ensure_keys(s, create_signing_key=False)
     if args.sign_later:
         keys.signer = None
     recipients = read_recipients(Path(args.recipients))
@@ -129,7 +131,9 @@ def _cmd_issue(args: argparse.Namespace) -> int:
     print(f"Gerbang visual: {'lulus' if m.gate.get('passed') else 'GAGAL'} (selisih maks {m.gate.get('max_diff')})")
     print(f"{len(m.copies)} salinan ditulis ke {out.folder / 'salinan'} dalam {m.elapsed_s:.2f} s")
     if not args.no_registry:
-        state = "ditandatangani" if out.signed else "BELUM ditandatangani (jalankan: tapak registry sign)"
+        state = ("ditandatangani" if out.signed else
+                 "BELUM ditandatangani (kunci tanda tangan tidak ada di sini; pemegang kunci menjalankan: "
+                 "tapak registry sign)")
         print(f"Registri: {out.registry_entries} entri baru, {state} ({s.registry_path})")
     if args.out:
         import shutil
@@ -442,6 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
+    os.umask(0o077)  # masters, copies, manifests and keys are readable by the operator only
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args))

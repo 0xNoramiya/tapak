@@ -18,8 +18,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("TAPAK_DATA", str(tmp_path / "data"))
     monkeypatch.setenv("TAPAK_KEY_DIR", str(tmp_path / "keys"))
     monkeypatch.setenv("TAPAK_CANARY_DOMAIN", "kanari.tapak.test")
+    from tapak.cli import main as cli_main
     from tapak.web.app import app
 
+    assert cli_main(["keys", "init"]) == 0  # a deployment starts with `tapak keys init`
     return TestClient(app)
 
 
@@ -53,9 +55,16 @@ def test_pages_render(client):
 
 
 def test_issue_validation_errors_inline(client):
-    r = client.post("/terbitkan/analisis", files={"dokumen": ("x.pdf", b"not a pdf", "application/pdf")},
-                    data={"c": "3", "eps": "1e-6"})
-    assert "bukan PDF" in r.text and "Pilih berkas CSV" in r.text and 'aria-invalid="true"' in r.text
+    files = {"dokumen": ("x.pdf", b"not a pdf", "application/pdf")}
+    # htmx request: only the error slots are updated out of band; the form (and chosen files) stay.
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "0", "eps": "1e-6"}, headers={"HX-Request": "true"})
+    assert r.headers.get("HX-Reswap") == "none"
+    assert 'id="err-dokumen" hx-swap-oob="innerHTML"' in r.text and "bukan PDF" in r.text
+    assert "Pilih berkas CSV" in r.text and "antara 1 dan 10" in r.text
+    assert "<form" not in r.text
+    # Without htmx the whole form comes back with the messages next to the fields.
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"})
+    assert "<form" in r.text and "bukan PDF" in r.text
 
 
 def test_issue_trace_report_registry(client):
@@ -80,6 +89,57 @@ def test_issue_trace_report_registry(client):
     assert "Utuh" in r.text and "nota_dinas.pdf" in r.text
     r = client.post("/registri/merkle")
     assert "merkle-" in r.text
+
+
+def test_errors_are_indonesian_notices_for_htmx(client):
+    r = client.post("/terbitkan/0123456789abcdef/varian", headers={"HX-Request": "true"})
+    assert r.status_code == 404 and r.headers.get("HX-Retarget") == "#galat-global"
+    assert "Sesi penerbitan tidak ditemukan" in r.text and "notice-error" in r.text
+    r = client.get("/dokumen/ZZZZ/salinan.zip", headers={"HX-Request": "true"})
+    assert r.status_code == 404 and "tidak valid" in r.text
+
+
+def test_reissue_detected_at_analysis_and_canary_rows_hide_names(client):
+    doc = _issue(client)
+    files = {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
+             "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"}, headers={"HX-Request": "true"})
+    assert "sudah pernah diterbitkan" in r.text and 'href="/lacak"' in r.text
+    # A canary hit for copy 7: the registry page lists it by copy number, without the name.
+    import os
+
+    from tapak.canary_dns.store import record_event
+    from tapak.config import load_settings
+    from tapak.service import list_workspaces
+
+    m = list_workspaces(load_settings())[0]
+    token = m.copies[6].canary_token
+    record_event(load_settings().canary_db, f"{token}.c.kanari.tapak.test", token, "A", "198.51.100.7", 5353)
+    page = client.get("/registri").text
+    assert "#7" in page and m.copies[6].recipient.nama not in page
+    assert os.environ["TAPAK_DATA"]
+
+
+def test_regenerating_variants_keeps_decisions(client):
+    files = {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
+             "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+    r = client.post("/terbitkan/analisis", files=files, data={"c": "3", "eps": "1e-6"})
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    units = re.findall(r'name="unit" value="(u\d+)"', r.text)
+    r = client.post(f"/terbitkan/{sid}/varian", data={"unit": units})
+    unit, idx = re.findall(r"/varian/(u\d+)/(\d+)/disetujui", r.text)[0]
+    r = client.post(f"/terbitkan/{sid}/varian/{unit}/{idx}/ditolak")
+    assert f'id="v-{unit}-{idx}-no"' in r.text and 'aria-pressed="true"' in r.text
+    assert "hx-confirm" in r.text
+    r = client.post(f"/terbitkan/{sid}/varian", data={"unit": units})
+    assert re.search(rf'id="v-{unit}-{idx}-no"\s+aria-pressed="true"', r.text)
+    assert client.post(f"/terbitkan/{sid}/varian/{unit}/99/disetujui").status_code == 400
+
+
+def test_foreign_host_and_origin_refused(client):
+    assert client.get("/terbitkan", headers={"host": "evil.example"}).status_code == 400
+    r = client.post("/lacak", data={"dokumen": "", "teks": "x"}, headers={"origin": "http://evil.example"})
+    assert r.status_code == 403
 
 
 def test_document_keys_cannot_escape_data_dir(client):

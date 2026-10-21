@@ -609,7 +609,10 @@ def registry_from_manifest(
         if again:
             raise RegistryError(f"salinan {again} dokumen ini sudah tercatat di registri")
         entries = [registry.record_document(
-            doc_hash=manifest.doc_hash, doc_name=manifest.doc_name, params=manifest.params,
+            doc_hash=manifest.doc_hash,
+            # The file name of a classified document often states its subject: store only its hash.
+            doc_name="sha256:" + hashlib.sha256(manifest.doc_name.encode("utf-8")).hexdigest(),
+            params=manifest.params,
             channels=manifest.channels, shift_mm=manifest.shift_mm, excluded_rows=manifest.excluded_rows,
             plan_summary=manifest.plan_summary, threshold_rule=threshold_rule,
             threshold_full=manifest.threshold_full, issuer=manifest.issuer, issued_at=manifest.issued_at,

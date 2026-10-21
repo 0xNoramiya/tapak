@@ -781,11 +781,12 @@ def test_cli_anchor_and_verify(tmp_path, capsys):
     generate_signing_key(key)
     pub = key.with_suffix(".pub")
     _record(db, 3)
-    assert main(["--anchor", "--db", str(db), "--signing-key", str(key)]) == 0
+    reg = ["--registry", str(db)]  # events and anchors in one file for this test
+    assert main(["--anchor", "--db", str(db), "--signing-key", str(key), *reg]) == 0
     assert "dijangkarkan dan ditandatangani" in capsys.readouterr().out
-    assert main(["--verify", "--db", str(db), "--public-key", str(pub)]) == 0
+    assert main(["--verify", "--db", str(db), "--public-key", str(pub), *reg]) == 0
     assert "UTUH" in capsys.readouterr().out
     _rewrite_chain(db, 2, src_ip="10.9.9.9")
-    assert main(["--verify", "--db", str(db), "--public-key", str(pub)]) == 1
+    assert main(["--verify", "--db", str(db), "--public-key", str(pub), *reg]) == 1
     out = capsys.readouterr().out
     assert "RUSAK" in out and "ditulis ulang" in out

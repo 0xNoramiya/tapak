@@ -114,8 +114,16 @@ def _parser() -> _Parser:
     g.add_argument("--domain", default=settings.canary_domain,
                    help="domain kanari; nama salinan berbentuk <token>.c.<domain> "
                         f"(bawaan: TAPAK_CANARY_DOMAIN atau {settings.canary_domain})")
-    g.add_argument("--db", default=str(settings.registry_path),
-                   help=f"berkas SQLite catatan kejadian, dipakai bersama registri (bawaan: {settings.registry_path})")
+    g.add_argument("--db", default=str(settings.canary_db),
+                   help=f"berkas SQLite catatan kejadian kanari (bawaan: {settings.canary_db})")
+    g.add_argument("--registry", default=str(settings.registry_path),
+                   help=f"registri tempat jangkar kanari dicatat dan diperiksa (bawaan: {settings.registry_path})")
+    g.add_argument("--allowlist", default=str(settings.canary_allowlist),
+                   help="berkas digest token yang diterbitkan; kueri token lain dijawab tetapi tidak dicatat "
+                        f"(bawaan: {settings.canary_allowlist}; kosongkan untuk mencatat semua)")
+    g.add_argument("--per-sumber", type=int, default=0,
+                   help="maksimum kejadian tercatat per alamat sumber per menit (bawaan: 0, tanpa batas; "
+                        "daftar izin token sudah mencegah log membengkak)")
     g.add_argument("--host", default="0.0.0.0", help="alamat yang didengarkan (bawaan: 0.0.0.0)")
     g.add_argument("--port", type=_port, default=53, help="port UDP dan TCP (bawaan: 53; 0 = port bebas)")
     g.add_argument("--answer-ip", default="127.0.0.1",
@@ -144,7 +152,7 @@ def _anchor(args: argparse.Namespace) -> int:
     key = Path(args.signing_key)
     try:
         signer = load_signer(key) if key.is_file() else None
-        seq, h = anchor_head(args.db, signer)
+        seq, h = anchor_head(args.db, signer, registry_path=args.registry)
     except (ValueError, OSError, RegistryError) as exc:
         print(f"Kesalahan: {exc}", file=sys.stderr)
         return 2
@@ -164,7 +172,7 @@ def _verify(args: argparse.Namespace) -> int:
     pub_path = Path(args.public_key)
     try:
         if pub_path.is_file():
-            report = verify_events_anchored(args.db, load_public_key(pub_path))
+            report = verify_events_anchored(args.db, load_public_key(pub_path), registry_path=args.registry)
         else:
             report = check_events_chain(args.db)
             report.warnings.append(f"kunci publik tidak ditemukan ({pub_path}); jangkar tidak diperiksa")
@@ -181,7 +189,11 @@ def _listen(args: argparse.Namespace) -> int:
 
     try:
         server = CanaryDNSServer(args.domain, args.db, host=args.host, port=args.port, answer_ip=args.answer_ip,
-                                 ttl=args.ttl, on_hit=on_hit, ns_ip=args.ns_ip, dedupe_s=args.dedupe)
+                                 ttl=args.ttl, on_hit=on_hit, ns_ip=args.ns_ip, dedupe_s=args.dedupe,
+                                 allowlist=args.allowlist or None, per_source_per_min=args.per_sumber)
+        if args.allowlist and not Path(args.allowlist).exists():
+            print(f"PERINGATAN: daftar izin token {args.allowlist} belum ada; semua token dicatat sampai "
+                  "berkas itu dibuat oleh penerbitan pertama", file=sys.stderr, flush=True)
         server.start()
     except ValueError as exc:
         print(f"Kesalahan: {exc}", file=sys.stderr)

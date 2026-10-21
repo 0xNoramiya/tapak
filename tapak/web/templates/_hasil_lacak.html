@@ -1,10 +1,10 @@
 {% set t = a.threshold %}
 <section class="verdict {% if identified %}verdict-found{% else %}verdict-none{% endif %}" aria-labelledby="putusan">
-  <span class="kicker">Hasil atribusi · {{ o.evidence_name }}</span>
+  <span class="kicker">Hasil atribusi · <span class="mono keep-case">{{ o.evidence_name }}</span></span>
   {% if identified %}
     {% for c in a.accused %}
     <div class="who">
-      <h2 {% if loop.first %}id="putusan"{% endif %}>Salinan #{{ c.copy.seq }} · {{ c.copy.nama }}</h2>
+      <h2 {% if loop.first %}id="putusan" tabindex="-1" data-autofocus{% endif %}>Salinan #{{ c.copy.seq }} · {{ c.copy.nama }}</h2>
       <span class="muted">{{ c.copy.recipient_id }}{% if c.copy.satuan %} · {{ c.copy.satuan }}{% endif %}</span>
     </div>
     <div class="facts">
@@ -15,7 +15,7 @@
     {% endfor %}
     {% if a.accused|length > 1 %}<p class="small">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
   {% else %}
-    <h2 id="putusan">Tidak cukup bukti</h2>
+    <h2 id="putusan" tabindex="-1" data-autofocus>Tidak cukup bukti</h2>
     <p class="small" style="margin:0; max-width:65ch">
       {% if a.candidates and t.n_observed %}Tidak ada salinan yang mencapai ambang. Skor tertinggi {{ a.candidates[0].score|num(1) }} di bawah ambang {{ t.threshold|num(1) if t.threshold != inf else "tak hingga" }}. Nama tidak disebutkan.
       {% else %}Tidak ada tanda yang terbaca pada bukti ini. Nama tidak disebutkan.{% endif %}
@@ -28,14 +28,14 @@
 
 <section class="card" aria-labelledby="kanal-h">
   <h2 id="kanal-h">Bukti per kanal</h2>
-  <p class="lead">Ambang Z = {{ t.threshold|num(1) if t.threshold != inf else "tak hingga" }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (eps = {{ t.eps }}).</p>
+  <p class="lead">Ambang Z = {{ t.threshold|num(1) if t.threshold != inf else "tak hingga" }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (peluang tuduhan salah maksimum {{ eps_label }} untuk seluruh daftar penerima).</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Kanal</th><th class="num">Posisi terbaca</th><th class="num">Ambang kanal</th><th>Menunjuk salinan</th></tr></thead>
+      <thead><tr><th>Kanal</th><th class="num">Posisi terbaca</th><th class="num hide-sm">Ambang kanal</th><th>Menunjuk salinan</th></tr></thead>
       <tbody>
         {% for ch in a.channels %}
         <tr><td>{{ channel_name(ch.channel) }}</td><td class="num">{{ ch.n_observed|num }}</td>
-            <td class="num">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
+            <td class="num hide-sm">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
             <td>{% if ch.accused_seqs %}{% for s in ch.accused_seqs %}#{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}<span class="muted">tidak ada</span>{% endif %}</td></tr>
         {% else %}
         <tr><td colspan="4" class="empty">Tidak ada kanal yang terbaca.</td></tr>
@@ -64,14 +64,14 @@
   <p class="lead">Nama hanya ditampilkan untuk salinan yang melewati ambang. Salinan lain disebut dengan nomornya saja.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Salinan</th><th>Penerima</th><th class="num">Skor</th><th class="num">Ambang</th><th>Status</th></tr></thead>
+      <thead><tr><th class="num">Salinan</th><th>Penerima</th><th class="num">Skor</th><th class="num hide-sm">Ambang</th><th>Status</th></tr></thead>
       <tbody>
       {% for c in a.candidates[:6] %}
         <tr>
           <td class="num">#{{ c.copy.seq }}</td>
           <td>{% if c.accused %}{{ c.copy.nama }} <span class="muted mono small">{{ c.copy.recipient_id }}</span>{% else %}<span class="muted">disembunyikan</span>{% endif %}</td>
           <td class="num">{{ c.score|num(1) }}</td>
-          <td class="num">{{ t.threshold|num(1) if t.threshold != inf else "-" }}</td>
+          <td class="num hide-sm">{{ t.threshold|num(1) if t.threshold != inf else "-" }}</td>
           <td>{% if c.accused %}<span class="chip chip-ok">melewati ambang</span>{% else %}<span class="chip chip-neutral">di bawah ambang</span>{% endif %}</td>
         </tr>
       {% endfor %}
@@ -96,10 +96,14 @@
   <h3 class="label" style="margin-top:16px">Kueri DNS kanari untuk dokumen ini</h3>
   <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Salinan</th><th>Penerima</th><th>Waktu (UTC)</th><th>Resolver</th></tr></thead>
-      <tbody>{% for k in o.canary %}<tr><td class="num">#{{ k.seq }}</td><td>{{ k.nama }} <span class="muted mono small">{{ k.recipient_id }}</span></td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
+      <thead><tr><th class="num">Salinan</th><th>Waktu</th><th>Resolver</th></tr></thead>
+      <tbody>{% for k in o.canary %}<tr><td class="num">#{{ k.seq }}</td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
-  <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas.</p>
+  <p class="hint">Kueri kanari berarti nama unik salinan itu dicari oleh sebuah resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor di atas, sehingga penerima tidak disebut di tabel ini.</p>
+  <details class="more small">
+    <summary>Tampilkan penerima salinan dengan kueri kanari (bukti pendukung, bukan hasil skor)</summary>
+    <ul class="notes">{% for k in o.canary %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
+  </details>
   {% endif %}
 </section>

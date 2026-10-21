@@ -91,7 +91,7 @@ def _run(workdir: Path, keep: bool) -> int:
 
     # 1 --------------------------------------------------------------------------------
     _say("1/6", "Menerbitkan 20 salinan bertanda dari nota dinas sintetis")
-    keys = ensure_keys(settings)
+    keys = ensure_keys(settings)  # like `tapak keys init`: code secret and registry signing key
     master = load_master(sample.read_bytes())
     provider = get_provider("mock")
     units = find_candidate_units(master)
@@ -137,7 +137,8 @@ def _run(workdir: Path, keep: bool) -> int:
     from tapak.service import canary_alerts
 
     copy7 = (out.folder / "salinan" / m.copies[6].file).read_bytes()
-    server = CanaryDNSServer(domain, settings.registry_path, host="127.0.0.1", port=0)
+    server = CanaryDNSServer(domain, settings.canary_db, host="127.0.0.1", port=0,
+                             allowlist=settings.canary_allowlist)
     server.start()
     try:
         t = time.perf_counter()
@@ -153,7 +154,7 @@ def _run(workdir: Path, keep: bool) -> int:
         server.stop()
     if alerts:
         x = alerts[0]
-        _ok(f"PERINGATAN KANARI: nama kanari salinan #{x['seq']} ({x['recipient_id']}, {x['nama']}) "
+        _ok(f"PERINGATAN KANARI: nama kanari salinan #{x['seq']} (penerima {x['recipient_id']}) "
             f"di-resolve {x['time']} oleh resolver {x['src_ip']}; tercatat {dt:.2f} s setelah berkas dibuka")
         _ok("(kueri DNS membuktikan nama itu dicari, bukan siapa pembukanya; alamat adalah resolver, belum tentu komputer pembuka)")
         _ok("(di dalam jaringan satuan, DNS internal menjawab zona kanari secara lokal sehingga tidak ada peringatan)")

@@ -33,10 +33,11 @@
     {% if alerts %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Dokumen</th><th class="num">Salinan</th><th>Penerima</th><th>Waktu (UTC)</th><th>Resolver</th></tr></thead>
-        <tbody>{% for k in alerts %}<tr><td>{{ k.doc_name }}</td><td class="num">#{{ k.seq }}</td><td>{{ k.nama }} <span class="muted mono small">{{ k.recipient_id }}</span></td><td class="small">{{ k.time|waktu }}</td><td class="mono small">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
+        <thead><tr><th>Dokumen</th><th class="num">Salinan</th><th>Waktu</th><th class="hide-sm">Resolver</th></tr></thead>
+        <tbody>{% for k in alerts %}<tr><td>{{ k.doc_name }}</td><td class="num">#{{ k.seq }}</td><td class="small">{{ k.time|waktu }}</td><td class="mono small hide-sm">{{ k.src_ip }}</td></tr>{% endfor %}</tbody>
       </table>
     </div>
+    <p class="hint">Penerima tidak disebut di sini: kueri kanari adalah bukti pendukung, bukan hasil atribusi. Hubungkan nomor salinan dengan penerima lewat halaman Lacak.</p>
     {% else %}
     <p class="empty">Belum ada kueri kanari: tidak ada salinan yang terdeteksi dibuka di luar jaringan satuan.</p>
     {% endif %}
@@ -47,8 +48,8 @@
     {% if docs %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Dokumen</th><th>Diterbitkan</th><th class="num">Salinan</th><th>SHA-256</th><th></th></tr></thead>
-        <tbody>{% for m in docs %}<tr><td>{{ m.doc_name }}</td><td class="small">{{ m.issued_at|waktu }}</td><td class="num">{{ m.copies|length }}</td><td class="mono small" title="{{ m.doc_hash }}">{{ m.doc_hash[:16] }}…</td><td><a class="link small" href="/dokumen/{{ m.doc_hash[:16] }}/salinan.zip">ZIP</a></td></tr>{% endfor %}</tbody>
+        <thead><tr><th>Dokumen</th><th class="hide-sm">Diterbitkan</th><th class="num">Salinan</th><th class="hide-sm">SHA-256</th><th></th></tr></thead>
+        <tbody>{% for m in docs %}<tr><td>{{ m.doc_name }}</td><td class="small hide-sm">{{ m.issued_at|waktu }}</td><td class="num">{{ m.copies|length }}</td><td class="mono small hide-sm" title="{{ m.doc_hash }}">{{ m.doc_hash[:16] }}…</td><td><a class="link small" href="/dokumen/{{ m.doc_hash[:16] }}/salinan.zip">ZIP</a></td></tr>{% endfor %}</tbody>
       </table>
     </div>
     {% else %}

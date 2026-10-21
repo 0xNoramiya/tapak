@@ -169,6 +169,7 @@ class ReportInfo:
     software_version: str
     registry_ok: bool | None = None
     registry_entries: int = 0
+    registry_unsigned: int = 0
     canary_events: list[dict[str, Any]] = field(default_factory=list)
     code_digests: dict[int, str] = field(default_factory=dict)
     examined_at: str = field(default_factory=_now_iso)
@@ -603,8 +604,12 @@ def _params_rows(p: TardosParams) -> list[tuple[str, str | Markup]]:
 def _registry_text(info: ReportInfo) -> str:
     if info.registry_ok is None:
         return "tidak diperiksa"
+    if info.registry_ok and info.registry_unsigned:
+        return (f"rantai hash utuh ({format_int(info.registry_entries)} entri), tetapi "
+                f"{format_int(info.registry_unsigned)} entri salinan dokumen ini belum bertanda tangan "
+                "sehingga belum terlindungi dari pemalsuan")
     if info.registry_ok:
-        return f"utuh; {format_int(info.registry_entries)} entri terverifikasi"
+        return f"utuh; {format_int(info.registry_entries)} entri terverifikasi dengan tanda tangan"
     return f"TIDAK UTUH ({format_int(info.registry_entries)} entri); lihat Bagian VII"
 
 
