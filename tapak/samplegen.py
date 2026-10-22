@@ -5,7 +5,9 @@ top of PyMuPDF: it typesets every word individually with the bundled DejaVu font
 output is a normal text PDF (selectable, searchable) that TAPAK can mark.
 
 Every page carries the footer "CONTOH SINTETIS - BUKAN DOKUMEN ASLI" so a generated file
-can never be mistaken for a real document.
+can never be mistaken for a real document. ``scanned_sample`` turns a generated sample into a
+fictional scan (image-only pages, optionally with an invisible OCR layer, or mixed with text
+pages); the footer stays in every page image.
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pymupdf
 
 from tapak.fonts import font_path
@@ -257,17 +261,108 @@ def write_recipients(path: Path, n: int = 20) -> None:
             wr.writerow([rid, nama, jabatan[i % len(jabatan)], units[i % len(units)]])
 
 
+# Fictional scanned sample: the text sample rendered like a flatbed scan of a printout.
+SCAN_DPI = 300
+SCAN_SEED = 2026
+SCAN_PAPER = 243.0        # paper tone (gray level) of the scan
+SCAN_INK = 35.0           # toner as the scanner sees it
+SCAN_NOISE = 1.2          # sensor noise (gray levels, before JPEG)
+SCAN_SKEW_DEG = (0.35, -0.25)
+SCAN_JPEG_QUALITY = 85
+
+
+def scan_page_image(page: pymupdf.Page, dpi: int, rng: np.random.Generator, skew_deg: float) -> np.ndarray:
+    """A synthetic scan of one page: gray render at ``dpi``, slight skew, optics blur, paper
+    tone with slow variation, sensor noise. Returns a uint8 array."""
+    pix = page.get_pixmap(dpi=dpi, colorspace=pymupdf.csGRAY, alpha=False)
+    img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width).astype(np.float32)
+    h, w = img.shape
+    rot = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), skew_deg, 1.0)
+    img = cv2.warpAffine(img, rot, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT, borderValue=255)
+    img = cv2.GaussianBlur(img, (0, 0), 0.6)
+    tone = cv2.resize(rng.standard_normal((6, 4)).astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
+    paper = SCAN_PAPER + 1.5 * tone
+    img = SCAN_INK + (paper - SCAN_INK) * (img / 255.0)
+    img += rng.normal(0.0, SCAN_NOISE, img.shape).astype(np.float32)
+    return np.clip(np.rint(img), 0, 255).astype(np.uint8)
+
+
+def scanned_sample(src_pdf: bytes, *, dpi: int = SCAN_DPI, seed: int = SCAN_SEED, scan_pages: set[int] | None = None,
+                   ocr_layer: bool = False) -> bytes:
+    """A fictional scanned version of a sample PDF (deterministic for the same inputs).
+
+    Pages in ``scan_pages`` (all if None) become one gray JPEG image filling the page, like a
+    300 dpi office scan; the others are copied as text pages (a mixed document). With
+    ``ocr_layer`` every scanned page also gets the source words as invisible text (render
+    mode 3), as OCR software writes it. The source footer "CONTOH SINTETIS - BUKAN DOKUMEN
+    ASLI" is part of every page image.
+    """
+    from tapak.marker.layout import extract_layout
+
+    src = pymupdf.open(stream=src_pdf, filetype="pdf")
+    layout = extract_layout(src_pdf) if ocr_layer else None
+    out = pymupdf.open()
+    for i, page in enumerate(src):
+        if scan_pages is not None and i not in scan_pages:
+            out.insert_pdf(src, from_page=i, to_page=i)
+            continue
+        rng = np.random.default_rng([seed, i, dpi])
+        img = scan_page_image(page, dpi, rng, SCAN_SKEW_DEG[i % len(SCAN_SKEW_DEG)])
+        ok, jpg = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, SCAN_JPEG_QUALITY])
+        if not ok:
+            raise RuntimeError("pengodean JPEG gagal")
+        new = out.new_page(width=page.rect.width, height=page.rect.height)
+        new.insert_image(new.rect, stream=jpg.tobytes(), keep_proportion=False)
+        if layout is not None:
+            for row in layout.pages[i].rows:
+                for word in row.words:
+                    g = word.glyphs[0]
+                    new.insert_text((g.x, g.y), word.text, fontsize=g.size, fontname="helv", render_mode=3)
+    out.set_metadata({"producer": "TAPAK samplegen", "creator": "TAPAK samplegen",
+                      "title": "Contoh sintetis hasil pindai"})
+    data = out.tobytes(garbage=3, deflate=True, no_new_id=True)
+    out.close()
+    src.close()
+    return data
+
+
+SCANNED_VARIANTS = {  # file name -> (scanned pages or None for all, OCR layer)
+    "nota_dinas_pindaian.pdf": (None, False),
+    "nota_dinas_pindaian_ocr.pdf": (None, True),
+    "nota_dinas_campuran.pdf": ({1}, False),
+}
+
+
+def write_scanned_samples(src: Path, out_dir: Path) -> list[Path]:
+    """Write the scanned variants of ``src`` (see SCANNED_VARIANTS) into ``out_dir``."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    data = Path(src).read_bytes()
+    written = []
+    for name, (pages, ocr) in SCANNED_VARIANTS.items():
+        path = out_dir / name
+        path.write_bytes(scanned_sample(data, scan_pages=pages, ocr_layer=ocr))
+        written.append(path)
+    return written
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Generate every template in samples/templates into samples/ (PDF) plus recipients.csv."""
+    """Generate every template in samples/templates into samples/ (PDF) plus recipients.csv;
+    with ``--pindaian``, the fictional scanned variants of nota_dinas.pdf instead."""
     import argparse
 
     ap = argparse.ArgumentParser(description="Buat dokumen contoh sintetis")
     ap.add_argument("--templates", default="samples/templates")
     ap.add_argument("--out", default="samples")
     ap.add_argument("--recipients", type=int, default=20)
+    ap.add_argument("--pindaian", action="store_true",
+                    help="buat versi hasil pindai (300 dpi) dari nota_dinas.pdf di <out>/generated/")
     args = ap.parse_args(argv)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    if args.pindaian:
+        for path in write_scanned_samples(out / "nota_dinas.pdf", out / "generated"):
+            print(f"ditulis: {path} ({path.stat().st_size / 1e6:.1f} MB)")
+        return 0
     for tpl in sorted(Path(args.templates).glob("*.json")):
         pdf = render_template(load_template(tpl))
         (out / f"{tpl.stem}.pdf").write_bytes(pdf)

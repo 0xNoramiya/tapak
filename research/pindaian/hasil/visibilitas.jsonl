@@ -1,0 +1,1 @@
+{"copies": 6, "groups": 2394, "abs_dx_mm_max": 0.07602368337506242, "abs_dy_mm_max": 0.050560633445404526, "pairwise_mm_max": 0.10560900702213209, "planned_mm": {"word_mm": 0.05, "row_mm": 0.05}, "measurement_error_mm": {"rms": 0.0037780478495885693, "p99": 0.014225461799612732, "max": 0.026023683375062417}, "groups_error_over_0.01mm": 173}

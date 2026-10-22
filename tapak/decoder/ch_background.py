@@ -53,7 +53,7 @@ import cv2
 import numpy as np
 
 from tapak.decoder.softbits import SoftBits
-from tapak.marker.background import PageGrid
+from tapak.marker.background import PageGrid, paper_threshold
 from tapak.marker.plan import CHANNEL_BACKGROUND, Slot
 
 MIN_VALID_FRACTION = 0.3
@@ -136,8 +136,12 @@ def fit_mu(t: np.ndarray, sigma: float, iters: int = 50) -> float:
 
 
 def ink_mask(master_render: np.ndarray, dilate_px: int = 2) -> np.ndarray:
-    """True where the master has ink (anything clearly darker than paper), dilated."""
-    ink = (master_render < 235).astype(np.uint8)
+    """True where the master has ink (anything clearly darker than paper), dilated.
+
+    The threshold is ``paper_threshold``: gray 235 on a white text page, 20 levels under the
+    paper tone of a scanned master, the same rule the marker uses to put the pattern on paper.
+    """
+    ink = (master_render < paper_threshold(master_render)).astype(np.uint8)
     if dilate_px > 0:
         k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * dilate_px + 1, 2 * dilate_px + 1))
         ink = cv2.dilate(ink, k)

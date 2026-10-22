@@ -33,7 +33,14 @@ from pathlib import Path
 
 import numpy as np
 
-from tapak.marker.background import BackgroundSettings, PageGrid, background_hook, build_background_slots, page_grids
+from tapak.marker.background import (
+    BackgroundSettings,
+    PageGrid,
+    background_hook,
+    build_background_slots,
+    cell_levels,
+    page_grids,
+)
 from tapak.marker.canary import canary_token, canary_url, pdf_canary_hook
 from tapak.marker.layout import RowId, WordId, sha256_hex
 from tapak.marker.lexical import LexicalSelection, lexical_marks, lexical_slots
@@ -43,6 +50,7 @@ from tapak.marker.master import MasterDocument, load_master
 from tapak.marker.pdf_shift import ShiftSettings, build_shift_slots, shift_marks
 from tapak.marker.pdf_zerowidth import build_text_slots, text_marks
 from tapak.marker.plan import (
+    CHANNEL_BACKGROUND,
     CHANNEL_LEXICAL,
     CHANNEL_SEMANTIC,
     RETYPE_BAND,
@@ -52,6 +60,7 @@ from tapak.marker.plan import (
     plan_key,
     retype_pool,
 )
+from tapak.marker.raster import ScanBoxes, attach_scan_layout, prepare_scans
 from tapak.marker.semantic import (
     IssuanceBlocked,
     SemanticUnit,
@@ -177,11 +186,15 @@ class IssueManifest:
     lexicon_digest: str | None = None
     shift_excluded_rows: list[list[int]] | None = None
     text_excluded_words: list[list[int]] | None = None
+    # Scanned pages (raster.scan_record): page numbers, resolution, pages whose OCR layer was
+    # dropped, OCR engine and the digest of the word boxes; never a box, word or image. None
+    # (and left out of the JSON) for a document without scanned pages.
+    scan: dict[str, object] | None = None
 
     def to_json(self) -> str:
-        """Serialize to pretty JSON (lexical fields only when the channel is used)."""
+        """Serialize to pretty JSON (lexical and scan fields only when used)."""
         d = asdict(self)
-        for key in LEXICAL_MANIFEST_FIELDS:
+        for key in LEXICAL_MANIFEST_FIELDS + (SCAN_MANIFEST_FIELD,):
             if d.get(key) is None:
                 d.pop(key, None)
         return json.dumps(d, indent=2, ensure_ascii=False)
@@ -216,6 +229,7 @@ class IssueManifest:
 
 LEXICAL_MANIFEST_FIELDS = ("retype_positions", "lexical_digest", "lexicon_version", "lexicon_digest",
                            "shift_excluded_rows", "text_excluded_words")
+SCAN_MANIFEST_FIELD = "scan"
 
 
 def lexical_exclusions(manifest: IssueManifest) -> tuple[set[RowId], set[WordId]]:
@@ -284,7 +298,8 @@ def build_document_plan(
     excluded = excluded_rows or set()
     slots = []
     if "shift" in channels:
-        slots += build_shift_slots(master.layout, m, key, excluded | (shift_excluded_rows or set()))
+        slots += build_shift_slots(master.shift_layout, m, key, excluded | (shift_excluded_rows or set()),
+                                   late_pages=frozenset(master.scans))
     text_slots = build_text_slots(master, m, key, excluded, text_excluded_words)
     slots += [s for s in text_slots if s.channel in channels]
     if "background" in channels:
@@ -336,7 +351,12 @@ def marks_for_codeword(
     group_dx, row_dy = shift_marks(plan, codeword, settings.shift)
     marks = CopyMarks(group_dx=group_dx, row_dy=row_dy, text=text_marks(plan, master, codeword))
     if grids and "background" in settings.channels:
-        marks.page_hooks.append(background_hook(plan, codeword, grids))
+        # Text pages draw the pattern under their content; scanned pages add it to the page image.
+        text_grids = [g for g in grids if g.page not in master.scans]
+        if text_grids:
+            marks.page_hooks.append(background_hook(plan, codeword, text_grids))
+        slots = plan.channel(CHANNEL_BACKGROUND)
+        marks.scan_patterns = {g.page: (g, cell_levels(g, slots, codeword)) for g in grids if g.page in master.scans}
     variant_ids: list[str] = []
     if semantic is not None and plan.channel(CHANNEL_SEMANTIC):
         marks.row_words, variant_ids = semantic_marks(plan.channel(CHANNEL_SEMANTIC), codeword, master,
@@ -354,12 +374,15 @@ _W: dict[str, object] = {}
 
 
 def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
-                 semantic: SemanticSelection | None = None, lexical: LexicalSelection | None = None) -> None:
+                 semantic: SemanticSelection | None = None, lexical: LexicalSelection | None = None,
+                 scan_boxes: ScanBoxes | None = None) -> None:
     if mp.parent_process() is not None:  # a pool worker (this also runs in-process when serial)
         import signal
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C is handled by the parent, which stops the pool
     master = load_master(pdf_bytes)
+    if scan_boxes is not None:  # word boxes found once by the parent (Tesseract is not rerun per worker)
+        attach_scan_layout(master, scan_boxes)
     params = _params_for(settings, None)
     if lexical is not None:
         validate_lexical_selection(master, lexical)  # once per worker: nothing drawn from an edited file
@@ -440,6 +463,10 @@ def issue(
     selection opts the document into the word-choice channel: issuance is refused while any
     point is undecided or the file fails ``lexical.validate_selection``; rows holding a
     carrying point leave the shift channel and the point words leave the text channel.
+
+    Scanned pages (``raster.py``) are marked in their page image: their resolution is checked,
+    their word boxes are found once with Tesseract, and only the digest of the boxes is
+    recorded (``manifest.scan``).
     """
     t0 = time.perf_counter()
     settings = settings or IssueSettings()
@@ -465,8 +492,11 @@ def issue(
         master = load_master(pdf_bytes)
     except RuntimeError as exc:  # pymupdf.FileDataError for a damaged file
         raise ValueError("dokumen induk PDF tidak dapat dibuka atau rusak") from exc
-    if not any(True for _ in master.layout.words()):
-        raise ValueError("PDF ini tidak memiliki lapisan teks (hasil pindai). TAPAK memerlukan PDF teks.")
+    if not master.scans and not any(True for _ in master.layout.words()):
+        raise ValueError("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap "
+                         "halaman pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")
+    # Scanned pages: resolution check and word boxes (Tesseract, once, here in the parent).
+    scan_record, scan_boxes = prepare_scans(master)
     if semantic is not None:
         validate_selection(master, semantic.units, semantic.sets)  # fail before any rendering
     if lexical is not None:
@@ -475,6 +505,9 @@ def issue(
             raise IssuanceBlocked("penerbitan diblokir: baris titik pilihan kata juga dipakai kanal semantik")
     gate = visual_gate(master)
     if not gate.passed:
+        if gate.scan_identical is False:
+            raise RuntimeError("gerbang visual gagal: salinan tanpa tanda dari halaman pindaian tidak identik piksel "
+                               "demi piksel dengan gambar halaman dokumen induk, atau tampilan halamannya berbeda")
         raise RuntimeError(
             "gerbang visual gagal: render ulang tanpa tanda berbeda dari dokumen asli "
             f"(selisih maks {gate.max_diff}, rata-rata {gate.mean_diff:.3f})"
@@ -502,7 +535,7 @@ def issue(
         workers = 1  # interactive session or stdin script: child processes cannot re-import it
     results: dict[int, tuple[str, str, str | None, list[str]]] = {}
     if workers <= 1:
-        _worker_init(pdf_bytes, secret, settings, semantic, lexical)
+        _worker_init(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)
         for job in jobs:
             seq, digest, fhash, token, vids = _render_one(job)
             results[seq] = (digest, fhash, token, vids)
@@ -515,7 +548,7 @@ def issue(
         else:
             ctx = mp.get_context("spawn")
         with ProcessPoolExecutor(max_workers=workers, mp_context=ctx, initializer=_worker_init,
-                                 initargs=(pdf_bytes, secret, settings, semantic, lexical)) as pool:
+                                 initargs=(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)) as pool:
             for seq, digest, fhash, token, vids in pool.map(_render_one, jobs):
                 results[seq] = (digest, fhash, token, vids)
 
@@ -547,12 +580,13 @@ def issue(
         excluded_rows=[list(r) for r in settings.excluded_rows],
         plan_summary=plan.summary(),
         threshold_full=z_full,
-        gate=asdict(gate),
+        gate={k: v for k, v in asdict(gate).items() if not (k == "scan_identical" and v is None)},
         copies=copies,
         elapsed_s=time.perf_counter() - t0,
         background=asdict(settings.background) if "background" in settings.channels else None,
         canary_domain=settings.canary_domain if _canary_enabled(settings) else None,
         semantic_digest=semantic.digest if semantic is not None and plan.channel(CHANNEL_SEMANTIC) else None,
+        scan=scan_record,
     )
     if lexical is not None:
         manifest.retype_positions = RETYPE_BAND

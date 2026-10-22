@@ -97,8 +97,12 @@ LEXICAL_DOCUMENT_FIELDS = frozenset({
     "retype_positions", "lexical_digest", "lexicon_version", "lexicon_digest", "shift_excluded_rows",
     "text_excluded_words",
 })
+# Scanned pages of a document (marker/raster.py): page numbers, resolution, OCR engine and the
+# digest of the word boxes, never a box, word or image.
+SCAN_DOCUMENT_FIELD = "scan"
+SCAN_RECORD_KEYS = frozenset({"pages", "dpi", "ocr_layer_dropped", "ocr_engine", "boxes_sha256"})
 KIND_OPTIONAL: dict[str, frozenset[str]] = {
-    KIND_COPY: frozenset({"recipient_mac"}), KIND_DOCUMENT: LEXICAL_DOCUMENT_FIELDS,
+    KIND_COPY: frozenset({"recipient_mac"}), KIND_DOCUMENT: LEXICAL_DOCUMENT_FIELDS | {SCAN_DOCUMENT_FIELD},
 }
 
 _COLUMNS = "seq, kind, payload, prev_hash, created_at, entry_hash, signature, signer"
@@ -386,6 +390,41 @@ def _check_payload(kind: str, payload: object) -> None:
         lexical = lexical_document_problems(payload)
         if lexical:
             raise ValueError("isi entri 'document' tidak sah: " + "; ".join(lexical))
+    if kind == KIND_DOCUMENT and SCAN_DOCUMENT_FIELD in payload:
+        scan = scan_document_problems(payload[SCAN_DOCUMENT_FIELD])
+        if scan:
+            raise ValueError("isi entri 'document' tidak sah: " + "; ".join(scan))
+
+
+def scan_document_problems(record: object) -> list[str]:
+    """Problems (Indonesian) with the ``scan`` field of a ``document`` payload; empty when valid.
+
+    Exactly the keys of SCAN_RECORD_KEYS: page numbers, one resolution per page, the pages
+    whose OCR layer was dropped (a subset), a short engine description and a SHA-256 digest.
+    Nothing there can hold a word box, a word or an image.
+    """
+    if not isinstance(record, dict) or set(record) != SCAN_RECORD_KEYS:
+        return ["kolom halaman pindaian tidak sesuai skema"]
+
+    def numbers(value: object) -> bool:
+        return isinstance(value, list) and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0
+                                               for v in value)
+
+    problems = []
+    pages = record["pages"]
+    if not numbers(pages) or not pages or len(set(pages)) != len(pages):
+        problems.append("daftar halaman pindaian tidak sah")
+    elif not numbers(record["dpi"]) or len(record["dpi"]) != len(pages):
+        problems.append("resolusi halaman pindaian tidak sah")
+    if not numbers(record["ocr_layer_dropped"]) or not set(record["ocr_layer_dropped"]) <= set(
+            pages if isinstance(pages, list) else []):
+        problems.append("daftar halaman berlapis OCR tidak sah")
+    engine = record["ocr_engine"]
+    if not isinstance(engine, str) or not engine or len(engine) > 200 or not engine.isascii():
+        problems.append("keterangan mesin OCR tidak sah")
+    if not _is_sha256_hex(record["boxes_sha256"]):
+        problems.append("boxes_sha256 bukan SHA-256 heksadesimal")
+    return problems
 
 
 def lexical_document_problems(payload: dict[str, Any]) -> list[str]:
@@ -654,13 +693,15 @@ class Registry:
         signer: Signer | None = None,
         created_at: datetime | str | None = None,
         lexical: dict[str, Any] | None = None,
+        scan: dict[str, Any] | None = None,
     ) -> Entry:
         """Record one issued document (parameters and hashes only, never its contents).
 
         A non-finite ``threshold_full`` is stored as null because JSON has no infinity.
         ``lexical`` holds the six lexical fields of a document that uses the word-choice
         channel (:data:`LEXICAL_DOCUMENT_FIELDS`); None for any other document, whose entry is
-        then exactly as before.
+        then exactly as before. ``scan`` is the scanned-page record (:data:`SCAN_RECORD_KEYS`,
+        field ``scan``), likewise only for a document with scanned pages.
         """
         if threshold_full is not None:
             threshold_full = float(threshold_full)
@@ -675,6 +716,8 @@ class Registry:
         }
         if lexical is not None:
             payload.update(json.loads(json.dumps(lexical)))
+        if scan is not None:
+            payload[SCAN_DOCUMENT_FIELD] = json.loads(json.dumps(scan))
         return self.append(KIND_DOCUMENT, payload, signer=signer, created_at=created_at)
 
     def record_copy(
@@ -803,7 +846,7 @@ def registry_from_manifest(
             channels=manifest.channels, shift_mm=manifest.shift_mm, excluded_rows=manifest.excluded_rows,
             plan_summary=manifest.plan_summary, threshold_rule=threshold_rule,
             threshold_full=manifest.threshold_full, issuer=manifest.issuer, issued_at=manifest.issued_at,
-            signer=signer, lexical=manifest_lexical_fields(manifest))]
+            signer=signer, lexical=manifest_lexical_fields(manifest), scan=getattr(manifest, "scan", None))]
         for c in manifest.copies:
             entries.append(registry.record_copy(
                 doc_hash=manifest.doc_hash, recipient_id=c.recipient.recipient_id, copy_id=c.copy_id,

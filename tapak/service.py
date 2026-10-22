@@ -402,9 +402,9 @@ def check_registry(settings: Settings, manifest: IssueManifest, secret: bytes | 
         recorded_doc = doc_rows[0].payload
         local = {"params": manifest.params, "channels": manifest.channels, "shift_mm": manifest.shift_mm,
                  "excluded_rows": manifest.excluded_rows, "threshold_full": manifest.threshold_full}
-        from tapak.registry.chain import LEXICAL_DOCUMENT_FIELDS
+        from tapak.registry.chain import LEXICAL_DOCUMENT_FIELDS, SCAN_DOCUMENT_FIELD
 
-        for key in sorted(LEXICAL_DOCUMENT_FIELDS):  # compared only where either side has the channel
+        for key in sorted(LEXICAL_DOCUMENT_FIELDS) + [SCAN_DOCUMENT_FIELD]:  # only where either side has it
             if getattr(manifest, key, None) is not None or key in recorded_doc:
                 local[key] = getattr(manifest, key, None)
         for key, value in local.items():

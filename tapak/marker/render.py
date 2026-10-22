@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pymupdf
@@ -44,6 +45,10 @@ class CopyMarks:
             their marks. (x, text) and (x, text, None) draw plain text.
         page_hooks: callables run on each page after the text is drawn (background
             pattern, canary actions); they receive (document, page).
+        scan_patterns: per scanned page, its background grid and cell levels; the pattern
+            is added to the page image (``raster.py``). The shifts of a scanned page come from
+            ``group_dx`` and ``row_dy`` like on a text page. A scanned page is always rewritten
+            losslessly, with no change when it has no marks.
     """
 
     group_dx: dict[GroupId, float] = field(default_factory=dict)
@@ -54,6 +59,7 @@ class CopyMarks:
         default_factory=dict)
     page_hooks: list[Callable[[pymupdf.Document, pymupdf.Page], None]] = field(default_factory=list)
     doc_hooks: list[Callable[[pymupdf.Document], None]] = field(default_factory=list)
+    scan_patterns: dict[int, tuple[Any, np.ndarray]] = field(default_factory=dict)
 
 
 def _rgb(color: int) -> tuple[float, float, float]:
@@ -167,6 +173,10 @@ def render_copy(master: MasterDocument, marks: CopyMarks, cache: _AdvanceCache |
                     _draw_word(page, master, cache, row.words[wi], dx, dy, text_marks)
         for hook in marks.page_hooks:
             hook(doc, page)
+    if master.scans:
+        from tapak.marker.raster import write_scan_pages
+
+        write_scan_pages(doc, master, marks.group_dx, marks.row_dy, marks.scan_patterns)
     for hook in marks.doc_hooks:
         hook(doc)
     doc.subset_fonts()
@@ -189,12 +199,17 @@ def render_pages(pdf_bytes: bytes, dpi: int, pages: list[int] | None = None) -> 
 
 @dataclass
 class GateResult:
-    """Outcome of the visual gate (unmarked re-render vs. original)."""
+    """Outcome of the visual gate (unmarked re-render vs. original).
+
+    ``scan_identical`` (None without scanned pages) tells whether every scanned page of the
+    unmarked copy holds exactly the master page image, pixel for pixel.
+    """
 
     passed: bool
     max_diff: int
     mean_diff: float
     dpi: int
+    scan_identical: bool | None = None
 
 
 def visual_gate(master: MasterDocument, dpi: int = 100, max_allowed: int = 24,
@@ -203,12 +218,19 @@ def visual_gate(master: MasterDocument, dpi: int = 100, max_allowed: int = 24,
 
     This catches unusable fonts or content the renderer cannot reproduce. Thresholds are
     in gray levels at ``dpi``: a few anti-aliasing differences are tolerated, a changed
-    font or a missing element is not.
+    font or a missing element is not. Scanned pages are held to a stricter, exact rule (the
+    raster analogue): the unmarked copy must decode to the master page image itself
+    (``raster.scan_gate``). Their renders are compared there, at more than half the scan
+    resolution, not here: at ``dpi`` a renderer may decode a JPEG master at reduced size while
+    the lossless copy is decoded in full.
     """
     original = render_pages(master.pdf_bytes, dpi)
-    rerendered = render_pages(render_copy(master, CopyMarks()), dpi)
+    copy = render_copy(master, CopyMarks())
+    rerendered = render_pages(copy, dpi)
     max_d, total, count = 0, 0.0, 0
-    for a, b in zip(original, rerendered):
+    for i, (a, b) in enumerate(zip(original, rerendered)):
+        if i in master.scans:
+            continue
         if a.shape != b.shape:
             return GateResult(False, 255, 255.0, dpi)
         d = np.abs(a.astype(np.int16) - b.astype(np.int16))
@@ -217,4 +239,10 @@ def visual_gate(master: MasterDocument, dpi: int = 100, max_allowed: int = 24,
         count += d.size
     mean_d = total / max(count, 1)
     passed = len(original) == len(rerendered) and max_d <= max_allowed and mean_d <= mean_allowed
-    return GateResult(passed, max_d, mean_d, dpi)
+    scan_identical = None
+    if master.scans:
+        from tapak.marker.raster import scan_gate
+
+        scan_identical = scan_gate(master, copy)
+        passed = passed and scan_identical
+    return GateResult(passed, max_d, mean_d, dpi, scan_identical)

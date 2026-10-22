@@ -94,9 +94,10 @@ def signed_measurements(
 ) -> tuple[list[int], list[float], list[str]]:
     """(positions, s values, unit kind) for every readable shift slot.
 
-    s is the relative offset multiplied by the whitening sign, so s > 0 means bit 1.
+    s is the relative offset multiplied by the whitening sign, so s > 0 means bit 1. Rows are
+    those of ``master.shift_layout``: the text layer, plus the word boxes of scanned pages.
     """
-    layout = master.layout
+    layout = master.shift_layout
     excluded = excluded or set()
     eligible = {p.index: eligible_rows(layout, p.index, excluded) for p in layout.pages}
     row_rank = {(p, r.index): k for p, rows in eligible.items() for k, r in enumerate(rows)}
@@ -368,7 +369,7 @@ def template_boxes(master: MasterDocument, page: int, dpi: float, pad_px: int = 
     s = dpi / 72.0
     m = pad_px + margin_px
     rects = []
-    for row in master.layout.pages[page].rows:
+    for row in master.shift_layout.pages[page].rows:
         if not row.groups:
             continue
         x0 = min(g.bbox[0] for g in row.groups)
@@ -405,14 +406,15 @@ def measure_image(
     window is the same box in the evidence, enlarged by ``search_px``; see
     :func:`match_offset`. Matches with a weak correlation peak are discarded. All words of a
     group get the group's displacement (in points). Only the master render inside
-    :func:`template_boxes` (same ``pad_px``) is read.
+    :func:`template_boxes` (same ``pad_px``) is read. On a scanned page the groups come from
+    its word boxes (``master.shift_layout``) and the template is the master page image itself.
     """
     s = dpi / 72.0
     disp: Displacements = {}
     h, w = rectified.shape
     tmpl_all = cv2.GaussianBlur(master_render.astype(np.float32), (0, 0), MATCH_BLUR_SIGMA)
     img_all = cv2.GaussianBlur(rectified.astype(np.float32), (0, 0), MATCH_BLUR_SIGMA)
-    for row in master.layout.pages[page].rows:
+    for row in master.shift_layout.pages[page].rows:
         for g in row.groups:
             x0, y0, x1, y1 = g.bbox
             X0, Y0 = int(np.floor(x0 * s)) - pad_px, int(np.floor(y0 * s)) - pad_px
