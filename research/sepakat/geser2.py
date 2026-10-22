@@ -238,11 +238,17 @@ def bench_job(job: tuple) -> list[dict]:
                                      research_code_secret(2026))
     ctx = _BENCH["ctx"]
     obs = []
+    per_file = []
     for f in files:
         o, _ = collect_file(f, (Path(folder) / f).read_bytes(), ctx)
         obs += o
+        # Diagnostics only (added before the bench part ran): the background tests and reads.
+        bg = [sb.meta for sb in o if sb.channel == "background"]
+        per_file.append({"berkas": f, "geser": sum(len(sb) for sb in o if sb.channel == "shift"),
+                         "latar": {k: bg[0].get(k) for k in ("pattern_found", "decoy_z", "pilot_z", "clipped_share")}
+                         if bg else None})
     x = ctx.codewords[seq - 1].astype(np.int64)
-    row = {"bagian": "bench", "medium": medium, "berkas": files, "salinan": seq}
+    row = {"bagian": "bench", "medium": medium, "berkas": files, "salinan": seq, "per_berkas": per_file}
     row.update(ukur.record(obs, ctx, [seq], x, np.ones(x.size, dtype=bool)))
     row["periksa"] = balik.check(obs, ctx)
     row["unit"] = _measured(obs)
