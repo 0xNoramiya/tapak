@@ -154,3 +154,29 @@ def test_forged_pdf_carries_the_plan(ctx, coalition):
             assert abs(np.mean([disp[row.words[i].id][0] for i in row.groups[u.ref[2]].word_indices])) < 1e-3
     again = forge_copy(ctx.master, coalition, plan)
     assert copy_backgrounds(again).keys() == images.keys()
+
+
+def test_reversal_keeps_every_mark_and_escapes_the_erasure_check(ctx, coalition):
+    """``neutralize="balik"``: agreeing cells are negated and agreeing data units mirrored about
+    their master position, so every unit stays fully marked. The erasure check (which reads how
+    clearly units are marked) does not fire, the coalition is not named, and nobody else is."""
+    from tapak.collusion import NEUTRALIZE
+    from tapak.decoder.trace import collect_file, run_trace
+
+    view = coalition_view(coalition)
+    with pytest.raises(ValueError):
+        plan_forgery(view, "acak", neutralize="lain")
+    plan = plan_forgery(view, "salin", rng=np.random.default_rng(0), neutralize="balik")
+    for page, stack in view.levels.items():
+        agree = np.all(stack == stack[:1], axis=0)
+        assert np.array_equal(plan.levels[page][agree], -stack[0][agree])
+        assert np.array_equal(plan.levels[page][~agree], stack[0][~agree])
+    for u in view.units:
+        if u.agree and u.typographic is not None:
+            assert plan.moves[u.ref] == pytest.approx(-2.0 * u.typographic)
+    assert set(NEUTRALIZE) == {"hapus", "balik"}
+    forged, _, _ = attack(ctx.master, coalition, "acak", 1.0, rng=np.random.default_rng(1), neutralize="balik")
+    obs, notes = collect_file("bukti.pdf", forged, ctx)
+    result = run_trace(obs, ctx, notes)
+    assert result.erasure.z is not None and not result.erasure.flagged
+    assert not result.named_seqs

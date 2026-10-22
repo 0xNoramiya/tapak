@@ -39,14 +39,24 @@ The rate holds on average over the draw of the code. For one document it does no
 the strength pattern is the same in every copy of that document (how well each slot can be
 read, and at near-certain positions the same whitened sign in every copy), so honest Z of one
 document is centred on an offset rather than on 0. Measured offsets per issuance and channel
-ranged from -1.3 to +1.7 (``research/sepakat``), and 1 of 536 honest evidence raised the
-warning.
+ranged from -1.4 to +1.7 over 14 issuances, most spread out on forwarded PDFs (between-issuance
+standard deviation about 0.75), so for an unlucky document the rate is a few percent; 2 of
+856 honest evidence raised the warning (``research/sepakat``, ``balik.py``).
 
 What it does not do. It never changes a threshold, a score or the verdict and never names
 anyone. It only sees erasures that follow agreement; a coalition that erases at random (or
 everything) is not flagged, and then the proven bound applies to the positions still read. It
 does not see marks that were removed so thoroughly that the unit was not measured at all
 (for example a word group cut out of the page).
+
+It does not stop a coalition that knows it (``research/sepakat/balik.py``). Reversing the
+agreeing marks instead of erasing them (background cells negated, data units mirrored about
+their master position) leaves every unit as clearly marked as in an honest copy, so Z stays
+near 0 or turns positive, and the coalition escapes all the same; the proven bound does not
+cover a reversal either. Flattening the whole background and erasing only the agreeing shift
+units also passes: the strengths of the unmarked background (thousands of positions that
+carry only noise) drown the shift units. For the same reason the check is blind on prints,
+where the default background never reaches the paper.
 """
 
 from __future__ import annotations
@@ -101,8 +111,8 @@ class ErasureCheck:
 def erasure_note(check: ErasureCheck) -> str:
     """The warning shown next to the verdict for a flagged check: ``ERASURE_NOTE`` and the numbers."""
     return (f"{ERASURE_NOTE}. Ini hanya peringatan: putusan, ambang, dan skor tidak berubah, dan pemeriksaan ini "
-            f"tidak menunjuk siapa pun ({check.text()}; peluang alarm palsu pada bukti jujur sekitar "
-            f"{format_rate(check.alarm_rate)})")
+            f"tidak menunjuk siapa pun ({check.text()}; peluang alarm palsu pada bukti jujur rata-rata sekitar "
+            f"{format_rate(check.alarm_rate)}, untuk dokumen tertentu dapat sampai beberapa persen)")
 
 
 def format_rate(rate: float) -> str:

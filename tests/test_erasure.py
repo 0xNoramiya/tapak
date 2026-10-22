@@ -99,7 +99,7 @@ def test_note_and_text_say_it_changes_nothing():
     assert check.text() == f"z = -12,35 (ambang {thr}; 2.987 posisi terukur)"
     note = erasure_note(check)
     assert note.startswith(ERASURE_NOTE) and "putusan, ambang, dan skor tidak berubah" in note
-    assert "10^-3" in note and is_caveat(note) and not is_caveat("catatan biasa")
+    assert "10^-3" in note and "untuk dokumen tertentu" in note and is_caveat(note) and not is_caveat("catatan biasa")
     assert format_rate(1e-3) == "10^-3" and format_rate(0.0025) == "0,0025"
     assert chr(0x2014) not in note and ERASURE_Z >= 3.09
 
