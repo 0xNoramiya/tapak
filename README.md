@@ -50,12 +50,12 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/benchmark-dark.svg">
-  <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 0 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 31 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
+  <img alt="Uji sintetis: foto layar 40 dari 40 benar; foto kertas cetak dari printer simulasi 9 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 32 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Benchmark ini masih memakai skema geser v1: satu halaman tidak cukup, dan dua halaman menyebut salinan yang benar pada 8 dari 8 pasangan, tetapi skornya hanya 1,02 sampai 1,19 kali ambang (lihat [batasan](#batasan)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Ini simulasi dengan satu rahasia kode; dengan rahasia lain angkanya dapat lebih rendah (lihat [batasan](#batasan)).
 
-Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,2 &times; 10<sup>-21</sup>. Adegan foto yang sama lewat ISP ponsel simulasi benar 32 dari 32, dan foto salinan di monitor simulasi benar 31 dari 32.
+Foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan)) dan kini disebut lewat kanal geser saja, dengan skor tipis di atas ambang. Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 4,0 &times; 10<sup>-26</sup>. Adegan foto yang sama lewat ISP ponsel simulasi benar 32 dari 32, dan foto salinan di monitor simulasi juga 32 dari 32.
 
 Uji lainnya:
 
@@ -72,7 +72,7 @@ Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](
   <img alt="Halaman Lacak untuk foto sintetis salinan #13: skor, ambang, batas peluang tuduhan salah, dan bukti per kanal" src="docs/img/ui-lacak-light.png" width="100%">
 </picture>
 
-Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Putusannya hanya datang dari pola latar, jadi tidak berlaku untuk foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar layar atau cetak, meminta peninjauan setiap varian, lalu menghasilkan ZIP salinan.
+Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Putusannya hanya datang dari pola latar, jadi tidak berlaku untuk foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar (layar atau cetak) dan skema geser (v2 atau v1), meminta peninjauan setiap varian, lalu menghasilkan ZIP salinan.
 
 ## Mulai cepat
 
@@ -101,9 +101,9 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 
 ## Batasan
 
-- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi, skema geser v2 (bawaan penerbitan baru) menyebut nama dari satu halaman teks penuh pada semua foto 4000 px uji tertahan dan 57 % foto 1600 px, tetapi lebih jarang dengan rahasia kode lain (17 dari 24 foto 4000 px pada benih pengembangan); dokumen lama (skema v1) baru cukup dari dua halaman, kadang-kadang. Tidak ada ketahanan kolusi. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
+- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi, skema geser v2 (bawaan penerbitan baru) menyebut nama dari satu halaman teks penuh pada semua foto 4000 px uji tertahan dan 57 % foto 1600 px, tetapi lebih jarang dengan rahasia kode lain (17 dari 24 foto 4000 px pada benih pengembangan); dokumen lama (skema v1) baru cukup dari dua halaman, kadang-kadang. Tidak ada ketahanan kolusi. Skema v2 juga menggeser tepi kiri dan kanan teks sampai 0,05 mm antarbaris, kira-kira di ambang penglihatan dan belum diuji dengan pengamat. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
 - Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti". Dalam simulasi, satu pembocor baru dapat disebut dari sekitar 1.300 kata isi, tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan.
-- Koalisi yang memahami TAPAK dan memegang dua salinan atau lebih dapat menghapus atau membalik tanda di tempat salinannya sama, lalu lolos pada PDF, tangkapan layar, foto, dan cetakan uji. Tidak ada orang lain yang tertuduh karenanya. Penghapusan biasa pada PDF, tangkapan layar, dan foto diberi peringatan di bawah putusan; tanda yang dibalik dan cetakan tidak.
+- Koalisi yang memahami TAPAK dan memegang dua salinan atau lebih dapat menghapus atau membalik tanda di tempat salinannya sama, lalu lolos pada PDF, tangkapan layar, foto, dan cetakan uji, dengan skema geser v1 maupun v2. Tidak ada orang lain yang tertuduh karenanya. Penghapusan biasa pada PDF, tangkapan layar, dan foto diberi peringatan di bawah putusan; tanda yang dibalik dan cetakan tidak.
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
 - Semua foto dan cetakan uji sintetis, dan kamera ponsel, monitor, serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
 

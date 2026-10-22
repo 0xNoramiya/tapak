@@ -46,7 +46,11 @@ read, and at near-certain positions the same whitened sign in every copy), so ho
 document is centred on an offset rather than on 0. Measured offsets per issuance and channel
 ranged from -1.4 to +1.7 over 14 issuances, most spread out on forwarded PDFs (between-issuance
 standard deviation about 0.75), so for an unlucky document the rate is a few percent; 2 of
-856 honest evidence raised the warning (``research/sepakat``, ``balik.py``).
+856 honest evidence raised the warning (``research/sepakat``, ``balik.py``). Under geser-v2,
+with the shift strengths of ``ch_shift.joint_strengths`` and the same threshold, fresh seeds
+gave no warning on 472 honest evidence (320 copies of 8 issuances through PDF, screenshot,
+photo and print, 24 unmarked masters, 128 README benchmark traces): standard deviation of Z
+0.96, per-issuance means -0.93 to +0.49 (``research/sepakat/geser2.py``).
 
 What it does not do. It never changes a threshold, a score or the verdict and never names
 anyone. It only sees erasures that follow agreement; a coalition that erases at random (or
@@ -61,7 +65,8 @@ near 0 or turns positive, and the coalition escapes all the same; the proven bou
 cover a reversal either. Flattening the whole background and erasing only the agreeing shift
 units also passes: the strengths of the unmarked background (thousands of positions that
 carry only noise) drown the shift units. For the same reason the check is blind on prints,
-where the default background never reaches the paper.
+where the default background never reaches the paper: also under geser-v2, whose prints now
+carry enough shift positions to name a copy, it flagged 1 of 36 erased prints.
 """
 
 from __future__ import annotations
