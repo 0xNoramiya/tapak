@@ -321,3 +321,26 @@ def test_v2_unmarked_master_accuses_nobody(v2_fixed, sample_pdf):
     _, _, ctx = v2_fixed
     obs, _ = collect_file("induk.pdf", sample_pdf, ctx)
     assert not run_trace(obs, ctx).accused
+
+
+def test_v2_survives_affine_distortion_and_curvature(v2_fixed):
+    """A smooth displacement field on top of the marks (affine plus a bow along the rows, as a
+    photo leaves after rectification, evaluated where each word is measured) is taken out by
+    the page field and the row nuisance, and the LLRs stay calibrated: about as many confident
+    bits are wrong as their LLRs promise."""
+    _, _, ctx = v2_fixed
+    disp = measure_vector(_copy(v2_fixed, 3), ctx.master)
+    rng = np.random.default_rng(0)
+    distorted = {}
+    for wid, (dx, dy) in disp.items():
+        w = ctx.master.layout.word(wid)
+        x, y = 0.5 * (w.x0 + w.x1), w.glyphs[0].y
+        distorted[wid] = (dx + 0.9 + 0.004 * x + 0.002 * y + 2e-6 * (x - 300) ** 2 + rng.normal(0, 0.01),
+                          dy - 1.3 + 0.003 * x - 0.001 * y + rng.normal(0, 0.01))
+    sb = decode_displacements(ctx.master, ctx.plan, distorted, ctx.shift)
+    right = (sb.llr > 0) == (ctx.codewords[2][sb.positions] == 1)
+    sure = np.abs(sb.llr) > 2
+    assert len(sb) > 380 and sure.sum() > 300 and np.mean(right) > 0.97
+    # Expected errors among confident bits: sum of 1 / (1 + e^|LLR|); allow a generous margin.
+    expected = float(np.sum(1.0 / (1.0 + np.exp(np.abs(sb.llr[sure])))))
+    assert int(np.sum(~right[sure])) <= 3 * expected + 3

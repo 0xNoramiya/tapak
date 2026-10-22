@@ -409,10 +409,12 @@ def boxes_digest(master: "MasterDocument", boxes: ScanBoxes) -> str:
     return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
 
-def scan_page_layout(text_page: PageLayout, scan: ScanPage, rows_px: list[list[WordBox]]) -> PageLayout:
-    """The shift layout of a scanned page: rows, words and groups from the word boxes, in
-    page points. Each word gets one placeholder glyph per recognized character (the count only
-    decides which rows are long enough), its box split evenly; the word text is not kept."""
+def scan_page_layout(text_page: PageLayout, scan: ScanPage, rows_px: list[list[WordBox]],
+                     group_width: float | None = None) -> PageLayout:
+    """The shift layout of a scanned page: rows, words and groups (at least ``group_width``
+    points wide, see ``layout.make_groups``) from the word boxes, in page points. Each word gets
+    one placeholder glyph per recognized character (the count only decides which rows are long
+    enough), its box split evenly; the word text is not kept."""
     kx, ky = scan.scale
     rx0, ry0 = scan.rect[0], scan.rect[1]
     rows = []
@@ -426,15 +428,15 @@ def scan_page_layout(text_page: PageLayout, scan: ScanPage, rows_px: list[list[W
                       for k in range(n)]
             words.append(Word((scan.page, r_idx, w_idx), glyphs))
         row = Row(scan.page, r_idx, float(np.median([w.glyphs[0].y for w in words])), words)
-        row.groups = make_groups(row)
+        row.groups = make_groups(row, group_width)
         rows.append(row)
     return PageLayout(text_page.index, text_page.width, text_page.height, rows)
 
 
 def attach_scan_layout(master: "MasterDocument", boxes: ScanBoxes) -> None:
     """Give the scanned pages in ``boxes`` their rows in ``master.shift_layout``."""
-    pages = [scan_page_layout(p, master.scans[p.index], boxes[p.index]) if p.index in boxes else p
-             for p in master.layout.pages]
+    pages = [scan_page_layout(p, master.scans[p.index], boxes[p.index], master.group_width)
+             if p.index in boxes else p for p in master.layout.pages]
     master.scan_layout = DocumentLayout(master.layout.doc_hash, pages, master.layout.fonts)
 
 

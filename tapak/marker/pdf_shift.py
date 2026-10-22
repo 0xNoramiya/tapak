@@ -20,7 +20,9 @@ decoder reads all groups of a row together after projecting out the row's affine
 (offset and slope), see ``decoder/ch_shift.row_sign_llrs``. Two neighbouring groups may then move
 in opposite directions, so to keep every word gap change within the geser-v1 bound (one moved
 group next to a resting one: delta = 0.05 mm) the per-group delta of geser-v2 is at most half the
-per-copy bound, V2_MAX_WORD_SHIFT_MM = 0.025 mm. Row shifts are the same in both schemes.
+per-copy bound, V2_MAX_WORD_SHIFT_MM = 0.025 mm. Its groups are also smaller: words are merged only
+up to SCHEME_GROUP_WIDTH (10 pt instead of 20 pt), so more groups fit in a row. Row shifts are the
+same in both schemes. geser-v2 is the default of a new issuance (measured in research/kapasitas).
 """
 
 from __future__ import annotations
@@ -52,8 +54,12 @@ SHIFT_SCHEMES = (SCHEME_V1, SCHEME_V2)
 # twice the per-group delta; half the per-copy bound keeps every gap change within geser-v1's.
 V2_MAX_WORD_SHIFT_MM = MAX_SHIFT_MM / 2
 MIN_JOINT_GROUPS = 3   # geser-v2 marks rows with at least this many groups (fewer: no information)
-# Scheme of a new issuance unless chosen otherwise (``tapak issue --geser``, the web form).
-DEFAULT_SCHEME = SCHEME_V1
+# Minimum width of a shift group (pt) per scheme: geser-v2 also splits groups down to single
+# words of at least 10 pt (about 3.5 mm), which gives more groups per row.
+SCHEME_GROUP_WIDTH = {SCHEME_V1: 20.0, SCHEME_V2: 10.0}
+# Scheme of a new issuance unless chosen otherwise (``tapak issue --geser``, the web form): geser-v2,
+# chosen by the decision rule fixed in research/kapasitas/ukur.py before the held-out run.
+DEFAULT_SCHEME = SCHEME_V2
 SCHEME_CHOICES = {"v1": SCHEME_V1, "v2": SCHEME_V2}
 
 

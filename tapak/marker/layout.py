@@ -20,7 +20,7 @@ from tapak.fonts import strip_subset_tag
 
 ROW_TOLERANCE = 0.6          # pt: glyphs whose baselines differ by less share a row
 WORD_GAP_FACTOR = 0.15       # gap > factor * font size starts a new word
-MIN_GROUP_WIDTH = 20.0       # pt (about 7 mm): shift groups are at least this wide
+MIN_GROUP_WIDTH = 20.0       # pt (about 7 mm): shift groups are at least this wide (scheme geser-v1)
 
 _EXTRACT_FLAGS = (
     pymupdf.TEXT_PRESERVE_WHITESPACE
@@ -236,21 +236,23 @@ def _rows_from_glyphs(glyphs: list[Glyph], page_index: int) -> list[Row]:
     return rows
 
 
-def make_groups(row: Row) -> list[Group]:
-    """Merge consecutive words until each group is at least MIN_GROUP_WIDTH wide."""
+def make_groups(row: Row, min_width: float | None = None) -> list[Group]:
+    """Merge consecutive words until each group is at least ``min_width`` wide (points;
+    MIN_GROUP_WIDTH when None)."""
+    width = MIN_GROUP_WIDTH if min_width is None else min_width
     groups: list[list[int]] = []
     for i, w in enumerate(row.words):
         if groups:
             first = row.words[groups[-1][0]]
             last = row.words[groups[-1][-1]]
-            if last.x1 - first.x0 < MIN_GROUP_WIDTH:
+            if last.x1 - first.x0 < width:
                 groups[-1].append(i)
                 continue
         groups.append([i])
     # A narrow trailing group is merged into its left neighbour.
     if len(groups) > 1:
         tail = groups[-1]
-        if row.words[tail[-1]].x1 - row.words[tail[0]].x0 < MIN_GROUP_WIDTH:
+        if row.words[tail[-1]].x1 - row.words[tail[0]].x0 < width:
             groups[-2].extend(groups.pop())
     out = []
     for g_idx, idxs in enumerate(groups):
@@ -259,6 +261,14 @@ def make_groups(row: Row) -> list[Group]:
                 max(b[2] for b in boxes), max(b[3] for b in boxes))
         out.append(Group(id=(row.page, row.index, g_idx), word_indices=idxs, bbox=bbox))
     return out
+
+
+def regroup(layout: DocumentLayout, min_width: float) -> None:
+    """Rebuild the shift groups of every row of ``layout`` with groups at least ``min_width``
+    wide (in place; group ids follow the new grouping)."""
+    for page in layout.pages:
+        for row in page.rows:
+            row.groups = make_groups(row, min_width)
 
 
 def extract_layout(pdf_bytes: bytes) -> DocumentLayout:

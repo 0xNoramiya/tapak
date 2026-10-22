@@ -36,7 +36,11 @@ CLIPPED_MORE = [(2, 21, 1.5), (3, 12, 1.5), (4, 15, 1.5)]
 
 def _issue_fixed(out: Path, sample_pdf: bytes, secret: bytes) -> tuple[IssueManifest, TraceContext]:
     """Four copies with fixed copy ids (normally random), coded for 20 recipients like the
-    shared fixture, and their trace context."""
+    shared fixture, and their trace context. Shift scheme geser-v1: the verdicts below were
+    worked out with its shift channel, which alone does not name a copy on these photos (the
+    stronger geser-v2 shift channel can)."""
+    from tapak.marker.pdf_shift import ShiftSettings
+
     import tapak.marker.issue as issue_module
     from tests_support import SAMPLE
 
@@ -45,7 +49,8 @@ def _issue_fixed(out: Path, sample_pdf: bytes, secret: bytes) -> tuple[IssueMani
     mp = pytest.MonkeyPatch()
     mp.setattr(issue_module.secrets, "token_hex", lambda n=8: next(ids))
     try:
-        manifest = issue(SAMPLE, recipients, out, secret, IssueSettings(n_max=20, workers=1), issuer="pytest")
+        manifest = issue(SAMPLE, recipients, out, secret, IssueSettings(n_max=20, workers=1, shift=ShiftSettings()),
+                         issuer="pytest")
     finally:
         mp.undo()
     return manifest, load_context(sample_pdf, manifest, secret)

@@ -743,7 +743,7 @@ def _expire_staging() -> None:
 
 def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
     """Embedding plan and the exact full-observation threshold this document will get."""
-    from tapak.marker.issue import build_document_plan
+    from tapak.marker.issue import apply_shift_scheme, build_document_plan
     from tapak.service import ensure_keys
     from tapak.tardos.accuse import threshold
     from tapak.tardos.code import derive_bias
@@ -751,6 +751,7 @@ def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
 
     params = TardosParams(c=s.c, eps=s.eps, n_max=n, constant=s.constant)  # type: ignore[arg-type]
     secret = ensure_keys(settings(), create_signing_key=False).code_secret
+    apply_shift_scheme(master, s.shift.scheme)
     plan = build_document_plan(master, params, secret, s.channels, set(), s.background, shift_scheme=s.shift.scheme)
     p = derive_bias(secret, master.doc_hash, params)
     return {"params": params, "summary": plan.summary(), "threshold": threshold(p, params.eps1),
@@ -792,10 +793,12 @@ def _reviewing(sid: str) -> Iterator[Staging]:
 
 def _staging_master(st: Staging) -> MasterDocument:
     """The parsed master of an issuance session (parsed once, kept with the session)."""
+    from tapak.marker.issue import apply_shift_scheme
     from tapak.marker.master import load_master
 
     if st.master is None:
         st.master = load_master((st.folder / "induk.pdf").read_bytes())
+        apply_shift_scheme(st.master, st.settings.shift.scheme)
     return st.master
 
 

@@ -561,10 +561,13 @@ def _check_production_decoder(name: str) -> None:
     """The held-out run decodes with the production decoder: a variant with decoder settings must
     be the one production uses (otherwise the held-out numbers would describe another decoder)."""
     import tapak.decoder.ch_shift as ch
+    from tapak.marker.pdf_shift import SCHEME_GROUP_WIDTH
 
     v = variant(name)
     if "degree" in v and (v["degree"], v.get("field")) != (ch.JOINT_DEGREE, ch.FIELD_DEGREE):
         raise RuntimeError(f"dekoder produksi bukan dekoder varian {name}")
+    if "scheme" in v and SCHEME_GROUP_WIDTH[v["scheme"]] != v["min_group_pt"]:
+        raise RuntimeError(f"lebar kelompok produksi bukan lebar varian {name}")
 
 
 def _summary(job: dict, key: str, obs, ctx, x, expected: list[int], meta: dict, notes: list[str]) -> dict:

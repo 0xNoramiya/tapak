@@ -53,7 +53,7 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
   <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 2 dari 16 dengan satu halaman dan 3 dari 8 dengan dua halaman; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa dan satu halaman jarang cukup (lihat [batasan](#batasan)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa, dan dengan skema geser v1 yang dipakai benchmark ini satu halaman jarang cukup (lihat [batasan](#batasan)).
 
 Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 1,4 &times; 10<sup>-19</sup>.
 
@@ -101,7 +101,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 
 ## Batasan
 
-- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi satu halaman jarang cukup untuk menyebut nama, dan dua halaman cukup pada 5 sampai 8 dari 20 salinan, tanpa ketahanan kolusi. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
+- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi, skema geser v2 (bawaan penerbitan baru) menyebut nama dari satu halaman pada semua foto 4000 px dan sekitar separuh foto 1600 px; dokumen lama (skema v1) baru cukup dari dua halaman, kadang-kadang. Tidak ada ketahanan kolusi. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
 - Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti". Dalam simulasi, satu pembocor baru dapat disebut dari sekitar 1.300 kata isi, tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan.
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
 - Semua foto dan cetakan uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).

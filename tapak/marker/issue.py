@@ -47,7 +47,14 @@ from tapak.marker.lexical import LexicalSelection, lexical_marks, lexical_slots
 from tapak.marker.lexical import require_reviewed as require_lexical_reviewed
 from tapak.marker.lexical import validate_selection as validate_lexical_selection
 from tapak.marker.master import MasterDocument, load_master
-from tapak.marker.pdf_shift import DEFAULT_SCHEME, SCHEME_V1, ShiftSettings, build_shift_slots, shift_marks
+from tapak.marker.pdf_shift import (
+    DEFAULT_SCHEME,
+    SCHEME_GROUP_WIDTH,
+    SCHEME_V1,
+    ShiftSettings,
+    build_shift_slots,
+    shift_marks,
+)
 from tapak.marker.pdf_zerowidth import build_text_slots, text_marks
 from tapak.marker.plan import (
     CHANNEL_BACKGROUND,
@@ -272,6 +279,12 @@ def read_recipients(path: Path) -> list[Recipient]:
     return out
 
 
+def apply_shift_scheme(master: MasterDocument, scheme: str) -> None:
+    """Give the master the shift groups of ``scheme`` (``SCHEME_GROUP_WIDTH``): issuer and
+    decoder call this right after loading the master, before word boxes or plans."""
+    master.use_group_width(SCHEME_GROUP_WIDTH[scheme])
+
+
 def document_grids(master: MasterDocument, secret: bytes, settings: BackgroundSettings) -> list[PageGrid]:
     """Background cell grids of every page (keyed by the document's plan key)."""
     key = plan_key(secret, master.doc_hash)
@@ -389,6 +402,7 @@ def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C is handled by the parent, which stops the pool
     master = load_master(pdf_bytes)
+    apply_shift_scheme(master, settings.shift.scheme)
     if scan_boxes is not None:  # word boxes found once by the parent (Tesseract is not rerun per worker)
         attach_scan_layout(master, scan_boxes)
     params = _params_for(settings, None)
@@ -501,6 +515,7 @@ def issue(
         master = load_master(pdf_bytes)
     except RuntimeError as exc:  # pymupdf.FileDataError for a damaged file
         raise ValueError("dokumen induk PDF tidak dapat dibuka atau rusak") from exc
+    apply_shift_scheme(master, settings.shift.scheme)
     if not master.scans and not any(True for _ in master.layout.words()):
         raise ValueError("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap "
                          "halaman pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")

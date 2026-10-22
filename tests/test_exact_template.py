@@ -135,8 +135,10 @@ def test_byte_budget_cache_evicts_least_recently_used():
     assert (c.hits, c.misses) == (3, 2)
 
 
-def test_image_decoder_matches_against_the_exact_template(issued, ctx, monkeypatch):
-    """A copy rendered exactly (no snapping in the evidence either): every shift bit read is right."""
+def test_image_decoder_matches_against_the_exact_template(issued_v1, ctx_v1, monkeypatch):
+    """A geser-v1 copy rendered exactly (no snapping in the evidence either): every shift bit read
+    is right. (Under geser-v2 a few sign patterns of a row stay nearly ambiguous, with small LLRs.)"""
+    issued, ctx = issued_v1, ctx_v1
     import tapak.decoder.image as image
     from tapak.decoder.image import collect_from_gray
 

@@ -19,7 +19,13 @@ from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
-from tapak.marker.issue import IssueManifest, SemanticSelection, build_document_plan, lexical_exclusions
+from tapak.marker.issue import (
+    IssueManifest,
+    SemanticSelection,
+    apply_shift_scheme,
+    build_document_plan,
+    lexical_exclusions,
+)
 from tapak.marker.layout import RowId, sha256_hex
 from tapak.marker.lexical import LONE_LEAKER_BITS, LexicalSelection, format_count, words_for_bits
 from tapak.marker.master import MasterDocument, load_master
@@ -172,6 +178,7 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
         raise TraceError("dokumen induk tidak dapat dibuka (bukan PDF yang sah atau rusak)") from exc
     if master.doc_hash != manifest.doc_hash:
         raise TraceError("dokumen induk tidak cocok dengan catatan penerbitan (hash berbeda)")
+    apply_shift_scheme(master, manifest.shift_settings.scheme)
     params = manifest.tardos_params
     excluded = {tuple(r) for r in manifest.excluded_rows}
     background = manifest.background_settings

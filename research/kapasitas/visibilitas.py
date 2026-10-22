@@ -142,7 +142,7 @@ def run() -> None:
                      "celah 1,29 mm": [round(1.29 * ARCSEC_PER_MM * f, 1) for f in (0.0275, 0.0376)],
                      "celah 1,85 mm": [round(1.85 * ARCSEC_PER_MM * f, 1) for f in (0.0275, 0.0376)]}})
     files = []
-    files += _crops("nota_dinas", "v2", 1, 20, "v2_kata")
+    files += _crops("nota_dinas", "v2c", 1, 20, "v2_kata")
     files += _crops("nota_dinas", "v1", 1, 20, "v1_kata")
     files += _crops("nota_dinas", "a010", 1, 20, "a010_vertikal_pdf")
     files += _crops("nota_dinas", "a010", 1, 20, "a010_vertikal_raster600", raster=True)

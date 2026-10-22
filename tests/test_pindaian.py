@@ -497,7 +497,7 @@ def test_scanned_master_follows_shift_scheme_v2(tmp_path, scan_one):
     c = manifest.copies[1]
     result, obs = trace_files([(c.file, (tmp_path / "salinan" / c.file).read_bytes())], ctx)
     assert [a.copy.seq for a in result.accused] == [2]
-    shift = next(sb for sb in obs if sb.channel == CHANNEL_SHIFT)
+    shift = next(sb for sb in obs if sb.channel == CHANNEL_SHIFT and len(sb))  # the page read as an image
     x = ctx.codewords[1]
     assert shift.meta["scheme"] == SCHEME_V2 and len(shift) > 80
     assert np.mean((shift.llr > 0) == (x[shift.positions] == 1)) > 0.9

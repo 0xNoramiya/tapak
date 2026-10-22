@@ -163,12 +163,16 @@ def test_read_recipients(tmp_path):
 
 
 def _intended_offsets(sample_pdf, secret, manifest, copy):
+    from tapak.marker.issue import apply_shift_scheme
+
     master = load_master(sample_pdf)
+    apply_shift_scheme(master, manifest.shift_settings.scheme)
     params = manifest.tardos_params
-    plan = build_document_plan(master, params, secret, tuple(manifest.channels))
+    plan = build_document_plan(master, params, secret, tuple(manifest.channels),
+                               shift_scheme=manifest.shift_settings.scheme)
     p = derive_bias(secret, master.doc_hash, params)
     x = derive_codeword(secret, master.doc_hash, copy.copy_id, p)
-    marks, _ = marks_for_codeword(master, plan, x, IssueSettings())
+    marks, _ = marks_for_codeword(master, plan, x, IssueSettings(shift=manifest.shift_settings))
     return master, marks
 
 
@@ -229,7 +233,10 @@ def test_600dpi_difference_is_confined_to_shifted_words(sample_pdf, secret, issu
         # pixels; 1 px = 0.042 mm), so the pixel-domain check allows that quantization: over 24
         # random issuances the RMS error ranged 0.08 to 0.22 px and the maximum 0.33 to 0.57 px,
         # all far below the 0.1 mm (2.4 px) visibility bound. The exact check is the vector one.
-        assert np.sqrt(np.mean(np.square(h_err))) < 0.3 and np.max(np.abs(h_err)) < 0.8
+        # Under geser-v2 groups can be single short words whose padded box also holds a little
+        # ink of a neighbour that moved the other way: maximum about 0.82 px in 3 issuances.
+        worst = 0.8 if manifest.shift_scheme is None else 1.0
+        assert np.sqrt(np.mean(np.square(h_err))) < 0.3 and np.max(np.abs(h_err)) < worst
         assert np.max(np.abs(v_err)) < 0.8
         # Pixels that differ by more than the background modulation: only around shifted words.
         assert np.count_nonzero(diff > bg_limit) / diff.size < 0.05

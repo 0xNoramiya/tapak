@@ -21,8 +21,13 @@ SUB = ("kata", "baris", "latar")
 
 
 def _rows(phase: str) -> list[dict]:
-    path = ukur.HASIL / f"{phase}.jsonl"
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    """Summary rows of a phase, with the dev re-decode (``dev_veld.jsonl``) for dev."""
+    rows = []
+    for name in (f"{phase}.jsonl", f"{phase}_veld.jsonl"):
+        path = ukur.HASIL / name
+        if path.exists():
+            rows += [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return rows
 
 
 def _count(rows: list[dict]) -> dict[str, int]:
@@ -95,6 +100,52 @@ def _members(rows: list[dict]) -> dict:
         d["members"] += len(named)
         d["innocent_pages"] += bool(set(r["accused"]) - set(r["seqs"]))
     return d
+
+
+def _per_printer(cetak: list[dict], two_rows: list[dict]) -> dict:
+    """Default background, all documents and code sizes together, per variant, printer and
+    resolution: one-page and two-page verdicts, positions read (median per page kind) and
+    pooled bit error per sub-channel."""
+    out = {}
+    keys = sorted({(r["variant"], r["printer"], r["res"]) for r in cetak if r.get("latar", "-") == "-"}, key=str)
+    for name, prn, res in keys:
+        sel = [r for r in cetak if (r["variant"], r["printer"], r["res"]) == (name, prn, res) and r.get("latar", "-") == "-"]
+        two = [r for r in two_rows if (r["variant"], r.get("printer"), r.get("res")) == (name, prn, res)
+               and r.get("latar", "-") == "-" and r["kind"] == "cetak"]
+        d = {"satu_halaman": _count(sel), "dua_halaman": _count(two), "skor_z_median": _score(sel)}
+        for s in SUB:
+            reads = sum(r["channels"].get(s, {}).get("read", 0) for r in sel)
+            errs = sum(r["channels"].get(s, {}).get("errors", 0) for r in sel)
+            if reads:
+                d[f"ber_{s}"] = round(errs / reads, 4)
+        for doc in sorted({r["doc"] for r in sel}):
+            for page in (1, 2):
+                vals = [r["n_observed"] for r in sel if r["doc"] == doc and r.get("page") == page]
+                if vals:
+                    d[f"posisi_{doc}_hal{page}"] = float(np.median(vals))
+        out[f"{name}/{prn}/{res}"] = d
+    return out
+
+
+def _decision(out: dict, cetak: list[dict]) -> dict:
+    """The default decision rule of PROTOCOL, criteria (2) to (4); (1) is the visibility gate."""
+    names = [n for n in out["total_cetak"] if n != "v1"]
+    if not names:
+        return {}
+    cand = names[0]
+    kinds = out["layar_pdf_total"]
+    no_regress = {k: kinds[k].get(cand, {}).get("benar", 0) >= kinds[k].get("v1", {}).get("benar", 0) for k in kinds}
+    one_old = out["total_cetak"]["v1"]["satu_halaman"]
+    one_new = out["total_cetak"][cand]["satu_halaman"]
+    n_old, n_new = sum(one_old.values()), sum(one_new.values())
+    diff_pp = 100.0 * (one_new["benar"] / max(n_new, 1) - one_old["benar"] / max(n_old, 1))
+    test = out["banding_v1"].get(cand, {})
+    induk_wrong = sum(v["dituduh"] for v in out["induk"].values())
+    return {"kandidat": cand, "tidak_mundur_per_jenis": no_regress, "tuduhan_salah": out["salah_total"] + induk_wrong,
+            "satu_halaman_lama": f"{one_old['benar']}/{n_old}", "satu_halaman_baru": f"{one_new['benar']}/{n_new}",
+            "selisih_poin_persen": round(diff_pp, 1), "mcnemar_p": test.get("p_satu_sisi"),
+            "lolos_2": all(no_regress.values()), "lolos_3": out["salah_total"] + induk_wrong == 0,
+            "lolos_4": diff_pp >= 10.0 and (test.get("p_satu_sisi") or 1.0) < 0.01}
 
 
 def summarize(phase: str) -> dict:
@@ -176,6 +227,9 @@ def summarize(phase: str) -> dict:
                     for key, sel in sorted(ind.items(), key=lambda kv: str(kv[0]))}
     out["salah_total"] = sum(1 for r in rows + two_rows if r["verdict"] == "salah" or (
         r.get("kind") == "kolusi" and set(r["accused"]) - set(r["seqs"])))
+    out["per_printer"] = _per_printer(cetak, two_rows)
+    if phase == "uji":
+        out["keputusan"] = _decision(out, cetak)
     (ukur.HASIL / f"{phase}_dua_halaman.jsonl").write_text(
         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in two_rows), encoding="utf-8")
     (ukur.HASIL / f"ringkas_{phase}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n",
@@ -198,3 +252,7 @@ def _print(out: dict) -> None:
     print("layar/pdf:", json.dumps(out["layar_pdf_total"], ensure_ascii=False))
     for name, c in out["induk"].items():
         print(f"induk {name}: {c}")
+    for name, c in out["per_printer"].items():
+        print(f"per printer {name}: {c}")
+    if "keputusan" in out:
+        print("keputusan:", json.dumps(out["keputusan"], ensure_ascii=False))

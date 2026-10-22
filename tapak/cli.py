@@ -183,6 +183,9 @@ def _cmd_issue(args: argparse.Namespace) -> int:
         print(f"  kanal {ch:<10} {info['slots']:>5} slot, {info['bits']:>5} bit, {info['positions']:>5} posisi kode")
     if m.canary_domain:
         print(f"  kanal canary     satu subdomain per salinan di bawah {m.canary_domain}")
+    if m.plan_summary.get("shift"):
+        sh = m.shift_settings
+        print(f"Skema geser: {sh.scheme} (kata {sh.word_mm:g} mm, baris {sh.row_mm:g} mm)")
     bg = m.background_settings
     if bg is not None and m.plan_summary.get("background"):
         from tapak.marker.background import profile_name
