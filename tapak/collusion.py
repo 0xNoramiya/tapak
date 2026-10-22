@@ -86,12 +86,16 @@ class ShiftUnit:
 class CoalitionView:
     """What a coalition extracts from its copies: background cell levels and shift units.
 
-    ``levels[page]`` is an int8 array (copies, ny, nx) of cell levels in {-1, 0, +1};
-    ``backgrounds[page]`` is (base, amplitude, px_per_cell) read from the images.
+    ``levels[page]`` is an array (copies, ny, nx) of cell levels in amplitude units: exactly
+    -1, 0 or +1 for TAPAK's pattern, continuous values for a masked pattern;
+    ``agree_prob[page]`` is the probability that a cell's position has the same bit in every
+    copy (0 or 1 for TAPAK's pattern, the posterior of ``agreement_posterior`` for a masked
+    one); ``backgrounds[page]`` is (base, amplitude, px_per_cell) read from the images.
     """
 
     copies: int
     levels: dict[int, np.ndarray] = field(default_factory=dict)
+    agree_prob: dict[int, np.ndarray] = field(default_factory=dict)
     backgrounds: dict[int, tuple[float, float, int]] = field(default_factory=dict)
     units: list[ShiftUnit] = field(default_factory=list)
     delta_pt: float = PUBLIC_DELTA_PT
@@ -156,6 +160,67 @@ def image_cell_levels(img: np.ndarray, px_per_cell: int = 4) -> tuple[np.ndarray
     levels = np.where(dev > 0.5, 1, np.where(dev < -0.5, -1, 0)).astype(np.int8)
     amplitude = float(np.round(np.percentile(np.abs(img.astype(np.float64) - base), 99.5)))
     return levels, base, max(amplitude, 1.0)
+
+
+def _upsampling_matrix(n: int, k: int) -> np.ndarray:
+    """The (k n, n) matrix of OpenCV's linear upsampling by k (borders replicated)."""
+    r = np.zeros((k * n, n))
+    for i in range(k * n):
+        x = (i + 0.5) / k - 0.5
+        x0 = int(np.floor(x))
+        f = x - x0
+        if x0 < 0:
+            x0, f = 0, 0.0
+        x1 = min(x0 + 1, n - 1)
+        x0 = min(x0, n - 1)
+        r[i, x0] += 1.0 - f
+        r[i, x1] += f
+    return r
+
+
+def image_cell_values(img: np.ndarray, base: float, amplitude: float, px_per_cell: int = 4) -> np.ndarray:
+    """Continuous cell levels (amplitude units) of a background image, by inverting the linear
+    upsampling exactly (least squares); the image's rounding to whole gray levels remains as
+    an error of at most 0.5 / amplitude per pixel."""
+    k = int(px_per_cell)
+    ny, nx = img.shape[0] // k, img.shape[1] // k
+    m = (img[:ny * k, :nx * k].astype(np.float64) - base) / amplitude
+    ry, rx = np.linalg.pinv(_upsampling_matrix(ny, k)), np.linalg.pinv(_upsampling_matrix(nx, k))
+    return ry @ m @ rx.T
+
+
+def agreement_posterior(values: np.ndarray, ratio: float, quant: float = 0.15) -> np.ndarray:
+    """P(every copy carries the same bit | the copies' values of one cell), per cell.
+
+    Model of a masked pattern: copy j shows pn (s_j + e_j) with s_j = +/-1 and e_j uniform on
+    [-ratio, ratio], independent across copies; ``quant`` is the spread of the reading error
+    (image rounding). The keyed sign pn is unknown, so both signs are averaged. Prior over the
+    bit patterns: the code's arcsine bias law, E[p^z (1-p)^(k-z)] for a pattern with z ones.
+    ``values`` is (copies, ...); the result has the shape of one copy.
+    """
+    from itertools import product
+    from math import lgamma, pi
+
+    from scipy.special import ndtr
+
+    k = values.shape[0]
+
+    def dens(e: np.ndarray) -> np.ndarray:
+        return (ndtr((ratio - e) / quant) - ndtr((-ratio - e) / quant)) / (2.0 * ratio)
+
+    def prior(z: int) -> float:  # E[p^z (1-p)^(k-z)] = B(z + 1/2, k - z + 1/2) / B(1/2, 1/2)
+        return float(np.exp(lgamma(z + 0.5) + lgamma(k - z + 0.5) - lgamma(k + 1.0)) / pi)
+
+    same = np.zeros(values.shape[1:])
+    total = np.zeros(values.shape[1:])
+    for signs in product((-1.0, 1.0), repeat=k):
+        s = np.array(signs).reshape((k,) + (1,) * (values.ndim - 1))
+        like = 0.5 * (np.prod(dens(values - s), axis=0) + np.prod(dens(values + s), axis=0))
+        w = prior(int(np.sum(np.array(signs) > 0))) * like
+        total += w
+        if len(set(signs)) == 1:
+            same += w
+    return np.where(total > 0, same / np.maximum(total, 1e-300), 1.0)
 
 
 def _clean_words(row: Row) -> list[tuple[float, float]]:
@@ -232,28 +297,46 @@ def _typography(layout: DocumentLayout, unit: ShiftUnit, delta: float) -> float 
     return typographic_shift(above, below, delta)
 
 
-def coalition_view(copy_pdfs: list[bytes], delta: float | None = None) -> CoalitionView:
-    """Background cell levels and shift units of a coalition's copies (at least two)."""
+def coalition_view(copy_pdfs: list[bytes], delta: float | None = None,
+                   mask: tuple[float, float, float] | None = None) -> CoalitionView:
+    """Background cell levels and shift units of a coalition's copies (at least two).
+
+    ``mask`` = (base, amplitude, ratio) are the public parameters of a masked pattern
+    (``research/sepakat/samaran.py``): the cell values are then read continuously and the
+    agreement of every cell is the posterior of ``agreement_posterior``. Without it the cells
+    are read exactly as -1, 0, +1 and agree when equal in every copy.
+    """
     if len(copy_pdfs) < 2:
         raise ValueError("koalisi memerlukan sedikitnya dua salinan")
     view = CoalitionView(copies=len(copy_pdfs))
     images = [copy_backgrounds(pdf) for pdf in copy_pdfs]
     for page in sorted(set.intersection(*(set(i) for i in images))):
-        parsed = [image_cell_levels(i[page]) for i in images]
-        view.levels[page] = np.stack([p[0] for p in parsed])
-        view.backgrounds[page] = (parsed[0][1], parsed[0][2], 4)
+        if mask is None:
+            parsed = [image_cell_levels(i[page]) for i in images]
+            stack = np.stack([p[0] for p in parsed]).astype(np.float64)
+            view.levels[page] = stack
+            view.agree_prob[page] = np.all(stack == stack[:1], axis=0).astype(np.float64)
+            view.backgrounds[page] = (parsed[0][1], parsed[0][2], 4)
+        else:
+            base, amplitude, ratio = mask
+            stack = np.stack([image_cell_values(i[page], base, amplitude) for i in images])
+            view.levels[page] = stack
+            view.agree_prob[page] = agreement_posterior(stack, ratio, quant=0.3 / amplitude)
+            view.backgrounds[page] = (base, amplitude, 4)
     view.units, view.delta_pt = shift_units([extract_layout(pdf) for pdf in copy_pdfs], delta)
     return view
 
 
 def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float = 1.0,
-                 channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None) -> ForgeryPlan:
+                 channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None,
+                 agree_threshold: float = 0.5) -> ForgeryPlan:
     """Decide the forged evidence: neutralize agreeing units, apply ``rule`` at disagreeing ones.
 
     ``channels`` names the channels whose agreeing units are neutralized ("latar", "geser");
     in the others agreeing units keep copy 1's marks. Each agreeing unit (background cell,
     shift unit with a typographic estimate) is neutralized with probability
-    ``erase_fraction``.
+    ``erase_fraction``. A background cell counts as agreeing when its agreement probability is
+    at least ``agree_threshold`` (always 0 or 1 for TAPAK's pattern).
     """
     if rule not in RULES:
         raise ValueError(f"aturan tidak dikenal: {rule!r}")
@@ -264,7 +347,7 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
                              "unit_sama_tanpa_taksiran", "unit_beda")}
     levels: dict[int, np.ndarray] = {}
     for page, stack in view.levels.items():
-        agree = np.all(stack == stack[:1], axis=0)
+        agree = view.agree_prob[page] >= agree_threshold
         out = stack[0].astype(np.float64).copy()
         k = stack.shape[0]
         if rule == "acak":
@@ -365,11 +448,12 @@ def forge_copy(master: MasterDocument, copy_pdfs: list[bytes], plan: ForgeryPlan
 
 
 def attack(master: MasterDocument, copy_pdfs: list[bytes], rule: str = "acak", erase_fraction: float = 1.0,
-           channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None
+           channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None,
+           mask: tuple[float, float, float] | None = None, agree_threshold: float = 0.5
            ) -> tuple[bytes, CoalitionView, ForgeryPlan]:
     """Coalition view, forgery plan and forged PDF in one call (see the module docstring)."""
-    view = coalition_view(copy_pdfs)
-    plan = plan_forgery(view, rule, erase_fraction, channels, rng)
+    view = coalition_view(copy_pdfs, mask=mask)
+    plan = plan_forgery(view, rule, erase_fraction, channels, rng, agree_threshold)
     return forge_copy(master, copy_pdfs, plan), view, plan
 
 
@@ -379,12 +463,14 @@ __all__ = [
     "CoalitionView",
     "ForgeryPlan",
     "ShiftUnit",
+    "agreement_posterior",
     "attack",
     "coalition_view",
     "copy_backgrounds",
     "copy_displacements",
     "forge_copy",
     "image_cell_levels",
+    "image_cell_values",
     "plan_forgery",
     "shift_units",
     "typographic_shift",
