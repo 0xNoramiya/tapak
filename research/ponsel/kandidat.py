@@ -16,10 +16,11 @@ Candidates (all use the evidence alone, never a keyed sign or a codeword):
 * ``halo``: mask bright outliers as well as dark ones (|modulation| above ``HALO``);
 * ``nh2``: ``notch`` first, then ``halo`` on the filtered modulation, then ``notch`` again.
 
-Selection rule, fixed before the grid: no verdict lost against ``base`` in any condition, no
-accusation of an unmarked master, better margins (median z, smallest score over threshold,
-per-image bit errors) where the images are affected. ``nh2`` with the defaults was chosen and
-is the decoder of this tree.
+Selection rule, stated after the first three candidates and the small grid were seen but
+before the last candidate (``nh2``) was evaluated: no verdict lost against ``base`` in any
+condition, no accusation of an unmarked master, better margins (median z, smallest score over
+threshold, per-image bit errors) where the images are affected. ``nh2`` with the defaults was
+chosen and is the decoder of this tree.
 
 Usage (from the repository root, after ``ukur.py buat --split pengembangan``):
 

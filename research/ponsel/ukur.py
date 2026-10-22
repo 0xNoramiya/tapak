@@ -54,6 +54,7 @@ Usage (from the repository root):
     python research/ponsel/ukur.py lacak --split uji --dekoder lama
     python research/ponsel/ukur.py lacak --split uji --dekoder baru
     python research/ponsel/ukur.py ringkas
+    python research/ponsel/ukur.py padatkan      # rewrite older result files in the stored form
 """
 
 from __future__ import annotations
@@ -248,6 +249,11 @@ def _make(job: dict) -> dict:
             **({"master_image": job["master_image"]} if job["seq"] is None else {}), "sim": sim}
 
 
+REG_KEYS = ("registered", "method", "dpi", "effective_dpi", "correlation")
+META_KEYS = {"background": ("pattern_found", "signal_z", "pilot_z", "decoy_z", "snr", "clipped_share", "periodic_bins"),
+             "shift": ("slots_implausible",)}
+
+
 def _channel_stats(obs, x: np.ndarray | None) -> dict[str, dict]:
     out: dict[str, dict] = {}
     for sb in obs:
@@ -255,14 +261,38 @@ def _channel_stats(obs, x: np.ndarray | None) -> dict[str, dict]:
         d["read"] += int(len(sb))
         if x is not None and len(sb):
             d["errors"] += int(np.sum((sb.llr > 0) != (x[sb.positions] == 1)))
-        meta = {k: sb.meta[k] for k in ("pattern_found", "signal_z", "pilot_z", "decoy_z", "clipped_share",
-                                         "snr", "slots_read", "slots_implausible", "method", "dpi", "correlation",
-                                         "effective_dpi", "registered", "moire_peaks", "moire_notched")
-                if k in sb.meta}
-        if "sigma_pt" in sb.meta:
-            meta["sigma_pt"] = {k: round(float(v), 4) for k, v in sb.meta["sigma_pt"].items()}
-        d["meta"] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in meta.items()}
+        d["meta"] = dict(sb.meta)
     return out
+
+
+def compact(row: dict) -> dict:
+    """A result row as stored: per channel the bits read, the bit errors and a few statistics;
+    the registration once; rounded numbers and a short evidence hash (raw results stay small)."""
+    out = {k: v for k, v in row.items() if k not in ("channels", "evidence_sha256")}
+    if row.get("log10_fa_best") is not None:
+        out["log10_fa_best"] = round(row["log10_fa_best"], 2)
+    if "evidence_sha256" in row:
+        out["evidence_sha256"] = row["evidence_sha256"][:16]
+    reg: dict = {}
+    channels = {}
+    for name, d in row.get("channels", {}).items():
+        meta = d.get("meta", {})
+        reg.update({k: meta[k] for k in REG_KEYS if k in meta and k not in reg})
+        keep = {k: meta[k] for k in META_KEYS.get(name, ()) if k in meta}
+        channels[name] = {"read": d["read"], "errors": d["errors"],
+                          "meta": {k: (round(v, 3) if isinstance(v, float) else v) for k, v in keep.items()}}
+    out["channels"] = channels
+    out["registrasi"] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in reg.items()}
+    return out
+
+
+def compact_sim(row: dict) -> dict:
+    """A generated-evidence row as stored: short hash, ISP values rounded."""
+    sim = dict(row["sim"])
+    sim["sha256"] = sim["sha256"][:16]
+    if "isp" in sim:
+        sim["isp"] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in sim["isp"].items()}
+    return {**row, "sim": sim}
 
 
 def _trace(job: dict) -> dict:
@@ -308,7 +338,7 @@ def _pool(fn, jobs: list[dict], old_decoder: str | None = None) -> list[dict]:
 def run_make(split: str) -> None:
     jobs = jobs_for(split)
     rows = _pool(_make, jobs)
-    _write(RESULTS / f"bukti_{split}.jsonl", rows)
+    _write(RESULTS / f"bukti_{split}.jsonl", [compact_sim(r) for r in rows])
 
 
 def _old_decoder() -> str:
@@ -330,7 +360,7 @@ def run_trace_split(split: str, decoder: str, conds: list[str] | None, again: bo
     missing = [j for j in jobs if not _evidence_path(j).exists()]
     if missing:
         raise SystemExit(f"{len(missing)} gambar bukti belum dibuat; jalankan: ukur.py buat --split {split}")
-    rows = _pool(_trace, jobs, _old_decoder() if decoder == "lama" else None)
+    rows = [compact(r) for r in _pool(_trace, jobs, _old_decoder() if decoder == "lama" else None)]
     if conds and out.exists():  # a partial run replaces only its own conditions
         keep = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
         rows = [r for r in keep if r["cond"] not in conds] + rows
@@ -432,6 +462,7 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--ulang", action="store_true", help="timpa hasil set uji yang sudah ada")
     r = sub.add_parser("ringkas")
     r.add_argument("--split", default="pengembangan,uji")
+    sub.add_parser("padatkan", help="tulis ulang hasil dalam bentuk ringkas (idempoten)")
     args = ap.parse_args(argv)
     if args.cmd == "terbit":
         run_issue()
@@ -439,6 +470,12 @@ def main(argv: list[str] | None = None) -> int:
         run_make(args.split)
     elif args.cmd == "lacak":
         run_trace_split(args.split, args.dekoder, [c for c in args.kondisi.split(",") if c], args.ulang)
+    elif args.cmd == "padatkan":
+        for path in sorted(RESULTS.glob("*.jsonl")):
+            if path.name.startswith("bukti_"):
+                _write(path, [compact_sim(r) for r in _load(path)])
+            elif path.stem.split("_")[0] in PROTOCOL["splits"] and path.stem.split("_")[-1] in ("lama", "baru"):
+                _write(path, [compact(r) for r in _load(path)])
     else:
         summarize(args.split.split(","))
     return 0

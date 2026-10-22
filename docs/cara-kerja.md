@@ -164,6 +164,7 @@ Strategi terburuk hanya terburuk untuk rata-rata skor per posisi, dan kedelapan 
 |---|---|
 | Kumpulan foto sintetis (`make photos` lalu `make bench`): 32 foto layar bersudut 0 sampai 30 derajat dan 8 tangkapan layar dari 4 salinan (halaman 1), dikompresi JPEG dua kali seperti WhatsApp. Satu penerbitan 20 salinan dengan id salinan acak, benih foto 2026 | 39 dari 40 benar, 1 "tidak cukup bukti" (foto dengan 95 % kertas jenuh putih), 0 tuduhan salah. Dua foto dengan 88 dan 90 % kertas jenuh gagal dengan dekoder latar lama dan kini benar ([batasan 4](keamanan.md#batasan)) |
 | Foto kertas cetak (`make photos-cetak` lalu `make bench`, dilaporkan terpisah): halaman 1 dan 2 dari 4 salinan yang sama, dicetak printer laser simulasi dengan profil latar bawaan, 16 foto (10 dan 30 derajat, 1600 px) dan 8 pasangan dua halaman | satu halaman 2 dari 16 benar (keduanya halaman 1 salinan #20), dua halaman 3 dari 8, 0 tuduhan salah |
+| Foto ponsel dan foto layar simulasi (`make photos-ponsel`, `make photos-layar`, dilaporkan terpisah; [rincian](#foto-ponsel-dan-foto-layar-simulasi)): adegan `make photos` lewat ISP ponsel, dan salinan di monitor simulasi 93 sampai 227 ppi dengan ISP ponsel, 32 foto masing-masing | 32 dari 32 dan 31 dari 32 benar, 0 tuduhan salah (penerbitan di mesin uji) |
 | 10 foto sintetis bersudut sampai 30 derajat | 10 dari 10 benar |
 | Halaman gabungan digital: setengah atas salinan A, setengah bawah salinan B (2 pasangan) | penerima A dan B dituduh, tidak ada orang lain |
 | Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |
@@ -290,6 +291,87 @@ Salinan yang benar selalu berskor tertinggi, tetapi satu halaman tidak mencapai 
 
 Harganya tampilan. Seluruh halaman tampak abu-abu muda: dL* -3,4 terhadap kertas pada laser simulasi dan -4,5 di layar. Teksturnya di ambang terlihat: S-CIELAB pada 35 cm rata-rata 1,1 dan persentil 95 sebesar 3,5 (pola layar bawaan: 0,4 dan 0,8; raster abu-abu polos setingkat: 0,75 dan 2,0), dengan 1 sebagai beda yang nyaris terlihat (`scripts/cetak/visibility.py`). Karena itu profil ini tidak menjadi bawaan dan TAPAK menampilkan peringatan saat dipakai. Printer biasanya menyisakan tepi putih beberapa milimeter, sehingga halaman abu-abu tampak berbingkai putih. Belum diuji dengan printer, ponsel, maupun pengamat sungguhan.
 
+## Foto ponsel dan foto layar (simulasi)
+
+Semua angka di bagian ini berasal dari simulasi. Ponsel, monitor, dan ISP sungguhan belum diuji, jadi angkanya menunjukkan kepekaan dekoder terhadap model kami, bukan hasil di perangkat nyata.
+
+### Simulator
+
+`tapak/ponsel.py` menambah dua bagian opsional ke `tapak/photos.py`. Tanpa keduanya keluaran simulator sama persis dengan sebelumnya: `make photos` dan `make photos-cetak` dengan benih 2026 dibuat ulang dan hash ke-58 berkasnya sama, dan `tests/test_ponsel.py` menyimpan hash emasnya.
+
+**ISP ponsel** (profil `ponsel`; profil `netral` adalah simulator lama). Urutannya mengikuti pipa kamera ponsel [7, 8]:
+
+1. *HDR beruntun*: 2 sampai 8 bingkai yang sengaja kurang terang (0 sampai 2 stop) digabung, sehingga varians derau dibagi jumlah bingkai [7, 8]. Banyaknya kurang terang tidak disebut sumbernya, jadi rentangnya asumsi.
+2. *Pengurangan derau*: filter terpandu [11] pada skala halus dan kasar (radius 1 sampai 2 dan 4 sampai 10 piksel bingkai 12 MP), dengan ambang 1 sampai 2,5 kali derau setempat dari model derau dua parameter yang dilaporkan ponsel [9, 10]. Penyaring bilateral bekerja paling baik di sekitar 2 kali derau [12]. Cara ini menghapus tekstur berkontras rendah, yang dikenal sebagai kehilangan tekstur pada ponsel [13, 14].
+3. *Pemetaan nada lokal*: lapisan dasar dan detail di ranah log [15]; kontras dasar dikali 0,5 sampai 0,85, detail 1,0 sampai 1,3, bagian terang terbesar diletakkan di 85 sampai 97 % putih, lalu bahu sorotan lembut. Nilainya asumsi di dalam metode itu.
+4. *Penajaman*: unsharp mask dengan coring, radius 1 sampai 2 kali blur lensa, kekuatannya diatur agar tepi tajam melampaui 10 sampai 40 %. Imatest mencatat 7 % untuk penajaman sedang di DSLR, menyebut 35 % kemungkinan mengganggu, dan menyebut lingkaran cahaya besar pada ponsel [16].
+5. *JPEG kamera*: kualitas 85 sampai 95, "rentang pemakaian umum" `android.jpeg.quality` yang juga mengatur kualitas HEIC [9]. HEIC sendiri tidak disimulasikan. Setelah itu pengguna memotong dan WhatsApp mengecilkan serta mengompresi dua kali seperti sebelumnya.
+
+**Monitor** (jenis `fotolayar`). Penampil PDF menampilkan halaman pas setinggi 80 sampai 92 % layar, dengan latar penampil terang atau gelap.
+
+* Monitor: 23,8 inci 1920 x 1080 (92,6 ppi), 27 inci 2560 x 1440 (108,8 ppi), 27 inci 3840 x 2160 (163,2 ppi), dan laptop 13,3 inci 2560 x 1600 (227 ppi). Kepadatan piksel dihitung dari geometri. Di survei Steam September 2026, 1920 x 1080 adalah layar utama 47,9 % pengguna dan 2560 x 1440 27,0 % [17] (pengguna gim, bukan kantor).
+* Subpiksel RGB tegak, masing-masing sepertiga jarak piksel, dengan matriks hitam; bagian menyala 70 sampai 90 % lebarnya dan 75 sampai 92 % tingginya (asumsi).
+* Gamma 2,0 sampai 2,4 (sRGB sekitar 2,2 [18], BT.1886 2,4 [19]); putih 100 sampai 300 cd/m2 (layar kantor umumnya berlatar terang 140 sampai 180 cd/m2 [20]); kontras 800 sampai 3000 (asumsi); lampu latar 0 sampai 20 % lebih gelap di sudut (asumsi).
+* Penurunan terang menurut sudut pandang: 75 % pada 35 sampai 50 derajat mendatar dan 22 sampai 45 derajat tegak. RTINGS mengukur sudut 75 % itu 39 sampai 42 derajat pada monitor IPS dan 22 derajat dari bawah pada panel lemah [21].
+* Pantulan cahaya ruangan 0,5 sampai 4 % putih, dan pantulan lampu (opsional) 5 sampai 50 % putih: lampu kantor paling terang sekitar 3000 cd/m2 pada sudut yang diizinkan [20], dikali pantulan permukaan depan sekitar 1 sampai 4 %.
+* Kamera: bingkai 12 MP, setara 26 mm, jarak 25 sampai 60 cm (asumsi), blur lensa sigma 0,45 sampai 0,9 piksel (MTF50 sekitar 0,21 sampai 0,42 siklus per piksel; acuan Imatest tanpa penajaman 0,31 [16]), filter Bayer RGGB dan demosaik peka tepi (OpenCV). Setiap piksel kamera mengintegrasikan 3 x 3 sampel setelah blur lensa, jadi kisi subpiksel tercuplik seperti oleh sensor dan menjadi moire. `tests/test_ponsel.py` memeriksa bahwa puncak spektrumnya berada di frekuensi alias yang diramalkan.
+
+Yang tidak disimulasikan: ponsel dan monitor sungguhan, HEIC, panel 6 bit dengan FRC, kedipan PWM lampu latar, ClearType, OLED dan PenTile, silang warna antara filter kamera dan warna monitor, super-resolusi beruntun pengganti demosaik, dan ISP berbasis model.
+
+### Protokol
+
+Protokol dan semua benih ditetapkan di `research/ponsel/ukur.py` sebelum pengukuran pertama dan masuk riwayat repositori lebih dulu.
+
+* Dua dokumen induk fiktif, nota dinas dan surat telegram contoh, masing-masing diterbitkan untuk N = 20 penerima (c = 3, eps = 10^-6) dengan id salinan berbenih. Bukti adalah halaman 1.
+* Dua set benih yang terpisah: set **pengembangan** dipakai untuk memilih perubahan dekoder, set **uji** dibuat dan dilacak sekali di akhir dengan kedua dekoder.
+* Setiap salinan menghasilkan satu gambar per kondisi. Kondisi foto berbagi adegan, pose, dan derau sensor, begitu pula kondisi layar, jadi selisihnya hanya ISP atau layar:
+  * `foto_netral` (foto `make photos`), `foto_ponsel` (ISP penuh), dan `foto_nr`, `foto_hdr`, `foto_nada`, `foto_tajam`, `foto_jpeg` (satu langkah ISP saja, untuk ablasi);
+  * `layar_ideal` (monitor tanpa struktur subpiksel), `layar_netral` (dengan subpiksel, jadi moire), `layar_ponsel` (ditambah ISP), `layar_silau` (ditambah pantulan lampu).
+* Sudut pandang 0, 10, 20, dan 30 derajat, keempat monitor, dan jarak 30, 45, dan 60 cm mengikuti rancangan tetap per salinan.
+* Halaman 1 dokumen induk tanpa tanda difoto lewat `foto_ponsel`, `layar_netral`, dan `layar_ponsel`, 10 gambar per dokumen, kondisi, dan set. Tidak boleh ada yang dituduh.
+* Pelacakan seperti `make bench`: tanpa registri, seluruh eps. Galat bit dihitung terhadap kode salinan yang bocor.
+
+### Perubahan dekoder
+
+Hanya kanal latar pada bukti gambar yang berubah. Halaman PDF yang diteruskan didekode persis seperti sebelumnya.
+
+1. **Penyaring komponen berkala.** Moire adalah beberapa sinusoid kuat di kertas, sedangkan pola latar berpita lebar (sel berkunci yang saling bebas). Dalam petak 128 piksel yang bertumpuk setengah, setiap puncak spektrum yang lebih dari 6 kali rata-rata tetangganya, dan tidak dekat frekuensi nol, dibuang bersama tetangga terdekatnya (`suppress_periodic`). Frekuensi moire bergeser di sepanjang halaman karena perspektif, jadi penyaringan dilakukan per petak.
+2. **Penyisihan pencilan dua arah.** Piksel yang menyimpang lebih dari 8 % dari tingkat kertas sudah disisihkan bila lebih gelap (tinta tambahan). Kini piksel yang lebih terang juga disisihkan: lingkaran cahaya penajaman di sisi teks. Penyisihan dilakukan setelah penyaringan, supaya puncak moire tidak ikut terbuang, lalu modulasi dihitung ulang dan disaring sekali lagi.
+
+Keduanya hanya melihat bukti, sebelum tanda sel berkunci diterapkan, jadi uji umpan, uji pilot, dan batas tuduhan salah tidak berubah. Tidak ada ambang atau aturan putusan yang diubah. `tests/test_background_moire.py` memeriksa bahwa mengganti semua kode penerima tidak mengubah satu pengamatan pun.
+
+Metode dipilih pada set pengembangan saja (`research/ponsel/kandidat.py`, ringkasan di `research/ponsel/hasil/pengembangan_kandidat.jsonl`). Aturan pemilihan, dinyatakan setelah kandidat pertama dan grid kecil dinilai tetapi sebelum kandidat terakhir: tidak boleh ada putusan yang hilang di kondisi mana pun, tidak boleh ada tuduhan pada induk tanpa tanda, dan margin harus membaik pada foto yang terpengaruh. Kandidat lain ditolak: strata "tanpa tekstur" (kertas rata, perluasan bobot kliping) kehilangan putusan pada empat kondisi, dan penyisihan pencilan terang pada 5 % tidak stabil (foto ponsel jauh lebih baik, tetapi foto dengan penajaman saja turun dari 37 menjadi 34 benar).
+
+### Hasil
+
+Set uji yang ditahan, dilacak sekali dengan dekoder lama (sebelum studi ini) dan sekali dengan dekoder baru. Setiap baris berisi 40 foto (2 dokumen x 20 salinan); baris induk tanpa tanda berisi 20. "tcb" berarti "tidak cukup bukti". Galat bit dan z pola dihitung per foto, lalu diambil mediannya. Kolom geser memakai dekoder baru; kanal geser tidak berubah.
+
+| Kondisi | Benar / tcb / salah, lama | Benar / tcb / salah, baru | Galat bit latar, median per foto (lama; baru) | z pola median (lama; baru) | Geser: posisi; galat median |
+|---|---|---|---|---|---|
+| foto tanpa ISP | 38 / 2 / 0 | 38 / 2 / 0 | 1,5 %; 1,5 % | 49,4; 49,4 | 97; 4,6 % |
+| foto, ISP ponsel | 40 / 0 / 0 | 40 / 0 / 0 | 9,1 %; 5,0 % | 30,0; 36,0 | 97; 3,3 % |
+| hanya pengurangan derau | 38 / 2 / 0 | 38 / 2 / 0 | 2,1 %; 2,0 % | 46,5; 46,5 | 97; 4,6 % |
+| hanya HDR beruntun | 40 / 0 / 0 | 40 / 0 / 0 | 1,8 %; 1,7 % | 50,4; 50,6 | 97; 4,6 % |
+| hanya pemetaan nada lokal | 37 / 3 / 0 | 37 / 3 / 0 | 2,4 %; 2,3 % | 46,2; 46,3 | 97; 4,4 % |
+| hanya penajaman | 38 / 2 / 0 | 38 / 2 / 0 | 8,8 %; 7,4 % | 30,4; 33,9 | 97; 3,3 % |
+| hanya JPEG kamera | 38 / 2 / 0 | 38 / 2 / 0 | 1,6 %; 1,6 % | 49,0; 49,1 | 97; 5,2 % |
+| monitor tanpa subpiksel, tanpa ISP | 31 / 9 / 0 | 31 / 9 / 0 | 2,7 %; 2,5 % | 31,8; 32,1 | 94; 3,9 % |
+| monitor (moire), tanpa ISP | 32 / 8 / 0 | 32 / 8 / 0 | 5,8 %; 4,1 % | 27,5; 30,2 | 94; 3,9 % |
+| monitor (moire), ISP ponsel | 39 / 1 / 0 | 39 / 1 / 0 | 4,5 %; 3,1 % | 38,5; 41,2 | 94; 3,9 % |
+| monitor, ISP ponsel, silau | 39 / 1 / 0 | 39 / 1 / 0 | 3,5 %; 3,3 % | 40,0; 41,0 | 94; 3,3 % |
+| induk tanpa tanda, foto, ISP ponsel | 0 / 20 / 0 | 0 / 20 / 0 | - | 0,2; 0,5 | - |
+| induk tanpa tanda, monitor (moire), tanpa ISP | 0 / 20 / 0 | 0 / 20 / 0 | - | 0,6; 0,6 | - |
+| induk tanpa tanda, monitor (moire), ISP ponsel | 0 / 20 / 0 | 0 / 20 / 0 | - | 0,4; 0,3 | - |
+
+* **Tidak ada tuduhan salah** pada 1.000 pelacakan per dekoder (set pengembangan dan uji), termasuk 120 foto induk tanpa tanda. Gerbang pola latar lolos sekali pada induk tanpa tanda (dekoder lama, set pengembangan, z = 3,00 tepat di ambang); tidak ada yang dituduh, sesuai laju lolos gerbang yang terukur di [batasan 4](keamanan.md#batasan).
+* **Tahap yang paling merugikan pola latar adalah penajaman.** Dengan dekoder lama, penajaman saja menaikkan galat bit latar dari 1,5 % menjadi 8,8 % dan menurunkan z dari 49 menjadi 30. Penajaman yang sama justru memperbaiki kanal geser (galat 4,6 % menjadi 3,3 %). Moire menaikkan galat latar dari 2,7 % menjadi 5,8 % (monitor yang sama dengan dan tanpa subpiksel). Pengurangan derau hampir tidak merugikan (2,1 %), JPEG kamera tidak berpengaruh, dan HDR beruntun mencegah kertas jenuh (40 dari 40).
+* **Kegagalan yang tersisa tidak disebabkan ISP atau moire.** Tanpa HDR, setiap "tidak cukup bukti" terjadi pada foto yang 87 sampai 99,5 % kertasnya jenuh di sensor ([batasan 4](keamanan.md#batasan)), sebagian juga beresolusi rendah (laptop 13 inci dari 45 cm, 43 sampai 46 dpi efektif). Pemetaan nada lokal tanpa HDR menggeser kertas jenuh itu ke bawah putih menjadi bidang rata, sehingga strata kejenuhan tidak mengenalinya: 3 gagal, sedangkan tanpa ISP 2. Dengan ISP ponsel penuh, HDR dan pemetaan nada lokal dalam model kami menjaga kertas di bawah putih; satu-satunya kegagalan adalah laptop dari 60 cm, ketika halaman hanya mengisi 20 % bingkai dan tidak ditemukan.
+* **Per monitor dan jarak** (ISP ponsel, kedua dekoder): 23,8 inci, 27 inci QHD, dan 27 inci 4K masing-masing 10 dari 10, laptop 9 dari 10; 30 cm 16 dari 16, 45 cm 16 dari 16, 60 cm 7 dari 8. Tanpa ISP: 23,8 inci 7 dari 10, QHD 10 dari 10, 4K 8 dari 10, laptop 7 dari 10.
+* **Dekoder baru** tidak mengubah putusan di set uji, tetapi memperlebar margin: pada foto dengan ISP ponsel galat bit latar turun dari 9,1 % menjadi 5,0 % (z 30 menjadi 36), pada monitor tanpa ISP dari 5,8 % menjadi 4,1 %, dan batas peluang tuduhan salah terlemah di antara jawaban benar di baris itu membaik dari 10^-6,0 menjadi 10^-13,6. Di set pengembangan dekoder baru menambah satu jawaban benar pada monitor tanpa ISP dan satu pada pemetaan nada lokal saja.
+* **Benchmark** (`make bench`, penerbitan 20 salinan dengan id acak di mesin uji, benih foto 2026): `make photos-ponsel` 32 dari 32 benar, `make photos-layar` 31 dari 32 (gagal: laptop dari 45 cm, halaman mengisi 26 % bingkai), tanpa tuduhan salah. Pada `make photos` dan `make photos-cetak` dari penerbitan yang sama, putusan dekoder lama dan baru sama untuk ke-64 pelacakan; batas peluang tuduhan salah hanya bergeser sedikit (median perubahan log10 -0,005). Hasilnya ada di `research/ponsel/hasil/bench_lama.json` dan `bench_baru.json`.
+
+Yang belum diuji: ponsel, monitor, dan ISP sungguhan. Semua angka di atas bergantung pada model dan rentang parameter yang kami pilih; ISP ponsel yang menajamkan lebih keras, mengurangi derau lebih agresif pada skala sel pola (2 mm), atau mengompresi sorotan lebih rata dapat memberi hasil yang lebih buruk. Pembacaan kanal geser pada foto layar (sekitar 94 posisi per halaman) tidak cukup sendirian untuk menyebut nama, jadi foto layar bergantung pada pola latar seperti foto biasa.
+
 ## Keputusan desain yang menyimpang dari spesifikasi awal
 
 | Spesifikasi | Yang dibangun | Alasan |
@@ -312,3 +394,18 @@ Harganya tampilan. Seluruh halaman tampak abu-abu muda: dL* -3,4 terhadap kertas
 4. T. Laarhoven, B. de Weger. Optimal symmetric Tardos traitor tracing schemes. Des. Codes Cryptogr. 71(1):83-103, 2014. arXiv:1107.3441.
 5. J. T. Brassil, S. Low, N. F. Maxemchuk. Copyright protection for the electronic distribution of text documents. Proc. IEEE 87(7), 1999 (pergeseran baris dan kata).
 6. M. Tancik, B. Mildenhall, R. Ng. StegaStamp: Invisible hyperlinks in physical photographs. CVPR 2020.
+7. M. Delbracio, D. Kelly, M. S. Brown, P. Milanfar. Mobile computational photography: a tour. Annu. Rev. Vis. Sci. 7, 2021. arXiv:2102.09000 (bagian 3.3.3: HDR+ menggabung 2 sampai 8 bingkai yang sengaja kurang terang).
+8. S. W. Hasinoff dkk. Burst photography for high dynamic range and low-light imaging on mobile cameras. ACM Trans. Graph. 35(6), 2016.
+9. AOSP, metadata kamera Android (`camera/docs/metadata_definitions.xml`): `android.jpeg.quality` ("85-95 is typical usage range", juga untuk HEIC) dan `android.sensor.noiseProfile` (N(x) = sqrt(S x + O)).
+10. A. Foi, M. Trimeche, V. Katkovnik, K. Egiazarian. Practical Poissonian-Gaussian noise modeling and fitting for single-image raw-data. IEEE Trans. Image Process. 17(10), 2008.
+11. K. He, J. Sun, X. Tang. Guided image filtering. IEEE TPAMI 35(6), 2013.
+12. M. Zhang, B. K. Gunturk. Multiresolution bilateral filtering for image denoising. IEEE Trans. Image Process. 17(12), 2008.
+13. F. Cao, F. Guichard, H. Hornung. Dead leaves model for measuring texture quality on a digital camera. Proc. SPIE 7537, 2010.
+14. IEEE 1858-2016, Camera Phone Image Quality (metrik kehilangan tekstur).
+15. F. Durand, J. Dorsey. Fast bilateral filtering for the display of high-dynamic-range images. ACM Trans. Graph. 21(3), 2002.
+16. Imatest, dokumentasi Sharpening (imatest.com/docs/sharpening).
+17. Steam Hardware and Software Survey, September 2026 (store.steampowered.com/hwsurvey).
+18. IEC 61966-2-1:1999, sRGB.
+19. ITU-R BT.1886, EOTF acuan layar datar.
+20. Trilux, pencahayaan kantor dan stasiun kerja layar: batas luminans menurut EN 12464-1.
+21. RTINGS, uji sudut pandang monitor (rtings.com/monitor/tests/picture-quality/viewing-angle).
