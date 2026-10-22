@@ -61,6 +61,9 @@
       <p class="verdict-text">Tidak ada tanda yang terbaca pada bukti ini. Nama tidak disebutkan.</p>
       {% endif %}
     </div>
+    {% for n in peringatan_terlihat(a.notes) %}
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
+    {% endfor %}
   {% endif %}
 
   <div class="verdict-actions">
@@ -105,7 +108,7 @@
           </tbody>
         </table>
       </div>
-      {% if a.channels %}<p class="hint kanal-catatan">Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.</p>{% endif %}
+      {% if a.channels or shift_scan %}<p class="hint kanal-catatan" id="kanal-catatan">{% if a.channels %}Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.{% endif %}{% if shift_scan %} {{ shift_scan }}{% endif %}</p>{% endif %}
       {% if o.observations %}
       <details class="more">
         <summary>Rincian sub-kanal</summary>
@@ -209,12 +212,16 @@
           <button type="button" class="copy-btn" data-copy-target="#sha-bukti" aria-label="Salin SHA-256 bukti">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
         </div>
       </div>
-      {% if a.notes or r.problems %}
+      {# notes shown as warnings next to the verdict are not repeated here #}
+      {% set other_notes = a.notes|reject("in", peringatan_terlihat(a.notes))|list %}
+      {% if other_notes or r.problems %}
       <div class="lacak-catatan">
         <span class="label">Catatan</span>
+        {% if other_notes %}
         <ul class="notes">
-          {% for n in a.notes if n not in peringatan_terlihat(a.notes) %}<li>{{ redact(n) }}</li>{% endfor %}
+          {% for n in other_notes %}<li>{{ redact(n) }}</li>{% endfor %}
         </ul>
+        {% endif %}
         {% if r.problems %}
         <div class="notice notice-warn"><ul class="notes">{% for p in r.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
         {% endif %}

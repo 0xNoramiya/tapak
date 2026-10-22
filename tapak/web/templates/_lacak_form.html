@@ -22,7 +22,7 @@
       <select id="dokumen" name="dokumen" aria-describedby="dokumen-err" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
         {% for m in docs %}
         {% set when = (m.issued_at|waktu).split(" pukul ") %}
-        <option value="{{ m.doc_hash[:16] }}" {% if m is sameas ns.doc %}selected{% endif %} data-pratinjau="{{ pratinjau_url(m) or '' }}">{{ m.doc_name }} · {{ when[0] }}{% if when|length > 1 and name_days.count(m.doc_name ~ "|" ~ when[0]) > 1 %} pukul {{ when[1].split(" ")[0] }}{% endif %}</option>
+        <option value="{{ m.doc_hash[:16] }}" {% if m is sameas ns.doc %}selected{% endif %} data-pratinjau="{{ pratinjau_url(m) or '' }}"{% if m.scan %} data-pindaian{% endif %}>{{ m.doc_name }} · {{ when[0] }}{% if when|length > 1 and name_days.count(m.doc_name ~ "|" ~ when[0]) > 1 %} pukul {{ when[1].split(" ")[0] }}{% endif %}</option>
         {% endfor %}
       </select>
       <span id="dokumen-err">{% if errors.dokumen %}<span class="field-error" role="alert">{{ errors.dokumen }}</span>{% endif %}</span>

@@ -701,7 +701,8 @@ def plan_lines(record: dict[str, object] | None, n_pages: int) -> list[str]:
     dpi = sorted({int(d) for d in record["dpi"]})  # type: ignore[union-attr]
     dpi_text = " dan ".join(str(d) for d in dpi)
     nums = ", ".join(str(p + 1) for p in pages)
-    lines = [f"Mode halaman: {n_pages - len(pages)} halaman teks, {len(pages)} halaman pindaian "
+    n_text = n_pages - len(pages)
+    lines = [f"Mode halaman: {f'{n_text} halaman teks, ' if n_text else ''}{len(pages)} halaman pindaian "
              f"(halaman {nums}; {dpi_text} dpi)",
              "Halaman pindaian membawa kanal geser (kotak kata dari Tesseract, ditanam pada piksel gambar) dan pola "
              "latar; karakter tak terlihat, huruf kembar, varian semantik, dan pilihan kata tidak berlaku di sana",

@@ -33,6 +33,17 @@
         <p class="hint">{{ retype.verdict }}. Pilihan kata disimpan sebagai <span class="mono">leksikal.json</span> di samping dokumen induk; registri hanya mencatat digest-nya.</p>
       </div>
       {% endif %}
+      {% if scan %}
+      {# as tapak issue prints it: page modes, the scan gate, copy sizes measured on the files #}
+      <div class="issued-scan" role="group" aria-labelledby="hasil-pindaian-h">
+        <p class="issued-retype-head"><span class="label" id="hasil-pindaian-h">Halaman pindaian</span></p>
+        <ul class="notes">
+          {% for line in scan.lines %}<li>{{ line }}.</li>{% endfor %}
+          {% if scan.gate %}<li>{{ scan.gate }}</li>{% endif %}
+        </ul>
+        <p class="small tnum" id="ukuran-salinan">Ukuran salinan: rata-rata {{ scan.mean_mb|num(1) }}&nbsp;MB, terbesar {{ scan.max_mb|num(1) }}&nbsp;MB (dokumen induk {{ scan.master_mb|num(1) }}&nbsp;MB). Gambar halaman pindaian disimpan tanpa kompresi yang menurunkan mutu.</p>
+      </div>
+      {% endif %}
     </div>
   </div>
 </section>

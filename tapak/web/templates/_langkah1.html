@@ -17,7 +17,7 @@
           <span class="dropzone-icon" aria-hidden="true">{{ ikon("file-text") }}</span>
           <span class="dropzone-text">
             <span class="dropzone-title" id="label-dokumen">Dokumen induk (PDF)</span>
-            <span class="dropzone-hint" id="hint-dokumen">Seret ke sini atau <span class="dropzone-link">pilih berkas</span>. PDF berlapis teks, maks. 40 MB.</span>
+            <span class="dropzone-hint" id="hint-dokumen">Seret ke sini atau <span class="dropzone-link">pilih berkas</span>. PDF berlapis teks atau hasil pindai (minimal 200&nbsp;dpi), maks. 40&nbsp;MB.</span>
           </span>
           <ul class="dropzone-files" data-dropzone-files></ul>
         </label>
@@ -104,7 +104,7 @@
         <span class="idle-label">Analisis dokumen</span>
         <span class="htmx-indicator">Menganalisis dokumen…</span>
       </button>
-      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Membaca lapisan teks dan menguji gerbang visual.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Membaca lapisan teks dan menguji gerbang visual. Untuk PDF hasil pindai: {{ sibuk_pindaian[:1]|lower }}{{ sibuk_pindaian[1:] }}</span></div>
     </div>
   </form>
 </section>

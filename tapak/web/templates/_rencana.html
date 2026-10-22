@@ -3,9 +3,11 @@
 {% for vs in st.sets.values() %}{% set rv.pending = rv.pending + vs.pending()|length %}{% endfor %}
 {% set lex_pending = st.lexical.pending()|length if st.lexical is not none else 0 %}
 {% set cur = 3 if (st.units and (not st.sets or rv.pending)) or lex_pending else 4 %}
+{# every page a scan: step 3 (both text reviews) does not apply #}
+{% set na = 3 if st.all_scanned else 0 %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
   {% for label in langkah_terbit %}
-  <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
+  <li class="stepper-item{% if loop.index == na %} is-na{% elif loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index == na %}{{ ikon("minus", 14) }}{% elif loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index == na %}<span class="stepper-na"><span class="sr-only">: </span>tidak berlaku</span>{% elif loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
   {% endfor %}
 </ol>
 <section class="card plan" aria-labelledby="langkah2">
@@ -17,12 +19,18 @@
       <figcaption class="gate">
         <span class="gate-head"><span class="label">Gerbang visual</span>
           {% if gate.passed %}<span class="stamp stamp-ok">Lulus</span>{% else %}<span class="stamp stamp-danger">Gagal</span>{% endif %}</span>
-        <span class="hint">Tanpa tanda, dokumen digambar ulang identik dengan aslinya: selisih maksimum {{ gate.max_diff }} tingkat <span class="nowrap">abu-abu.</span></span>
+        {% if not st.all_scanned %}<span class="hint">Tanpa tanda, {{ "halaman teks" if st.scan else "dokumen" }} digambar ulang identik dengan aslinya: selisih maksimum {{ gate.max_diff }} tingkat <span class="nowrap">abu-abu.</span></span>{% endif %}
+        {% if st.scan %}<span class="hint" id="gerbang-pindaian">{{ gerbang_pindaian[gate.scan_identical] }}</span>{% endif %}
       </figcaption>
     </figure>
     <div class="plan-main">
       <div class="stats">
-        <div class="stat"><span class="stat-label">Halaman</span><span class="stat-value">{{ st.plan.pages|num }}</span><span class="stat-note">{{ st.plan.words|num }} kata</span></div>
+        <div class="stat"><span class="stat-label">Halaman</span><span class="stat-value">{{ st.plan.pages|num }}</span>
+          {% if st.scan %}
+          <span class="stat-note">{% if st.plan.text_pages %}{{ st.plan.text_pages|num }} halaman teks, {% endif %}{{ st.plan.scan_pages|num }} halaman pindaian ({{ st.plan.scan_dpi }}&nbsp;dpi)</span>
+          <span class="stat-note">{% if st.plan.text_pages %}{{ st.plan.words|num }} kata, {% endif %}{{ st.plan.scan_words|num }} kotak kata (Tesseract)</span>
+          {% else %}<span class="stat-note">{{ st.plan.words|num }} kata</span>{% endif %}
+        </div>
         <div class="stat"><span class="stat-label">Panjang kode</span><span class="stat-value">{{ st.plan.params.length|num }}</span><span class="stat-note">bit Tardos per penerima</span></div>
         <div class="stat"><span class="stat-label">Tahan kolusi</span><span class="stat-value">{{ st.plan.params.c }}</span><span class="stat-note">penerima bersekongkol</span></div>
         <div class="stat"><span class="stat-label">Ambang penuh</span><span class="stat-value">{{ st.plan.threshold|num(0) }}</span><span class="stat-note">skor minimum untuk menuduh</span></div>
@@ -37,12 +45,16 @@
             {% set survives = {"shift": "cetak, foto, tangkapan layar",
                                "background": ("cetak dalam uji printer simulasi, " if cetak else "") ~ "layar, tangkapan layar, foto layar",
                                "zw": "salin-tempel, berkas diteruskan", "homoglyph": "salin-tempel, teks dinormalkan sebagian"} %}
+            {# scanned pages carry shift and background in the page image; the text channels have no slots there #}
+            {% set on_scan = {"shift": "; di halaman pindaian: digeser di piksel gambar",
+                              "background": "; di halaman pindaian: ditambahkan ke piksel kertas",
+                              "zw": " (halaman teks saja)", "homoglyph": " (halaman teks saja)"} if st.scan else {} %}
             {% set order = ["shift", "background", "zw", "homoglyph"] %}
             {% set length = st.plan.params.length or 1 %}
             {% for ch in order|select("in", st.plan.summary)|list + st.plan.summary.keys()|reject("in", order)|list %}
             {% set info = st.plan.summary[ch] %}
             <tr{% if ch == "background" and cetak %} class="has-note"{% endif %}>
-              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}{% if ch == "background" %} <span class="ch-profil">profil {{ st.latar }}</span>{% endif %}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}</span>{% endif %}</th>
+              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}{% if ch == "background" %} <span class="ch-profil">profil {{ st.latar }}</span>{% endif %}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}{{ on_scan.get(ch, "") }}</span>{% endif %}</th>
               <td class="num hide-sm">{{ info.slots|num }}</td>
               <td><span class="cov"><span class="bar" style="--value: {{ [info.positions / length, 1]|min|round(3) }}"></span><span class="cov-num">{{ info.positions|num }}</span></span></td>
             </tr>
@@ -62,6 +74,22 @@
       </div>
       {% if cetak and "background" not in st.plan.summary %}<p class="notice notice-warn" id="latar-peringatan">{{ peringatan_cetak }}</p>{% endif %}
       <p class="hint">Bilah menunjukkan bagian dari {{ st.plan.params.length|num }} posisi kode yang dibawa kanal itu. Bilah penuh berarti kanal itu sendiri dapat membawa seluruh kode.</p>
+      {% if st.scan %}
+      {# Counts and a digest only: the words Tesseract read are never shown. #}
+      <div class="pindaian" role="group" aria-labelledby="pindaian-h">
+        <h3 class="label" id="pindaian-h">Mode halaman</h3>
+        <ul class="mode-list">
+          {% for mode, line in st.plan.modes %}<li class="mode mode-{{ mode }}">{{ ikon("image" if mode == "pindaian" else "file-text", 16) }}<span>{{ line }}</span></li>{% endfor %}
+        </ul>
+        <ul class="notes">
+          {% for line in st.plan.scan_lines %}<li>{{ line }}.</li>{% endfor %}
+          <li>Pelacakan membaca ulang kotak kata ini dengan Tesseract. Bila hasilnya berbeda dari saat penerbitan (misalnya karena versi Tesseract lain), kanal geser halaman pindaian dilewati dan hanya pola latarnya yang dibaca. Simpan versi Tesseract ini bersama instalasi TAPAK.</li>
+          {# measured examples, not an estimate for this document: the real sizes are shown after issuance #}
+          <li id="pindaian-ukuran">Ukuran: gambar halaman salinan disimpan tanpa kompresi yang menurunkan mutu, jadi salinan bisa jauh lebih besar dari induk hasil pindai JPEG (contoh 300&nbsp;dpi: sekitar 2,9&nbsp;MB per halaman salinan, induk 0,7&nbsp;MB per halaman). Ukuran sebenarnya ditampilkan setelah terbit.</li>
+          <li id="pindaian-waktu">Waktu: {{ st.recipients|length|num }} salinan &times; {{ st.plan.scan_pages|num }} halaman pindaian ditandai di piksel gambar, jadi penerbitan lebih lama dari dokumen teks (contoh: 20 salinan &times; 2 halaman 300&nbsp;dpi sekitar 30 detik). Melacak satu PDF salinan 2 halaman memerlukan sekitar 40 detik.</li>
+        </ul>
+      </div>
+      {% endif %}
     </div>
   </div>
 </section>

@@ -91,6 +91,32 @@ form:not(.htmx-request) .form-actions .idle-label { display: inline-flex; align-
 .cov-num { min-width: 5ch; text-align: right; font-variant-numeric: tabular-nums; }
 .cov-none { font-size: var(--fs-sm); color: var(--ink-muted); }
 
+/* scanned pages: the mode of every page, then what those pages carry (counts and a digest, never
+   their words) */
+.pindaian { display: flex; flex-direction: column; gap: 10px; padding-top: 18px; border-top: 1px solid var(--border); }
+.mode-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
+  gap: 8px;
+}
+/* static facts, not controls: a sunken row like the stat tiles, no border */
+.mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--r-1);
+  background: var(--surface-sunken);
+  font-size: var(--fs-ui);
+  font-variant-numeric: tabular-nums;
+}
+.mode .icon { flex: none; color: var(--ink-muted); }
+.mode-pindaian .icon { color: var(--accent-text); }
+.pindaian .notes { max-width: 72ch; }
+
 /* ---------------------------------------------------------------- step 3: safe sentences */
 
 .sem-form { gap: 16px; }
@@ -168,6 +194,13 @@ details.dropped > summary { font-size: var(--fs-sm); }
   .unit-review-head { padding: 14px; }
   .unit-review-head > .btn { width: 100%; }
 }
+
+/* a master whose pages are all scans: step 3 says it does not apply, in one quiet card */
+.teks-na { background: var(--surface-sunken); }
+.teks-na > .lead { margin-bottom: 8px; color: var(--ink); }
+/* mixed master: the text channels skip the scanned pages (a line under the card's lead) */
+.teks-saja { margin: 0; }
+.card > .teks-saja { margin: -14px 0 20px; }
 
 /* ---------------------------------------------------------------- step 3b: word choice */
 
@@ -358,6 +391,8 @@ mark.lex-same {
 .publish-text .lead.is-blocked { color: var(--warn); }
 .publish-text .lead .icon { margin-right: 8px; vertical-align: -0.15em; }
 .publish-form { gap: 10px; align-items: flex-start; }
+/* the busy line wraps instead of widening the form, so the button stays where it was clicked */
+.publish-form .busy { max-width: 26rem; }
 .publish.is-ready { border-color: var(--accent-line); }
 .publish > .notice { margin-top: 20px; }
 
@@ -371,6 +406,8 @@ mark.lex-same {
 .issued-retype { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
 .issued-retype-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .issued-retype-head b { font-weight: 500; }
+.issued-scan { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.issued-scan .notes { max-width: 72ch; }
 .issued-main > .notice { margin-top: 8px; max-width: 65ch; }
 @container main (max-width: 559px) {
   .issued-body { flex-direction: column; gap: 18px; }

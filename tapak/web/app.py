@@ -17,6 +17,7 @@ import secrets
 import shutil
 import threading
 import zipfile
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ from tapak.marker.background import PRINT_BACKGROUND_WARNING, background_profile
 from tapak.marker.issue import IssueSettings, Recipient, SemanticSelection, read_recipients
 from tapak.marker.lexical import LexicalSelection, LexPoint
 from tapak.marker.master import MasterDocument
+from tapak.marker.raster import GATE_MAX_DIFF as RASTER_GATE_MAX_DIFF
 
 HERE = Path(__file__).resolve().parent
 MAX_UPLOAD = 40 * 1024 * 1024
@@ -55,6 +57,28 @@ CHANNEL_NAMES = {
 EPS_CHOICES = [("1e-4", "1 dari 10.000"), ("1e-6", "1 dari 1.000.000"), ("1e-8", "1 dari 100.000.000")]
 # Progress header of Terbitkan. Step 3 covers both text reviews (safe sentences and word choice).
 ISSUE_STEPS = ("Dokumen", "Rencana", "Tinjau teks", "Terbitkan")
+NOTHING_TO_MARK = ("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap halaman "
+                   "pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")
+# What the visual gate found on scanned pages (GateResult.scan_identical, raster.scan_gate):
+# the unmarked copy holds the master page image sample for sample, and its rendered page stays
+# within the text-page gate's limits of the master's (not "renders the same": that is not tested).
+SCAN_GATE_LINES = {
+    True: "Halaman pindaian: gambar halaman salinan tanpa tanda identik piksel demi piksel dengan gambar induk, "
+          f"dan render halamannya berselisih paling banyak {RASTER_GATE_MAX_DIFF} tingkat abu-abu dari halaman induk.",
+    False: "Halaman pindaian: gambar halaman salinan tanpa tanda tidak identik dengan gambar induk, atau render "
+           "halamannya melewati batas gerbang visual; penerbitan ditolak.",
+}
+# Busy line of the analysis step: Tesseract reads every scanned page once there.
+SCAN_READ_BUSY = "Membaca kotak kata halaman pindaian dengan Tesseract (beberapa detik per halaman)."
+SCAN_ALL_NA = "Tidak berlaku: semua halaman dokumen ini hasil pindai"
+
+
+def _sentence(text: str) -> str:
+    """A message as a sentence: first letter upper case, a final period."""
+    text = text.strip()
+    if not text:
+        return text
+    return text[:1].upper() + text[1:] + ("" if text[-1] in ".!?" else ".")
 
 
 @dataclass
@@ -84,11 +108,23 @@ class Staging:
     issuing: bool = False
     # Last request on this session; idle sessions expire STAGING_TTL_S after it.
     last_used: float = field(default_factory=time.time)
+    # Scanned pages: the record raster.prepare_scans returned (page numbers, resolution, OCR
+    # engine, digest of the word boxes; never a box or a word), or None for a text-only master.
+    scan: dict | None = None
+    # The word boxes behind that record, so the word-choice preview counts the same shift slots
+    # as the issuance plan (kept in memory only, never shown or stored).
+    scan_boxes: dict | None = field(default=None, repr=False)
 
     @property
     def pdf(self) -> bool:
         """True for a PDF master (the word-choice channel exists only for PDF)."""
         return (self.folder / "induk.pdf").is_file()
+
+    @property
+    def all_scanned(self) -> bool:
+        """True when every page is a scanned page: no text layer, so neither safe sentences nor
+        word choice can be marked."""
+        return bool(self.plan.get("all_scanned"))
 
 
 _STAGING: dict[str, Staging] = {}
@@ -177,13 +213,20 @@ templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
 templates.env.globals["inf"] = float("inf")
 templates.env.globals["langkah_terbit"] = ISSUE_STEPS
 templates.env.globals["peringatan_cetak"] = PRINT_BACKGROUND_WARNING
+templates.env.globals["gerbang_pindaian"] = SCAN_GATE_LINES
+templates.env.globals["sibuk_pindaian"] = SCAN_READ_BUSY
+templates.env.globals["pindaian_na"] = SCAN_ALL_NA
 
 
 def _visible_marks_caveats(notes: list[str]) -> list[str]:
-    """Notes warning that a name rests only on marks visible on paper (word choices, variants)."""
+    """Notes shown as warnings next to the verdict rather than among the other notes: a name
+    that rests only on marks visible on paper (word choices, variants), and the shift channel
+    of scanned pages left out because Tesseract's word boxes differ from issuance (only the
+    background pattern of those pages was read)."""
     from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+    from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
 
-    return [n for n in notes if VISIBLE_MARKS_NOTE in n]
+    return [n for n in notes if VISIBLE_MARKS_NOTE in n or n.startswith(SCAN_SHIFT_SKIPPED)]
 
 
 templates.env.globals["peringatan_terlihat"] = _visible_marks_caveats
@@ -614,8 +657,13 @@ async def terbitkan_analisis(
     kanari: str = Form(""),
     latar: str = Form("layar"),
 ) -> HTMLResponse:
-    """Validate inputs, analyse the master, show the embedding plan and safe sentences."""
+    """Validate inputs, analyse the master, show the embedding plan and safe sentences.
+
+    Scanned pages are checked and read with Tesseract here (raster.prepare_scans), before
+    the visual gate and the plan, as ``tapak issue`` does.
+    """
     from tapak.marker.master import load_master
+    from tapak.marker.raster import prepare_scans
     from tapak.marker.render import visual_gate
     from tapak.marker.semantic import scan_candidates
 
@@ -663,8 +711,8 @@ async def terbitkan_analisis(
     if pdf and "dokumen" not in errors:
         try:
             master = await run_in_threadpool(load_master, pdf)
-            if not list(master.layout.words()):
-                errors["dokumen"] = "PDF ini tidak memiliki lapisan teks (hasil pindai). TAPAK memerlukan PDF teks."
+            if not master.scans and not list(master.layout.words()):
+                errors["dokumen"] = NOTHING_TO_MARK
         except Exception:  # noqa: BLE001 - any parse failure is a user-facing input error
             errors["dokumen"] = "PDF tidak dapat dibaca."
     existing = ""  # key of the already issued document: the error links to Lacak with it preselected
@@ -677,10 +725,22 @@ async def terbitkan_analisis(
     if errors:
         return _step1_errors(request, errors, values, kanari, existing)
     assert master is not None
+    scan = scan_boxes = None
+    if master.scans:
+        # Resolution and image checks, then the word boxes (Tesseract, a few seconds per page).
+        # OcrUnavailable (no Tesseract) is a RuntimeError; its message is shown as written.
+        try:
+            scan, scan_boxes = await run_in_threadpool(prepare_scans, master)
+        except (ValueError, RuntimeError) as exc:
+            errors["dokumen"] = _sentence(str(exc))
+            return _step1_errors(request, errors, values, kanari, "")
     gate = await run_in_threadpool(visual_gate, master)
     if not gate.passed:
-        errors["dokumen"] = ("Penerbitan ditolak: TAPAK tidak dapat menggambar ulang dokumen ini tanpa "
-                             f"perubahan yang terlihat (selisih maksimum {gate.max_diff} tingkat abu-abu).")
+        if gate.scan_identical is False:
+            errors["dokumen"] = SCAN_GATE_LINES[False]
+        else:
+            errors["dokumen"] = ("Penerbitan ditolak: TAPAK tidak dapat menggambar ulang dokumen ini tanpa "
+                                 f"perubahan yang terlihat (selisih maksimum {gate.max_diff} tingkat abu-abu).")
         return _step1_errors(request, errors, values, kanari, "")
 
     _expire_staging()
@@ -690,10 +750,11 @@ async def terbitkan_analisis(
     name = Path(dokumen.filename or "dokumen.pdf").name  # type: ignore[union-attr]
     (folder / "induk.pdf").write_bytes(pdf)
     issue_settings = IssueSettings(c=c, eps=float(eps), canary_domain=kanari.strip() or None, background=background)
-    st = Staging(sid, folder, name, recipients, issue_settings, penerbit.strip() or "operator", latar=latar)
+    st = Staging(sid, folder, name, recipients, issue_settings, penerbit.strip() or "operator", latar=latar,
+                 scan=scan, scan_boxes=scan_boxes)
     st.candidates = scan_candidates(master)
     st.units = [u for u, reasons in st.candidates if not reasons]
-    st.plan = await run_in_threadpool(_plan_summary, master, issue_settings, len(recipients))
+    st.plan = await run_in_threadpool(_plan_summary, master, issue_settings, len(recipients), scan)
     with _LOCK:
         _STAGING[sid] = st
     return _page(request, "_rencana.html", st=st, gate=gate)
@@ -727,9 +788,15 @@ def _expire_staging() -> None:
                 shutil.rmtree(d, ignore_errors=True)
 
 
-def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
-    """Embedding plan and the exact full-observation threshold this document will get."""
+def _plan_summary(master, s: IssueSettings, n: int, scan: dict | None = None) -> dict[str, object]:
+    """Embedding plan and the exact full-observation threshold this document will get.
+
+    With scanned pages (their word boxes attached by raster.prepare_scans, ``scan`` its
+    record) it also gives the mode of every page and counts the word boxes Tesseract found
+    there; their text is never read.
+    """
     from tapak.marker.issue import build_document_plan
+    from tapak.marker.raster import page_modes, plan_lines
     from tapak.service import ensure_keys
     from tapak.tardos.accuse import threshold
     from tapak.tardos.code import derive_bias
@@ -739,8 +806,30 @@ def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
     secret = ensure_keys(settings(), create_signing_key=False).code_secret
     plan = build_document_plan(master, params, secret, s.channels, set(), s.background)
     p = derive_bias(secret, master.doc_hash, params)
-    return {"params": params, "summary": plan.summary(), "threshold": threshold(p, params.eps1),
-            "pages": len(master.layout.pages), "words": sum(1 for _ in master.layout.words())}
+    pages = len(master.layout.pages)
+    out: dict[str, object] = {"params": params, "summary": plan.summary(), "threshold": threshold(p, params.eps1),
+                              "pages": pages, "words": sum(1 for _ in master.layout.words()),
+                              "scan_pages": 0, "all_scanned": False}
+    if scan:
+        dpi = {int(k): int(d) for k, d in zip(scan["pages"], scan["dpi"])}
+        words_on = Counter(w.id[0] for w in master.layout.words())
+
+        def mode_line(k: int, mode: str) -> str:
+            # A page on the text path without a single word (a blank page, or an image page not
+            # recognised as a scan) is not called a text page: it has no word to mark.
+            if mode == "pindaian":
+                return f"Halaman {k + 1}: pindaian, {dpi[k]} dpi"
+            return f"Halaman {k + 1}: " + ("teks" if words_on[k] else "tanpa teks, tidak ada kata untuk ditandai")
+
+        out.update(
+            scan_pages=len(dpi), text_pages=pages - len(dpi), all_scanned=len(dpi) == pages,
+            scan_dpi=" dan ".join(str(d) for d in sorted(set(dpi.values()))),
+            scan_words=sum(1 for w in master.shift_layout.words() if w.id[0] in master.scans),
+            scan_nums=", ".join(str(k + 1) for k in sorted(dpi)),
+            modes=[(mode, mode_line(k, mode)) for k, mode in enumerate(page_modes(master))],
+            # the first line (page counts) is what the stat tile and the page list show
+            scan_lines=plan_lines(scan, pages)[1:])
+    return out
 
 
 def _staging(sid: str) -> Staging:
@@ -777,11 +866,16 @@ def _reviewing(sid: str) -> Iterator[Staging]:
 
 
 def _staging_master(st: Staging) -> MasterDocument:
-    """The parsed master of an issuance session (parsed once, kept with the session)."""
+    """The parsed master of an issuance session (parsed once, kept with the session), with the
+    word boxes of its scanned pages attached as at issuance."""
     from tapak.marker.master import load_master
+    from tapak.marker.raster import attach_scan_layout
 
     if st.master is None:
-        st.master = load_master((st.folder / "induk.pdf").read_bytes())
+        master = load_master((st.folder / "induk.pdf").read_bytes())
+        if st.scan_boxes:
+            attach_scan_layout(master, st.scan_boxes)
+        st.master = master
     return st.master
 
 
@@ -882,8 +976,9 @@ def _sample_copies(st: Staging, sel: LexicalSelection) -> dict[str, object] | No
         a, b = copies[0][rid], copies[1][rid]
         rows.append({"page": rid[0] + 1, "a": _sample_line(a, b), "b": _sample_line(b, a),
                      "same": [t for t, _ in a] == [t for t, _ in b]})
-    shift_all = len(build_shift_slots(master.layout, params.length, pkey))
-    shift_left = len(build_shift_slots(master.layout, params.length, pkey, sel.shift_excluded_rows()))
+    # the shift layout includes the word boxes of scanned pages, as in the issuance plan
+    shift_all = len(build_shift_slots(master.shift_layout, params.length, pkey))
+    shift_left = len(build_shift_slots(master.shift_layout, params.length, pkey, sel.shift_excluded_rows()))
     preview = {"differing": [r for r in rows if not r["same"]], "same": [r for r in rows if r["same"]],
                "points": len(carrying), "differ": differ(pair),
                "shift_all": shift_all, "shift_lost": shift_all - shift_left}
@@ -992,6 +1087,8 @@ def terbitkan_leksikal(request: Request, sid: str) -> HTMLResponse:
     with _reviewing(sid) as st:
         if not st.pdf:
             raise HTTPException(400, "Pilihan kata hanya tersedia untuk dokumen induk PDF.")
+        if st.all_scanned:  # no text layer: the scan would find nothing
+            raise HTTPException(400, f"Pilihan kata {SCAN_ALL_NA[:1].lower()}{SCAN_ALL_NA[1:]}.")
         scanned = st.lexical is not None
     if not scanned:
         try:
@@ -1201,9 +1298,30 @@ def _issue(request: Request, st: Staging, sets: dict, lexical: LexicalSelection 
         verdict = capacity_verdict(lex_bits + sem_bits, lexical.body_words or None, lex_bits or None)
         retype = {"lex": lex_bits, "sem": sem_bits, "enough": lex_bits + sem_bits >= LONE_LEAKER_BITS,
                   "verdict": _keep_units(_sentence_case(verdict))}
-    resp = _page(request, "_hasil_terbit.html", out=out, manifest=out.manifest, retype=retype)
+    resp = _page(request, "_hasil_terbit.html", out=out, manifest=out.manifest, retype=retype,
+                 scan=_issued_scan_view(out))
     resp.headers["HX-Trigger"] = "registri-berubah"  # the sidebar reloads its registry state
     return resp
+
+
+def _issued_scan_view(out) -> dict[str, object] | None:
+    """What the result shows about scanned pages, as ``tapak issue`` prints it: the page
+    modes and channels (raster.plan_lines), the scan gate, and the copy sizes in MB measured
+    on the files (the page images are stored without lossy compression). None without
+    scanned pages."""
+    import pymupdf
+
+    from tapak.marker.raster import plan_lines
+
+    m = out.manifest
+    if not m.scan:
+        return None
+    master = out.folder / "induk.pdf"
+    with pymupdf.open(master) as doc:
+        pages = doc.page_count
+    sizes = [(out.folder / "salinan" / c.file).stat().st_size / 1e6 for c in m.copies]
+    return {"lines": plan_lines(m.scan, pages), "gate": SCAN_GATE_LINES.get(m.gate.get("scan_identical")),
+            "mean_mb": sum(sizes) / len(sizes), "max_mb": max(sizes), "master_mb": master.stat().st_size / 1e6}
 
 
 @app.get("/dokumen/{doc}/salinan.zip")
@@ -1324,12 +1442,25 @@ async def lacak_run(
             _TRACES.pop(next(iter(_TRACES)))
     from tapak.decoder.report import make_redactor
 
+    from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
+
     a = outcome.attribution
     # As in the berita acara: file names and notes never identify a copy that is not accused.
     redact = make_redactor((c.copy for c in a.candidates if not c.accused), {c.copy.seq for c in a.accused})
+    # A document with scanned pages: a sentence under the channel table says whether the shift
+    # channel covered them (it does not when their word boxes could not be found again as at
+    # issuance; the note with the reason stands next to the verdict).
+    shift_scan = None
+    if getattr(getattr(outcome.ctx, "manifest", None), "scan", None):
+        if any(str(n).startswith(SCAN_SHIFT_SKIPPED) for n in a.notes):
+            shift_scan = ("Kanal geser tidak membaca halaman pindaian (lihat peringatan di atas); pola latar halaman "
+                          "itu tetap dibaca.")
+        elif any(ch.channel == "geser" for ch in a.channels):
+            shift_scan = ("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
+                          "cocok dengan catatan penerbitan.")
     return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid,
                  identified=a.verdict == VERDICT_IDENTIFIED, redact=redact,
-                 eps_label=_eps_label(a.threshold.eps))
+                 eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan)
 
 
 def _eps_label(eps: float) -> str:

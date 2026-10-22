@@ -7,16 +7,26 @@
 {% if oob %}
 {# The progress header and the plan tile sit outside #semantik; they follow the review state. #}
 {% set cur = 3 if (st.units and (not st.sets or pending.n)) or lex_pending else 4 %}
+{% set na = 3 if st.all_scanned else 0 %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan" hx-swap-oob="true">
   {% for label in langkah_terbit %}
-  <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
+  <li class="stepper-item{% if loop.index == na %} is-na{% elif loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index == na %}{{ ikon("minus", 14) }}{% elif loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index == na %}<span class="stepper-na"><span class="sr-only">: </span>tidak berlaku</span>{% elif loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
   {% endfor %}
 </ol>
 {% include "_tahan_ketik.html" %}
 {% endif %}
+{% if st.all_scanned %}
+{# No text layer at all: neither safe sentences nor word choice can be marked, nothing to review. #}
+<section class="card teks-na" aria-labelledby="langkah3">
+  <h2 id="langkah3">Tinjau teks</h2>
+  <p class="lead">{{ pindaian_na }}. Kalimat aman dan pilihan kata hanya dapat ditanam di lapisan teks, jadi keduanya dilewati dan tidak ada yang perlu ditinjau.</p>
+  <p class="hint">Salinan tetap membawa kanal geser dan pola latar di piksel gambar halaman. Teks yang diketik ulang dari salinan tidak membawa tanda, sehingga pengetikan ulang dokumen ini tidak dapat dilacak.</p>
+</section>
+{% else %}
 <section class="card sem" aria-labelledby="langkah3">
   <h2 id="langkah3">Kalimat aman <span class="field-optional">(opsional)</span></h2>
   <p class="lead">Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Ini satu-satunya kanal yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.</p>
+  {% if st.scan %}<p class="hint teks-saja">Hanya halaman teks. Halaman pindaian (halaman {{ st.plan.scan_nums }}) tidak membawa kanal ini.</p>{% endif %}
   {% if st.candidates %}
   {% set decided = namespace(n=0) %}
   {% for vs in st.sets.values() %}{% for x in vs.status[1:] %}{% if x != "menunggu" %}{% set decided.n = decided.n + 1 %}{% endif %}{% endfor %}{% endfor %}
@@ -141,7 +151,9 @@
   {% endif %}
 </section>
 
-{% if st.pdf %}{% include "_leksikal.html" %}{% endif %}
+{% endif %}
+
+{% if st.pdf and not st.all_scanned %}{% include "_leksikal.html" %}{% endif %}
 
 <section class="card publish{% if not blocked %} is-ready{% endif %}" aria-labelledby="langkah4">
   <div class="publish-row">
@@ -162,7 +174,7 @@
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
         <span class="htmx-indicator">Menerbitkan…</span>
       </button>
-      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.{% if st.scan %} Halaman pindaian ditandai di piksel gambar, jadi lebih lama (contoh: 20 salinan dokumen 2 halaman pindaian 300&nbsp;dpi sekitar 30 detik).{% endif %}</span></div>
     </form>
   </div>
   {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}
