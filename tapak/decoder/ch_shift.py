@@ -10,7 +10,8 @@ from depends on the input:
 From displacements, each data unit is compared with the line through its two control
 neighbours (see ``marker/pdf_shift.py``), giving s = (2*bit - 1) * delta + noise. The noise
 level sigma is estimated from the data with a two-component EM fit, then
-LLR = 2 * delta * s / sigma^2.
+LLR = 2 * delta * s / sigma^2. Every measured unit also gets the code-blind strength |s| / sigma
+(0 for an implausible offset) for the erasure check (``decoder/erasure.py``).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from tapak.decoder.softbits import SoftBits, gaussian_llr
+from tapak.decoder.softbits import SoftBits, Strengths, gaussian_llr
 from tapak.marker.layout import DocumentLayout, RowId, WordId, extract_layout
 from tapak.marker.master import MasterDocument
 from tapak.marker.pdf_shift import ShiftSettings, eligible_rows, relative_offset
@@ -144,6 +145,7 @@ def decode_displacements(
     s = np.array(vals)
     kinds_arr = np.array(kinds)
     llr = np.zeros_like(s)
+    strength = np.full(s.shape, np.nan)
     sigmas = {}
     implausible = 0
     for kind, delta in (("kata", settings.word_pt), ("baris", settings.row_pt)):
@@ -153,11 +155,15 @@ def decode_displacements(
         # kept out of the noise estimate so they cannot silence the whole channel.
         sane = sel & (np.abs(s) <= OUTLIER_FACTOR * delta)
         implausible += int(sel.sum() - sane.sum())
+        strength[sel & ~sane] = 0.0  # measured, but no mark: as erased for the erasure check
         if not sane.any():
             continue
         sigma = estimate_sigma(s[sane], delta, floor=sigma_floor_ratio * delta)
         sigmas[kind] = sigma
         llr[sane] = gaussian_llr(s[sane], delta, sigma)
+        strength[sane] = np.abs(s[sane]) / sigma
+    measured = ~np.isnan(strength)
+    strengths = Strengths(np.array(pos, dtype=np.int64)[measured], strength[measured])
     keep = llr != 0
     s, llr, kinds_arr = s[keep], llr[keep], kinds_arr[keep]
     pos = [q for q, k in zip(pos, keep) if k]
@@ -168,6 +174,7 @@ def decode_displacements(
         llr,
         {"slots_read": len(pos), "slots_total": len(plan.channel(CHANNEL_SHIFT)),
          "slots_implausible": implausible, "sigma_pt": sigmas, "fraction_clear": agree},
+        strengths,
     )
 
 

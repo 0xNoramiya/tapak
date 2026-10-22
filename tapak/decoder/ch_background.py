@@ -44,6 +44,10 @@ The tests are a detection aid only. The false-accusation bound never depends on 
 weights use no codeword (only the evidence, the master, the keyed cell layout and the bias
 vector, which is the same for every copy), so the bound holds for any input, noise included.
 
+Every seen bit also gets two strengths, |t_b| / sigma (sigma from the decoy) and the mean
+energy of its cells over sigma^2, before any gain, pilot or bias vector is used and also when
+no pattern is found; only the erasure check (``decoder/erasure.py``) reads them.
+
 No codeword is consulted at any step.
 """
 
@@ -52,7 +56,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from tapak.decoder.softbits import SoftBits
+from tapak.decoder.softbits import SoftBits, Strengths
 from tapak.marker.background import PageGrid, paper_threshold
 from tapak.marker.plan import CHANNEL_BACKGROUND, Slot
 
@@ -64,6 +68,7 @@ SAT_EDGES = (0.0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98)  # lower edges of the s
 SAT_SMOOTH_CELLS = 1.0  # Gaussian sigma (in cells) of the saturated share that picks the stratum
 MIN_STRATUM_CELLS = 40  # a stratum with fewer cells gets weight 0 (its gain cannot be estimated)
 CELL_CLIP = 5.0  # despread cell values beyond this many robust deviations are clipped
+ENERGY_MAX_SHARE = 0.5  # cells at or above this saturated share are left out of the energy strength
 
 
 def pattern_z(t: np.ndarray, t_decoy: np.ndarray, sigma: float) -> float:
@@ -323,4 +328,14 @@ def decode_background(
             pos.append(s.positions[0])
             val.append(llr[b] * (1 - 2 * s.whiten[0]))
     meta.update(bits_read=len(pos), pattern_found=bool(found))
-    return SoftBits(CHANNEL_BACKGROUND, np.array(pos, dtype=np.int64), np.array(val), meta)
+    # Code-blind strengths of every seen bit for the erasure check, also when no pattern was
+    # found, computed before any gain, pilot or bias: |t_b| over the decoy noise level, and the
+    # mean energy of the bit's cells (the pattern's square, whatever sign each cell carries).
+    lit = weight * (share[sel] < ENERGY_MAX_SHARE)
+    energy = (np.bincount(bits, weights=means[sel] ** 2 * lit, minlength=grid.n_bits)
+              / np.maximum(np.bincount(bits, weights=lit, minlength=grid.n_bits), 1e-12))
+    seen_slots = [s for s in page_slots if seen[s.ref[0]]]
+    strengths = Strengths(np.array([s.positions[0] for s in seen_slots], dtype=np.int64),
+                          np.array([[abs(t[s.ref[0]]) / sigma, energy[s.ref[0]] / sigma ** 2] for s in seen_slots]
+                                   ).reshape(-1, 2))
+    return SoftBits(CHANNEL_BACKGROUND, np.array(pos, dtype=np.int64), np.array(val), meta, strengths)
