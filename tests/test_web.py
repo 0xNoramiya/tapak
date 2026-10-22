@@ -1312,3 +1312,36 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
     assert lines == [f"Pelacakan bertahap: tahap 1 memakai {share1} % dari "
                      f"batas peluang tuduhan salah {_eps_label(a.threshold.eps)} (90 % dari jatah pelacakan ini); "
                      "tahap lanjutan tidak menuduh salinan lain."]
+
+
+# --- erasure aimed at agreeing positions (tapak.collusion, decoder/erasure.py) ---------------
+
+
+def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdict(client):
+    """Two copies combined by a coalition that flattens every mark where they agree: the
+    result page shows the warning next to the verdict and the check in the validity box; an
+    honest copy shows neither the warning nor a stamp."""
+    import numpy as np
+
+    from tapak.collusion import attack
+    from tapak.decoder.erasure import ERASURE_NOTE
+    from tapak.marker.master import load_master
+
+    s, manifest = _issue_small(6)
+    doc = manifest.doc_hash[:16]
+    folder = s.workspaces / doc
+    pdfs = [(folder / "salinan" / manifest.copies[i].file).read_bytes() for i in (1, 4)]
+    forged, _, _ = attack(load_master((folder / "induk.pdf").read_bytes()), pdfs, "acak", 1.0,
+                          rng=np.random.default_rng(4))
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", forged, "application/pdf")})
+    assert r.status_code == 200
+    verdict = r.text[:r.text.index('class="verdict-actions"')]
+    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> ' + ERASURE_NOTE in verdict
+    assert r.text.count(ERASURE_NOTE) == 1
+    box = r.text[r.text.index('id="sah-h"'):]
+    assert "Pola penghapusan" in box and "Terdeteksi" in box and "posisi terukur" in box
+    for seq in (1, 3, 4, 6):  # nobody outside the coalition (copies 2 and 5) is named
+        assert f'<span class="who-seq">Salinan #{seq}</span>' not in verdict
+    honest = client.post("/lacak", data={"dokumen": doc},
+                         files={"bukti": ("bocor.pdf", pdfs[0], "application/pdf")}).text
+    assert ERASURE_NOTE not in honest and "Pola penghapusan" in honest and "Terdeteksi" not in honest

@@ -17,6 +17,7 @@ import numpy as np
 from tapak.decoder.accuse import VISIBLE_MARKS_NOTE, Attribution, CopyRef, attribute
 from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
+from tapak.decoder.erasure import erasure_check, erasure_note
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
 from tapak.marker.issue import IssueManifest, SemanticSelection, build_document_plan, lexical_exclusions
@@ -436,11 +437,19 @@ def visible_marks_note(observations: list[SoftBits], attribution: Attribution, c
 
 def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] | None = None,
               spending: TraceSpending | None = None) -> Attribution:
-    """Fuse, accuse, explain. ``spending`` is this trace's part of eps (None: not logged, all of eps)."""
+    """Fuse, accuse, explain. ``spending`` is this trace's part of eps (None: not logged, all of eps).
+
+    The erasure check (``decoder/erasure.py``) runs on the same observations with the bias
+    vector only; when it flags the evidence, a warning is added to the notes. It never changes
+    the verdict, a threshold or a score, and never names anyone.
+    """
     fused = fuse(observations, ctx.params.length)
     per_channel = fuse_by_physical_channel(observations, ctx.params.length)
     result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params, spending)
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
+    result.erasure = erasure_check(observations, ctx.p)
+    if result.erasure.flagged:
+        result.notes.append(erasure_note(result.erasure))
     if ctx.plan.channel(CHANNEL_LEXICAL):  # documents without the channel keep their output unchanged
         lexical_bits = sum(len(s.positions) for s in ctx.plan.channel(CHANNEL_LEXICAL))
         body_words = ctx.lexical.body_words if ctx.lexical is not None else None

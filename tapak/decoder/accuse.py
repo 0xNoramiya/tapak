@@ -36,6 +36,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
+from tapak.decoder.erasure import ERASURE_NOTE, ErasureCheck
 from tapak.decoder.fuse import FusedEstimate
 from tapak.tardos.accuse import log_tail_bound, scores, threshold
 from tapak.tardos.params import TardosParams
@@ -208,6 +209,8 @@ class Attribution:
 
     ``verdict``, ``threshold`` and ``candidates`` are stage 1 (the ordinary accusation);
     ``stages`` holds the later stages of a staged accusation, in order (empty otherwise).
+    ``erasure`` is the code-blind check for erasure aimed at agreeing positions
+    (``decoder/erasure.py``), set by ``trace.run_trace``; it never changes the verdict.
     """
 
     verdict: str
@@ -217,6 +220,7 @@ class Attribution:
     conflicts: dict[str, tuple[int, int]]
     notes: list[str] = field(default_factory=list)
     stages: list[StageAttribution] = field(default_factory=list)
+    erasure: ErasureCheck | None = None
 
     @property
     def accused(self) -> list[CopyCandidate]:
@@ -269,7 +273,7 @@ class Attribution:
                 )
             if not st.accused:
                 lines.append(f"    Tidak ada salinan lain yang mencapai ambang tahap {st.stage}.")
-        lines.extend(f"  PERHATIAN: {n}" for n in self.notes if VISIBLE_MARKS_NOTE in n)
+        lines.extend(f"  PERHATIAN: {n}" for n in self.notes if is_caveat(n))
         if not self.accused:
             best = self.candidates[0] if self.candidates else None
             if best is not None:
@@ -282,8 +286,16 @@ class Attribution:
                 f"  Kanal {ch.channel}: {ch.n_observed} posisi, ambang {ch.threshold:.1f}, "
                 f"menuduh {len(ch.accused_seqs)} salinan"
             )
-        lines.extend(f"  Catatan: {n}" for n in self.notes if VISIBLE_MARKS_NOTE not in n)
+        if self.erasure is not None:
+            lines.append(f"  Pemeriksaan pola penghapusan disengaja: {self.erasure.text()}")
+        lines.extend(f"  Catatan: {n}" for n in self.notes if not is_caveat(n))
         return lines
+
+
+def is_caveat(note: str) -> bool:
+    """True for a note shown as a warning next to the verdict rather than among the other notes:
+    a name resting only on marks visible on paper, or a deliberate erasure pattern."""
+    return VISIBLE_MARKS_NOTE in note or note.startswith(ERASURE_NOTE)
 
 
 def format_upper_bound(log10_p: float) -> str:

@@ -257,6 +257,10 @@
         <dd class="tnum">{% if r.chain_ok is none %}-{% else %}{{ r.entries|num }}{% if r.copies_unsigned %}, {{ r.copies_unsigned|num }} salinan belum bertanda tangan{% endif %}{% endif %}</dd>
         <dt>Komitmen</dt>
         <dd class="tnum">{{ r.copies_confirmed|num }} dari {{ r.copies_total|num }} salinan cocok</dd>
+        {% if a.erasure and a.erasure.z is not none %}
+        <dt>Pola penghapusan</dt>
+        <dd class="tnum">{% if a.erasure.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.erasure.text() }}</dd>
+        {% endif %}
         {% if o.trace_entry is not none %}
         <dt>Pelacakan</dt>
         <dd class="tnum">Ke-{{ t.trace_no }}, entri #{{ o.trace_entry }}, {{ "bertanda tangan" if o.trace_signed else "belum bertanda tangan" }}</dd>
