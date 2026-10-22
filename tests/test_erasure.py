@@ -21,8 +21,10 @@ from tapak.decoder.erasure import (
     ERASURE_MIN_POSITIONS,
     ERASURE_NOTE,
     ERASURE_Z,
+    SILENT_BACKGROUND_RULE,
     ErasureCheck,
     agreement_score,
+    background_pattern_seen,
     erasure_check,
     erasure_note,
     erasure_z,
@@ -30,6 +32,7 @@ from tapak.decoder.erasure import (
     position_scores,
     rank_scores,
 )
+from tapak.decoder.contradiction import CONTRADICTION_NOTE
 from tapak.decoder.softbits import SoftBits, Strengths
 from tapak.tardos.code import random_code
 from tapak.tardos.params import TardosParams
@@ -157,10 +160,53 @@ def test_v2_shift_strengths_cover_every_decoded_group(issued, ctx):
 
 
 def test_background_strengths_are_reported_without_a_pattern(ctx):
+    """The decoder still reports strengths when it finds no pattern; the shipped check leaves
+    them out (``SILENT_BACKGROUND_RULE``), rule "semua" counts them as before."""
     from tapak.decoder.trace import collect_background_from_pdf
 
     plain = collect_background_from_pdf(ctx.master.pdf_bytes, ctx)[0]  # the master has no pattern
     assert len(plain) == 0 and len(plain.strengths) > 3000 and plain.strengths.values.shape[1] == 2
+    assert plain.meta["pattern_found"] is False and plain.meta["presence"] is False
+    assert not background_pattern_seen(plain.meta) and background_pattern_seen(plain.meta, "semua")
+    assert position_scores([plain], ctx.params.length)[0].size == 0
+    assert position_scores([plain], ctx.params.length, "semua")[0].size > 2000
+    assert erasure_check([plain], ctx.p).z is None and erasure_check([plain], ctx.p, "semua").z is not None
+
+
+def test_background_rule_readings():
+    meta = {"pattern_found": False, "presence": True}
+    assert SILENT_BACKGROUND_RULE in ("pola", "uji")
+    assert not background_pattern_seen(meta, "pola") and background_pattern_seen(meta, "uji")
+    assert background_pattern_seen({}, "pola") and background_pattern_seen({}, "uji")  # older outputs count
+    with pytest.raises(ValueError):
+        background_pattern_seen(meta, "lain")
+    silent = SoftBits("background", np.zeros(0, dtype=np.int64), np.zeros(0), dict(meta),
+                      Strengths(np.arange(200), np.linspace(0, 1, 200)))
+    shift = _obs(np.arange(200, 400), np.linspace(0, 1, 200), channel="shift")
+    assert set(position_scores([silent, shift], 500, "pola")[2]) == {"geser"}
+    assert set(position_scores([silent, shift], 500, "uji")[2]) == {"geser", "latar"}
+
+
+def test_pdf_pages_without_a_pattern_are_kept_apart(issued, ctx):
+    """A forwarded copy whose page 2 lost its background: one output per kind of page, so only
+    the strengths of page 2 are left out."""
+    import pymupdf
+
+    from tapak.decoder.trace import collect_background_from_pdf
+
+    out, manifest = issued
+    with pymupdf.open(stream=(out / manifest.copies[0].file).read_bytes(), filetype="pdf") as doc:
+        page = doc[1]
+        xref = max(page.get_images(full=True), key=lambda i: max(r.width * r.height for r in page.get_image_rects(i[0])))[0]
+        pix = pymupdf.Pixmap(doc, xref)
+        flat = bytes([int(np.median(np.frombuffer(pix.samples, dtype=np.uint8)))]) * (pix.width * pix.height)
+        page.replace_image(xref, pixmap=pymupdf.Pixmap(pymupdf.csGRAY, pix.width, pix.height, flat, False))
+        data = doc.tobytes()
+    parts = collect_background_from_pdf(data, ctx)
+    assert [p.meta["pattern_found"] for p in parts] == [True, False] and [p.meta["pages"] for p in parts] == [1, 1]
+    assert len(parts[0]) > 1000 and len(parts[1]) == 0 and len(parts[1].strengths) > 1000
+    whole = collect_background_from_pdf((out / manifest.copies[0].file).read_bytes(), ctx)
+    assert len(whole) == 1 and whole[0].meta["pages"] == 2 and whole[0].meta["pattern_found"] is True
 
 
 def test_strengths_and_check_do_not_depend_on_codewords(issued, ctx):
@@ -183,20 +229,27 @@ def test_strengths_and_check_do_not_depend_on_codewords(issued, ctx):
     assert run_trace(real, ctx).erasure == run_trace(other, fake).erasure
 
 
-def test_attacked_pdf_is_flagged_and_the_verdict_is_the_accusation_alone(issued, ctx):
+def test_attacked_pdf_is_flagged_and_the_verdict_is_the_accusation_alone(issued_seeded, ctx_seeded):
+    """Erasure of the agreeing marks of three copies (a seeded issuance, so the numbers are the
+    same in every session): the background still shows its pattern at the positions where the
+    copies differ, so its strengths count, and the erasure is plain. The rest of the read is
+    clear and names nobody, so the contradiction check fires too: one warning says both."""
     from tapak.collusion import attack
     from tapak.decoder.accuse import attribute
     from tapak.decoder.fuse import fuse, fuse_by_physical_channel
     from tapak.decoder.trace import collect_file, run_trace
 
-    out, manifest = issued
-    members = [2, 9]
+    out, manifest = issued_seeded
+    ctx = ctx_seeded
+    members = [2, 9, 14]
     pdfs = [(out / manifest.copies[s - 1].file).read_bytes() for s in members]
     forged, _, _ = attack(ctx.master, pdfs, "acak", 1.0, rng=np.random.default_rng(1))
     obs, notes = collect_file("bukti.pdf", forged, ctx)
     result = run_trace(obs, ctx, notes)
-    assert result.erasure.flagged and result.erasure.z < -5
-    assert any(n.startswith(ERASURE_NOTE) for n in result.notes)
+    assert result.erasure.flagged and result.erasure.z < -5 and set(result.erasure.units) == {"geser", "latar"}
+    assert erasure_check(obs, ctx.p, "semua") == result.erasure
+    warnings = [n for n in result.notes if n.startswith(ERASURE_NOTE)]
+    assert len(warnings) == 1 and result.contradiction.flagged and CONTRADICTION_NOTE in warnings[0]
     plain = attribute(fuse(obs, ctx.params.length), fuse_by_physical_channel(obs, ctx.params.length), ctx.p,
                       ctx.codewords, ctx.refs, ctx.params)
     assert result.verdict == plain.verdict and [c.score for c in result.candidates] == [c.score for c in plain.candidates]

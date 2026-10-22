@@ -69,3 +69,26 @@ def ctx_v1(issued_v1, sample_pdf, secret):
     from tapak.decoder.trace import load_context
 
     return load_context(sample_pdf, issued_v1[1], secret)
+
+
+TEST_SEED = 5  # research-style seed of a reproducible test issuance (not used by any research protocol)
+
+
+@pytest.fixture(scope="session")
+def issued_seeded(tmp_path_factory, sample_pdf, recipients) -> tuple[Path, IssueManifest]:
+    """A geser-v2 issuance whose code secret and copy ids come from TEST_SEED, so tests on it
+    give the same numbers in every session (the ``issued`` fixture draws new copy ids)."""
+    from tapak.keys import research_code_secret, research_copy_ids
+
+    out = tmp_path_factory.mktemp("issued_seeded")
+    manifest = issue(SAMPLE, recipients, out, research_code_secret(TEST_SEED), IssueSettings(), issuer="pytest",
+                     copy_ids=research_copy_ids(TEST_SEED, len(recipients)))
+    return out, manifest
+
+
+@pytest.fixture(scope="session")
+def ctx_seeded(issued_seeded, sample_pdf):
+    from tapak.decoder.trace import load_context
+    from tapak.keys import research_code_secret
+
+    return load_context(sample_pdf, issued_seeded[1], research_code_secret(TEST_SEED))

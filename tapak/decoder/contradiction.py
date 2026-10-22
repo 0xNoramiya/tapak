@@ -29,6 +29,14 @@ function of the weights alone. The rate is fixed before any measurement (``resea
 1e-3, the erasure check's rate. Whether the decoder's LLRs are calibrated is measured, not
 assumed: the ceilings temper every fused LLR by CONTRADICTION_TEMPERING, a factor fixed on
 development seeds only, so that the tempered rates cover the error rates measured per medium.
+Measured on 30 honest copies of three development issuances through seven media
+(``research/kontradiksi``, part ``kalibrasi``): forwarded PDFs make no error, photos and
+screenshots are close to calibrated below |L| = 4 and overconfident above it (screenshots: 35
+wrong of 51,154 positions at |L| >= 12, where a calibrated LLR predicts 0.3), and printed pages
+are the worst (the shift channel alone: 26 wrong of 2,741 at |L| >= 12, about 1 %, mostly whole
+rows read with the wrong offset). The largest factor whose tempered rates cover every medium
+and |L| bin by the rule fixed before the run is 0.3, so a PDF mark read at |L| = 12 is treated as
+wrong with probability 2.7 %.
 
 Cost. The bound is evaluated on at most ``CONTRADICTION_BOXES`` weight boxes, for the largest
 coalition first, and stops as soon as one coalition size is above the rate (that already rules
@@ -55,7 +63,7 @@ from tapak.tardos.detection import proven_read_miss_ceiling, tempered_error_rate
 from tapak.tardos.params import TardosParams
 
 CONTRADICTION_RATE = 1e-3
-CONTRADICTION_TEMPERING = 1.0
+CONTRADICTION_TEMPERING = 0.3
 CONTRADICTION_BOXES = 64
 CONTRADICTION_NOTE = "bukti terbaca jelas, tetapi tidak ada salinan yang mencapai ambang"
 # Shared last sentence of a manipulation warning (erasure, contradiction or both).

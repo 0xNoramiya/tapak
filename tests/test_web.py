@@ -1343,9 +1343,11 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
 
 
 def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdict(client):
-    """Two copies combined by a coalition that flattens every mark where they agree: the
+    """Three copies combined by a coalition that flattens every mark where they agree: the
     result page shows the warning next to the verdict and the check in the validity box; an
-    honest copy shows neither the warning nor a stamp."""
+    honest copy shows neither the warning nor a stamp. (With two copies and a random member per
+    cell where they differ, no coherent background is left; the check then reads the shift
+    units alone, which flag such a PDF only sometimes: ``research/kontradiksi``.)"""
     import numpy as np
 
     from tapak.collusion import attack
@@ -1355,7 +1357,7 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     s, manifest = _issue_small(6)
     doc = manifest.doc_hash[:16]
     folder = s.workspaces / doc
-    pdfs = [(folder / "salinan" / manifest.copies[i].file).read_bytes() for i in (1, 4)]
+    pdfs = [(folder / "salinan" / manifest.copies[i].file).read_bytes() for i in (1, 2, 4)]
     forged, _, _ = attack(load_master((folder / "induk.pdf").read_bytes()), pdfs, "acak", 1.0,
                           rng=np.random.default_rng(4))
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", forged, "application/pdf")})
@@ -1365,7 +1367,7 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     assert r.text.count(ERASURE_NOTE) == 1
     box = r.text[r.text.index('id="sah-h"'):]
     assert "Pola penghapusan" in box and "Terdeteksi" in box and "posisi terukur" in box
-    for seq in (1, 3, 4, 6):  # nobody outside the coalition (copies 2 and 5) is named
+    for seq in (1, 4, 6):  # nobody outside the coalition (copies 2, 3 and 5) is named
         assert f'<span class="who-seq">Salinan #{seq}</span>' not in verdict
     honest = client.post("/lacak", data={"dokumen": doc},
                          files={"bukti": ("bocor.pdf", pdfs[0], "application/pdf")}).text

@@ -95,7 +95,8 @@ ERASURE_MIN_POSITIONS = 100
 # its pattern (``research/kontradiksi``, part 4: on a print the default pattern never reaches the
 # paper, and thousands of noise-only background strengths drowned the shift units). Two readings
 # of "saw" were fixed before any run; the one named here was chosen on development seeds by the
-# rule written there, and ``"semua"`` keeps every background strength, as before:
+# rule written there (both flagged 24 of 48 erased development evidence with no honest alarm,
+# so the tie went to "pola"), and ``"semua"`` keeps every background strength, as before:
 #   "pola": the decoder's own decision (``pattern_found``: a presence test passed and, on images,
 #           the pilot gave a positive gain);
 #   "uji":  a presence test passed (``presence``), whatever the gain.
