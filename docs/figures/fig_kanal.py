@@ -3,7 +3,10 @@
 Issues samples/nota_dinas.pdf with the tapak CLI into out/figures-work/kanal/ (fixed code
 secret and copy ids, so every run produces the same copies), then draws:
 
-(a) word shift: one word gap of master and copy 001 rendered at 1200 dpi and overlaid;
+(a) word shift: one word gap of master and copy 001 rendered at 1200 dpi and overlaid. Under
+    the default shift scheme geser-v2 every word group moves by +/-0.025 mm, so the gap shown
+    is one between two groups that moved apart (under geser-v1: a still word, then a shifted
+    one);
 (b) background pattern: a crop of copy 001 as seen, next to master minus copy, amplified
     and drawn as an olive tint;
 (c) invisible characters: one line of copy 001's text layer with its zero-width symbols
@@ -48,7 +51,7 @@ SHIFT_DPI = 1200
 PATTERN_DPI = 300
 PATTERN_GAIN = 40            # contrast amplification of the difference image
 PATTERN_CROP_MM = (90.0, 246.5, 30.0)   # page 2: x, y, width; blank paper above the footer
-SHIFT_PAIR = ("tahun", "anggaran")      # page 1: a still word, then one shifted right
+SHIFT_PAIR = ("tahun", "anggaran")      # page 1: preferred pair, the right word shifted right
 SHIFT_CROP_MM = 5.0          # width of the word-shift crop
 SHIFT_BELOW_MM = 0.75        # paper kept under the baseline, room for the scale bar
 TEXT_LINE = "Satu berkas jadwal latihan sintetis"
@@ -63,8 +66,8 @@ COPY_INK = np.array(style.LIGHT.accent[:3])
 
 
 def mm(v: float) -> str:
-    """Millimetres with a decimal comma."""
-    return f"{v:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+    """Millimetres with a decimal comma (up to three decimals: 0,025 and 0,05)."""
+    return f"{v:.3f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
 def issue_copies() -> tuple[Path, dict]:
@@ -104,29 +107,45 @@ def copy_origins(page: pymupdf.Page) -> np.ndarray:
     return np.array(pts)
 
 
-def find_shifted_pair(master_pdf: Path, copy: pymupdf.Document, shift_mm: float):
-    """SHIFT_PAIR on page 1, checked to show the word shift alone.
+def find_shifted_pair(master_pdf: Path, copy: pymupdf.Document, shift_mm: float, scheme: str):
+    """A pair of neighbouring words on page 1 that shows the word shift of ``scheme``.
 
     Displacements are measured: each master glyph origin is matched to the nearest glyph
-    origin in the copy. The right word must have moved by the manifest's shift, and the
-    left word and the row must not have moved. Returns both words and both x shifts in mm.
+    origin in the copy. The right word must have moved right by the manifest's shift and the
+    row must not have moved; the left word must not have moved (geser-v1: a control group) or
+    must have moved left by the same shift (geser-v2: the gap between two groups that moved
+    apart). SHIFT_PAIR is taken when it qualifies, otherwise the qualifying pair of lowercase
+    words in different groups with the narrowest gap (so the crop shows the end of the left
+    word too). Returns both words and both x shifts in mm.
     """
-    layout = load_master(master_pdf.read_bytes()).layout
+    from tapak.marker.issue import apply_shift_scheme
+
+    master = load_master(master_pdf.read_bytes())
+    apply_shift_scheme(master, scheme)
     pts = copy_origins(copy[0])
+    want_left = -shift_mm if scheme == "geser-v2" else 0.0
 
     def disp(word) -> tuple[float, float]:
         g = word.glyphs[0]
         k = np.hypot(pts[:, 0] - g.x, pts[:, 1] - g.y).argmin()
         return (pts[k, 0] - g.x) * MM, (pts[k, 1] - g.y) * MM
 
-    for row in layout.pages[0].rows:
-        for left, right in zip(row.words, row.words[1:]):
-            if (left.text, right.text) != SHIFT_PAIR:
+    found = []
+    for row in master.layout.pages[0].rows:
+        group_of = {i: g for g, grp in enumerate(row.groups) for i in grp.word_indices}
+        for i, (left, right) in enumerate(zip(row.words, row.words[1:])):
+            if group_of[i] == group_of[i + 1] or not (left.text.isalpha() and right.text.isalpha()
+                                                      and left.text.islower() and right.text.islower()):
                 continue
             (lx, ly), (rx, ry) = disp(left), disp(right)
-            if max(abs(lx), abs(ly), abs(ry)) < 0.005 and abs(rx - shift_mm) < 0.005:
-                return left, right, rx, lx
-    raise SystemExit(f"{SHIFT_PAIR} does not show a lone +{shift_mm} mm word shift on page 1")
+            if max(abs(ly), abs(ry), abs(lx - want_left), abs(rx - shift_mm)) < 0.005 and len(right.glyphs) >= 3:
+                found.append((left, right, rx, lx))
+    for pair in found:
+        if (pair[0].text, pair[1].text) == SHIFT_PAIR:
+            return pair
+    if found:
+        return min(found, key=lambda pair: pair[1].glyphs[0].x - (pair[0].glyphs[-1].x + pair[0].glyphs[-1].advance))
+    raise SystemExit(f"no word pair on page 1 shows the {scheme} word shift of {shift_mm} mm")
 
 
 def overlay(master: np.ndarray, copy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -189,8 +208,9 @@ def panel_axes(fig, col: int, t, title: str, caption: str):
 
 def draw_shift(fig, t, data) -> None:
     """Panel (a): master and copy overlaid around one shifted word."""
-    ax = panel_axes(fig, 0, t, "Geser kata",
-                    f"Kata bergeser {mm(data['shift_mm'])} mm, tetangganya diam")
+    caption = (f"Tiap kata bergeser \u00b1{mm(data['shift_mm'])} mm" if data["scheme"] == "geser-v2"
+               else f"Kata bergeser {mm(data['shift_mm'])} mm, tetangganya diam")
+    ax = panel_axes(fig, 0, t, "Geser kata", caption)
     pw, ph = SHIFT_PAPER
     paper(ax, data["overlay"], PAD, PAD, pw, ph, t)
     # 1 mm scale bar in the strip under the baseline, in paper ink.
@@ -273,12 +293,13 @@ def measure() -> dict:
     master = pymupdf.open(master_pdf)
     copy = pymupdf.open(folder / "salinan" / entry["file"])
     shift_mm = manifest["shift_mm"]["word_mm"]
+    scheme = manifest.get("shift_scheme", "geser-v1")
     bg = manifest["background"]
 
     # (a) the gap between a still word and a shifted word: the end of the left word and the
     # first letter of the right one, x-height band plus a strip under the baseline.
     # The pair is checked to move right, so the outer copy-only edge is the rightmost one.
-    left, right, dx, left_dx = find_shifted_pair(master_pdf, copy, shift_mm)
+    left, right, dx, left_dx = find_shifted_pair(master_pdf, copy, shift_mm, scheme)
     size, base = right.glyphs[0].size, right.glyphs[0].y
     crop_w = SHIFT_CROP_MM / MM
     crop_h = crop_w * SHIFT_PAPER[1] / SHIFT_PAPER[0]
@@ -319,7 +340,7 @@ def measure() -> dict:
     shown = "".join(rows)
     return {
         "copy": entry["file"], "recipient": entry["recipient"]["recipient_id"],
-        "shift_mm": shift_mm, "dx_mm": dx, "left_dx_mm": left_dx,
+        "shift_mm": shift_mm, "scheme": scheme, "dx_mm": dx, "left_dx_mm": left_dx,
         "word": right.text, "neighbour": left.text,
         "overlay": ov, "edge": edge, "fringe_px": int((copy_only[r] > 0.5).sum()),
         "amp": bg["amplitude"], "base": bg["base"],
@@ -340,7 +361,8 @@ def main() -> None:
         draw_pattern(fig, t, data)
         draw_text(fig, t, data)
         style.save(fig, "kanal", t, png=True)
-    print(f"copy {data['copy']} ({data['recipient']}): word '{data['word']}' moved {data['dx_mm']:+.4f} mm "
+    print(f"copy {data['copy']} ({data['recipient']}), {data['scheme']}: word '{data['word']}' moved "
+          f"{data['dx_mm']:+.4f} mm "
           f"(manifest {data['shift_mm']} mm), neighbour '{data['neighbour']}' moved "
           f"{data['left_dx_mm']:+.4f} mm; copy-only pixels at mid x-height: {data['fringe_px']}")
     print(f"background base {data['base']:g} +/- {data['amp']:g}; blank paper levels: copy "
