@@ -78,18 +78,29 @@ warning there comes mostly from the background.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from statistics import NormalDist
 
 import numpy as np
 
 from tapak.decoder.softbits import SoftBits
-from tapak.marker.plan import PHYSICAL_CHANNEL
+from tapak.marker.plan import CHANNEL_BACKGROUND, PHYSICAL_CHANNEL
 
 ERASURE_ALARM_RATE = 1e-3
 ERASURE_CALIBRATION = 1.0
 ERASURE_Z = NormalDist().inv_cdf(1.0 - ERASURE_ALARM_RATE) * ERASURE_CALIBRATION
 ERASURE_MIN_POSITIONS = 100
+# Background strengths enter the statistic only from pages on which the background decoder saw
+# its pattern (``research/kontradiksi``, part 4: on a print the default pattern never reaches the
+# paper, and thousands of noise-only background strengths drowned the shift units). Two readings
+# of "saw" were fixed before any run; the one named here was chosen on development seeds by the
+# rule written there, and ``"semua"`` keeps every background strength, as before:
+#   "pola": the decoder's own decision (``pattern_found``: a presence test passed and, on images,
+#           the pilot gave a positive gain);
+#   "uji":  a presence test passed (``presence``), whatever the gain.
+SILENT_BACKGROUND_RULE = "pola"
+SILENT_BACKGROUND_RULES = ("pola", "uji", "semua")
 ERASURE_NOTE = ("pola penghapusan disengaja terdeteksi: kemungkinan koalisi yang memahami TAPAK; bukti di posisi "
                 "tempat salinan koalisi sama dihapus")
 
@@ -156,11 +167,28 @@ def rank_scores(values: np.ndarray) -> np.ndarray:
     return (u - 0.5) * math.sqrt(12.0)
 
 
-def position_scores(observations: list[SoftBits], m: int) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
+def background_pattern_seen(meta: Mapping[str, object], rule: str = SILENT_BACKGROUND_RULE) -> bool:
+    """Whether a background channel output saw its pattern, by ``rule`` (``SILENT_BACKGROUND_RULES``).
+
+    A decision the background decoder has already made without any codeword; an output that
+    does not record it (older observations, other channels) counts as seen.
+    """
+    if rule not in SILENT_BACKGROUND_RULES:
+        raise ValueError(f"aturan latar tidak dikenal: {rule!r}")
+    if rule == "semua":
+        return True
+    key = "pattern_found" if rule == "pola" else "presence"
+    return bool(meta.get(key, True))
+
+
+def position_scores(observations: list[SoftBits], m: int,
+                    rule: str = SILENT_BACKGROUND_RULE) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
     """(positions, summed rank score per position, units per physical channel) of all strengths.
 
     Every measure (column) of a channel output is ranked on its own. A measure whose values
-    are all equal (an exact digital read) carries no information about erasure and is left out.
+    are all equal (an exact digital read) carries no information about erasure and is left out,
+    and so are the strengths of a background output that did not see its pattern
+    (:func:`background_pattern_seen` with ``rule``).
     """
     total = np.zeros(m)
     seen = np.zeros(m, dtype=bool)
@@ -168,6 +196,8 @@ def position_scores(observations: list[SoftBits], m: int) -> tuple[np.ndarray, n
     for sb in observations:
         st = sb.strengths
         if st is None or len(st) < 2:
+            continue
+        if sb.channel == CHANNEL_BACKGROUND and not background_pattern_seen(sb.meta, rule):
             continue
         if st.positions.min() < 0 or st.positions.max() >= m:
             raise ValueError(f"kanal {sb.channel}: posisi kekuatan di luar [0, {m})")
@@ -200,10 +230,14 @@ def erasure_z(scores: np.ndarray, q: np.ndarray) -> float:
     return float(np.sum(a * b) / den) * math.sqrt(n - 1)
 
 
-def erasure_check(observations: list[SoftBits], p: np.ndarray) -> ErasureCheck:
-    """Run the check on a trace's observations with the document's bias vector (no codeword)."""
+def erasure_check(observations: list[SoftBits], p: np.ndarray, rule: str = SILENT_BACKGROUND_RULE) -> ErasureCheck:
+    """Run the check on a trace's observations with the document's bias vector (no codeword).
+
+    ``rule`` decides which background outputs count (:func:`background_pattern_seen`); research
+    passes ``"semua"`` to reproduce the check as it was before.
+    """
     p = np.asarray(p, dtype=np.float64)
-    pos, scores, units = position_scores(observations, p.size)
+    pos, scores, units = position_scores(observations, p.size, rule)
     threshold = -ERASURE_Z
     if pos.size < ERASURE_MIN_POSITIONS:
         return ErasureCheck(None, int(pos.size), threshold, ERASURE_ALARM_RATE, False, units)
@@ -217,7 +251,9 @@ __all__ = [
     "ERASURE_NOTE",
     "ERASURE_Z",
     "ErasureCheck",
+    "SILENT_BACKGROUND_RULE",
     "agreement_score",
+    "background_pattern_seen",
     "erasure_check",
     "erasure_note",
     "erasure_z",

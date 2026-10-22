@@ -261,6 +261,10 @@
         <dt>Pola penghapusan</dt>
         <dd class="tnum">{% if a.erasure.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.erasure.text() }}</dd>
         {% endif %}
+        {% if a.contradiction %}
+        <dt>Bacaan tanpa nama</dt>
+        <dd class="tnum">{% if a.contradiction.flagged %}<span class="stamp stamp-warn">Bertentangan</span> {% endif %}{{ a.contradiction.text() }}</dd>
+        {% endif %}
         {% if o.trace_entry is not none %}
         <dt>Pelacakan</dt>
         <dd class="tnum">Ke-{{ t.trace_no }}, entri #{{ o.trace_entry }}, {{ "bertanda tangan" if o.trace_signed else "belum bertanda tangan" }}</dd>

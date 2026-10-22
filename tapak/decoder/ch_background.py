@@ -414,7 +414,9 @@ def decode_background(
                 continue
             pos.append(s.positions[0])
             val.append(llr[b] * (1 - 2 * s.whiten[0]))
-    meta.update(bits_read=len(pos), pattern_found=bool(found))
+    # presence: either presence test reached SIGNAL_Z, whatever the gain (pattern_found also
+    # needs a positive gain on images); the erasure check reads both (``erasure.background_pattern_seen``).
+    meta.update(bits_read=len(pos), pattern_found=bool(found), presence=bool(meta["signal_z"] >= SIGNAL_Z))
     # Code-blind strengths of every seen bit for the erasure check, also when no pattern was
     # found, computed before any gain, pilot or bias: |t_b| over the decoy noise level, and the
     # mean energy of the bit's cells (the pattern's square, whatever sign each cell carries).

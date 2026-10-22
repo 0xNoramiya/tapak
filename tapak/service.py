@@ -779,6 +779,7 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
     from tapak.decoder.accuse import CopyRef, attribute
     from tapak.decoder.ch_docx import decode_docx, extract_docx_text
     from tapak.decoder.ch_zerowidth import extract_pdf_text
+    from tapak.decoder.contradiction import contradiction_check, manipulation_note
     from tapak.decoder.fuse import fuse, fuse_by_physical_channel
     from tapak.decoder.trace import TraceError
     from tapak.marker.docx_marker import build_docx_plan, load_docx_master
@@ -820,11 +821,16 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
             notes.append(f"{name}: sebagian karakter tidak dapat diterjemahkan (pengodean teks tidak dikenal)")
         obs += decode_docx(text, master, plan)
     codewords = np.vstack(rows)
-    result = attribute(fuse(obs, params.length), fuse_by_physical_channel(obs, params.length), p,
-                       codewords, refs, params, spending)
+    fused = fuse(obs, params.length)
+    result = attribute(fused, fuse_by_physical_channel(obs, params.length), p, codewords, refs, params, spending)
     if len(items) > 1:
         notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
     result.notes = notes + result.notes
+    # The text layer carries no strengths, so only the contradiction check applies here.
+    result.contradiction = contradiction_check(fused, params, result.threshold.eps1, bool(result.named))
+    warning = manipulation_note(None, result.contradiction)
+    if warning is not None:
+        result.notes.append(warning)
     ctx = SimpleNamespace(master=SimpleNamespace(doc_hash=master.doc_hash, pdf_bytes=b""), manifest=manifest,
                           params=params, plan=plan, p=p, codewords=codewords, refs=refs)
     return result, obs, ctx

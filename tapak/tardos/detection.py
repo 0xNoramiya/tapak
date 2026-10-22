@@ -156,6 +156,31 @@ when e <= 1/2 (psi >= 0 as in step 5), so the erasure's factor 1 never exceeds H
 ``read_miss_bound`` the weights must be the channel's; a read whose zero weights include
 the coalition's erasures is not covered.
 
+Rate ceilings and boxes (``read_miss_ceiling``). (C2) asks for the exact flip rates; a decoder
+whose LLRs are only roughly calibrated knows at best a ceiling e_i with P(f_i = 1 | w) <= e_i.
+Two facts about the factor G(alpha; w, e) at fixed (alpha, lam0) cover that and make a read with
+thousands of distinct weights cheap:
+
+* G is convex in e on [0, 1/2]. For a fixed y the integrand is affine in e, the expectation over
+  p keeps that, the maximum over y of affine functions is convex, and the sum over z keeps it.
+  So for every true rate e' in [0, e], G(w, e') <= max(G(w, 0), G(w, e)).
+* log G is convex in w (G is log-convex). For fixed (y, z, p, e) the integrand is
+  ((1 - e) exp(-alpha w T) + e exp(alpha w T)) M(lam0 w, p)^(alpha kappa / lam0): the first factor
+  is a sum of log-linear functions of w, M(lam0 w, p) = q exp(lam0 w g_q) + (1 - q) exp(-lam0 w h_q)
+  likewise, and a positive power keeps log-convexity; products, positive sums (the expectation
+  over p, also as a quadrature with positive weights, and the sum over z) and maxima (over y) of
+  log-convex functions are log-convex. So on [w_lo, w_hi], G(w, e) <= max(G(w_lo, e), G(w_hi, e)).
+
+Hence for every position whose weight lies in a box [w_lo, w_hi] and whose true rate lies in
+[0, e_hi], the factor is at most the largest G at the four corners (w_lo or w_hi, 0 or e_hi).
+``read_miss_ceiling`` sorts the read's distinct (w, e) pairs by w, cuts them into at most
+``boxes`` boxes of consecutive pairs, and multiplies the corner maxima with the number of
+positions per box; the quadrature check of step 4 is taken at every corner. The weights that
+enter Z(p, w) are still the read's own, exact weights (the boxes only bound the factors), so the
+miss event is the one TAPAK's accusation decides. The result bounds P(miss | w) for every flip
+law that obeys (C1) and (C2) with rates at most the given ceilings; with one box per distinct
+pair and G increasing in e it equals ``read_miss_bound``.
+
 Where the conditions fail.
 (a) Weights that depend on the code: conditioning on w then changes the law of (z_i, p_i)
     and the product with the prior law of z is not a bound. The extreme case is an erasure
@@ -218,6 +243,12 @@ _CHUNK = 128
 # A channel bound is optimized on at most this many groups of support points, then evaluated
 # exactly on every support point at the chosen (alpha, lam0).
 _GROUPS = 32
+# Default number of weight boxes of ``read_miss_ceiling`` (four corners each are evaluated),
+# and the optimizer's groups and tolerances (log alpha, log lam0) on that path.
+READ_BOXES = 64
+_FAST_GROUPS = 8
+_FAST_ALPHA_TOL = 1e-4
+_FAST_LAM_TOL = 1e-2
 
 
 def _check_coalition(coalition: int) -> int:
@@ -452,19 +483,21 @@ def _expected_threshold_lambda(itg: _Integrand, m: int, log_inv: float) -> float
 
 
 def _minimize_chernoff(
-    objective: Callable[[float | None], Callable[[float], float]], lam_star: float | None
+    objective: Callable[[float | None], Callable[[float], float]], lam_star: float | None,
+    alpha_tol: float = 1e-7, lam_tol: float = 1e-3,
 ) -> tuple[float, float, float | None]:
     """Minimize a Chernoff log bound over alpha, and over lam0 near ``lam_star``.
 
     ``objective(lam0)`` returns the function alpha -> log bound for that lam0 (lam0 None: a
     fixed threshold, no lam0 to choose; pass ``lam_star=None`` then). Returns (log bound,
-    alpha, lam0). Every (alpha, lam0) gives a valid bound, so optimizer error only loosens it.
+    alpha, lam0). Every (alpha, lam0) gives a valid bound, so optimizer error only loosens it;
+    the tolerances (on log alpha and log lam0) trade that looseness for time.
     """
     a_lo, a_hi = math.log(_ALPHA_RANGE[0]), math.log(_ALPHA_RANGE[1])
 
     def inner(lam0: float | None) -> tuple[float, float]:
         f = objective(lam0)
-        u, val = _min_scalar(lambda u: f(math.exp(u)), a_lo, a_hi, 1e-7)
+        u, val = _min_scalar(lambda u: f(math.exp(u)), a_lo, a_hi, alpha_tol)
         return val, math.exp(u)
 
     if lam_star is None:
@@ -473,7 +506,7 @@ def _minimize_chernoff(
     lo = max(math.log(_LAM_RANGE[0]), math.log(lam_star) - 1.0)
     hi = min(math.log(_LAM_RANGE[1]), math.log(lam_star) + 1.0)
     # The bound is valid for every lam0 and only second-order sensitive to it near the optimum.
-    u, _ = _min_scalar(lambda v: inner(math.exp(v))[0], lo, hi, 1e-3)
+    u, _ = _min_scalar(lambda v: inner(math.exp(v))[0], lo, hi, lam_tol)
     candidates = [math.exp(u), lam_star]
     best = min((inner(lam) + (lam,) for lam in candidates), key=lambda x: x[0])
     return best[0], best[1], best[2]
@@ -657,6 +690,21 @@ def calibrated_error_rates(weights: np.ndarray | Sequence[float] | float) -> np.
     return (1.0 - w) / 2.0
 
 
+def tempered_error_rates(llr: np.ndarray | Sequence[float] | float, factor: float) -> np.ndarray:
+    """Flip rate 1 / (1 + exp(factor |L|)) for a decision taken on the LLR L, tempered by ``factor``.
+
+    With ``factor`` = 1 this is the calibrated rate (``calibrated_error_rates`` of
+    w = tanh(|L| / 2)); a factor below 1 treats the LLR as that many times overconfident, so the
+    rate is higher. Computed from |L| rather than from w, so it stays positive where w rounds to
+    1. Meant as a ceiling for ``read_miss_ceiling``; whether it is one is a measurement.
+    """
+    if not (math.isfinite(factor) and 0.0 < factor <= 1.0):
+        raise ValueError("faktor peredam harus di antara 0 dan 1")
+    from scipy.special import expit
+
+    return expit(-float(factor) * np.abs(np.asarray(llr, dtype=np.float64)))
+
+
 def _check_rates(e: np.ndarray) -> np.ndarray:
     if not np.all((e >= 0.0) & (e <= 0.5)):
         raise ValueError("laju bit salah harus di antara 0 dan 0,5")
@@ -803,8 +851,36 @@ class _Support:
         return _Support(np.array(w), np.array(e), np.array(mass), self.zero, self.m, self.conditional)
 
 
+@dataclass(frozen=True)
+class _Boxes:
+    """Boxes of a conditional read: weights in [w_lo, w_hi], rates in [0, e_hi], ``mass`` positions.
+
+    ``corners`` gives the four corners of every box, box after box, as (weights, rates).
+    """
+
+    w_lo: np.ndarray
+    w_hi: np.ndarray
+    e_hi: np.ndarray
+    mass: np.ndarray
+
+    @classmethod
+    def of(cls, sup: _Support, boxes: int) -> "_Boxes":
+        if boxes < 1:
+            raise ValueError("jumlah kotak minimal 1")
+        order = np.argsort(sup.w, kind="stable")
+        parts = [idx for idx in np.array_split(order, min(boxes, max(sup.w.size, 1))) if idx.size]
+        return cls(np.array([sup.w[idx].min() for idx in parts]), np.array([sup.w[idx].max() for idx in parts]),
+                   np.array([sup.e[idx].max() for idx in parts]), np.array([sup.mass[idx].sum() for idx in parts]))
+
+    def corners(self) -> tuple[np.ndarray, np.ndarray]:
+        w = np.column_stack([self.w_lo, self.w_lo, self.w_hi, self.w_hi]).reshape(-1)
+        zero = np.zeros_like(self.e_hi)
+        e = np.column_stack([zero, self.e_hi, zero, self.e_hi]).reshape(-1)
+        return w, e
+
+
 def _channel_bound(params: TardosParams, sup: _Support, coalition: int | None, eps1: float | None,
-                   z: float | None) -> ChannelMissBound:
+                   z: float | None, boxes: _Boxes | None = None) -> ChannelMissBound:
     c = _check_coalition(params.c if coalition is None else coalition)
     e1 = params.eps1 if eps1 is None else float(eps1)
     if not 0.0 < e1 < 1.0:
@@ -822,7 +898,9 @@ def _channel_bound(params: TardosParams, sup: _Support, coalition: int | None, e
     def k0(lam0: float | None) -> float:
         return c * zf if lam0 is None else kappa * log_inv / lam0  # type: ignore[operator]
 
-    red = sup.grouped()
+    # With boxes (a read with many distinct weights, bounded cheaply) the optimizer works on
+    # fewer groups and looser tolerances: any (alpha, lam0) gives a valid bound.
+    red = sup.grouped(_FAST_GROUPS if boxes is not None else _GROUPS)
 
     def objective(lam0: float | None) -> Callable[[float], float]:
         return lambda alpha: alpha * k0(lam0) + red.combine(itg.log_g_channel(alpha, lam0, kappa, red.w, red.e))
@@ -837,9 +915,24 @@ def _channel_bound(params: TardosParams, sup: _Support, coalition: int | None, e
 
         u, _ = _min_scalar(threshold_objective, math.log(_LAM_RANGE[0]), math.log(_LAM_RANGE[1]), 1e-6)
         lam_star = math.exp(u)
-    _, alpha, lam0 = _minimize_chernoff(objective, lam_star)
-    # Exact value at the chosen (alpha, lam0) on every support point, then the quadrature check.
+    tol = (_FAST_ALPHA_TOL, _FAST_LAM_TOL) if boxes is not None else (1e-7, 1e-3)
+    _, alpha, lam0 = _minimize_chernoff(objective, lam_star, *tol)
     fine = _integrand(c, params.cutoff, 2 * _PANELS, _ORDER)
+    if boxes is not None:
+        # Largest factor over each box's corners (module docstring, "Rate ceilings and boxes"),
+        # with the quadrature check taken at every corner.
+        cw, ce = boxes.corners()
+        cc = itg.log_g_channel(alpha, lam0, kappa, cw, ce).reshape(-1, 4)
+        cf = fine.log_g_channel(alpha, lam0, kappa, cw, ce).reshape(-1, 4)
+        plain = float(np.sum(boxes.mass * np.max(cc, axis=1)))
+        upper = float(np.sum(boxes.mass * np.max(cc + np.abs(cf - cc), axis=1)))
+        q_err = upper - plain + observed * FLOAT_SLACK
+        return ChannelMissBound(
+            coalition=c, length=sup.m, observed=observed, eps1=e1, z=zf,
+            log_bound=alpha * k0(lam0) + plain + q_err, alpha=alpha, lam0=lam0, quadrature_error=q_err,
+            conditional=True,
+        )
+    # Exact value at the chosen (alpha, lam0) on every support point, then the quadrature check.
     lg_c = itg.log_g_channel(alpha, lam0, kappa, sup.w, sup.e)
     lg_f = fine.log_g_channel(alpha, lam0, kappa, sup.w, sup.e)
     total = sup.combine(lg_c)
@@ -953,6 +1046,63 @@ def proven_read_miss_probability(
     """Maximum of :func:`read_miss_bound` over c' = 1, ..., c (every coalition of at most c)."""
     sup = _read_support(weights, error_rates)
     return max(_channel_bound(params, sup, k, eps1, z).bound for k in range(1, params.c + 1))
+
+
+def read_miss_ceiling(
+    params: TardosParams,
+    weights: np.ndarray | Sequence[float],
+    rate_ceilings: np.ndarray | Sequence[float] | float = 0.0,
+    coalition: int | None = None,
+    eps1: float | None = None,
+    z: float | None = None,
+    boxes: int = READ_BOXES,
+) -> ChannelMissBound:
+    """Proven bound on P(no member of a c'-coalition reaches Z(p, w) | w) when the flip rates are
+    only known from above.
+
+    Args:
+        params: code parameters (cutoff t and, unless overridden, eps1 and c').
+        weights: the channel's weight for every code position (length m; 0 = erased), exactly
+            as the accusation uses them (they set Z(p, w)).
+        rate_ceilings: per position (or one for all) an upper bound on P(decided bit wrong | w),
+            in [0, 1/2]; for example ``tempered_error_rates`` of the fused LLR.
+        coalition: number of colluders c' (default ``params.c``).
+        eps1: per-recipient target that sets Z(p, w) (default ``params.eps1``).
+        z: a fixed threshold instead of Z(p, w).
+        boxes: at most this many weight boxes; each costs four factor evaluations.
+
+    Holds for every strategy obeying the marking assumption, under (C1) and under (C2) with
+    rates at most ``rate_ceilings`` (module docstring, "Rate ceilings and boxes"). It is never
+    below ``read_miss_bound`` with the same rates, and fewer boxes make it larger, never invalid.
+    """
+    sup = _read_support(weights, rate_ceilings)
+    return _channel_bound(params, sup, coalition, eps1, z, _Boxes.of(sup, int(boxes)))
+
+
+def proven_read_miss_ceiling(
+    params: TardosParams,
+    weights: np.ndarray | Sequence[float],
+    rate_ceilings: np.ndarray | Sequence[float] | float = 0.0,
+    eps1: float | None = None,
+    z: float | None = None,
+    boxes: int = READ_BOXES,
+    stop_above: float | None = None,
+) -> float:
+    """Maximum of :func:`read_miss_ceiling` over c' = 1, ..., c (every coalition of at most c).
+
+    Coalition sizes are taken from c down to 1, the largest bound usually coming first. With
+    ``stop_above`` the search ends at the first bound above it and returns that bound: then the
+    maximum is at least the returned value, which is above ``stop_above``, and the caller only
+    needs to know that.
+    """
+    sup = _read_support(weights, rate_ceilings)
+    box = _Boxes.of(sup, int(boxes))
+    best = 0.0
+    for k in range(params.c, 0, -1):
+        best = max(best, _channel_bound(params, sup, k, eps1, z, box).bound)
+        if stop_above is not None and best > stop_above:
+            break
+    return best
 
 
 def channel_min_length(
