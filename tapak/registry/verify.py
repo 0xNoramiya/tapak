@@ -35,7 +35,10 @@ chain is still a valid chain. That needs a value kept outside the file: a record
 (``--merkle-dir``), or the external anchor log (``--log-jangkar``, see
 ``tapak.registry.anchor``), which names every entry TAPAK appended. The report prints the
 current head as an anchor to write down. A registry that recorded the use of an anchor log
-but is verified without it gets a warning.
+but is verified without it gets a warning and a verdict saying that tail deletion was not
+checked, and the console script exits with :data:`EXIT_TAIL_UNCHECKED` (3) instead of 0: the
+verifier lacks the one input that registry says exists. After a rotation the earlier log
+segments can be given too (``--segmen-lama``): each must be the file the next one commits to.
 
 The triggers are compared with the expected SQL text; a missing or altered trigger is a
 warning (it shows the file was edited outside TAPAK), not proof of tampering.
@@ -63,6 +66,7 @@ from tapak.registry.anchor import (
     read_anchor_file,
     required_by,
     restart_note,
+    segment_chain,
     unavailable_status,
 )
 from tapak.registry.chain import (
@@ -91,6 +95,9 @@ from tapak.registry.signing import (
 )
 
 _ANCHOR = re.compile(r"([0-9]+):([0-9a-f]{64})")
+# Exit status of tapak-verify-registry: intact, problems found, and intact as far as checked
+# while the registry records an anchor log that was not given (tail deletion not checked).
+EXIT_OK, EXIT_PROBLEMS, EXIT_TAIL_UNCHECKED = 0, 1, 3
 
 
 def _span(first: int, last: int) -> str:
@@ -110,6 +117,9 @@ class VerifyReport:
         traces: number of ``trace`` entries per document hash.
         anchor: the comparison with the external anchor log (``--log-jangkar``), None when
             no log was given.
+        anchor_log_since: entry number from which the registry records an anchor log, when
+            no log was given (then entries deleted from the end were not checked).
+        segments_checked: number of earlier log segments checked (``--segmen-lama``), or None.
     """
 
     db_path: str
@@ -128,11 +138,26 @@ class VerifyReport:
     anchors_checked: int | None = None
     traces: dict[str, int] = field(default_factory=dict)
     anchor: AnchorStatus | None = None
+    anchor_log_since: int | None = None
+    segments_checked: int | None = None
 
     @property
     def ok(self) -> bool:
         """True if no problem was found."""
         return not self.problems
+
+    @property
+    def tail_unchecked(self) -> bool:
+        """True if the registry records an anchor log that was not given: entries deleted from
+        the end of the chain were not checked, whatever else passed."""
+        return self.anchor_log_since is not None
+
+    def exit_code(self) -> int:
+        """Exit status of the console script: 0 intact, 1 problems, 3 intact as far as checked
+        but tail deletion not checked (see :attr:`tail_unchecked`)."""
+        if self.problems:
+            return EXIT_PROBLEMS
+        return EXIT_TAIL_UNCHECKED if self.tail_unchecked else EXIT_OK
 
     @property
     def fully_signed(self) -> bool:
@@ -143,10 +168,13 @@ class VerifyReport:
         """Final line of the report (Indonesian)."""
         if self.problems:
             return f"HASIL: TIDAK UTUH, ditemukan {len(self.problems)} masalah"
+        unchecked = (f"; PENGHAPUSAN DARI UJUNG TIDAK DIPERIKSA: registri memakai log jangkar sejak entri "
+                     f"#{self.anchor_log_since}, tetapi log itu tidak diberikan (--log-jangkar; kode keluar 3)"
+                     if self.tail_unchecked else "")
         if self.unsigned and self.unsigned_first is not None and self.unsigned_last is not None:
             return (f"HASIL: RANTAI UTUH, TETAPI {self.unsigned} entri ({_span(self.unsigned_first, self.unsigned_last)}) "
-                    "belum bertanda tangan dan tidak terlindungi dari pemalsuan")
-        return f"HASIL: UTUH, rantai hash dan semua tanda tangan sah untuk entri #1..#{self.head_seq}"
+                    "belum bertanda tangan dan tidak terlindungi dari pemalsuan" + unchecked)
+        return f"HASIL: UTUH, rantai hash dan semua tanda tangan sah untuk entri #1..#{self.head_seq}" + unchecked
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-friendly form."""
@@ -157,7 +185,9 @@ class VerifyReport:
                 "warnings": list(self.warnings), "kinds": dict(self.kinds), "head_seq": self.head_seq,
                 "head_hash": self.head_hash, "merkle_files": self.merkle_files,
                 "anchors_checked": self.anchors_checked, "traces": dict(self.traces),
-                "anchor_log": self.anchor.to_dict() if self.anchor is not None else None}
+                "anchor_log": self.anchor.to_dict() if self.anchor is not None else None,
+                "anchor_log_since": self.anchor_log_since, "tail_unchecked": self.tail_unchecked,
+                "segments_checked": self.segments_checked, "exit_code": self.exit_code()}
 
     def lines(self) -> list[str]:
         """Human-readable report in Indonesian."""
@@ -186,14 +216,17 @@ class VerifyReport:
             out.append(f"  Log jangkar      : {self.anchor.path}")
             out.append(f"                     {self.anchor.lines} baris ({self.anchor.signed_lines} bertanda tangan), "
                        f"{state}" + (f", {len(self.anchor.acks)} pengakuan pemulihan" if self.anchor.acks else "")
-                       + (f", dimulai ulang di entri #{self.anchor.restarted[0]}" if self.anchor.restarted else ""))
+                       + (f", dimulai ulang di entri #{self.anchor.restarted[0]}" if self.anchor.restarted else "")
+                       + (f", segmen lanjutan sejak entri #{self.anchor.rotated[0]}" if self.anchor.rotated else ""))
+        if self.segments_checked is not None:
+            out.append(f"  Segmen lama      : {self.segments_checked} dicocokkan dengan rantai segmen")
         out.extend(f"Peringatan: {w}" for w in self.warnings)
         if self.problems:
             out.append(f"Masalah ({len(self.problems)}):")
             for seq, text in self.problems:
                 where = f"entri #{seq}" if seq else "berkas"
                 out.append(f"  {where}: {text}")
-        if self.merkle_files is None and self.anchors_checked is None and self.anchor is None:
+        if self.merkle_files is None and self.anchors_checked is None and self.anchor is None and not self.tail_unchecked:
             out.append("Catatan: tanpa --jangkar, --merkle-dir, atau --log-jangkar, entri yang dihapus dari ujung rantai "
                        "tidak dapat dideteksi.")
         out.append(self.verdict())
@@ -295,8 +328,10 @@ def _check_anchors(rows: list[tuple[Any, ...]], anchors: Sequence[tuple[int, str
 
 
 def _check_anchor_log(report: VerifyReport, rows: list[tuple[Any, ...]], anchor_log: str | Path,
-                      anchor_file: Any, anchor_error: AnchorUnavailable | None) -> None:
-    """Compare the external anchor log (read before the rows) with the registry rows."""
+                      anchor_file: Any, anchor_error: AnchorUnavailable | None,
+                      segments: Sequence[str | Path] = ()) -> None:
+    """Compare the external anchor log (read before the rows) with the registry rows, and
+    check the chain of earlier ``segments`` (oldest first) when given."""
     if anchor_file is None:
         assert anchor_error is not None
         status = unavailable_status(anchor_log, rows, anchor_error)
@@ -305,6 +340,15 @@ def _check_anchor_log(report: VerifyReport, rows: list[tuple[Any, ...]], anchor_
     report.anchor = status
     report.problems.extend((0, f"log jangkar: {text}") for text in status.problems)
     report.warnings.extend(f"log jangkar: {text}" for text in status.warnings)
+    if segments and anchor_file is not None:
+        found, notes = segment_chain(segments, anchor_file, rows, report.public_key)
+        report.segments_checked = len(segments)
+        report.problems.extend((0, f"log jangkar: {text}") for text in found)
+        report.warnings.extend(f"log jangkar: {text}" for text in notes)
+    elif status.rotated:
+        report.warnings.append(f"log jangkar: log ini segmen lanjutan sejak entri #{status.rotated[0]}; tanpa "
+                               "--segmen-lama, rotasi itu tidak diperiksa, padahal rotasi yang dipalsukan dapat "
+                               "menyembunyikan entri yang dihapus sebelum titik rotasi")
     if status.ok and status.lag:
         report.warnings.append(f"log jangkar: {status.lag} entri terakhir belum tercatat di log jangkar dan belum "
                                "terlindungi dari penghapusan; TAPAK melengkapinya pada penulisan berikutnya")
@@ -325,6 +369,7 @@ def verify_registry(
     require_signed: bool = True,
     anchors: Sequence[tuple[int, str]] | None = None,
     anchor_log: str | Path | None = None,
+    anchor_segments: Sequence[str | Path] = (),
 ) -> VerifyReport:
     """Verify hash chain, signatures, and optionally anchors, daily Merkle roots and the anchor log.
 
@@ -332,8 +377,10 @@ def verify_registry(
     warning and the verdict names the unsigned entries. ``anchors`` are (seq, entry_hash)
     pairs recorded earlier outside the system. ``anchor_log`` is the external anchor log
     (``tapak.registry.anchor``): every entry it names must still be in the registry,
-    unchanged, and a missing or unreadable log is a problem. Read-only: nothing is completed
-    or repaired. Raises SigningKeyError if ``public_key_hex`` is not 64 hex characters.
+    unchanged, and a missing or unreadable log is a problem. ``anchor_segments``: earlier
+    segments of that log after a rotation, oldest first. Without ``anchor_log`` on a registry
+    that records one, :attr:`VerifyReport.tail_unchecked` is set. Read-only: nothing is
+    completed or repaired. Raises SigningKeyError if ``public_key_hex`` is not 64 hex characters.
     """
     path = Path(db_path)
     report = VerifyReport(db_path=str(path), public_key=normalize_public_key(public_key_hex),
@@ -456,10 +503,14 @@ def verify_registry(
         report.anchors_checked = len(anchors)
         _check_anchors(rows, anchors, problems)
     if anchor_log is not None:
-        _check_anchor_log(report, rows, anchor_log, anchor_file, anchor_error)
+        _check_anchor_log(report, rows, anchor_log, anchor_file, anchor_error, anchor_segments)
     elif (since := required_by(rows)) is not None:
-        report.warnings.append(f"registri memakai log jangkar sejak entri #{since}, tetapi log itu tidak diberikan "
-                               "(--log-jangkar): entri yang dihapus dari ujung rantai tidak diperiksa")
+        report.anchor_log_since = since
+        report.warnings.append(
+            f"PENGHAPUSAN DARI UJUNG TIDAK DIPERIKSA: registri memakai log jangkar sejak entri #{since}, tetapi log itu "
+            "tidak diberikan (--log-jangkar BERKAS). Entri yang dihapus dari ujung rantai, misalnya pelacakan terakhir, "
+            "tidak terlihat tanpa log itu (--jangkar dan --merkle-dir hanya sampai titik yang dicatat), jadi hasil di "
+            "bawah hanya berlaku untuk entri yang masih ada")
     if merkle_dir is not None:
         try:
             report.merkle_files, merkle_problems = check_daily_roots(path, merkle_dir)
@@ -470,11 +521,13 @@ def verify_registry(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Console script ``tapak-verify-registry``: exit code 0 if the registry is intact, else 1."""
+    """Console script ``tapak-verify-registry``: exit code 0 if the registry is intact, 1 if not,
+    3 if intact as far as checked but its anchor log was not given (tail deletion not checked)."""
     ap = IndonesianArgumentParser(
         prog="tapak-verify-registry",
         description="Verifikasi registri TAPAK (rantai hash, tanda tangan, jangkar, akar Merkle) "
-                    "hanya dengan kunci publik.")
+                    "hanya dengan kunci publik. Kode keluar: 0 utuh, 1 ada masalah, 3 utuh sejauh yang diperiksa "
+                    "tetapi registri memakai log jangkar yang tidak diberikan (penghapusan dari ujung tidak diperiksa).")
     ap.add_argument("registry", help="berkas registri SQLite")
     ap.add_argument("--public-key", required=True, help="kunci publik heksadesimal atau berkas .pub")
     ap.add_argument("--merkle-dir", default=None, help="folder berkas akar Merkle harian untuk dicocokkan")
@@ -483,23 +536,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--log-jangkar", default=None, metavar="BERKAS",
                     help="log jangkar eksternal (TAPAK_ANCHOR_LOG); setiap entri yang dicatatnya harus masih ada "
                          "di registri tanpa perubahan")
+    ap.add_argument("--segmen-lama", action="append", default=[], metavar="BERKAS",
+                    help="segmen log jangkar sebelum rotasi, dari yang paling lama (perlu --log-jangkar)")
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--izinkan-belum-bertanda-tangan", dest="allow_unsigned", action="store_true",
                       help="terima entri tanpa tanda tangan (penandatanganan ditunda); hasil tetap menyebutkannya")
     mode.add_argument("--require-signed", action="store_true",
                       help="anggap entri tanpa tanda tangan sebagai masalah (bawaan)")
     args = ap.parse_args(argv)
+    if args.segmen_lama and not args.log_jangkar:
+        ap.error("--segmen-lama memerlukan --log-jangkar (segmen yang sedang dipakai)")
     try:
         public_key = load_public_key(args.public_key)
         anchors = [parse_anchor(a) for a in args.jangkar] if args.jangkar else None
         report = verify_registry(args.registry, public_key, args.merkle_dir,
-                                 require_signed=not args.allow_unsigned, anchors=anchors, anchor_log=args.log_jangkar)
+                                 require_signed=not args.allow_unsigned, anchors=anchors, anchor_log=args.log_jangkar,
+                                 anchor_segments=args.segmen_lama)
     except (OSError, ValueError, sqlite3.Error) as exc:  # SigningKeyError and UnicodeError are ValueErrors
         print(f"Gagal: {describe_error(exc)}", file=sys.stderr)
-        return 1
+        return EXIT_PROBLEMS
     for line in report.lines():
         print(line)
-    return 0 if report.ok else 1
+    return report.exit_code()
 
 
 if __name__ == "__main__":

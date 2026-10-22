@@ -72,8 +72,9 @@ demo:             ## the 90-second scenario, non-interactive
 web:              ## web UI on http://127.0.0.1:8000 (data in ./data, keys in ./keys)
 	$(TAPAK) web --host 127.0.0.1 --port 8000
 
-verify:           ## verify ./data/registry.db with the public key only
-	.venv/bin/tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub
+verify:           ## verify ./data/registry.db with the public key only (and $TAPAK_ANCHOR_LOG when set)
+	.venv/bin/tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub \
+		$(if $(TAPAK_ANCHOR_LOG),--log-jangkar $(TAPAK_ANCHOR_LOG))
 
 docker:           ## build and start app + canary-dns
 	docker compose up --build -d
