@@ -1,11 +1,13 @@
 """Benchmark figure: outcome per image of the synthetic photo sets, and its false-accusation bound.
 
 Reads ``docs/results/bench_photos.json`` (written by ``make bench``). Left: one row per
-group, one cell per trace, colored by outcome, in two sections that are never counted
-together: photos of the page as on screen and screenshots, then photos of printed pages
-(simulated printer; single pages, and pages 1 and 2 traced together). Right: the per-trace
-upper bound on the false-accusation probability (log scale) for the correct answers, against
-the policy ``eps`` of ``TardosParams``.
+group, one cell per trace, colored by outcome, in one section per medium, never counted
+together (the media of ``tapak.benchmark``): photos of the page as on screen and screenshots,
+photos of printed pages (simulated printer; single pages, and pages 1 and 2 traced together),
+the screen-photo scenes processed by the simulated phone ISP, and photos of the copy on a
+simulated monitor (with the phone ISP). Sections without rows are left out. Right: the
+per-trace upper bound on the false-accusation probability (log scale) for the correct
+answers, against the policy ``eps`` of ``TardosParams``.
 """
 
 from __future__ import annotations
@@ -24,7 +26,9 @@ from tapak.tardos.params import TardosParams
 RESULTS = style.ROOT / "docs" / "results" / "bench_photos.json"
 OUTCOMES = ("benar", "tidak cukup bukti", "salah")
 SECTIONS = {"layar": "Foto layar dan tangkapan layar (halaman 1)",
-            "cetak": "Foto kertas cetak, printer disimulasikan (halaman 1 dan 2)"}
+            "cetak": "Foto kertas cetak, printer disimulasikan (halaman 1 dan 2)",
+            "ponsel": "Foto dengan ISP ponsel, disimulasikan (halaman 1)",
+            "fotolayar": "Foto monitor dengan ISP ponsel, disimulasikan (halaman 1)"}
 # Three type sizes: title (same as the skor figure above it), primary labels, secondary text.
 TITLE, PRIMARY, SECONDARY = 13, 12, 11
 ROW_IN = 0.312  # height of one row in inches
@@ -44,6 +48,12 @@ def _group(row: dict) -> tuple:
         if row.get("pages", 1) == 2:
             return "cetak", (1, 0), "Dua halaman"
         return "cetak", (0, angle), f"Cetak {angle:g}\u00b0"
+    if row["kind"] == "ponsel":
+        return "ponsel", (0, angle), f"Ponsel {angle:g}\u00b0"
+    if row["kind"] == "fotolayar":
+        return "fotolayar", (0, angle), f"Monitor {angle:g}\u00b0"
+    if row["kind"] != "screenshot":
+        raise ValueError(f"jenis baris benchmark tidak dikenal: {row['kind']}")
     return "layar", (1, 0), "Tangkapan layar"
 
 
@@ -53,7 +63,7 @@ def _outcome(row: dict) -> str:
 
 
 def load() -> list[tuple[str, list[tuple[str, list[dict]]]]]:
-    """Rows of bench_photos.json as sections (screen, then print) of groups (kind and angle)."""
+    """Rows of bench_photos.json as sections (in the order of ``SECTIONS``) of groups (kind and angle)."""
     groups: dict[tuple, tuple[str, list]] = {}
     for r in json.loads(RESULTS.read_text(encoding="utf-8"))["rows"]:
         section, key, label = _group(r)
