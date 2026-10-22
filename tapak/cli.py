@@ -7,6 +7,7 @@
     tapak trace EVIDENCE --doc <doc>     (or --master/--manifest for a loose issuance)
     tapak docs                           list issued documents
     tapak verify                         verify the registry with the public key only
+    tapak jangkar mulai | akui | status  external anchor log (opt-in, --log-jangkar)
     tapak registry sign | export-merkle
     tapak simulate                       Tardos collusion simulation
     tapak canary-dns | photos | web | demo
@@ -27,6 +28,8 @@ def _settings(args: argparse.Namespace):
         os.environ["TAPAK_DATA"] = args.data
     if getattr(args, "keys", None):
         os.environ["TAPAK_KEY_DIR"] = args.keys
+    if getattr(args, "log_jangkar", None):
+        os.environ["TAPAK_ANCHOR_LOG"] = args.log_jangkar
     from tapak.config import load_settings
 
     return load_settings()
@@ -569,6 +572,8 @@ def _cmd_trace(args: argparse.Namespace) -> int:
                      "berjumlah paling banyak eps")
         extra.append(f"Jangkar entri pelacakan (catat di luar sistem): tapak verify --jangkar "
                      f"{outcome.trace_entry}:{outcome.trace_entry_hash}")
+    if outcome.anchor_line():
+        extra.append(f"Log jangkar: {outcome.anchor_line()}")
     accused = outcome.attribution.named_seqs
     for a in outcome.canary:
         # As in the berita acara: a copy that is not accused is not identified, not even by number.
@@ -642,7 +647,91 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         argv += ["--merkle-dir", args.merkle_dir]
     for anchor in args.jangkar:
         argv += ["--jangkar", anchor]
+    anchor_log = args.verify_anchor_log or s.anchor_log
+    if anchor_log:
+        argv += ["--log-jangkar", str(anchor_log)]
     return verify_main(argv)
+
+
+# --- external anchor log ------------------------------------------------------------------------
+
+
+def _anchor_path(s) -> Path:
+    if s.anchor_log is None:
+        raise ValueError("lokasi log jangkar belum diatur: tambahkan --log-jangkar BERKAS (sebelum nama perintah) atau "
+                         "atur TAPAK_ANCHOR_LOG, di penyimpanan yang tidak dapat disunting orang yang dapat menyunting "
+                         "registri (lihat docs/operasi.md)")
+    if s.anchor_log.resolve() == s.registry_path.resolve():
+        raise ValueError("log jangkar tidak boleh berkas registri itu sendiri; pilih berkas di penyimpanan terpisah")
+    return s.anchor_log
+
+
+def _print_anchor_status(status) -> None:
+    for w in status.warnings:
+        print(f"PERINGATAN: {w}")
+    for p in status.problems:
+        print(f"MASALAH: {p}")
+
+
+def _cmd_anchor_start(args: argparse.Namespace) -> int:
+    from tapak.registry.anchor import start_log
+    from tapak.service import registry_keys
+
+    s = _settings(args)
+    path = _anchor_path(s)
+    signer, public = registry_keys(s)
+    status = start_log(s.registry_path, path, signer, public,  # type: ignore[arg-type]
+                       reason=args.alasan, restart=args.ulang, protected=[s.data_dir, s.key_dir])
+    print(f"Log jangkar {'dimulai ulang' if args.ulang else 'dimulai'} di {path} (id {status.log_id}).")
+    print(f"Entri registri #{status.anchored_seq} mencatat awal log ini; {len(status.completed)} entri yang sudah ada "
+          "ikut dicatat di log.")
+    print("Mulai sekarang setiap entri baru juga dicatat di log ini, dan pelacakan serta penerbitan ditolak bila log "
+          "ini hilang atau tidak cocok dengan registri. Semua proses TAPAK yang menulis registri ini (CLI dan web) "
+          "harus memakai lokasi log yang sama.")
+    if signer is None:
+        print("Kunci tanda tangan registri tidak ada di sini: baris log jangkar ditulis tanpa tanda tangan.")
+    _print_anchor_status(status)
+    return 0
+
+
+def _cmd_anchor_ack(args: argparse.Namespace) -> int:
+    from tapak.registry.anchor import AnchorLog, acknowledge, plan_acknowledgement, seq_span
+    from tapak.service import registry_keys
+
+    s = _settings(args)
+    signer, public = registry_keys(s)
+    log = AnchorLog(_anchor_path(s), signer=signer, public_key=public)  # type: ignore[arg-type]
+    plan = plan_acknowledgement(s.registry_path, log)
+    print(f"Log jangkar {log.path} mencatat {len(plan.releasable)} entri yang tidak ada lagi di registri atau "
+          f"berbeda di sana: {seq_span([seq for seq, _ in plan.releasable])}.")
+    for problem in plan.problems:
+        print(f"  {problem}")
+    if not args.ya:
+        print("Pengakuan BELUM dicatat. Pastikan dulu entri itu tidak dapat dikembalikan dari cadangan registri. "
+              "Pengakuan melepas entri itu dari pemeriksaan untuk seterusnya, tercatat di registri dan di log "
+              "jangkar, dan pelacakan yang hilang tidak lagi diperhitungkan dalam jatah eps dokumennya. Ulangi "
+              "dengan --ya untuk mencatatnya.")
+        return 1
+    status = acknowledge(s.registry_path, log, args.alasan)
+    print(f"Pengakuan dicatat di registri sebagai entri #{status.acks[-1][0]} dan di log jangkar. "
+          f"{status.describe()[:1].upper()}{status.describe()[1:]}.")
+    return 0
+
+
+def _cmd_anchor_status(args: argparse.Namespace) -> int:
+    from tapak.service import anchor_status
+
+    s = _settings(args)
+    status = anchor_status(s)
+    print(f"Registri   : {s.registry_path}")
+    print(f"Log jangkar: {status.path or '(tidak diatur)'}")
+    print(f"Keadaan    : {status.describe()}")
+    if status.configured:
+        print(f"Baris      : {status.lines} ({status.signed_lines} bertanda tangan), id log {status.log_id or '-'}")
+    _print_anchor_status(status)
+    if not status.configured:
+        return 1 if status.required_by is not None else 0
+    return 0 if status.ok else 1
 
 
 def _cmd_registry_sign(args: argparse.Namespace) -> int:
@@ -700,6 +789,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap = IndonesianArgumentParser(prog="tapak", description="TAPAK: atribusi kebocoran dokumen rahasia")
     ap.add_argument("--data", default=None, help="folder data (bawaan: data/ atau $TAPAK_DATA)")
     ap.add_argument("--keys", default=None, help="folder kunci (bawaan: keys/ atau $TAPAK_KEY_DIR)")
+    ap.add_argument("--log-jangkar", default=None, metavar="BERKAS",
+                    help="log jangkar eksternal di penyimpanan terpisah, yang mengungkap entri yang dihapus dari ujung "
+                         "registri (bawaan: $TAPAK_ANCHOR_LOG; tanpa ini tidak dipakai)")
     sub = ap.add_subparsers(dest="cmd", required=True, title="perintah", metavar="PERINTAH",
                             parser_class=IndonesianArgumentParser)
 
@@ -841,7 +933,27 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--merkle-dir", default=None)
     v.add_argument("--jangkar", action="append", default=[], metavar="NOMOR:HASH",
                    help="ujung rantai yang dicatat sebelumnya; entri yang hilang sesudahnya terdeteksi")
+    v.add_argument("--log-jangkar", dest="verify_anchor_log", default=None, metavar="BERKAS",
+                   help="log jangkar eksternal yang dicocokkan (bawaan: lokasi yang diatur, bila ada)")
     v.set_defaults(func=_cmd_verify)
+
+    jg = sub.add_parser("jangkar", help="log jangkar eksternal: mengungkap entri yang dihapus dari ujung registri")
+    jgsub = jg.add_subparsers(dest="anchor_cmd", required=True, title="perintah", metavar="PERINTAH",
+                              parser_class=type(ap))
+    jm = jgsub.add_parser("mulai", help="mulai log jangkar di lokasi yang diatur (--log-jangkar atau TAPAK_ANCHOR_LOG)")
+    jm.add_argument("--ulang", action="store_true",
+                    help="mulai log baru karena log yang lama hilang (perlu --alasan; tercatat di registri)")
+    jm.add_argument("--alasan", default=None, metavar="TEKS",
+                    help="alasan singkat, tanpa isi dokumen dan tanpa nama penerima (wajib dengan --ulang)")
+    jm.set_defaults(func=_cmd_anchor_start)
+    ja = jgsub.add_parser("akui",
+                          help="akui entri yang dicatat log jangkar tetapi tidak dapat dikembalikan ke registri")
+    ja.add_argument("--alasan", required=True, metavar="TEKS",
+                    help="apa yang terjadi dan siapa yang memeriksa, tanpa isi dokumen dan tanpa nama penerima")
+    ja.add_argument("--ya", action="store_true", help="catat pengakuan (tanpa ini hanya ditampilkan)")
+    ja.set_defaults(func=_cmd_anchor_ack)
+    js = jgsub.add_parser("status", help="bandingkan log jangkar dengan registri (hanya membaca)")
+    js.set_defaults(func=_cmd_anchor_status)
 
     r = sub.add_parser("registry", help="operasi registri")
     rsub = r.add_subparsers(dest="reg_cmd", required=True)
@@ -878,7 +990,7 @@ def main(argv: list[str] | None = None) -> int:
     # canary-dns and photos keep their own option parsers: hand everything after the name over.
     i = 0
     while i < len(argv) and argv[i].startswith("-"):
-        i += 2 if argv[i] in ("--data", "--keys") else 1
+        i += 2 if argv[i] in ("--data", "--keys", "--log-jangkar") else 1
     if i < len(argv) and argv[i] in PASSTHROUGH:
         _settings(build_parser().parse_args(argv[:i] + ["docs"]))  # validates and applies --data/--keys
         import importlib

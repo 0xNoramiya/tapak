@@ -13,6 +13,13 @@ SAMPLE = ROOT / "samples" / "nota_dinas.pdf"
 SECRET = bytes(range(32))
 
 
+@pytest.fixture(autouse=True)
+def _no_inherited_anchor_log(monkeypatch):
+    """No test writes to an anchor log it did not set up (TAPAK_ANCHOR_LOG from the shell, or
+    left behind by `tapak --log-jangkar` in another test, which sets the variable)."""
+    monkeypatch.delenv("TAPAK_ANCHOR_LOG", raising=False)
+
+
 @pytest.fixture(scope="session")
 def sample_pdf() -> bytes:
     if not SAMPLE.exists():

@@ -25,12 +25,17 @@ checks:
 10. a ``document`` entry with lexical fields (word-choice channel) has all of them, with
     valid digests, a known position rule and position lists only;
 11. a ``document`` entry with scanned pages (field ``scan``) holds page numbers, resolutions,
-    an OCR engine description and a digest only.
+    an OCR engine description and a digest only;
+12. an ``anchor_log`` entry (the external anchor log was started, restarted or an alarm
+    acknowledged) holds an event, a log id, released ``[seq, hash]`` pairs and a digest.
 
 What a hash chain cannot show by itself is entries deleted from the *end*: a shorter
 chain is still a valid chain. That needs a value kept outside the file: a recorded
-``(seq, entry_hash)`` anchor (``--jangkar``) or the exported daily Merkle root files
-(``--merkle-dir``). The report prints the current head as an anchor to write down.
+``(seq, entry_hash)`` anchor (``--jangkar``), the exported daily Merkle root files
+(``--merkle-dir``), or the external anchor log (``--log-jangkar``, see
+``tapak.registry.anchor``), which names every entry TAPAK appended. The report prints the
+current head as an anchor to write down. A registry that recorded the use of an anchor log
+but is verified without it gets a warning.
 
 The triggers are compared with the expected SQL text; a missing or altered trigger is a
 warning (it shows the file was edited outside TAPAK), not proof of tampering.
@@ -51,13 +56,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from tapak.registry.anchor import (
+    AnchorStatus,
+    AnchorUnavailable,
+    compare_anchor,
+    read_anchor_file,
+    required_by,
+    restart_note,
+    unavailable_status,
+)
 from tapak.registry.chain import (
+    KIND_ANCHOR,
     KIND_DOCUMENT,
     KIND_LABELS,
     KIND_TRACE,
     LEXICAL_DOCUMENT_FIELDS,
     SCAN_DOCUMENT_FIELD,
     ZERO_HASH,
+    anchor_payload_problems,
     entry_content_problems,
     lexical_document_problems,
     scan_document_problems,
@@ -92,6 +108,8 @@ class VerifyReport:
         unsigned_first, unsigned_last: range of the unsigned entries, if any.
         merkle_files, anchors_checked: None when that check was not requested.
         traces: number of ``trace`` entries per document hash.
+        anchor: the comparison with the external anchor log (``--log-jangkar``), None when
+            no log was given.
     """
 
     db_path: str
@@ -109,6 +127,7 @@ class VerifyReport:
     merkle_files: int | None = None
     anchors_checked: int | None = None
     traces: dict[str, int] = field(default_factory=dict)
+    anchor: AnchorStatus | None = None
 
     @property
     def ok(self) -> bool:
@@ -137,7 +156,8 @@ class VerifyReport:
                 "unsigned_last": self.unsigned_last, "problems": [list(p) for p in self.problems],
                 "warnings": list(self.warnings), "kinds": dict(self.kinds), "head_seq": self.head_seq,
                 "head_hash": self.head_hash, "merkle_files": self.merkle_files,
-                "anchors_checked": self.anchors_checked, "traces": dict(self.traces)}
+                "anchors_checked": self.anchors_checked, "traces": dict(self.traces),
+                "anchor_log": self.anchor.to_dict() if self.anchor is not None else None}
 
     def lines(self) -> list[str]:
         """Human-readable report in Indonesian."""
@@ -160,14 +180,21 @@ class VerifyReport:
             out.append(f"  Akar Merkle      : {self.merkle_files} berkas harian dicocokkan")
         if self.anchors_checked is not None:
             out.append(f"  Jangkar          : {self.anchors_checked} dicocokkan")
+        if self.anchor is not None:
+            state = ("cocok" if self.anchor.ok else "TIDAK COCOK") + (
+                f" sampai entri #{self.anchor.anchored_seq}" if self.anchor.ok and self.anchor.anchored_seq else "")
+            out.append(f"  Log jangkar      : {self.anchor.path}")
+            out.append(f"                     {self.anchor.lines} baris ({self.anchor.signed_lines} bertanda tangan), "
+                       f"{state}" + (f", {len(self.anchor.acks)} pengakuan pemulihan" if self.anchor.acks else "")
+                       + (f", dimulai ulang di entri #{self.anchor.restarted[0]}" if self.anchor.restarted else ""))
         out.extend(f"Peringatan: {w}" for w in self.warnings)
         if self.problems:
             out.append(f"Masalah ({len(self.problems)}):")
             for seq, text in self.problems:
                 where = f"entri #{seq}" if seq else "berkas"
                 out.append(f"  {where}: {text}")
-        if self.merkle_files is None and self.anchors_checked is None:
-            out.append("Catatan: tanpa --jangkar atau --merkle-dir, entri yang dihapus dari ujung rantai "
+        if self.merkle_files is None and self.anchors_checked is None and self.anchor is None:
+            out.append("Catatan: tanpa --jangkar, --merkle-dir, atau --log-jangkar, entri yang dihapus dari ujung rantai "
                        "tidak dapat dideteksi.")
         out.append(self.verdict())
         return out
@@ -267,26 +294,61 @@ def _check_anchors(rows: list[tuple[Any, ...]], anchors: Sequence[tuple[int, str
                                   "sebelumnya diubah)"))
 
 
+def _check_anchor_log(report: VerifyReport, rows: list[tuple[Any, ...]], anchor_log: str | Path,
+                      anchor_file: Any, anchor_error: AnchorUnavailable | None) -> None:
+    """Compare the external anchor log (read before the rows) with the registry rows."""
+    if anchor_file is None:
+        assert anchor_error is not None
+        status = unavailable_status(anchor_log, rows, anchor_error)
+    else:  # the chain itself is checked by verify_registry
+        status = compare_anchor(anchor_file, rows, report.public_key, check_chain=False)
+    report.anchor = status
+    report.problems.extend((0, f"log jangkar: {text}") for text in status.problems)
+    report.warnings.extend(f"log jangkar: {text}" for text in status.warnings)
+    if status.ok and status.lag:
+        report.warnings.append(f"log jangkar: {status.lag} entri terakhir belum tercatat di log jangkar dan belum "
+                               "terlindungi dari penghapusan; TAPAK melengkapinya pada penulisan berikutnya")
+    if status.ok and status.restarted:
+        report.warnings.append(f"log jangkar: {restart_note(*status.restarted)}")
+    if status.ok and status.acks:
+        report.warnings.append(f"log jangkar: {len(status.acks)} pengakuan pemulihan melepas {len(status.released)} entri "
+                               f"yang tidak ada lagi di registri (terakhir entri #{status.acks[-1][0]}, "
+                               f"{status.acks[-1][1]})" + (f"; {status.released_traces} di antaranya entri pelacakan, "
+                                                           "jadi nomor dan jatah eps pelacakan itu dapat terpakai lagi"
+                                                           if status.released_traces else ""))
+
+
 def verify_registry(
     db_path: str | Path,
     public_key_hex: str,
     merkle_dir: str | Path | None = None,
     require_signed: bool = True,
     anchors: Sequence[tuple[int, str]] | None = None,
+    anchor_log: str | Path | None = None,
 ) -> VerifyReport:
-    """Verify hash chain, signatures, and optionally anchors and daily Merkle roots.
+    """Verify hash chain, signatures, and optionally anchors, daily Merkle roots and the anchor log.
 
     ``require_signed`` (default) makes any unsigned entry a problem; with False it is a
     warning and the verdict names the unsigned entries. ``anchors`` are (seq, entry_hash)
-    pairs recorded earlier outside the system. Raises SigningKeyError if
-    ``public_key_hex`` is not 64 hex characters.
+    pairs recorded earlier outside the system. ``anchor_log`` is the external anchor log
+    (``tapak.registry.anchor``): every entry it names must still be in the registry,
+    unchanged, and a missing or unreadable log is a problem. Read-only: nothing is completed
+    or repaired. Raises SigningKeyError if ``public_key_hex`` is not 64 hex characters.
     """
     path = Path(db_path)
     report = VerifyReport(db_path=str(path), public_key=normalize_public_key(public_key_hex),
                           require_signed=require_signed)
     pub = report.public_key
+    anchor_file = anchor_error = None
+    if anchor_log is not None:  # read before the registry: a line written meanwhile is never ahead
+        try:
+            anchor_file = read_anchor_file(anchor_log)
+        except AnchorUnavailable as exc:
+            anchor_error = exc
     if not path.is_file():
         report.problems.append((0, "berkas registri tidak ditemukan"))
+        if anchor_log is not None:
+            _check_anchor_log(report, [], anchor_log, anchor_file, anchor_error)
         return report
     try:
         rows, trigger_issues = _read_rows(path)
@@ -323,6 +385,12 @@ def verify_registry(
                                 for text in scan_document_problems(payload[SCAN_DOCUMENT_FIELD]))
         elif kind == KIND_TRACE and isinstance(seq, int):
             _check_trace(row, doc_eps, report.traces, problems)
+        elif kind == KIND_ANCHOR:
+            payload = _payload(payload_text)
+            found = anchor_payload_problems(payload)
+            problems.extend((seq, f"entri log jangkar: {text}") for text in found)
+            if not found and payload["created_at"] != created_at:
+                problems.append((seq, "waktu di isi entri log jangkar berbeda dari waktu entri"))
         report.entries += 1
         report.kinds[str(kind)] = report.kinds.get(str(kind), 0) + 1
         if not isinstance(seq, int):
@@ -387,6 +455,11 @@ def verify_registry(
     if anchors is not None:
         report.anchors_checked = len(anchors)
         _check_anchors(rows, anchors, problems)
+    if anchor_log is not None:
+        _check_anchor_log(report, rows, anchor_log, anchor_file, anchor_error)
+    elif (since := required_by(rows)) is not None:
+        report.warnings.append(f"registri memakai log jangkar sejak entri #{since}, tetapi log itu tidak diberikan "
+                               "(--log-jangkar): entri yang dihapus dari ujung rantai tidak diperiksa")
     if merkle_dir is not None:
         try:
             report.merkle_files, merkle_problems = check_daily_roots(path, merkle_dir)
@@ -407,6 +480,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--merkle-dir", default=None, help="folder berkas akar Merkle harian untuk dicocokkan")
     ap.add_argument("--jangkar", action="append", default=None, metavar="NOMOR:HASH",
                     help="hash entri yang pernah dicatat di luar sistem; boleh diulang")
+    ap.add_argument("--log-jangkar", default=None, metavar="BERKAS",
+                    help="log jangkar eksternal (TAPAK_ANCHOR_LOG); setiap entri yang dicatatnya harus masih ada "
+                         "di registri tanpa perubahan")
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--izinkan-belum-bertanda-tangan", dest="allow_unsigned", action="store_true",
                       help="terima entri tanpa tanda tangan (penandatanganan ditunda); hasil tetap menyebutkannya")
@@ -417,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
         public_key = load_public_key(args.public_key)
         anchors = [parse_anchor(a) for a in args.jangkar] if args.jangkar else None
         report = verify_registry(args.registry, public_key, args.merkle_dir,
-                                 require_signed=not args.allow_unsigned, anchors=anchors)
+                                 require_signed=not args.allow_unsigned, anchors=anchors, anchor_log=args.log_jangkar)
     except (OSError, ValueError, sqlite3.Error) as exc:  # SigningKeyError and UnicodeError are ValueErrors
         print(f"Gagal: {describe_error(exc)}", file=sys.stderr)
         return 1

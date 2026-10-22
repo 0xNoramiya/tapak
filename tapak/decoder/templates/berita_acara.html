@@ -338,6 +338,9 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
     diubah. Bila entri ini kemudian dihapus, pelacakan berikutnya dapat memakai lagi nomor dan
     jatah eps pelacakan ini; pemeriksaan dengan jangkar ini mengungkapnya.</td></tr>
   {% endif %}
+  {% if anchor_text %}
+  <tr><th>Log jangkar</th><td>{{ anchor_text }}.</td></tr>
+  {% endif %}
   <tr><th>Aturan ambang</th><td>Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak
     bersalah tidak melebihi eps1 (jatah eps {% if staged %}tahap 1{% else %}pelacakan{% endif %} dibagi n_max), dihitung hanya dari vektor bias
     dan bobot dekoder.

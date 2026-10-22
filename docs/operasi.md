@@ -33,6 +33,8 @@ tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu 
 tapak trace foto_bocor.jpg --master induk.pdf --manifest manifest.json --pelacakan-ke 2 --bertahap bertahap-v1   # ulangi pelacakan ke-2 (perintah di berita acara)
 tapak verify                                     # verifikasi registri dengan kunci publik saja
 tapak verify --jangkar 63:<hash>                 # juga mendeteksi entri yang dihapus setelah jangkar itu
+tapak --log-jangkar /mnt/jangkar/tapak.log jangkar mulai   # log jangkar eksternal (opsional, lihat di bawah)
+tapak jangkar status                             # bandingkan log jangkar dengan registri
 tapak registry export-merkle                     # akar Merkle harian
 tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
 tapak semantic approve varian.json --unit u0 --variant 2   # keputusan manusia
@@ -58,7 +60,43 @@ Pihak ketiga cukup memegang berkas registri dan kunci publik:
 
 ```bash
 tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub
+tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub --log-jangkar tapak.log   # dengan log jangkar
 ```
+
+## Log jangkar eksternal (opsional)
+
+Tanpa log jangkar, entri pelacakan yang dihapus dari ujung registri dengan menyunting berkasnya di luar TAPAK hanya terungkap oleh jangkar di berita acara atau akar Merkle yang disimpan di luar sistem ([batasan 13](keamanan.md#batasan)). Log jangkar membuat penghapusan itu terdeteksi otomatis: setelah setiap entri registri tersimpan, TAPAK menambahkan satu baris (nomor, hash, jenis, waktu entri) ke berkas di penyimpanan terpisah, dan sebelum setiap pelacakan dan penerbitan membandingkan registri dengan berkas itu. Bila tidak diatur, perilaku TAPAK tidak berubah; hasil pelacakan hanya mendapat satu baris yang menyebut bahwa penghapusan itu belum terperiksa.
+
+**Di mana menyimpannya.** Log hanya melindungi bila orang yang dapat menyunting `registry.db` tidak dapat menyunting log itu. Berkas di komputer dan akun yang sama tidak melindungi apa pun, dan TAPAK memperingatkan bila log berada di folder data atau kunci. Pilihan, dari yang paling sederhana:
+
+* berkas di komputer yang sama yang diberi atribut tambah-saja oleh root (`sudo chattr +a`), sehingga akun TAPAK hanya dapat menambah baris. Ini melindungi dari pengguna biasa yang dapat menyunting registri, tetapi tidak dari root;
+* media tulis-sekali (WORM) yang dipasang sebagai folder;
+* folder di komputer kedua yang dipasang lewat sistem operasi (misalnya berbagi jaringan yang dikelola admin lain, tempat akun TAPAK hanya dapat menambah). TAPAK tidak menjalankan layanan jaringan untuk ini; penyimpanannya harus mendukung kunci berkas (`flock`).
+
+**Memasang.**
+
+```bash
+sudo mkdir -p /mnt/jangkar && sudo chown tapak /mnt/jangkar     # atau pasang penyimpanan terpisahnya di sini
+export TAPAK_ANCHOR_LOG=/mnt/jangkar/tapak.log                  # atau: tapak --log-jangkar /mnt/jangkar/tapak.log ...
+tapak verify                                                     # registri harus utuh dulu
+tapak jangkar mulai                                              # baris awal, lalu semua entri yang sudah ada
+sudo chattr +a /mnt/jangkar/tapak.log                            # bila memakai atribut tambah-saja
+tapak jangkar status                                             # cocok dengan registri sampai entri #N
+```
+
+TAPAK tidak pernah membuat folder log, agar log tidak diam-diam tertulis di disk lokal ketika penyimpanan terpisah belum dipasang. `tapak jangkar mulai` mencatat awal log di registri (entri `anchor_log`). Sejak itu semua proses yang menulis registri ini, yaitu CLI, `tapak web`, dan kontainer `app`, harus memakai `TAPAK_ANCHOR_LOG` yang sama; proses tanpa log menolak pelacakan dan penerbitan. Antarmuka web tidak memiliki halaman pengaturan: jalankan `tapak --log-jangkar /mnt/jangkar/tapak.log web` atau atur variabelnya sebelum server dijalankan. Halaman Registri menampilkan keadaan log, dan hasil Lacak memuat satu baris tentangnya. Di Docker, pasang penyimpanan itu ke kontainer `app` dan tulis variabelnya di bagian `environment` (belum diuji).
+
+**Yang terlihat.** Hasil pelacakan, keluaran CLI, dan berita acara memuat satu baris, misalnya "Log jangkar: cocok dengan registri sampai entri #8; entri baru #8 dicatat di log". `tapak verify` dan `tapak-verify-registry --log-jangkar` mencocokkan log tanpa mengubah apa pun. Jangkar berita acara (`tapak verify --jangkar`) tetap berguna sebagai cadangan manual, misalnya untuk dicatat di luar sistem bersama berkas perkara.
+
+**Bila proses mati.** Baris ditulis setelah entri tersimpan. Bila proses mati di antaranya, log tertinggal satu entri, dan penulisan berikutnya melengkapinya otomatis. Log yang tidak dapat ditulis (misalnya penyimpanan hanya-baca) ditolak sebelum entri baru dicatat. Pelacakan yang barisnya tetap gagal ditulis setelah entrinya tersimpan dibatalkan sebelum bukti dibaca, dan nomornya tetap terpakai. Baris yang terpotong karena mati listrik diabaikan dengan peringatan. `tapak jangkar mulai` yang terputus diselesaikan dengan menjalankan perintah yang sama lagi.
+
+**Bila pelacakan ditolak.** Pesannya menyebut entri yang hilang, diganti, atau diubah. Jalankan `tapak verify` untuk rinciannya, lalu:
+
+1. **Log hilang atau tidak terbaca.** Pasang kembali penyimpanannya atau perbaiki izinnya. Jangan menghapus atau mengganti log. Bila log memang hilang, periksa dulu registri dengan jangkar dari berita acara (`tapak verify --jangkar`) atau akar Merkle, lalu mulai log baru secara sadar: `tapak jangkar mulai --ulang --alasan "media jangkar rusak, diperiksa Kasi Ops"`. Awal yang baru tercatat di registri (`restart`) dan alasannya di baris pertama log baru. Log lama yang dipasang kembali sesudahnya ditolak karena sudah diganti, dan setiap hasil pelacakan dan `tapak verify` sesudahnya menyebut awal ulang ini. Bila pesan menyebut log sudah diganti log lain padahal tidak ada yang sengaja memulai ulang, jangan pindah ke log baru itu: periksa registri dengan log lama.
+2. **Entri hilang atau diganti.** Kembalikan registri dari cadangan yang masih memuat entri itu; pemeriksaan berikutnya lulus sendiri. Bila entri itu memang tidak dapat dikembalikan, jalankan `tapak jangkar akui --alasan "..."` untuk melihat entri yang akan dilepas, lalu ulangi dengan `--ya`. Pengakuan tercatat di registri (`ack`) dan di log, dan setiap hasil pelacakan sesudahnya menyebutnya. Nomor dan jatah eps pelacakan yang hilang dapat terpakai lagi, jadi batas tuduhan salah gabungan dokumen itu tidak lagi terjamin.
+3. **Entri diubah, rantai rusak, atau baris log dipalsukan.** Pengakuan tidak dapat melepasnya. Kembalikan registri atau log dari cadangan dan periksa siapa yang mengubahnya.
+
+Alasan disimpan sebagai teks di log jangkar dan sebagai hash di registri; jangan menulis isi dokumen atau nama penerima di dalamnya. Belum ada perintah untuk berhenti memakai log jangkar pada registri yang sudah memakainya; untuk pindah lokasi, mulai log baru dengan `--ulang`.
 
 ## Kanal pilihan kata (opsional)
 
@@ -97,7 +135,7 @@ Antarmuka web punya dua halaman utama:
 
 Halaman PDF tanpa lapisan teks yang cocok (hasil pindai) atau dengan lapisan teks OCR tak terlihat dibaca sebagai gambar. Halaman yang diperkecil, digeser, atau dicetak ke ukuran kertas lain lebih dulu dinormalkan ke bingkai dokumen induk (skala dan pergeseran per halaman). Setelah itu, kanal geser dibaca dari teksnya dan pola latar dari gambarnya.
 
-Halaman **Registri** menampilkan status rantai, kunci publik, akar Merkle, dan peringatan kanari.
+Halaman **Registri** menampilkan status rantai, [log jangkar](#log-jangkar-eksternal-opsional), kunci publik, akar Merkle, dan peringatan kanari.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/ui-terbitkan-dark.png">
@@ -189,6 +227,7 @@ Variabel lingkungan:
 | `TAPAK_LLM_TIMEOUT` | batas waktu per permintaan ke LLM dalam detik; bawaan 120 |
 | `TAPAK_ALLOWED_HOSTS` | nama host yang dilayani aplikasi web; bawaan `127.0.0.1,localhost` |
 | `TAPAK_SIGNING_KEY`, `TAPAK_PUBLIC_KEY` | lokasi kunci tanda tangan dan kunci publik registri; bawaan di `TAPAK_KEY_DIR` |
+| `TAPAK_ANCHOR_LOG` | berkas [log jangkar](#log-jangkar-eksternal-opsional) di penyimpanan terpisah (sama dengan `tapak --log-jangkar`); kosong = tidak dipakai |
 | `TAPAK_CANARY_NS_IP` | alamat IPv4 publik pendengar kanari untuk `ns1.<domain>`, sama dengan glue di registrar |
 | `TAPAK_CANARY_ANSWER_IP` | (docker-compose) alamat IPv4 jawaban untuk nama kanari; bawaan `127.0.0.1` |
 
@@ -200,6 +239,7 @@ Variabel lingkungan:
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
 - simulator printer, profil latar cetak, dan templat induk tepat;
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
+- log jangkar: entri yang dihapus dari ujung, diganti, atau diubah, log yang hilang, jendela mati listrik, tanda tangan baris, pengakuan dan awal ulang, isi log tanpa data dokumen, CLI, berita acara, dan web;
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
 - DOCX, berita acara, antarmuka web end-to-end;

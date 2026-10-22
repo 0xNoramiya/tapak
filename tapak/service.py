@@ -68,6 +68,97 @@ def ensure_keys(settings: Settings, create_signing_key: bool = True, create_secr
     return Keys(secret, signer, pub)
 
 
+# --- external anchor log -----------------------------------------------------------------
+
+
+def registry_keys(settings: Settings) -> tuple[object | None, str | None]:
+    """(signer, public key hex) of the registry as present here, without the code secret.
+
+    The signer is loaded only when its file exists and must match the published public key.
+    """
+    from tapak.registry.signing import load_public_key, load_signer
+
+    sk, pk = settings.signing_key_path, settings.public_key_path
+    public = load_public_key(pk) if pk.exists() else None
+    signer = load_signer(sk) if sk.exists() else None
+    if signer is not None and public is not None and signer.public_key_hex != public:
+        raise ValueError(f"kunci tanda tangan {sk} tidak cocok dengan kunci publik {pk}")
+    return signer, public or (signer.public_key_hex if signer is not None else None)
+
+
+def anchor_log(settings: Settings, keys: Keys | None = None):
+    """The anchor log configured for this process (``TAPAK_ANCHOR_LOG`` or ``--log-jangkar``),
+    as a ``tapak.registry.anchor.AnchorLog``; None when no location is set.
+
+    Lines are signed with the registry signing key when ``keys`` hold it, and signed lines are
+    verified with the public key (read from its file when ``keys`` is None; the private key is
+    then never loaded). A log inside the data or key folder is used, with a warning. Refuses
+    (ValueError) the registry file itself as the location.
+    """
+    from tapak.registry.anchor import AnchorLog
+    from tapak.registry.signing import SigningKeyError, load_public_key
+
+    path = settings.anchor_log
+    if path is None:
+        return None
+    if path.resolve() == settings.registry_path.resolve():
+        raise ValueError("log jangkar tidak boleh berkas registri itu sendiri; pilih berkas di penyimpanan terpisah")
+    signer, public = (keys.signer, keys.public_key_hex) if keys is not None else (None, None)
+    if keys is None and settings.public_key_path.exists():
+        try:
+            public = load_public_key(settings.public_key_path)
+        except (OSError, SigningKeyError):
+            public = None
+    return AnchorLog(path, signer=signer, public_key=public,  # type: ignore[arg-type]
+                     protected=[settings.data_dir, settings.key_dir])
+
+
+def anchor_status(settings: Settings, keys: Keys | None = None):
+    """Read-only state of the anchor log against the registry (``AnchorStatus``); never raises.
+
+    Without a configured log it still says whether the registry requires one (``required_by``).
+    """
+    import sqlite3
+
+    from tapak.registry.anchor import AnchorStatus, read_registry_rows, unconfigured_status
+
+    try:
+        log = anchor_log(settings, keys)
+    except ValueError as exc:
+        return AnchorStatus(configured=True, path=str(settings.anchor_log), problems=[str(exc)], blocking=[str(exc)])
+    if log is not None:
+        return log.inspect_registry_file(settings.registry_path)
+    try:
+        rows = read_registry_rows(settings.registry_path)
+    except sqlite3.Error:
+        rows = []
+    return unconfigured_status(rows)
+
+
+def anchor_refusal(status) -> str | None:
+    """Why traces and issuances must be refused because of the anchor log, or None.
+
+    A configured log must match the registry; a registry that recorded the use of an anchor
+    log refuses a process that has none configured, so the check is never skipped silently.
+    """
+    if status.configured:
+        return None if status.ok else status.refusal()
+    if status.required_by is not None:
+        return (f"registri ini memakai log jangkar sejak entri #{status.required_by}, tetapi lokasi log jangkar tidak "
+                "diatur di proses ini. Atur TAPAK_ANCHOR_LOG atau --log-jangkar ke lokasi log itu; tanpa log itu "
+                "penghapusan entri dari ujung registri tidak terperiksa")
+    return None
+
+
+def _refuse_unanchored(reg) -> None:
+    """Inside a write: refuse a registry that requires an anchor log this process lacks."""
+    from tapak.registry.anchor import AnchorError, unconfigured_status
+
+    refusal = anchor_refusal(unconfigured_status(reg.raw_rows()))
+    if refusal:
+        raise AnchorError(refusal)
+
+
 # --- workspaces --------------------------------------------------------------------------
 
 
@@ -153,6 +244,7 @@ def issue_document(
     (research seed only, see ``tapak.keys``); None draws them at random.
     """
     from tapak.marker.background import PRINT_BACKGROUND, PRINT_BACKGROUND_WARNING, background_profile
+    from tapak.registry.anchor import AnchorWriteError
     from tapak.registry.chain import Registry, registry_from_manifest
 
     if latar is not None:
@@ -172,6 +264,10 @@ def issue_document(
             if hasattr(reg, "pending") and reg.pending():
                 raise ValueError("registri memiliki entri yang belum ditandatangani; pemegang kunci perlu "
                                  "menjalankan tapak registry sign lebih dulu")
+    if record:  # before any copy is made; checked again under the registry's write lock
+        refusal = anchor_refusal(anchor_status(settings, keys))
+        if refusal:
+            raise ValueError(f"penerbitan ditolak: {refusal}")
     doc_name = doc_name or Path(doc_path).name
     is_docx = Path(doc_name).suffix.lower() == ".docx"
     if lexical is not None and is_docx:
@@ -199,10 +295,17 @@ def issue_document(
                              lexical=lexical, copy_ids=copy_ids)
         manifest.doc_name = doc_name
         entries = 0
+        anchor_warning = None
         if record:  # registry first: until it commits, any failure removes the whole workspace
-            with Registry.open(settings.registry_path) as reg:
-                entries = len(registry_from_manifest(manifest, reg, keys.signer,  # type: ignore[arg-type]
-                                                     code_secret=keys.code_secret))
+            anchor = anchor_log(settings, keys)
+            with Registry.open(settings.registry_path, anchor=anchor) as reg:
+                if anchor is None:
+                    _refuse_unanchored(reg)
+                try:
+                    entries = len(registry_from_manifest(manifest, reg, keys.signer,  # type: ignore[arg-type]
+                                                         code_secret=keys.code_secret))
+                except AnchorWriteError as exc:  # committed: only the anchor lines are missing
+                    entries, anchor_warning = len(exc.entries), str(exc)
         committed = True
         (folder / ".tercatat").touch()  # recorded in the registry: never reclaimed as stale
         if semantic is not None and manifest.semantic_digest:
@@ -221,6 +324,8 @@ def issue_document(
     finally:
         lock.close()
     outcome = IssueOutcome(manifest, folder, entries, keys.signer is not None)
+    if anchor_warning:
+        outcome.warnings.append(f"{anchor_warning}; sampai saat itu pelacakan dan penerbitan ditolak")
     if manifest.background_settings == PRINT_BACKGROUND:
         outcome.warnings.append(PRINT_BACKGROUND_WARNING)
     if any(c.canary_token for c in manifest.copies):
@@ -379,17 +484,21 @@ class RegistryCheck:
     copies_unsigned: int = 0       # registry rows of this document's copies without a signature
     mismatched: list[int] = field(default_factory=list)  # copy numbers whose record differs
     document_mismatch: list[str] = field(default_factory=list)  # code parameters that differ
+    anchor: object | None = None   # tapak.registry.anchor.AnchorStatus (read-only, before the trace)
 
 
 def check_registry(settings: Settings, manifest: IssueManifest, secret: bytes | None = None) -> RegistryCheck:
     """Verify the chain with the public key and confirm every copy's record: recipient id,
     number, code and file commitments and, given the code secret, the keyed commitment to the
-    recipient's name, position and unit."""
+    recipient's name, position and unit. ``anchor`` is the state of the external anchor log
+    (``anchor_status``), compared with the registry before anything else is read."""
     from tapak.registry.chain import Registry, recipient_commitment
     from tapak.registry.verify import verify_registry
 
+    anchor = anchor_status(settings)
     if not settings.registry_path.exists():
-        return RegistryCheck(None, 0, 0, 0, len(manifest.copies), ["registri tidak ditemukan"], recorded=False)
+        return RegistryCheck(None, 0, 0, 0, len(manifest.copies), ["registri tidak ditemukan"], recorded=False,
+                             anchor=anchor)
     problems: list[str] = []
     chain_ok: bool | None = None
     entries = unsigned = 0
@@ -463,7 +572,7 @@ def check_registry(settings: Settings, manifest: IssueManifest, secret: bytes | 
         problems.append(f"log kanari tidak dapat diperiksa: {exc}")
     return RegistryCheck(chain_ok, entries, unsigned, confirmed, len(manifest.copies), problems, canary_ok,
                          recorded=recorded, copies_unsigned=copies_unsigned, mismatched=mismatched,
-                         document_mismatch=document_mismatch)
+                         document_mismatch=document_mismatch, anchor=anchor)
 
 
 def canary_alerts(settings: Settings, manifest: IssueManifest) -> list[dict[str, object]]:
@@ -504,6 +613,9 @@ class TraceOutcome:
     ``tapak verify --jangkar``, printed in the berita acara, that exposes a later deletion of
     this entry (which would hand the next trace this trace's larger share again). The trace
     number and the eps it spent are in ``attribution.threshold`` (``trace_no``, ``eps_share``).
+    ``anchor`` is the state of the external anchor log (``AnchorStatus``): checked before
+    the trace entry was appended and, when configured, with that entry's line written.
+    :meth:`anchor_line` is the one line the trace result shows about it.
     """
 
     attribution: object
@@ -517,11 +629,24 @@ class TraceOutcome:
     trace_entry: int | None = None
     trace_signed: bool = False
     trace_entry_hash: str | None = None
+    anchor: object | None = None
+
+    def anchor_line(self) -> str:
+        """The anchor log sentence of the trace result, or "" when there is nothing to say.
+
+        Shown for every logged trace (without a configured log it says that entries deleted
+        from the end of the registry are only detected with an anchor) and whenever a log is
+        configured.
+        """
+        anchor = self.anchor
+        if anchor is None or not (self.trace_entry is not None or anchor.configured):  # type: ignore[attr-defined]
+            return ""
+        return str(anchor.describe())  # type: ignore[attr-defined]
 
 
 def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str], eps: float,
-               stage_policy: str | None = None):
-    """Append the ``trace`` entry of this trace before decoding and return it.
+               stage_policy: str | None = None, unanchored=None):
+    """Append the ``trace`` entry of this trace before decoding; return it with the anchor state.
 
     ``stage_policy`` (the staged accusation's budget split) is written into the entry, so the
     eps of every stage is fixed in the registry before any evidence is read.
@@ -530,17 +655,33 @@ def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str]
     would be refused, since a signature must never cover rows nobody reviewed. A trace that
     cannot be logged is not performed, so a read-only or locked registry is no way around
     the count.
+
+    With an anchor log, the log is compared with the registry under the write lock before the
+    entry is appended (a mismatch refuses the trace), and the entry's line is written after
+    the commit; if that line cannot be written the trace is not performed either (its number
+    stays used). ``unanchored`` is the state returned when no anchor log is configured.
     """
     import sqlite3
 
     from tapak.decoder.trace import TraceError
+    from tapak.registry.anchor import AnchorError, AnchorWriteError
     from tapak.registry.chain import Registry, RegistryError
 
+    anchor = anchor_log(settings, keys)
     try:
-        with Registry.open(settings.registry_path) as reg, reg.transaction():
-            signer = keys.signer if keys.signer is not None and not reg.pending() else None
-            return reg.record_trace(doc_hash=doc_hash, evidence_sha256=digests, eps=eps,
-                                    signer=signer, stage_policy=stage_policy)  # type: ignore[arg-type]
+        with Registry.open(settings.registry_path, anchor=anchor) as reg:
+            if anchor is None:
+                _refuse_unanchored(reg)
+            with reg.transaction():
+                signer = keys.signer if keys.signer is not None and not reg.pending() else None
+                entry = reg.record_trace(doc_hash=doc_hash, evidence_sha256=digests, eps=eps,
+                                         signer=signer, stage_policy=stage_policy)  # type: ignore[arg-type]
+        return entry, (anchor.status if anchor is not None else unanchored)
+    except AnchorWriteError as exc:
+        raise TraceError(f"{exc}. Pelacakan dibatalkan sebelum bukti dibaca dan tidak ada nama yang disebut; nomor "
+                         "pelacakan ini tetap terpakai") from exc
+    except AnchorError as exc:
+        raise TraceError(f"pelacakan ditolak sebelum bukti dibaca: {exc}. Tidak ada nama yang disebut") from exc
     except (sqlite3.Error, RegistryError, OSError, ValueError) as exc:
         raise TraceError(f"pelacakan tidak dapat dicatat di registri ({exc}); pelacakan dibatalkan dan "
                          "tidak ada nama yang disebut") from exc
@@ -571,6 +712,10 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     # of every recipient must be the recorded ones, or nobody is named.
     reg = check_registry(settings, manifest, keys.code_secret)
     refuse = "; tidak ada nama yang disebut sampai perbedaan ini diperiksa"
+    # The anchor log first: it is the only check that sees entries deleted from the end.
+    anchor_refused = anchor_refusal(reg.anchor) if reg.anchor is not None else None
+    if anchor_refused:
+        raise TraceError(f"pelacakan ditolak: {anchor_refused}. Tidak ada nama yang disebut")
     if settings.public_key_path.exists() and not reg.recorded:
         raise TraceError("dokumen ini tidak ditemukan di registri (berkas registri hilang, terpotong, atau "
                          "dokumen diterbitkan tanpa registri), sehingga identitas penerima tidak dapat "
@@ -594,8 +739,10 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     digests = [sha256_hex(d) for _, d in items]
     eps = manifest.tardos_params.eps
     entry = None
+    anchor = reg.anchor
     if reg.recorded:  # logged first: the trace number and stage budgets, so the thresholds, precede decoding
-        entry = _log_trace(settings, keys, manifest.doc_hash, digests, eps, TRACE_STAGE_POLICY)
+        entry, anchor = _log_trace(settings, keys, manifest.doc_hash, digests, eps, TRACE_STAGE_POLICY,
+                                   unanchored=reg.anchor)
         spending = TraceSpending.logged(eps, entry.payload["trace_no"], entry.payload.get("stage_policy"))
     else:
         spending = TraceSpending.unlogged(eps, TRACE_STAGE_POLICY)
@@ -613,7 +760,7 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     return TraceOutcome(attribution, obs, ctx, names, ", ".join(digests), reg, canary_alerts(settings, manifest),
                         [n for n, _ in items], trace_entry=entry.seq if entry else None,
                         trace_signed=bool(entry and entry.signed),
-                        trace_entry_hash=entry.entry_hash if entry else None)
+                        trace_entry_hash=entry.entry_hash if entry else None, anchor=anchor)
 
 
 def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
@@ -695,6 +842,7 @@ def write_report(outcome: TraceOutcome, out_path: Path | None = None, case_numbe
     )
     info.registry_unsigned = reg.copies_unsigned
     info.trace_entry, info.trace_entry_hash = outcome.trace_entry, outcome.trace_entry_hash or ""
+    info.anchor_text = outcome.anchor_line() if outcome.trace_entry is not None else ""
     info.evidence_sha256 = outcome.evidence_sha256
     info.evidence_names = names if len(names) > 1 else []
     return render_report(outcome.attribution, info, out_path)

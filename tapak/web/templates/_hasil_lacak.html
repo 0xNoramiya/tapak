@@ -261,6 +261,11 @@
         <dt>Pelacakan</dt>
         <dd class="tnum">Ke-{{ t.trace_no }}, entri #{{ o.trace_entry }}, {{ "bertanda tangan" if o.trace_signed else "belum bertanda tangan" }}</dd>
         {% endif %}
+        {% set jangkar = o.anchor_line() %}
+        {% if jangkar %}
+        <dt>Log jangkar</dt>
+        <dd>{{ jangkar[:1]|upper }}{{ jangkar[1:] }}.</dd>
+        {% endif %}
       </dl>
       {% if o.trace_entry is not none and o.trace_entry_hash %}
       <div class="lacak-hash">
