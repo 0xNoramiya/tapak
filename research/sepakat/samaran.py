@@ -40,7 +40,8 @@ Parts:
 * ``bench``: the README benchmark issuance (benih riset 2026, 20 copies, nota dinas) issued
   again with each candidate that passes visibility, the same photo sets (``make photos`` and
   ``make photos-cetak`` seeds and parameters) traced as ``make bench`` does; correct counts
-  compared with today's on every set.
+  compared with today's on every set (``bench hari_ini`` traces today's rebuilt sets the same
+  way, for the score margin and the background bit errors).
 * ``serang``: the uji issuances of ``ukur.py`` issued again with the candidate (same research
   seeds, so the same codewords), the same coalitions, semua/acak with the mask-aware
   coalition and jujur, channels pdf, layar and foto with the same channel seeds; escape
@@ -268,13 +269,17 @@ def bench_rows(name: str) -> list[dict]:
     from tapak.marker.issue import read_recipients
     from tapak.photos import PrintParams, make_photo_set
 
-    folder = OUT / f"bench_{name}"
-    issued = folder / "salinan"
     secret = research_code_secret(2026)
-    recipients = read_recipients(ROOT / "samples" / "recipients.csv")
-    if not (issued / "manifest.json").exists():
-        issue_masked(ROOT / "samples" / "nota_dinas.pdf", recipients, issued, secret,
-                     research_copy_ids(2026, len(recipients)), len(recipients), name)
+    if name == "hari_ini":  # today's scheme: the benchmark rebuilt by make photos (ukur.BENCH)
+        folder = ROOT / "out" / "sepakat" / "bench"
+        issued = next((folder / "data" / "dokumen").glob("*/salinan"))
+    else:
+        folder = OUT / f"bench_{name}"
+        issued = folder / "salinan"
+        recipients = read_recipients(ROOT / "samples" / "recipients.csv")
+        if not (issued / "manifest.json").exists():
+            issue_masked(ROOT / "samples" / "nota_dinas.pdf", recipients, issued, secret,
+                         research_copy_ids(2026, len(recipients)), len(recipients), name)
     sets = {"layar": folder / "photos", "cetak": folder / "photos-cetak"}
     if not (sets["layar"] / "truth.json").exists():
         make_photo_set(issued, sets["layar"], seqs=[13, 7, 1, 20], per_copy=2, seed=2026)
@@ -373,7 +378,7 @@ def attack_rows(name: str, which: str = "uji", only: list[int] | None = None) ->
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("bagian", choices=["abstrak", "visibilitas", "bench", "serang"])
-    ap.add_argument("kandidat", nargs="?", default="K1", choices=sorted(CANDIDATES))
+    ap.add_argument("kandidat", nargs="?", default="K1", choices=sorted(CANDIDATES) + ["hari_ini"])
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--penerbitan", type=int, nargs="*", default=None, help="indeks penerbitan uji (serang)")
     args = ap.parse_args(argv)

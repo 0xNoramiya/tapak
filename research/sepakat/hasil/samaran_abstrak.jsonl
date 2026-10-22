@@ -1,0 +1,12 @@
+{"bagian": "abstrak", "rasio": 0.0, "k": 2, "posisi": 20000, "sel_sama_diratakan": 1.0, "sel_beda_diratakan": 0.0, "sisa_sinyal_sama": 0.0, "sisa_sinyal_beda": 1.0}
+{"bagian": "abstrak", "rasio": 0.0, "k": 3, "posisi": 20000, "sel_sama_diratakan": 1.0, "sel_beda_diratakan": 0.0, "sisa_sinyal_sama": 0.0, "sisa_sinyal_beda": 1.0}
+{"bagian": "abstrak", "rasio": 0.0, "k": 4, "posisi": 20000, "sel_sama_diratakan": 1.0, "sel_beda_diratakan": 0.0, "sisa_sinyal_sama": 0.0, "sisa_sinyal_beda": 1.0}
+{"bagian": "abstrak", "rasio": 1.5, "k": 2, "posisi": 20000, "sel_sama_diratakan": 0.9998, "sel_beda_diratakan": 0.6203, "sisa_sinyal_sama": 0.0001, "sisa_sinyal_beda": 0.6009}
+{"bagian": "abstrak", "rasio": 1.5, "k": 3, "posisi": 20000, "sel_sama_diratakan": 0.987, "sel_beda_diratakan": 0.443, "sisa_sinyal_sama": 0.0045, "sisa_sinyal_beda": 0.7003}
+{"bagian": "abstrak", "rasio": 1.5, "k": 4, "posisi": 20000, "sel_sama_diratakan": 0.9686, "sel_beda_diratakan": 0.3281, "sisa_sinyal_sama": 0.0086, "sisa_sinyal_beda": 0.7492}
+{"bagian": "abstrak", "rasio": 2.0, "k": 2, "posisi": 20000, "sel_sama_diratakan": 0.9998, "sel_beda_diratakan": 0.7847, "sisa_sinyal_sama": 0.0002, "sisa_sinyal_beda": 0.4463}
+{"bagian": "abstrak", "rasio": 2.0, "k": 3, "posisi": 20000, "sel_sama_diratakan": 0.9904, "sel_beda_diratakan": 0.64, "sisa_sinyal_sama": 0.0021, "sisa_sinyal_beda": 0.5543}
+{"bagian": "abstrak", "rasio": 2.0, "k": 4, "posisi": 20000, "sel_sama_diratakan": 0.9522, "sel_beda_diratakan": 0.4986, "sisa_sinyal_sama": 0.011, "sisa_sinyal_beda": 0.6353}
+{"bagian": "abstrak", "rasio": 3.0, "k": 2, "posisi": 20000, "sel_sama_diratakan": 1.0, "sel_beda_diratakan": 0.9037, "sisa_sinyal_sama": 0.0001, "sisa_sinyal_beda": 0.2961}
+{"bagian": "abstrak", "rasio": 3.0, "k": 3, "posisi": 20000, "sel_sama_diratakan": 0.9947, "sel_beda_diratakan": 0.8199, "sisa_sinyal_sama": 0.002, "sisa_sinyal_beda": 0.3915}
+{"bagian": "abstrak", "rasio": 3.0, "k": 4, "posisi": 20000, "sel_sama_diratakan": 0.9579, "sel_beda_diratakan": 0.7107, "sisa_sinyal_sama": 0.0078, "sisa_sinyal_beda": 0.4855}

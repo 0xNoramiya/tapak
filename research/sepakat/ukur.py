@@ -65,7 +65,7 @@ semua/salin; every channel), "gabung" on a tie; (2) the alarm threshold is
 honest evidence, rounded up to two decimals (3.0902 is the standard normal quantile for the
 alarm rate 1e-3, fixed before measuring); the held-out false alarms are counted on the uji
 honest controls and on the README benchmark sets if present (``make photos``,
-``make photos-cetak``).
+``make photos-cetak``, rebuilt in ``out/sepakat/bench``).
 
 Defense decision rule (part 3, ``samaran.py``), fixed now: the masking scheme becomes the
 default for new issuances only if (a) on every benchmark set (README screen photos and
@@ -77,6 +77,22 @@ semua/acak on the uji pdf, layar and foto channels by at least half and by at le
 percentage points. If it meets (b) and (c) but not (a) it is opt-in; otherwise it is dropped.
 Old manifests decode exactly as today in every case.
 
+Decisions taken on the development seeds, recorded before the held-out run:
+
+* the background energy strength leaves out cells whose saturated share is 0.5 or more
+  (``ch_background.ENERGY_MAX_SHARE``; chosen on one dev photo with 65 % clipped paper, where
+  it raised the rank correlation with q of the attacked photo from -0.087 to -0.127);
+* strength choice: ``gabung`` (dev detection over the targeted attacks 0.619 for gabung and
+  for energi, 0.579 for mutlak; the tie goes to gabung by the rule above);
+* calibration: s = 0.996 over 232 dev honest evidence, so the factor is 1 and the alarm
+  threshold stays -3.0902 (``erasure.ERASURE_CALIBRATION`` = 1.0);
+* observed on dev, not a choice: honest strengths share part of their pattern across copies
+  of one document (rank correlation of the position scores between two honest copies 0.22
+  for pdf, 0.12 for layar, nota dinas), so for one document Z is centred on an offset of a
+  few tenths rather than on 0; the alarm rate 1e-3 holds on average over the code draw.
+
+Part ``tipografi`` was added after the protocol commit; it is deterministic (no seed).
+
 Usage (from the repository root; at most 3 worker processes, 1 BLAS thread each):
 
     python research/sepakat/ukur.py terbit dev            # or uji
@@ -84,6 +100,7 @@ Usage (from the repository root; at most 3 worker processes, 1 BLAS thread each)
     python research/sepakat/ukur.py jujur dev --out research/sepakat/hasil/jujur_dev.jsonl
     python research/sepakat/ukur.py serang uji --out research/sepakat/hasil/serang_uji.jsonl
     python research/sepakat/ukur.py bench --out research/sepakat/hasil/bench.jsonl
+    python research/sepakat/ukur.py tipografi uji --out research/sepakat/hasil/tipografi.jsonl
     python research/sepakat/ukur.py ringkas research/sepakat/hasil/*.jsonl
 """
 
@@ -108,6 +125,9 @@ sys.path.insert(0, str(ROOT))
 import numpy as np  # noqa: E402
 
 OUT = ROOT / "out" / "sepakat"
+# The README benchmark rebuilt here: make photos photos-cetak bench PHOTO_DATA=out/sepakat/bench
+# PHOTO_SET=out/sepakat/bench/photos PHOTO_SET_CETAK=out/sepakat/bench/photos-cetak (benih riset 2026).
+BENCH = OUT / "bench"
 WORKERS = 3
 EPS = 1e-6
 C = 3
@@ -374,7 +394,7 @@ def bench_job(job: tuple) -> list[dict]:
         from tapak.decoder.trace import load_context
         from tapak.marker.issue import IssueManifest
 
-        issued = next((ROOT / "out" / "photos" / "data" / "dokumen").glob("*/salinan"))
+        issued = next((BENCH / "data" / "dokumen").glob("*/salinan"))
         manifest = IssueManifest.from_json((issued / "manifest.json").read_text(encoding="utf-8"))
         _CTX[key] = load_context((ROOT / "samples" / "nota_dinas.pdf").read_bytes(), manifest,
                                  research_code_secret(2026))
@@ -387,6 +407,37 @@ def bench_job(job: tuple) -> list[dict]:
     row = {"bagian": "bench", "berkas": files, "salinan": seq, "jenis": kind}
     row.update(record(obs, ctx, [seq], x, np.ones(x.size, dtype=bool)))
     return [row]
+
+
+def typography_rows(which: str) -> list[dict]:
+    """Part ``tipografi`` (added after the protocol commit; deterministic, no seed): how many
+    shift bits ONE copy reveals through its own gaps (``tapak.collusion.shift_units`` on a
+    single copy), and how many of those are right, per document over all copies of a set."""
+    from tapak.collusion import copy_displacements, shift_units
+    from tapak.marker.layout import extract_layout
+
+    rows = []
+    for doc, n, seed in ISSUANCES[which]:
+        ctx, _ = context(doc, n, seed)
+        tally = {"kata": [0, 0, 0], "baris": [0, 0, 0]}  # units, decided, right
+        for seq in range(1, n + 1):
+            pdf = copy_pdf(doc, n, seed, seq)
+            units, _ = shift_units([extract_layout(pdf)])
+            disp = copy_displacements(pdf, ctx.master)
+            for u in units:
+                row = ctx.master.layout.pages[u.ref[0]].rows[u.ref[1]]
+                if u.kind == "kata":
+                    true = float(np.mean([disp[row.words[i].id][0] for i in row.groups[u.ref[2]].word_indices]))
+                else:
+                    true = float(np.median([disp[w.id][1] for w in row.words]))
+                t = tally[u.kind]
+                t[0] += 1
+                if u.typographic is not None:
+                    t[1] += 1
+                    t[2] += int(abs(true - u.typographic) < 1e-3)
+        rows.append({"bagian": "tipografi", "set": which, "dok": doc, "N": n, "benih": seed, "salinan": n,
+                     "kata": tally["kata"], "baris": tally["baris"]})
+    return rows
 
 
 def _run(fn, jobs: list, out: Path) -> None:
@@ -423,7 +474,7 @@ def bench_jobs() -> list[tuple]:
     """Every screen image and every print pair of the README benchmark sets (if present)."""
     jobs = []
     for name in ("photos", "photos-cetak"):
-        folder = ROOT / "samples" / name
+        folder = BENCH / name
         if not (folder / "truth.json").exists():
             continue
         items = json.loads((folder / "truth.json").read_text(encoding="utf-8"))["items"]
@@ -440,7 +491,7 @@ def bench_jobs() -> list[tuple]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("bagian", choices=["terbit", "serang", "jujur", "bench", "ringkas"])
+    ap.add_argument("bagian", choices=["terbit", "serang", "jujur", "bench", "tipografi", "ringkas"])
     ap.add_argument("set", nargs="*", default=[])
     ap.add_argument("--out", type=Path)
     args = ap.parse_args(argv)
@@ -452,6 +503,12 @@ def main(argv: list[str] | None = None) -> int:
         _run(honest_job, honest_jobs(args.set[0]), args.out)
     elif args.bagian == "bench":
         _run(bench_job, bench_jobs(), args.out)
+    elif args.bagian == "tipografi":
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        with args.out.open("a", encoding="utf-8") as fh:
+            for row in typography_rows(args.set[0]):
+                fh.write(json.dumps(row) + "\n")
+                print(json.dumps(row), flush=True)
     else:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         from ringkas import main as summary
