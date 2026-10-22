@@ -32,7 +32,7 @@ from tapak.marker.lexical import LONE_LEAKER_BITS, LexicalSelection, format_coun
 from tapak.marker.master import MasterDocument, load_master
 from tapak.marker.background import BackgroundSettings
 from tapak.marker.pdf_shift import ShiftSettings
-from tapak.marker.plan import CHANNEL_LEXICAL, PHYSICAL_CHANNEL, EmbeddingPlan, plan_key
+from tapak.marker.plan import CHANNEL_LEXICAL, OCR_SUBCHANNELS, PHYSICAL_CHANNEL, EmbeddingPlan, plan_key
 from tapak.tardos.code import code_digest, derive_bias, derive_codeword
 from tapak.tardos.params import TardosParams
 from tapak.tardos.spending import TraceSpending
@@ -366,7 +366,7 @@ def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str,
         budget.pages -= 1
         budget.pixels -= pixels
         found = [sb for sb in collect_from_gray(render_page(pdf_bytes, page.index, dpi, supersample=1, cache=False),
-                                                ctx)
+                                                ctx, read_text=keep is None)
                  if keep is None or sb.channel in keep]
         reg = next((sb.meta for sb in found if "correlation" in sb.meta), None)
         if reg is None:
@@ -542,8 +542,11 @@ def collect_file(name: str, data: bytes, ctx: TraceContext,
                              f"korelasi {_num(reg['correlation'], 3)}, resolusi efektif {reg['effective_dpi']:.0f} dpi)")
             bg = next((sb.meta for sb in obs if sb.channel == "background"), None)
             if bg is not None and not bg.get("pattern_found", True):
+                ocr_read = any(len(sb) for sb in obs if sb.channel in OCR_SUBCHANNELS)
+                used = ("kanal geser serta varian kalimat dan pilihan kata yang dibaca dengan OCR" if ocr_read
+                        else "kanal geser")
                 notes.append(f"{name}: pola latar tidak terdeteksi (kertas cetak, foto terlalu terang, atau "
-                             "bukan salinan bertanda); hanya kanal geser yang dipakai")
+                             f"bukan salinan bertanda); hanya {used} yang dipakai")
     else:
         raise TraceError(f"jenis berkas tidak dikenal: {suffix or '(tanpa akhiran)'}")
     return obs, notes
@@ -564,7 +567,22 @@ def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext,
         notes += n
     if len(items) > 1:
         notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
+    note = ocr_missing_note(obs, ctx)
+    if note:
+        notes.append(note)
     return run_trace(obs, ctx, notes, spending), obs
+
+
+def ocr_missing_note(observations: list[SoftBits], ctx: TraceContext) -> str | None:
+    """One line when a page of image evidence was found but its printed sentence variants and
+    word choices could not be read because Tesseract is missing; None otherwise (also for
+    documents without those channels)."""
+    from tapak.decoder.ocr import OCR_SKIPPED, ocr_applies, ocr_unavailable_reason
+
+    if not any("correlation" in sb.meta for sb in observations) or not ocr_applies(ctx):
+        return None
+    reason = ocr_unavailable_reason()
+    return None if reason is None else f"{reason}: {OCR_SKIPPED} (OCR)"
 
 
 def trace_file(path: Path, ctx: TraceContext,

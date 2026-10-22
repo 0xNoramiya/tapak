@@ -38,7 +38,7 @@
         {{ meter_block(c.score, "Skor", false) }}
         {# a screen reader hears the superscript exponent as "10 minus 133": it gets the spoken form #}
         <span class="fact"><small>Peluang tuduhan salah</small> <b aria-hidden="true">≤ {{ fap(c, a.candidates|length) }}</b><b class="sr-only">paling besar {{ fap_lisan(c, a.candidates|length) }}</b></span>
-        <span class="fact"><small>Kanal sepakat</small> <b>{{ c.channels_agreeing|length }}</b>{% if c.channels_agreeing %} <i>{{ c.channels_agreeing|map("title")|join(", ") }}{% if c.channels_agreeing|length > 1 %}, masing-masing secara independen{% endif %}</i>{% endif %}</span>
+        <span class="fact"><small>Kanal sepakat</small> <b>{{ c.channels_agreeing|length }}</b>{% if c.channels_agreeing %} <i>{{ agreeing_labels(c, a)|join(", ") }}{% if c.channels_agreeing|length > 1 %}, masing-masing secara independen{% endif %}</i>{% endif %}</span>
       </div>
     </div>
     {% endfor %}
@@ -125,7 +125,7 @@
             {% set shown = ch.accused_seqs|select("in", named_seqs)|list %}
             {% set hidden = ch.accused_seqs|length - shown|length %}
             <tr>
-              <td>{{ channel_name(ch.channel) }}</td>
+              <td>{{ channel_label(ch) }}</td>
               <td class="num"><span class="bar{% if not shown %} bar-muted{% endif %}" style="--value: {{ [ch.n_observed / code_len, 1]|min|round(5) }}" aria-hidden="true"></span><span class="kanal-n">{{ ch.n_observed|num }}</span></td>
               <td class="num hide-sm">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
               <td>{% for s in shown %}<b>#{{ s }}</b>{% if not loop.last %}, {% endif %}{% endfor %}{% if hidden %}{% if shown %}, {% endif %}<span class="muted">{{ hidden }} salinan lain (nomor tidak dicantumkan)</span>{% endif %}{% if not ch.accused_seqs %}<span class="muted">tidak ada</span>{% endif %}</td>
