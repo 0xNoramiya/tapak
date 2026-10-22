@@ -7,9 +7,12 @@ import json
 import pytest
 
 from tapak.benchmark import (
+    MEDIA,
+    MEDIUM_PHONE,
     MEDIUM_PRINT_1,
     MEDIUM_PRINT_2,
     MEDIUM_SCREEN,
+    MEDIUM_SCREEN_PHOTO,
     check_issuance,
     group_label,
     medium,
@@ -40,6 +43,20 @@ def test_prints_are_never_counted_with_screen_photos():
     assert medium({"kind": "cetak", "angle": 10.0, "outcome": "benar"}) == MEDIUM_PRINT_1
 
 
+def test_phone_and_monitor_photos_have_their_own_totals():
+    rows = [_row("photo", "benar"), _row("ponsel", "benar"), _row("ponsel", "tidak cukup bukti", 30.0),
+            _row("fotolayar", "benar", 20.0), _row("cetak", "benar")]
+    assert [medium(r) for r in rows] == [MEDIUM_SCREEN, MEDIUM_PHONE, MEDIUM_PHONE, MEDIUM_SCREEN_PHOTO,
+                                         MEDIUM_PRINT_1]
+    totals = summarize(rows)
+    assert list(totals) == [MEDIUM_SCREEN, MEDIUM_PRINT_1, MEDIUM_PHONE, MEDIUM_SCREEN_PHOTO]
+    assert totals[MEDIUM_SCREEN] == {"benar": 1}  # the plain photo is not mixed with the phone ISP set
+    assert totals[MEDIUM_PHONE] == {"benar": 1, "tidak cukup bukti": 1}
+    assert totals[MEDIUM_SCREEN_PHOTO] == {"benar": 1}
+    assert [group_label(r) for r in rows[1:4]] == ["ponsel 10 derajat", "ponsel 30 derajat", "monitor 20 derajat"]
+    assert len(set(MEDIA)) == len(MEDIA) == 5
+
+
 def test_print_pairs_join_pages_of_the_same_print():
     def item(page: int, angle: float, index: int, copy_id: str = "a", kind: str = "cetak") -> dict:
         return {"file": f"{kind}_s001_p{page}_a{angle:g}_{index}.jpg", "kind": kind, "copy_id": copy_id,
@@ -62,6 +79,10 @@ def test_photo_sets_from_another_issuance_are_refused(tmp_path):
     screen = [{"file": "photo_s001_p1_a0_0.jpg", "kind": "photo", "copy_id": "dddd", "seq": 1}]
     with pytest.raises(SystemExit, match="jalankan ulang: make photos$"):
         check_issuance(tmp_path, screen, by_copy)
+    for kind, target in (("ponsel", "make photos-ponsel"), ("fotolayar", "make photos-layar")):
+        stale_set = [{"file": f"{kind}_s001_p1_a0_0.jpg", "kind": kind, "copy_id": "eeee", "seq": 1}]
+        with pytest.raises(SystemExit, match=f"jalankan ulang: {target}$"):
+            check_issuance(tmp_path, stale_set, by_copy)
 
 
 def test_benchmark_stops_on_a_stale_printed_set(tmp_path, monkeypatch, capsys):
@@ -88,7 +109,7 @@ def test_benchmark_stops_on_a_stale_printed_set(tmp_path, monkeypatch, capsys):
         {"file": "cetak_s001_p1_a10_0.jpg", "kind": "cetak", "copy_id": "06391e87968373f1", "seq": 1, "page": 1}]}))
     with pytest.raises(SystemExit, match=f"set foto {cetak} dibuat dari penerbitan lain"):
         main(["--photos", str(layar), "--cetak", str(cetak), "--data", str(tmp_path / "data"),
-              "--keys", str(tmp_path / "keys")])
+              "--keys", str(tmp_path / "keys"), "--ponsel", str(tmp_path / "none"), "--layar", str(tmp_path / "none")])
     assert "photo_s001" not in capsys.readouterr().out  # nothing was traced
 
 
@@ -114,7 +135,8 @@ def test_benchmark_reports_printed_photos_separately(tmp_path, monkeypatch, caps
                    all_pages=True, photo_params=photo, print_params=PrintParams(device_dpi=300, out_dpi=150))
     result = tmp_path / "bench.json"
     main(["--photos", str(tmp_path / "layar"), "--cetak", str(tmp_path / "cetak"), "--data", str(tmp_path / "data"),
-          "--keys", str(tmp_path / "keys"), "--json", str(result)])
+          "--keys", str(tmp_path / "keys"), "--json", str(result), "--ponsel", str(tmp_path / "none"),
+          "--layar", str(tmp_path / "none")])
     rows = json.loads(result.read_text(encoding="utf-8"))["rows"]
     assert [(r["medium"], r["pages"]) for r in rows] == [
         (MEDIUM_SCREEN, 1), (MEDIUM_PRINT_1, 1), (MEDIUM_PRINT_1, 1), (MEDIUM_PRINT_2, 2)]

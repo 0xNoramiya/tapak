@@ -356,13 +356,19 @@ def _counts(rows: list[dict]) -> str:
 
 def _channel_cell(rows: list[dict], channel: str) -> str:
     read = [r["channels"].get(channel, {}).get("read", 0) for r in rows]
-    errs = [r["channels"].get(channel, {}).get("errors") or 0 for r in rows]
+    errs = [r["channels"].get(channel, {}).get("errors") for r in rows]
     total = sum(read)
-    ber = f"{100 * sum(errs) / total:.1f} %" if total else "-"
+    known = any(e is not None for e in errs)  # an unmarked master has no codeword to compare with
+    ber = "-"
+    if total and known:  # pooled over all bits read, then the median of the per-image rates
+        per_image = [e / n for e, n in zip(errs, read) if n and e is not None]
+        ber = f"{100 * sum(e or 0 for e in errs) / total:.1f} % (median {100 * float(np.median(per_image)):.1f} %)"
     found = ""
     if channel == "background":
-        n_found = sum(bool(r["channels"].get(channel, {}).get("meta", {}).get("pattern_found")) for r in rows)
-        found = f", pola {n_found}/{len(rows)}"
+        metas = [r["channels"].get(channel, {}).get("meta", {}) for r in rows]
+        n_found = sum(bool(m.get("pattern_found")) for m in metas)
+        z = float(np.median([m.get("signal_z", 0.0) for m in metas])) if metas else 0.0
+        found = f", pola {n_found}/{len(rows)}, z median {z:.1f}"
     return f"{np.mean(read):.0f}; {ber}{found}"
 
 
@@ -378,7 +384,7 @@ def summarize(splits: list[str]) -> None:
         if not tables:
             continue
         print(f"\n### {split}\n")
-        heads = " | ".join(f"{d}: benar / tcb / salah | {d}: geser (posisi; galat) | {d}: latar (posisi; galat)"
+        heads = " | ".join(f"{d}: benar / tcb / salah | {d}: geser (posisi; galat) | {d}: latar (posisi; galat; pola; z)"
                            for d in tables)
         print(f"| kondisi | {heads} |")
         print("|---|" + "---|" * (3 * len(tables)))

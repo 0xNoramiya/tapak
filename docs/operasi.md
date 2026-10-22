@@ -14,6 +14,8 @@ make test           # seluruh pengujian
 make simulate       # angka simulasi Tardos
 make photos bench   # kumpulan foto sintetis lalu uji regresi dekoder
 make photos-cetak   # foto kertas cetak (printer disimulasikan); make bench melaporkannya terpisah
+make photos-ponsel  # foto make photos lewat ISP ponsel simulasi; dilaporkan terpisah
+make photos-layar   # foto salinan di monitor simulasi (subpiksel, moire) dengan ISP ponsel; dilaporkan terpisah
 make web            # antarmuka web di http://127.0.0.1:8000
 make figures        # grafik README dibuat ulang dari kode dan data (perlu: uv pip install -e ".[figures]")
 ```
@@ -197,6 +199,7 @@ Variabel lingkungan:
 - penanda, kanal 3 lewat MuPDF dan poppler, ketidakterlihatan pada 600 dpi;
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
 - simulator printer, profil latar cetak, dan templat induk tepat;
+- ISP ponsel dan monitor simulasi: aliran foto bawaan tidak berubah (hash emas), setiap profil dan jenis baru deterministik, moire muncul di frekuensi yang diramalkan, lewatan ujung ke ujung per jenis baru;
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
