@@ -79,8 +79,10 @@ class OcrSettings:
     flatten: bool = False
 
 
-# Chosen on the development seeds of research/ocr (rule fixed before the run, see its README).
-DEFAULT_OCR = OcrSettings(psm=3, dpi=None, flatten=False)
+# Chosen on the development seeds of research/ocr with the rule fixed before the run (its README,
+# hasil/pilihan.json): automatic segmentation on the flattened rectified page read 778 of 780
+# printed bits with none wrong over 96 development images; without flattening 701, at 300 dpi 709.
+DEFAULT_OCR = OcrSettings(psm=3, dpi=None, flatten=True)
 
 
 class OcrUnavailable(RuntimeError):

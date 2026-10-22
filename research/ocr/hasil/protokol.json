@@ -1,0 +1,185 @@
+{
+  "n": 20,
+  "c": 3,
+  "eps": 1e-06,
+  "issue": "tapak issue --benih-riset BENIH --no-registry --canary-domain '' --workers 3, skema geser dan profil latar bawaan; arm utama juga --semantic (tabel frasa tiruan, semua varian disetujui) dan --leksikal (tingkat A, semua titik disetujui)",
+  "benih_riset": {
+    "dev": {
+      "nota_dinas": 7301,
+      "surat_telegram": 7302
+    },
+    "uji": {
+      "nota_dinas": 7401,
+      "surat_telegram": 7402
+    }
+  },
+  "evidence_seed": {
+    "dev": 7311,
+    "uji": 7411
+  },
+  "unmarked_seed": 7499,
+  "render_dpi": 200,
+  "kinds": {
+    "foto": "photo_jpeg(render 200 dpi, PhotoParams()): sudut diundi 0 sampai 30 derajat, 1600 px",
+    "ponsel": "foto dengan ISP ponsel (ISP_PROFILES['ponsel'])",
+    "layar": "screen_photo_jpeg dengan ScreenParams(monitor, jarak dari design) dan ISP ponsel",
+    "tangkapan": "screenshot_jpeg(render 200 dpi, ScreenshotParams(long_side=1600))",
+    "cetak1600": "printed_photo_jpeg(PrintParams() laser, PhotoParams(sensor_long_side=2400, long_side=1600))",
+    "cetak4000": "printed_photo_jpeg(PrintParams() laser, PhotoParams(sensor_long_side=4000, long_side=4000))"
+  },
+  "design": "salinan s: i = s - 1; monitor = [fhd24, qhd27, uhd27, laptop13][i % 4], jarak = [30, 45, 60][(i // 4) % 3] cm, sudut layar = [0, 10, 20, 30][(i + i // 4) % 4]",
+  "generators": "default_rng([benih bukti, indeks jenis, indeks dokumen, s (induk: 1000 + ulangan), halaman]); ISP default_rng([..., 12]); arm tidak ikut, jadi kedua arm berbagi bilangan acak",
+  "dev": {
+    "copies": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "kinds": [
+      "foto",
+      "ponsel",
+      "layar",
+      "tangkapan",
+      "cetak1600",
+      "cetak4000"
+    ],
+    "pages": {
+      "nota_dinas": [
+        1,
+        2
+      ],
+      "surat_telegram": [
+        1
+      ]
+    },
+    "page_kinds_one_page_only": [
+      "ponsel",
+      "layar"
+    ]
+  },
+  "uji": {
+    "prints": {
+      "kinds": [
+        "cetak1600",
+        "cetak4000"
+      ],
+      "copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "pages": {
+        "nota_dinas": [
+          1,
+          2
+        ],
+        "surat_telegram": [
+          1,
+          2
+        ]
+      },
+      "arms": [
+        "utama",
+        "tanpa"
+      ]
+    },
+    "screen": {
+      "kinds": [
+        "foto",
+        "tangkapan"
+      ],
+      "copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "pages": {
+        "nota_dinas": [
+          1,
+          2
+        ],
+        "surat_telegram": [
+          1
+        ]
+      }
+    },
+    "screen_page1": {
+      "kinds": [
+        "ponsel",
+        "layar"
+      ],
+      "copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "pages": [
+        1
+      ]
+    },
+    "unmarked": {
+      "kinds": [
+        "foto",
+        "cetak1600",
+        "cetak4000"
+      ],
+      "reps": 2,
+      "pages": {
+        "nota_dinas": [
+          1,
+          2
+        ],
+        "surat_telegram": [
+          1
+        ]
+      }
+    },
+    "two_page": "cetak1600 dan cetak4000, halaman 1 dan 2 salinan yang sama, kedua dokumen, kedua arm"
+  },
+  "candidates": {
+    "psm3": "halaman terektifikasi pada resolusi analisis registrasi, --psm 3",
+    "psm4": "sama, --psm 4",
+    "psm6": "sama, --psm 6",
+    "psm3_300": "gambar bukti dicuplik ulang ke bingkai halaman pada 300 dpi (kubik), --psm 3",
+    "psm6_300": "sama, --psm 6",
+    "psm3_rata": "halaman terektifikasi dibagi taksiran terang kertas (flatten_illumination), --psm 3"
+  },
+  "choice_rule": "skor = bit benar - 5 x bit salah, dijumlahkan atas semua gambar dev (bit OCR yang terbaca, dibandingkan dengan kode salinan yang bocor). Kandidat dengan skor tertinggi dipilih; bila skor kandidat lain kurang dari 2 % di bawahnya, dipilih yang total waktu OCR-nya paling kecil di antara kandidat dalam rentang 2 % itu. Ditetapkan sebelum dev dijalankan.",
+  "spending": "tidak dicatat (seluruh eps), satu tahap, seperti make bench",
+  "confident_llr": 4.0,
+  "script_sha256": "8504d6d08b8fb805ec2c7477d3e0d2030d1ef134d6cf10bf416adc9af1a29f48"
+}
