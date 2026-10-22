@@ -98,14 +98,18 @@ def sh(cmd: list, check: bool = True, **kw) -> subprocess.CompletedProcess:
 
 
 class Docker:
-    """The image, its throwaway containers (always without network) and the compose project."""
+    """The image, its throwaway containers (always without network) and the compose project.
+
+    Nothing is ever pulled (--pull never): a missing image is an error, not a download.
+    """
 
     def __init__(self, args: argparse.Namespace, work: Path) -> None:
         self.args, self.work, self.image = args, work, args.image
 
     def run(self, cmd: list, mounts: dict, user: str | None = None, env: dict | None = None,
             check: bool = True) -> subprocess.CompletedProcess:
-        c = ["docker", "run", "--rm", "--network", "none", "--label", f"tapak-cek={self.args.proyek}"]
+        c = ["docker", "run", "--rm", "--pull", "never", "--network", "none",
+             "--label", f"tapak-cek={self.args.proyek}"]
         c += ["--user", user] if user else []
         for host, target in mounts.items():
             c += ["-v", f"{host}:{target}"]
@@ -125,7 +129,7 @@ class Docker:
     def root(self, *cmd, caps: tuple[str, ...] = (), check: bool = True) -> subprocess.CompletedProcess:
         """A command as root on the scratch folder (ownership, permissions and removal of the
         files of uid 10001, which TAPAK writes readable by their owner only)."""
-        c = ["docker", "run", "--rm", "--network", "none", "--user", "0", "-v", f"{self.work}:/w"]
+        c = ["docker", "run", "--rm", "--pull", "never", "--network", "none", "--user", "0", "-v", f"{self.work}:/w"]
         c += [f"--cap-add={cap}" for cap in caps]
         return sh(c + ["--entrypoint", cmd[0], self.image, *cmd[1:]], check=check)
 
@@ -142,8 +146,12 @@ class Docker:
         return {("pindaian" if m.get("scan") else "teks"): m for m in found}
 
     def compose(self, *cmd, check: bool = True) -> subprocess.CompletedProcess:
+        # Every variable the compose files read is set here, so a deployment's own shell or .env
+        # (a real canary domain, TAPAK_LLM=llamacpp) cannot change what is checked.
         env = dict(os.environ, TAPAK_IMAGE=self.image, TAPAK_PORT=str(self.args.port_web),
-                   TAPAK_CANARY_PORT=str(self.args.port_dns), TAPAK_ANCHOR_DIR=str(self.work / "jangkar"))
+                   TAPAK_CANARY_PORT=str(self.args.port_dns), TAPAK_ANCHOR_DIR=str(self.work / "jangkar"),
+                   TAPAK_CANARY_DOMAIN=DOMAIN, TAPAK_CANARY_ANSWER_IP="127.0.0.1", TAPAK_CANARY_NS_IP="",
+                   TAPAK_LLM="mock")
         env.pop("TAPAK_ANCHOR_LOG", None)
         return sh(["docker", "compose", "-p", self.args.proyek, "--project-directory", self.work,
                    "-f", ROOT / "docker-compose.yml", "-f", ROOT / "docker-compose.jangkar.yml", *cmd],
@@ -151,8 +159,8 @@ class Docker:
 
 
 def host_tapak(*cmd, check: bool = True) -> subprocess.CompletedProcess:
-    """The repository's tapak on the host (no anchor log)."""
-    env = dict(os.environ, PYTHONPATH=str(ROOT))
+    """The repository's tapak on the host (no anchor log, the mock LLM as in the containers)."""
+    env = dict(os.environ, PYTHONPATH=str(ROOT), TAPAK_LLM="mock")
     env.pop("TAPAK_ANCHOR_LOG", None)
     return sh([sys.executable, "-c", "import sys; from tapak.cli import main; sys.exit(main(sys.argv[1:]))", *cmd],
               check=check, env=env)
@@ -305,7 +313,7 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
 
     # 2. compose: web on the published port, canary listener on its own network.
     print("\n== docker compose (app + canary-dns, log jangkar) ==")
-    d.compose("up", "-d", "--no-build")
+    d.compose("up", "-d", "--no-build", "--pull", "never")
     base = f"http://127.0.0.1:{args.port_web}"
     for _ in range(120):
         try:
