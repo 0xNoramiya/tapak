@@ -161,19 +161,34 @@ def _cmd_issue(args: argparse.Namespace) -> int:
     s = _settings(args)
     if args.canary_domain is None:
         args.canary_domain = s.canary_domain
+    recipients = read_recipients(Path(args.recipients))
+    copy_ids, warnings = None, []
+    if args.benih_riset is not None:
+        # Research only (make photos): the secret and the copy ids come from a public seed, so the
+        # issuance is reproducible and protects nothing. Never recorded in a registry.
+        from tapak.keys import install_research_secret, research_copy_ids
+
+        if not args.no_registry:
+            raise ValueError("--benih-riset hanya untuk penerbitan riset tanpa registri; tambahkan --no-registry")
+        if Path(args.doc).suffix.lower() == ".docx":
+            raise ValueError("--benih-riset hanya tersedia untuk dokumen induk PDF")
+        install_research_secret(s.code_secret_path, args.benih_riset)
+        copy_ids = research_copy_ids(args.benih_riset, len(recipients))
+        warnings.append(f"penerbitan riset: rahasia kode dan id salinan diturunkan dari benih {args.benih_riset}, "
+                        "jadi siapa pun yang tahu benih itu dapat membuat ulang kode setiap salinan. Jangan pakai "
+                        "salinan ini atau folder kunci ini untuk dokumen sungguhan")
     # The signing key is never created here (only by `tapak keys init`): without it, rows are
     # recorded unsigned and the key holder signs them later.
     keys = ensure_keys(s, create_signing_key=False)
     if args.sign_later:
         keys.signer = None
-    recipients = read_recipients(Path(args.recipients))
     issue_settings: IssueSettings = _issue_settings(args)
     semantic = None
     if args.semantic:
         semantic = SemanticSelection.from_dict(json.loads(Path(args.semantic).read_text(encoding="utf-8")))
     lexical = _read_lexical(Path(args.leksikal)) if args.leksikal else None
     out = issue_document(s, Path(args.doc), recipients, issue_settings, args.issuer, keys,
-                         record=not args.no_registry, semantic=semantic, lexical=lexical)
+                         record=not args.no_registry, semantic=semantic, lexical=lexical, copy_ids=copy_ids)
     m = out.manifest
     p = m.tardos_params
     is_docx = m.gate.get("note") == "DOCX"
@@ -220,7 +235,7 @@ def _cmd_issue(args: argparse.Namespace) -> int:
                  "BELUM ditandatangani (kunci tanda tangan tidak ada di sini; pemegang kunci menjalankan: "
                  "tapak registry sign)")
         print(f"Registri: {out.registry_entries} entri baru, {state} ({s.registry_path})")
-    for w in out.warnings:
+    for w in warnings + out.warnings:
         print(f"PERINGATAN: {w}")
     if args.out:
         import shutil
@@ -739,6 +754,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "TAPAK (keputusan setuju atau tolak tidak diautentikasi)")
     i.add_argument("--no-registry", action="store_true")
     i.add_argument("--sign-later", action="store_true", help="catat tanpa tanda tangan (ditandatangani eselon atas)")
+    i.add_argument("--benih-riset", type=int, default=None, metavar="BENIH",
+                   help="RISET SAJA, jangan untuk dokumen sungguhan: rahasia kode dan id salinan diturunkan dari "
+                        "benih publik ini agar penerbitan dapat diulang persis (make photos); perlu --no-registry "
+                        "dan folder kunci tersendiri")
     i.set_defaults(func=_cmd_issue)
 
     sm = sub.add_parser("semantic", help="kanal semantik (varian kalimat aman)")

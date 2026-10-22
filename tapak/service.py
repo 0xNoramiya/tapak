@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tapak.config import Settings
-from tapak.keys import load_code_secret
+from tapak.keys import load_code_secret, research_seed_of
 from tapak.marker.issue import IssueManifest, IssueSettings, Recipient, SemanticSelection, issue
 from tapak.marker.layout import sha256_hex
 from tapak.marker.lexical import LexicalSelection
@@ -139,6 +139,7 @@ def issue_document(
     doc_name: str | None = None,
     lexical: LexicalSelection | None = None,
     latar: str | None = None,
+    copy_ids: list[str] | None = None,
 ) -> IssueOutcome:
     """Issue copies of a PDF or DOCX into a new workspace and record them in the registry.
 
@@ -148,7 +149,8 @@ def issue_document(
     picks the background profile by name ("layar", the default pattern, or "cetak", which
     survives printing but makes the page light gray); None keeps
     ``issue_settings.background``. With the print profile the outcome carries
-    ``PRINT_BACKGROUND_WARNING``.
+    ``PRINT_BACKGROUND_WARNING``. ``copy_ids`` fixes the copy ids of a PDF issuance
+    (research seed only, see ``tapak.keys``); None draws them at random.
     """
     from tapak.marker.background import PRINT_BACKGROUND, PRINT_BACKGROUND_WARNING, background_profile
     from tapak.registry.chain import Registry, registry_from_manifest
@@ -174,6 +176,13 @@ def issue_document(
     is_docx = Path(doc_name).suffix.lower() == ".docx"
     if lexical is not None and is_docx:
         raise ValueError("kanal pilihan kata hanya tersedia untuk dokumen induk PDF")
+    if copy_ids is not None and is_docx:
+        raise ValueError("id salinan tetap (benih riset) hanya tersedia untuk dokumen induk PDF")
+    seed = research_seed_of(settings.code_secret_path)
+    if copy_ids is None and seed is not None:  # a public secret must never mark a real document
+        raise ValueError(f"folder kunci {settings.code_secret_path.parent} berisi rahasia kode dari benih riset"
+                         + (f" {seed}" if seed >= 0 else "") + ", yang publik; penerbitan biasa ditolak. "
+                         "Pakai folder kunci lain")
     lock = _claim_workspace(folder)
     master_path = folder / ("induk.docx" if is_docx else "induk.pdf")
     master_path.write_bytes(data)
@@ -185,7 +194,7 @@ def issue_document(
         else:
             manifest = issue(master_path, recipients, folder / "salinan", keys.code_secret,
                              issue_settings, issuer=issuer, semantic=semantic, file_stem=Path(doc_name).stem,
-                             lexical=lexical)
+                             lexical=lexical, copy_ids=copy_ids)
         manifest.doc_name = doc_name
         entries = 0
         if record:  # registry first: until it commits, any failure removes the whole workspace

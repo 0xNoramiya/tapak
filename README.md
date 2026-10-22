@@ -50,12 +50,12 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/benchmark-dark.svg">
-  <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 2 dari 16 dengan satu halaman dan 3 dari 8 dengan dua halaman; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
+  <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 0 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
 Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa dan satu halaman jarang cukup (lihat [batasan](#batasan)).
 
-Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 1,4 &times; 10<sup>-19</sup>.
+Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,7 &times; 10<sup>-21</sup>.
 
 Uji lainnya:
 
