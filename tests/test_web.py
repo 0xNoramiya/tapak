@@ -1217,6 +1217,7 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
     assert 'id="putusan"' in verdict[:stage1] and stage1 < verdict.index('<div class="lanjut"')
     block = verdict[verdict.index('<div class="lanjut"'):]
     assert "Pelacakan bertahap" in block and "tidak dapat dibandingkan langsung dengan skor tahap 1" in block
+    assert "Tahap lanjutan hanya berjalan karena tahap 1 menuduh salinan di atas." in block
     assert "Ambang Z <b>" not in block and "Kanal sepakat" not in block
     items = block.split('<div class="who who-lanjut">')[1:]
     assert len(items) == len(later)
@@ -1227,8 +1228,10 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
         assert f"Skor tahap {st.stage} <b>{format_number(c.score, 1)}</b>" in item
         assert f"Ambang Z{st.stage} <b>{format_number(st.threshold.threshold, 1)}</b>" in item
         assert str(format_probability_html(c.false_accusation_probability, c.log10_false_accusation)) in item
-    # the collusion notice counts the named copies of every stage, not stage 1's alone
-    assert "Lebih dari satu salinan melewati ambang" in verdict
+    # the collusion notice counts the named copies of every stage, not stage 1's alone, and does
+    # not say that a later-stage copy passed the (stage-1) threshold
+    assert "Lebih dari satu salinan dituduh, di tahap 1 dan di tahap lanjutan: pola ini sesuai dengan kolusi" in verdict
+    assert "melewati ambang" not in verdict.lower()
 
     # File names, the per-channel table and the canary list number the named copies of every stage.
     kicker = re.search(r'<span class="mono keep-case">(.*?)</span>', r.text).group(1)
@@ -1241,13 +1244,18 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
     canary = r.text[r.text.index('id="kanari-h"'):r.text.index('id="sah-h"')]
     assert all(f"Salinan #{seq}</span>" in canary for seq in a.named_seqs)
     assert all(f"Salinan #{seq}: {by_seq[seq].recipient.nama}" in canary for seq in a.named_seqs)
+    for st, c in later:  # a later-stage name in the canary list comes with its basis
+        item = re.search(rf"<li>Salinan #{c.copy.seq}: .*?</li>", canary).group(0)
+        assert item.endswith(f"; {st.basis_text()}</li>"), item
     assert canary.count("Salinan lain") == len(by_seq) - len(a.named_seqs)
 
     # Bukti per kanal: stage 1's part of the budget, then one row per later stage.
     plain = _plain(kanal)
     frac1 = _strip_zeros(format_number(100 * t.stage_spent / t.spent, 2))
-    assert (f"tahap 1 memakai {format_number(t.stage_share * 100, 1)} % dari batas peluang tuduhan salah "
-            f"{_eps_label(t.eps)} ({frac1} % dari jatah pelacakan ini)") in plain
+    # the trace's share as the berita acara writes it (60,79 %, not 60,8 %)
+    assert f"Pelacakan ini memakai {_strip_zeros(format_number(100 * t.share, 2))} % dari batas" in plain
+    assert (f"tahap 1 memakai {_strip_zeros(format_number(100 * t.stage_share, 2))} % dari batas peluang tuduhan "
+            f"salah {_eps_label(t.eps)} ({frac1} % dari jatah pelacakan ini)") in plain
     assert "Bobotnya memakai kode salinan yang sudah dituduh, tidak pernah kode salinan yang sedang dinilai." in plain
     assert "tahap-catatan" not in kanal
     start = kanal.index('class="tahap-tabel"')
@@ -1261,14 +1269,16 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
         named = ",".join(f"#{c.copy.seq}" for c in st.accused) or "tidakada"
         assert cells == f"{st.stage}dasar{basis}{format_number(ts.n_observed, 0)}{z}{frac}%{named}", cells
 
-    # Peringkat skor (stage 1): a copy named later shows its name only with its stage score and Z_s.
+    # Peringkat skor (stage 1): a copy named later shows its name only with its basis, stage score
+    # and Z_s; a screen reader hears each score as the stage-1 score.
     ranking = r.text[r.text.index('id="skor-h"'):]
     ranking = ranking[:ranking.index("</section>")]
     assert "Skor tahap 1." in ranking
     for st, c in later:
         assert (f'#{c.copy.seq} \u00b7 {c.copy.nama}</b><span class="sr-only">, di bawah ambang tahap 1,</span> '
-                f'<span class="peringkat-tahap">dituduh pada tahap {st.stage}: skor tahap {format_number(c.score, 1)}, '
+                f'<span class="peringkat-tahap">{st.basis_text()}; skor tahap {format_number(c.score, 1)}, '
                 f"ambang Z{st.stage} {format_number(st.threshold.threshold, 1)}</span>") in ranking
+    assert ranking.count('<span class="sr-only">, skor tahap 1 </span>') == min(len(a.candidates), 6)
     assert ranking.count("Disembunyikan") == len(by_seq) - len(a.named_seqs)
 
     # Every number of the later stages is the one the berita acara prints for the same trace.
@@ -1296,7 +1306,9 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
     assert [c.copy.seq for c in a.accused] == [lone.seq] and a.stages and not any(st.accused for st in a.stages)
     assert "tahap-tabel" not in r.text and 'class="lanjut"' not in r.text and "Tahap 2" not in r.text
     assert "Lebih dari satu salinan" not in r.text
+    assert '<span class="sr-only">, skor </span>' in r.text and "skor tahap 1" not in r.text
     lines = [_plain(x) for x in re.findall(r'<p class="hint tahap-catatan">(.*?)</p>', r.text, re.S)]
-    assert lines == [f"Pelacakan bertahap: tahap 1 memakai {format_number(a.threshold.stage_share * 100, 1)} % dari "
+    share1 = _strip_zeros(format_number(100 * a.threshold.stage_share, 2))
+    assert lines == [f"Pelacakan bertahap: tahap 1 memakai {share1} % dari "
                      f"batas peluang tuduhan salah {_eps_label(a.threshold.eps)} (90 % dari jatah pelacakan ini); "
                      "tahap lanjutan tidak menuduh salinan lain."]

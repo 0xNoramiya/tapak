@@ -253,6 +253,8 @@
   .lacak .verdict .who-lanjut { padding: 14px 16px; }
   .who-lanjut .who-seq { font-size: var(--fs-title); }
   .who-lanjut .who-name { font-size: var(--fs-body); margin-top: 4px; }
+  /* the column reads "Posisi" on a phone; a screen reader still hears the full name */
+  .tahap-th-sisa { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .verdict-actions .btn, .lacak-kirim .btn { flex: 1 1 auto; }
   .kanal-tabel td.num .bar { width: 44px; margin-right: 8px; }
   .hasil-kosong { padding: 24px 18px; }

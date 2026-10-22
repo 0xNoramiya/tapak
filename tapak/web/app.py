@@ -214,7 +214,7 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters["num"] = lambda v, d=0: format_number(float(v), d)
 templates.env.filters["prob"] = lambda p, log10=None: format_probability_html(float(p), log10)
-# A fraction as a percentage written as the berita acara writes stage budgets: '7,35', '90'.
+# A fraction as a percentage, written as the berita acara writes shares of eps: '60,79', '7,35', '90'.
 templates.env.filters["persen"] = lambda v: _strip_zeros(format_number(100 * float(v), 2))
 templates.env.filters["waktu"] = lambda v: format_datetime(str(v))
 templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)

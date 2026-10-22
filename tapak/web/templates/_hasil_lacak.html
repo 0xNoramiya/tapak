@@ -48,7 +48,7 @@
     <div class="lanjut" role="group" aria-labelledby="lanjut-label">
       <div class="lanjut-head">
         <p class="label" id="lanjut-label">Pelacakan bertahap</p>
-        <p class="hint">Ditemukan dengan bantuan salinan yang sudah dituduh di atas. Skor tahap memakai bobot tahap itu, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
+        <p class="hint">Tahap lanjutan hanya berjalan karena tahap 1 menuduh salinan di atas. Tahap itu menilai ulang salinan lain pada posisi kode yang bitnya tidak dimiliki salinan yang sudah dituduh, dengan ambang dan jatah peluang tuduhan salahnya sendiri. Skor tahap memakai bobot tahap itu, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
       </div>
       {% for st in later %}{% for c in st.accused %}
       <div class="who who-lanjut">
@@ -68,7 +68,7 @@
     {% for n in peringatan_terlihat(a.notes) %}
     <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
     {% endfor %}
-    {% if a.named|length > 1 %}<p class="notice verdict-note">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
+    {% if a.named|length > 1 %}<p class="notice verdict-note">{% if later %}Lebih dari satu salinan dituduh, di tahap 1 dan di tahap lanjutan{% else %}Lebih dari satu salinan melewati ambang{% endif %}: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
     {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
     {% set r = o.registry %}
     {% if not r.recorded %}
@@ -106,7 +106,7 @@
       <h2 id="kanal-h">Bukti per kanal</h2>
       {% if t.n_observed %}
       {% if t.trace_no %}
-      <p class="lead">Ambang Z = {{ z_text }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung. Ini pelacakan ke-{{ t.trace_no }} atas dokumen ini dan sudah dicatat di registri sebelum dekode. Pelacakan ini memakai {{ (t.share * 100)|num(1) }}&nbsp;% dari batas peluang tuduhan salah {{ eps_label }}, sehingga semua pelacakan dokumen ini bersama tetap dalam batas itu untuk seluruh daftar penerima.</p>
+      <p class="lead">Ambang Z = {{ z_text }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung. Ini pelacakan ke-{{ t.trace_no }} atas dokumen ini dan sudah dicatat di registri sebelum dekode. Pelacakan ini memakai {{ t.share|persen }}&nbsp;% dari batas peluang tuduhan salah {{ eps_label }}, sehingga semua pelacakan dokumen ini bersama tetap dalam batas itu untuk seluruh daftar penerima.</p>
       {% else %}
       <p class="lead">Ambang Z = {{ z_text }} ditetapkan {{ t.fixed_at|waktu }} dari {{ t.n_observed|num }} posisi kode yang terbaca, sebelum skor siapa pun dihitung (peluang tuduhan salah maksimum {{ eps_label }} untuk seluruh daftar penerima).</p>
       {% endif %}
@@ -139,14 +139,14 @@
       {% if a.channels or shift_scan %}<p class="hint kanal-catatan" id="kanal-catatan">{% if a.channels %}Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.{% endif %}{% if shift_scan %} {{ shift_scan }}{% endif %}</p>{% endif %}
       {% if t.stage_policy %}
       {# Stage 1 spends part of the trace's share (t.share); the later stages split the rest. #}
-      {% set tahap1 %}tahap 1 memakai {{ (t.stage_share * 100)|num(1) }}&nbsp;% dari batas peluang tuduhan salah {{ eps_label }}{% if t.trace_no %} ({{ (t.stage_spent / t.spent)|persen }}&nbsp;% dari jatah pelacakan ini){% endif %}{% endset %}
+      {% set tahap1 %}tahap 1 memakai {{ t.stage_share|persen }}&nbsp;% dari batas peluang tuduhan salah {{ eps_label }}{% if t.trace_no %} ({{ (t.stage_spent / t.spent)|persen }}&nbsp;% dari jatah pelacakan ini){% endif %}{% endset %}
       {% if later %}
       <div class="tahap" aria-labelledby="tahap-h" role="group">
         <h3 id="tahap-h">Pelacakan bertahap</h3>
         <p class="hint">Kebijakan {{ t.stage_policy }}: {{ tahap1 }}. Tahap lanjutan membagi sisanya; ambang setiap tahap ditetapkan sebelum skor tahap itu dihitung.</p>
         <div class="table-wrap">
           <table class="tahap-tabel">
-            <thead><tr><th>Tahap</th><th class="num">Posisi<span class="hide-sm"> tak terjelaskan</span></th><th class="num">Ambang tahap</th><th class="num">Jatah</th><th>Menuduh</th></tr></thead>
+            <thead><tr><th>Tahap</th><th class="num">Posisi<span class="tahap-th-sisa"> tak terjelaskan</span></th><th class="num">Ambang tahap</th><th class="num">Jatah</th><th>Menuduh</th></tr></thead>
             <tbody>
               {% for st in a.stages %}
               {% set zs = st.threshold.threshold %}
@@ -194,7 +194,7 @@
     <section class="card" aria-labelledby="skor-h">
       <h2 id="skor-h">Peringkat skor</h2>
       {% if tahap_lanjut %}
-      <p class="lead">Skor tahap 1. {% if mark is not none %}Garis tegak menandai ambang Z. {% endif %}Nomor salinan dan nama hanya ditampilkan untuk salinan yang dituduh, di tahap 1 atau di tahap lanjutan dengan skor dan ambang tahapnya; salinan lain disebut dengan peringkatnya saja.</p>
+      <p class="lead">Skor tahap 1. {% if mark is not none %}Garis tegak menandai ambang Z. {% endif %}Nomor salinan dan nama hanya ditampilkan untuk salinan yang dituduh: di tahap 1, atau di tahap lanjutan bersama salinan dasarnya, skor tahap, dan ambang tahapnya. Salinan lain disebut dengan peringkatnya saja.</p>
       {% else %}
       <p class="lead">{% if mark is not none %}Garis tegak menandai ambang Z. {% endif %}Nomor salinan dan nama hanya ditampilkan untuk salinan yang melewati ambang; salinan lain disebut dengan peringkatnya saja.</p>
       {% endif %}
@@ -204,12 +204,12 @@
         {% endif %}
         <ol class="peringkat-daftar">
           {% for c in a.candidates[:6] %}
-          {# a copy below Z that a later stage named: its name only together with its stage score and Z_s #}
+          {# a copy below Z that a later stage named: its name only together with its basis, stage score and Z_s #}
           {% set lanjut = tahap_lanjut.get(c.copy.seq) %}
           <li class="peringkat-baris{% if c.accused %} is-accused{% elif lanjut %} is-lanjut{% endif %}">
             <span class="peringkat-no" aria-hidden="true">{{ loop.index }}</span>
-            <span class="peringkat-siapa">{% if c.accused %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b> <span class="stamp stamp-ok">Melewati ambang</span>{% elif lanjut %}{% set st, sc = lanjut %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b><span class="sr-only">, di bawah ambang tahap 1,</span> <span class="peringkat-tahap">dituduh pada tahap {{ st.stage }}: skor tahap {{ sc.score|num(1) }}, ambang Z{{ st.stage }} {{ st.threshold.threshold|num(1) }}</span>{% else %}<span class="muted">Disembunyikan</span><span class="sr-only">, di bawah ambang</span>{% endif %}</span>
-            <span class="peringkat-skor num">{{ c.score|num(1) }}</span>
+            <span class="peringkat-siapa">{% if c.accused %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b> <span class="stamp stamp-ok">Melewati ambang</span>{% elif lanjut %}{% set st, sc = lanjut %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b><span class="sr-only">, di bawah ambang tahap 1,</span> <span class="peringkat-tahap">{{ st.basis_text() }}; skor tahap {{ sc.score|num(1) }}, ambang Z{{ st.stage }} {{ st.threshold.threshold|num(1) }}</span>{% else %}<span class="muted">Disembunyikan</span><span class="sr-only">, di bawah ambang</span>{% endif %}</span>
+            <span class="peringkat-skor num"><span class="sr-only">, skor{% if tahap_lanjut %} tahap 1{% endif %} </span>{{ c.score|num(1) }}</span>
             {% if mark is not none %}<span class="peringkat-bar" style="--value: {{ ([c.score, 0]|max / scale)|round(4) }}" aria-hidden="true"></span>{% endif %}
           </li>
           {% endfor %}
@@ -241,7 +241,7 @@
       {% if canary_named %}
       <details class="more small">
         <summary>Penerima yang juga dituduh</summary>
-        <ul class="notes">{% for k in canary_named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
+        <ul class="notes">{% for k in canary_named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}{% if k.seq in tahap_lanjut %}; {{ tahap_lanjut[k.seq][0].basis_text() }}{% endif %}</li>{% endfor %}</ul>
       </details>
       {% endif %}
     </section>
