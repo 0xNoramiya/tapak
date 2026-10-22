@@ -54,7 +54,9 @@ from tapak.decoder.accuse import (
     CopyCandidate,
     CopyRef,
     ThresholdRecord,
+    is_caveat,
 )
+from tapak.decoder.erasure import ERASURE_NOTE
 from tapak.decoder.softbits import SoftBits
 from tapak.fonts import FONT_DIR, font_path
 from tapak.marker.layout import sha256_hex
@@ -833,8 +835,10 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "params_rows": _params_rows(p),
         "registry": _registry_text(info),
         "registry_failed": info.registry_ok is False,
-        "notes": [redact(n) for n in attribution.notes if VISIBLE_MARKS_NOTE not in n],
+        "notes": [redact(n) for n in attribution.notes if not is_caveat(n)],
         "caveats": [redact(n) for n in attribution.notes if VISIBLE_MARKS_NOTE in n],
+        "erasure_warnings": [redact(n) for n in attribution.notes if n.startswith(ERASURE_NOTE)],
+        "erasure_text": attribution.erasure.text() if attribution.erasure is not None else "",
         "canary_rows": _canary_rows(info, shown_seqs, redact),
         "digests": [(f"#{c.copy.seq}", info.code_digests.get(c.copy.seq, "tidak tersedia"))
                     for _, c in attribution.named],

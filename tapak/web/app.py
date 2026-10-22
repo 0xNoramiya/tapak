@@ -228,13 +228,14 @@ templates.env.globals["pindaian_na"] = SCAN_ALL_NA
 
 def _visible_marks_caveats(notes: list[str]) -> list[str]:
     """Notes shown as warnings next to the verdict rather than among the other notes: a name
-    that rests only on marks visible on paper (word choices, variants), and the shift channel
-    of scanned pages left out because Tesseract's word boxes differ from issuance (only the
+    that rests only on marks visible on paper (word choices, variants), a deliberate erasure
+    pattern (marks removed where the colluders' copies agree), and the shift channel of
+    scanned pages left out because Tesseract's word boxes differ from issuance (only the
     background pattern of those pages was read)."""
-    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+    from tapak.decoder.accuse import is_caveat
     from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
 
-    return [n for n in notes if VISIBLE_MARKS_NOTE in n or n.startswith(SCAN_SHIFT_SKIPPED)]
+    return [n for n in notes if is_caveat(n) or n.startswith(SCAN_SHIFT_SKIPPED)]
 
 
 templates.env.globals["peringatan_terlihat"] = _visible_marks_caveats

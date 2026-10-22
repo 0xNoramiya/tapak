@@ -91,6 +91,19 @@ class ErasureCheck:
         return f"z = {z} (ambang {thr}; {n} posisi terukur)"
 
 
+def erasure_note(check: ErasureCheck) -> str:
+    """The warning shown next to the verdict for a flagged check: ``ERASURE_NOTE`` and the numbers."""
+    return (f"{ERASURE_NOTE}. Ini hanya peringatan: putusan, ambang, dan skor tidak berubah, dan pemeriksaan ini "
+            f"tidak menunjuk siapa pun ({check.text()}; peluang alarm palsu pada bukti jujur sekitar "
+            f"{format_rate(check.alarm_rate)})")
+
+
+def format_rate(rate: float) -> str:
+    """'10^-3' for a power of ten, otherwise the number with a decimal comma."""
+    e = math.log10(rate)
+    return f"10^{int(round(e))}" if abs(e - round(e)) < 1e-9 else f"{rate:.2g}".replace(".", ",")
+
+
 def agreement_score(p: np.ndarray) -> np.ndarray:
     """q = (2 p - 1)^2 per code position: the direction in which the chance that a coalition's
     copies agree grows (p^2 + (1 - p)^2 = (1 + q) / 2, p^3 + (1 - p)^3 = (1 + 3 q) / 4)."""
@@ -173,7 +186,9 @@ __all__ = [
     "ErasureCheck",
     "agreement_score",
     "erasure_check",
+    "erasure_note",
     "erasure_z",
+    "format_rate",
     "position_scores",
     "rank_scores",
 ]

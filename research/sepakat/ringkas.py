@@ -151,6 +151,31 @@ def detection_rates(rows: list[dict], which: str, thr_by_choice: dict[str, float
     return out
 
 
+def docs_table(rows: list[dict], which: str, choice: str, thr: float) -> list[str]:
+    """The table quoted in docs/cara-kerja.md: per channel, the honest control (named correctly,
+    alarms) and per configuration escapes (staged: no member named) and detections."""
+    configs = ("semua/acak", "latar/acak", "geser/acak", "semua/salin", "semua/rata")
+    head = "| Kanal | Salinan pertama, jujur: benar; alarm | " + " | ".join(configs) + " |"
+    lines = [head, "|" + "---|" * (2 + len(configs))]
+    for channel in ("pdf", "layar", "foto", "cetak"):
+        g = [r for r in rows if r.get("bagian") == "serangan" and r["set"] == which and r["kanal"] == channel]
+        if not g:
+            continue
+        h = [r for r in g if r["serangan"] == "jujur"]
+        cells = [f"{sum(outcome(r['putusan']['bertahap']) == 'benar' for r in h)} dari {len(h)}; "
+                 f"{sum(r['hapus'][choice] is not None and r['hapus'][choice] <= -thr for r in h)}"]
+        for cfg in configs:
+            a = [r for r in g if r["serangan"] == cfg]
+            if not a:
+                cells.append("-")
+                continue
+            esc = sum(r["putusan"]["bertahap"]["anggota"] == 0 for r in a)
+            det = sum(r["hapus"][choice] is not None and r["hapus"][choice] <= -thr for r in a)
+            cells.append(f"lolos {esc}, terdeteksi {det} (dari {len(a)})")
+        lines.append(f"| {channel} | " + " | ".join(cells) + " |")
+    return lines
+
+
 def wrong(rows: list[dict]) -> list[str]:
     """Every wrong accusation (anyone outside the coalition named at any stage)."""
     out = []
@@ -183,6 +208,12 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("\n".join(honest_table(rows, args.ambang)))
     print()
+    for which in ("dev", "uji"):
+        lines = docs_table(rows, which, args.pilihan, args.ambang)
+        if len(lines) > 2:
+            print(f"Tabel dokumen ({which}):")
+            print("\n".join(lines))
+            print()
     w = wrong(rows)
     print(f"Tuduhan salah: {len(w)}")
     for line in w:
