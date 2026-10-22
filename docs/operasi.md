@@ -199,7 +199,8 @@ Variabel lingkungan:
 - penanda, kanal 3 lewat MuPDF dan poppler, ketidakterlihatan pada 600 dpi;
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
 - simulator printer, profil latar cetak, dan templat induk tepat;
-- ISP ponsel dan monitor simulasi: aliran foto bawaan tidak berubah (hash emas), setiap profil dan jenis baru deterministik, moire muncul di frekuensi yang diramalkan, lewatan ujung ke ujung per jenis baru;
+- ISP ponsel dan monitor simulasi: aliran foto bawaan tidak berubah (hash emas), setiap profil dan jenis baru deterministik, moire muncul di frekuensi yang diramalkan, uji ujung ke ujung per jenis baru;
+- kanal latar pada foto layar: penyaring komponen berkala tidak bergantung pada kode penerima dan menurunkan galat bit pada foto bermoire;
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
@@ -234,3 +235,24 @@ unset CETAK_OUT CETAK_ISSUED_CETAK
 ```
 
 Setiap profil diterbitkan sekali untuk 100 penerima fiktif. Id salinan diundi saat penerbitan, jadi penerbitan baru memberi kode lain dan angka yang sedikit berbeda; `CETAK_ISSUED_LAYAR` atau `CETAK_ISSUED_CETAK` memakai ulang folder penerbitan yang ada. Tabel profil bawaan memakai penerbitan dari riset sebelumnya, yang id salinannya tidak ada di repositori. Hasil di `docs/results/cetak_*` diukur sebelum kanal latar memakai strata kejenuhan dan uji pilot; perintah di atas kini memakai dekoder sekarang, jadi angka profil cetak dapat berbeda. Satu foto cetak memerlukan sekitar 20 sampai 60 detik (1600 px) atau 1 sampai 2 menit (4000 px) per proses di mesin uji yang dipakai bersama; `--workers` mengatur jumlah proses (bawaan 3).
+
+## Mengukur foto ponsel dan foto layar
+
+Angka foto ponsel dan foto layar di [cara kerja](cara-kerja.md#foto-ponsel-dan-foto-layar-simulasi) dan [batasan 10](keamanan.md#batasan) dibuat ulang dengan `research/ponsel/`. Salinan dan gambar bukti ada di `out/riset_ponsel`, hasil JSONL di `research/ponsel/hasil/`. Protokol dan semua benih ditetapkan di `ukur.py` sebelum pengukuran.
+
+```bash
+export PYTHONPATH=.
+U=".venv/bin/python research/ponsel/ukur.py"
+K=".venv/bin/python research/ponsel/kandidat.py"
+$U terbit                                       # 20 salinan nota dinas dan surat telegram, id salinan berbenih
+$U buat --split pengembangan                    # gambar bukti dengan benih pengembangan
+$U lacak --split pengembangan --dekoder lama
+$K cache && $K nilai base,notch,flat,halo,nh2   # pemilihan perubahan dekoder, benih pengembangan saja
+$U lacak --split pengembangan --dekoder baru
+$U buat --split uji                             # set uji yang ditahan, sekali di akhir
+$U lacak --split uji --dekoder lama
+$U lacak --split uji --dekoder baru
+$U ringkas                                      # tabel di dokumentasi
+```
+
+Dekoder `lama` adalah dekoder commit sebelum studi ini, diekspor ke `out/riset_ponsel/dekoder_lama`; `baru` adalah dekoder sekarang. Set uji hanya dilacak sekali per dekoder, dan `lacak --split uji` menolak menimpa hasilnya tanpa `--ulang`. Satu set berisi 500 gambar; membuatnya memerlukan sekitar 15 sampai 25 menit dan melacaknya 1 sampai 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama.

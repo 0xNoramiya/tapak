@@ -83,6 +83,7 @@ tapak/
   learned_wm/   kerangka tanda air berbasis model (opsional, belum dilatih)
   web/          FastAPI + HTMX, antarmuka berbahasa Indonesia
   photos.py     simulator foto, tangkapan layar, dan printer
+  ponsel.py     ISP ponsel dan monitor simulasi untuk photos.py (opsional)
   ketik.py      simulator pengetikan ulang dan OCR (untuk pengujian dan pengukuran)
   service.py    alur bersama CLI, web, dan demo
   cli.py        tapak issue | trace | simulate | verify | demo | ...
@@ -91,6 +92,7 @@ scripts/        alat ukur dan eksperimen (scripts/cetak: pengukuran salinan ceta
 tests/          pytest (tanpa GPU, tanpa model LLM, tanpa jaringan)
 research/ketik/ pengukuran kanal pilihan kata (kapasitas, galat baca, atribusi)
 research/pindaian/ pengukuran induk hasil pindai (protokol, hasil, potongan gambar)
+research/ponsel/ pengukuran foto ponsel dan foto layar simulasi (protokol, pemilihan dekoder, hasil)
 docs/           dokumentasi, gambar README (docs/figures membuatnya ulang), keluaran simulasi dan benchmark
 ```
 
@@ -243,7 +245,7 @@ Angka di bagian ini diukur dengan dekoder produksi sebelum kanal latar memakai s
 6. Kertas miring sampai 0,25 derajat, bergeser sampai 1 mm, dan skalanya meleset sampai 0,2 %.
 7. Cahaya menyebar di dalam kertas (dot gain optis), dan kertas punya tekstur serat serta awan.
 
-Nilainya dari literatur dan perkiraan orde besaran, bukan dari printer yang diukur. Kalibrasinya (`scripts/cetak/calibrate.py`): abu-abu 50 % tercetak 11,7 poin persentase lebih gelap, dan tingkat 245 sampai 249 tercetak sebagai titik terkecil (dL* -1,9). Yang tidak dimodelkan: koreksi nada driver, mode hemat toner, printer warna, mesin fotokopi dan pemindai, serta pemrosesan gambar di kamera ponsel.
+Nilainya dari literatur dan perkiraan orde besaran, bukan dari printer yang diukur. Kalibrasinya (`scripts/cetak/calibrate.py`): abu-abu 50 % tercetak 11,7 poin persentase lebih gelap, dan tingkat 245 sampai 249 tercetak sebagai titik terkecil (dL* -1,9). Yang tidak dimodelkan: koreksi nada driver, mode hemat toner, printer warna, mesin fotokopi dan pemindai, serta pemrosesan gambar di kamera ponsel (ISP ponsel simulasi, [di bawah](#foto-ponsel-dan-foto-layar-simulasi), belum dipakai untuk foto kertas cetak).
 
 ### Templat induk tepat
 
