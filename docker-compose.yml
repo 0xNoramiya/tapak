@@ -8,12 +8,18 @@
 #
 # Prepare once on the host: tapak keys init   (keys/ is mounted into the app only)
 #   mkdir -p data/kanari data/kanari-izin && sudo chown -R 10001 data keys
+#
+# Optional, with defaults that keep the setup above unchanged:
+#   TAPAK_IMAGE        image tag (default tapak:latest)
+#   TAPAK_PORT         host port of the web UI on 127.0.0.1 (default 8000)
+#   TAPAK_CANARY_PORT  host port of the canary listener, UDP and TCP (default 53)
+# External anchor log: add docker-compose.jangkar.yml (see that file and docs/operasi.md).
 services:
   app:
     build: .
-    image: tapak:latest
+    image: ${TAPAK_IMAGE:-tapak:latest}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${TAPAK_PORT:-8000}:8000"
     volumes:
       - ./data:/data
       - ./keys:/keys
@@ -24,7 +30,7 @@ services:
     restart: unless-stopped
 
   canary-dns:
-    image: tapak:latest
+    image: ${TAPAK_IMAGE:-tapak:latest}
     depends_on:
       - app
     command: >
@@ -38,8 +44,8 @@ services:
       # Public IPv4 of this listener (same as the registrar glue record for ns1.<domain>).
       TAPAK_CANARY_NS_IP: ${TAPAK_CANARY_NS_IP:-}
     ports:
-      - "53:5353/udp"
-      - "53:5353/tcp"
+      - "${TAPAK_CANARY_PORT:-53}:5353/udp"
+      - "${TAPAK_CANARY_PORT:-53}:5353/tcp"
     volumes:
       - ./data/kanari:/data/kanari
       - ./data/kanari-izin:/data/kanari-izin:ro
