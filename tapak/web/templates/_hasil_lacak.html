@@ -2,12 +2,17 @@
 {% set t = a.threshold %}
 {% set z_ok = t.threshold != inf %}
 {% set z_text = t.threshold|num(1) if z_ok else "tak hingga" %}
-{% set accused_seqs = a.accused|map(attribute="copy.seq")|list %}
-{% macro meter_block(score, score_label, below) -%}
-{% set m = meter(score, t.threshold) %}
+{# Copies named at any stage (stage 1 and the later stages of a staged trace): only these get a
+   number or a name anywhere on the page, as in the berita acara. #}
+{% set named_seqs = a.named_seqs %}
+{% set later = a.stages|selectattr("accused")|list %}
+{# A stage score is set against its own threshold (stage weights differ, so Z1 does not apply). #}
+{% macro meter_block(score, score_label, below, z=none, z_label="Ambang Z") -%}
+{% set zz = t.threshold if z is none else z %}
+{% set m = meter(score, zz) %}
 <div class="meter{% if below %} meter-below{% endif %}{% if m.mark is not none and m.mark < 0.2 %} mark-start{% elif m.mark is not none and m.mark > 0.8 %} mark-end{% endif %}" style="--value: {{ m.value }}; --mark: {{ m.mark if m.mark is not none else 0 }}">
   <div class="meter-track"><div class="meter-fill"></div>{% if m.mark is not none %}<div class="meter-mark"></div>{% endif %}</div>
-  <div class="meter-legend"><span>{{ score_label }} <b>{{ score|num(1) }}</b></span><span>Ambang Z <b>{{ z_text }}</b></span></div>
+  <div class="meter-legend"><span>{{ score_label }} <b>{{ score|num(1) }}</b></span><span>{{ z_label }} <b>{{ zz|num(1) if zz != inf else "tak hingga" }}</b></span></div>
 </div>
 {%- endmacro %}
 
@@ -37,10 +42,33 @@
       </div>
     </div>
     {% endfor %}
+    {# Later stages run only after stage 1 named someone, and their names rest on the copies named
+       before them: they sit under the stage-1 names, smaller, each with its stage and its basis. #}
+    {% if later and a.accused %}
+    <div class="lanjut" role="group" aria-labelledby="lanjut-label">
+      <div class="lanjut-head">
+        <p class="label" id="lanjut-label">Pelacakan bertahap</p>
+        <p class="hint">Ditemukan dengan bantuan salinan yang sudah dituduh di atas. Skor tahap memakai bobot tahap itu, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
+      </div>
+      {% for st in later %}{% for c in st.accused %}
+      <div class="who who-lanjut">
+        <div class="who-id">
+          <h3><span class="stamp stamp-ok">Tahap {{ st.stage }}</span> <span class="who-seq">Salinan #{{ c.copy.seq }}</span> <span class="who-name">{{ c.copy.nama }}</span></h3>
+          <p class="who-meta"><span class="mono">{{ c.copy.recipient_id }}</span>{% if c.copy.jabatan %} · {{ c.copy.jabatan }}{% endif %}{% if c.copy.satuan %} · {{ c.copy.satuan }}{% endif %}</p>
+          <p class="who-dasar">{{ st.basis_text() }}</p>
+        </div>
+        <div class="facts">
+          {{ meter_block(c.score, "Skor tahap " ~ st.stage, false, st.threshold.threshold, "Ambang Z" ~ st.stage) }}
+          <span class="fact"><small>Peluang tuduhan salah</small> <b aria-hidden="true">≤ {{ fap(c, a.candidates|length) }}</b><b class="sr-only">paling besar {{ fap_lisan(c, a.candidates|length) }}</b></span>
+        </div>
+      </div>
+      {% endfor %}{% endfor %}
+    </div>
+    {% endif %}
     {% for n in peringatan_terlihat(a.notes) %}
     <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
     {% endfor %}
-    {% if a.accused|length > 1 %}<p class="notice verdict-note">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
+    {% if a.named|length > 1 %}<p class="notice verdict-note">Lebih dari satu salinan melewati ambang: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
     {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
     {% set r = o.registry %}
     {% if not r.recorded %}
@@ -92,9 +120,9 @@
           <thead><tr><th>Kanal</th><th class="num">Posisi terbaca</th><th class="num hide-sm">Ambang kanal</th><th>Menunjuk salinan</th></tr></thead>
           <tbody>
             {% for ch in a.channels %}
-            {# Only copies accused by the fused result are named here, as in the berita acara:
-               each channel alone is an extra test, and eps covers the fused result only. #}
-            {% set shown = ch.accused_seqs|select("in", accused_seqs)|list %}
+            {# Only copies named by the fused result (at any stage) are numbered here, as in the
+               berita acara: each channel alone is an extra test, and eps covers the fused result only. #}
+            {% set shown = ch.accused_seqs|select("in", named_seqs)|list %}
             {% set hidden = ch.accused_seqs|length - shown|length %}
             <tr>
               <td>{{ channel_name(ch.channel) }}</td>
@@ -109,6 +137,38 @@
         </table>
       </div>
       {% if a.channels or shift_scan %}<p class="hint kanal-catatan" id="kanal-catatan">{% if a.channels %}Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.{% endif %}{% if shift_scan %} {{ shift_scan }}{% endif %}</p>{% endif %}
+      {% if t.stage_policy %}
+      {# Stage 1 spends part of the trace's share (t.share); the later stages split the rest. #}
+      {% set tahap1 %}tahap 1 memakai {{ (t.stage_share * 100)|num(1) }}&nbsp;% dari batas peluang tuduhan salah {{ eps_label }}{% if t.trace_no %} ({{ (t.stage_spent / t.spent)|persen }}&nbsp;% dari jatah pelacakan ini){% endif %}{% endset %}
+      {% if later %}
+      <div class="tahap" aria-labelledby="tahap-h" role="group">
+        <h3 id="tahap-h">Pelacakan bertahap</h3>
+        <p class="hint">Kebijakan {{ t.stage_policy }}: {{ tahap1 }}. Tahap lanjutan membagi sisanya; ambang setiap tahap ditetapkan sebelum skor tahap itu dihitung.</p>
+        <div class="table-wrap">
+          <table class="tahap-tabel">
+            <thead><tr><th>Tahap</th><th class="num">Posisi<span class="hide-sm"> tak terjelaskan</span></th><th class="num">Ambang tahap</th><th class="num">Jatah</th><th>Menuduh</th></tr></thead>
+            <tbody>
+              {% for st in a.stages %}
+              {% set zs = st.threshold.threshold %}
+              <tr>
+                <td><b class="tahap-no">{{ st.stage }}</b><span class="tahap-dasar">dasar {% for s in st.basis %}<span class="nowrap">#{{ s }}{% if not loop.last %},</span> {% else %}</span>{% endif %}{% endfor %}</span></td>
+                <td class="num">{{ st.threshold.n_observed|num }}</td>
+                <td class="num">{{ zs|num(1) if zs != inf else "tak hingga" }}</td>
+                <td class="num">{{ (st.threshold.stage_spent / t.spent)|persen }}&nbsp;%</td>
+                <td>{% for c in st.accused %}<b>#{{ c.copy.seq }}</b>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">tidak ada</span>{% endfor %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="hint">Tahap lanjutan hanya menimbang posisi tak terjelaskan, yaitu posisi yang bit bocornya tidak dimiliki salinan dasar. Bobotnya memakai kode salinan yang sudah dituduh, tidak pernah kode salinan yang sedang dinilai. Jatah adalah bagian dari jatah pelacakan ini.</p>
+      </div>
+      {% elif a.stages %}
+      <p class="hint tahap-catatan">Pelacakan bertahap: {{ tahap1 }}; tahap lanjutan tidak menuduh salinan lain.</p>
+      {% else %}
+      <p class="hint tahap-catatan">Pelacakan bertahap: {{ tahap1 }}; tahap lanjutan hanya berjalan bila tahap 1 menuduh seseorang.</p>
+      {% endif %}
+      {% endif %}
       {% if o.observations %}
       <details class="more">
         <summary>Rincian sub-kanal</summary>
@@ -133,16 +193,22 @@
     {% set mark = (t.threshold / scale)|round(4) if z_ok else none %}
     <section class="card" aria-labelledby="skor-h">
       <h2 id="skor-h">Peringkat skor</h2>
+      {% if tahap_lanjut %}
+      <p class="lead">Skor tahap 1. {% if mark is not none %}Garis tegak menandai ambang Z. {% endif %}Nomor salinan dan nama hanya ditampilkan untuk salinan yang dituduh, di tahap 1 atau di tahap lanjutan dengan skor dan ambang tahapnya; salinan lain disebut dengan peringkatnya saja.</p>
+      {% else %}
       <p class="lead">{% if mark is not none %}Garis tegak menandai ambang Z. {% endif %}Nomor salinan dan nama hanya ditampilkan untuk salinan yang melewati ambang; salinan lain disebut dengan peringkatnya saja.</p>
+      {% endif %}
       <div class="peringkat" style="--mark: {{ mark if mark is not none else 0 }}">
         {% if mark is not none %}
         <div class="peringkat-skala" aria-hidden="true"><span class="{% if mark < 0.3 %}at-start{% elif mark > 0.7 %}at-end{% endif %}">Ambang Z <b>{{ z_text }}</b></span></div>
         {% endif %}
         <ol class="peringkat-daftar">
           {% for c in a.candidates[:6] %}
-          <li class="peringkat-baris{% if c.accused %} is-accused{% endif %}">
+          {# a copy below Z that a later stage named: its name only together with its stage score and Z_s #}
+          {% set lanjut = tahap_lanjut.get(c.copy.seq) %}
+          <li class="peringkat-baris{% if c.accused %} is-accused{% elif lanjut %} is-lanjut{% endif %}">
             <span class="peringkat-no" aria-hidden="true">{{ loop.index }}</span>
-            <span class="peringkat-siapa">{% if c.accused %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b> <span class="stamp stamp-ok">Melewati ambang</span>{% else %}<span class="muted">Disembunyikan</span><span class="sr-only">, di bawah ambang</span>{% endif %}</span>
+            <span class="peringkat-siapa">{% if c.accused %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b> <span class="stamp stamp-ok">Melewati ambang</span>{% elif lanjut %}{% set st, sc = lanjut %}<b>#{{ c.copy.seq }} · {{ c.copy.nama }}</b><span class="sr-only">, di bawah ambang tahap 1,</span> <span class="peringkat-tahap">dituduh pada tahap {{ st.stage }}: skor tahap {{ sc.score|num(1) }}, ambang Z{{ st.stage }} {{ st.threshold.threshold|num(1) }}</span>{% else %}<span class="muted">Disembunyikan</span><span class="sr-only">, di bawah ambang</span>{% endif %}</span>
             <span class="peringkat-skor num">{{ c.score|num(1) }}</span>
             {% if mark is not none %}<span class="peringkat-bar" style="--value: {{ ([c.score, 0]|max / scale)|round(4) }}" aria-hidden="true"></span>{% endif %}
           </li>
@@ -164,18 +230,18 @@
         {% for k in o.canary %}
         <li class="list-row">
           <div class="list-main">
-            <span class="list-title">{% if k.seq in accused_seqs %}Salinan #{{ k.seq }}{% else %}<span class="muted">Salinan lain</span>{% endif %}</span>
+            <span class="list-title">{% if k.seq in named_seqs %}Salinan #{{ k.seq }}{% else %}<span class="muted">Salinan lain</span>{% endif %}</span>
             <span class="list-meta">{{ k.time|waktu }} · resolver <span class="mono">{{ k.src_ip }}</span></span>
           </div>
         </li>
         {% endfor %}
       </ul>
       <p class="hint">Nama unik salinan itu dicari resolver DNS di luar jaringan satuan, biasanya karena berkasnya dibuka. Alamat yang tercatat adalah resolver, belum tentu komputer pembuka. Ini bukti pendukung, terpisah dari skor; nomor salinan hanya dicantumkan untuk salinan yang juga dituduh hasil atribusi.</p>
-      {% set named = o.canary|selectattr("seq", "in", accused_seqs)|list %}
-      {% if named %}
+      {% set canary_named = o.canary|selectattr("seq", "in", named_seqs)|list %}
+      {% if canary_named %}
       <details class="more small">
         <summary>Penerima yang juga dituduh</summary>
-        <ul class="notes">{% for k in named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
+        <ul class="notes">{% for k in canary_named %}<li>Salinan #{{ k.seq }}: {{ k.nama }} ({{ k.recipient_id }}), {{ k.time|waktu }}</li>{% endfor %}</ul>
       </details>
       {% endif %}
     </section>

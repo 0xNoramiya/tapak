@@ -39,7 +39,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from tapak.config import Settings, load_settings
 from tapak.decoder.accuse import VERDICT_IDENTIFIED
-from tapak.decoder.report import format_datetime, format_number, format_probability_html, software_version
+from tapak.decoder.report import (
+    _strip_zeros,
+    format_datetime,
+    format_number,
+    format_probability_html,
+    software_version,
+)
 from tapak.marker.background import PRINT_BACKGROUND_WARNING, background_profile
 from tapak.marker.issue import IssueSettings, Recipient, SemanticSelection, read_recipients
 from tapak.marker.lexical import LexicalSelection, LexPoint
@@ -208,6 +214,8 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters["num"] = lambda v, d=0: format_number(float(v), d)
 templates.env.filters["prob"] = lambda p, log10=None: format_probability_html(float(p), log10)
+# A fraction as a percentage written as the berita acara writes stage budgets: '7,35', '90'.
+templates.env.filters["persen"] = lambda v: _strip_zeros(format_number(100 * float(v), 2))
 templates.env.filters["waktu"] = lambda v: format_datetime(str(v))
 templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
 templates.env.globals["inf"] = float("inf")
@@ -1445,8 +1453,11 @@ async def lacak_run(
     from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
 
     a = outcome.attribution
-    # As in the berita acara: file names and notes never identify a copy that is not accused.
-    redact = make_redactor((c.copy for c in a.candidates if not c.accused), {c.copy.seq for c in a.accused})
+    # As in the berita acara: file names and notes never identify a copy that is not named at
+    # some stage. A copy named at a later stage is shown with its stage (tahap_lanjut).
+    named = a.named_seqs
+    redact = make_redactor((c.copy for c in a.candidates if c.copy.seq not in named), named)
+    later = {c.copy.seq: (st, c) for st in a.stages for c in st.accused}
     # A document with scanned pages: a sentence under the channel table says whether the shift
     # channel covered them (it does not when their word boxes could not be found again as at
     # issuance; the note with the reason stands next to the verdict).
@@ -1459,7 +1470,7 @@ async def lacak_run(
             shift_scan = ("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
                           "cocok dengan catatan penerbitan.")
     return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid,
-                 identified=a.verdict == VERDICT_IDENTIFIED, redact=redact,
+                 identified=a.verdict == VERDICT_IDENTIFIED, redact=redact, tahap_lanjut=later,
                  eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan)
 
 
