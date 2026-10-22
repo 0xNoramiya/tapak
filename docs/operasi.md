@@ -19,6 +19,7 @@ make photos-layar   # foto salinan di monitor simulasi (subpiksel, moire) dengan
 make bench-check    # semua kumpulan foto dari awal; hasilnya harus sama byte demi byte dengan docs/results
 make web            # antarmuka web di http://127.0.0.1:8000
 make figures        # grafik README dibuat ulang dari kode dan data (perlu: uv pip install -e ".[figures]")
+make docker-cek     # image Docker diuji ujung ke ujung dengan tag, nama proyek, dan port sendiri (lihat Docker)
 ```
 
 Setelah `make setup`, semuanya berjalan luring. Tangkapan layar antarmuka di README dibuat terpisah dengan `docs/figures/shoot_ui.py` (perlu Playwright dan Chromium). Tanpa `TAPAK_FIG_FONTS` (Inter dan JetBrains Mono), grafik memakai DejaVu.
@@ -91,7 +92,7 @@ sudo chattr +a /mnt/jangkar/tapak.log                            # bila memakai 
 tapak jangkar status                                             # cocok dengan registri sampai entri #N
 ```
 
-TAPAK tidak pernah membuat folder log, agar log tidak diam-diam tertulis di disk lokal ketika penyimpanan terpisah belum dipasang. `tapak jangkar mulai` mencatat awal log di registri (entri `anchor_log`) dan menulis penanda media (lihat di bawah). Sejak itu semua proses yang menulis registri ini, yaitu CLI, `tapak web`, dan kontainer `app`, harus memakai `TAPAK_ANCHOR_LOG` yang sama; proses tanpa log menolak pelacakan dan penerbitan. Antarmuka web tidak memiliki halaman pengaturan: jalankan `tapak --log-jangkar /mnt/jangkar/tapak.log web` atau atur variabelnya sebelum server dijalankan. Halaman Registri menampilkan keadaan log, dan hasil Lacak memuat satu baris tentangnya. Di Docker, pasang penyimpanan itu ke kontainer `app` dan tulis variabelnya di bagian `environment` (belum diuji).
+TAPAK tidak pernah membuat folder log, agar log tidak diam-diam tertulis di disk lokal ketika penyimpanan terpisah belum dipasang. `tapak jangkar mulai` mencatat awal log di registri (entri `anchor_log`) dan menulis penanda media (lihat di bawah). Sejak itu semua proses yang menulis registri ini, yaitu CLI, `tapak web`, dan kontainer `app`, harus memakai log yang sama; proses tanpa log menolak pelacakan dan penerbitan. Log dikenali dari isinya, bukan dari jalurnya, jadi host dan kontainer boleh menyebut berkas yang sama dengan jalur berbeda. Antarmuka web tidak memiliki halaman pengaturan: jalankan `tapak --log-jangkar /mnt/jangkar/tapak.log web` atau atur variabelnya sebelum server dijalankan. Halaman Registri menampilkan keadaan log, dan hasil Lacak memuat satu baris tentangnya. Di Docker, pakai `docker-compose.jangkar.yml` ([Docker](#log-jangkar-di-docker)).
 
 **Penanda media.** Bila penyimpanan terpisah belum dipasang, titik kaitnya hanya folder kosong di disk lokal. Karena itu `tapak jangkar mulai` menulis penanda `.tapak-jangkar-media` di samping log (id-nya tercatat di baris awal log), dan setiap pemeriksaan menolak log tanpa penanda itu. `mulai --ulang` dan `rotasi` hanya membuat log di folder yang sudah bertanda; untuk media baru, atau log dari sebelum ada penanda, tambahkan `--tandai-media`. Perintah itu juga mencetak catatan bila folder log bukan titik kait. Pindahkan penanda bersama log.
 
@@ -222,11 +223,56 @@ Di Docker, loopback kontainer `app` adalah kontainer itu sendiri, jadi server di
 .venv/bin/tapak keys init                        # kunci di ./keys (dipasang ke kontainer app saja)
 mkdir -p data/kanari data/kanari-izin && sudo chown -R 10001 data keys
 docker compose up --build -d                     # app (127.0.0.1:8000) dan canary-dns (port 53 -> 5353)
+docker compose exec app tapak verify             # perintah tapak di dalam kontainer app
 ```
 
-Kontainer `canary-dns` hanya melihat `data/kanari` (log kejadiannya, dapat ditulis) dan `data/kanari-izin` (daftar digest token, hanya-baca). Di belakang proksi terbalik, tambahkan nama publik aplikasi ke `TAPAK_ALLOWED_HOSTS` (misalnya `127.0.0.1,localhost,tapak.satuan.mil`; bentuk `*.domain` didukung). Di Docker, tulis variabel ini di bagian `environment` layanan `app` pada `docker-compose.yml`, karena compose hanya meneruskan `TAPAK_CANARY_DOMAIN` dan `TAPAK_LLM` dari lingkungan host. Tanpa itu, aplikasi menolak header Host dan Origin asing.
+Kontainer `canary-dns` hanya melihat `data/kanari` (log kejadiannya, dapat ditulis) dan `data/kanari-izin` (daftar digest token, hanya-baca). Di belakang proksi terbalik, tambahkan nama publik aplikasi ke `TAPAK_ALLOWED_HOSTS` (misalnya `127.0.0.1,localhost,tapak.satuan.mil`; bentuk `*.domain` didukung). Di Docker, tulis variabel ini di bagian `environment` layanan `app` pada `docker-compose.yml`, karena compose hanya meneruskan `TAPAK_CANARY_DOMAIN` dan `TAPAK_LLM` dari lingkungan host ke kontainer itu. Tanpa itu, aplikasi menolak header Host dan Origin asing.
+
+Bila port 8000 atau 53 sudah dipakai layanan lain, atur `TAPAK_PORT` (port web di 127.0.0.1) dan `TAPAK_CANARY_PORT` (UDP dan TCP) sebelum `docker compose up`. `TAPAK_IMAGE` memilih tag image. Tanpa ketiganya, nilainya sama seperti di atas. Berkas yang ditulis TAPAK (dokumen, salinan, registri, kunci) hanya dapat dibaca pemiliknya, uid 10001.
 
 Kunci tanda tangan registri tidak harus ada di server. Tanpa kunci itu, entri baru dicatat tanpa tanda tangan, dan eselon atas menandatanganinya dengan `tapak registry sign --key ...` di komputernya sendiri.
+
+### Log jangkar di Docker
+
+`docker-compose.jangkar.yml` memasang folder [log jangkar](#log-jangkar-eksternal-opsional) ke kontainer `app` sebagai `/jangkar` dan mengatur `TAPAK_ANCHOR_LOG=/jangkar/tapak.log`. Berkas ini opsional: tanpa berkas itu, compose berjalan seperti sebelumnya.
+
+```bash
+sudo mkdir -p /mnt/jangkar && sudo chown 10001 /mnt/jangkar      # penyimpanan terpisah, dapat ditulis uid 10001
+export TAPAK_ANCHOR_DIR=/mnt/jangkar
+export COMPOSE_FILE=docker-compose.yml:docker-compose.jangkar.yml  # atau -f untuk kedua berkas di setiap perintah
+docker compose up -d
+docker compose exec app tapak verify                              # registri harus utuh dulu
+docker compose exec app tapak jangkar mulai
+sudo chattr +a /mnt/jangkar/tapak.log                             # bila memakai atribut tambah-saja
+```
+
+Compose menolak berjalan bila `TAPAK_ANCHOR_DIR` kosong atau foldernya tidak ada, jadi log tidak pernah tertulis di lapisan kontainer. Proses lain yang menulis registri yang sama, misalnya `tapak` di host dengan folder `./data`, memakai berkas yang sama lewat jalurnya sendiri (`tapak --log-jangkar /mnt/jangkar/tapak.log ...`). `make docker-cek` menguji susunan ini, termasuk atribut tambah-saja: kontainer tetap dapat menambah baris, tetapi tidak dapat membuka log untuk ditimpa.
+
+### Induk hasil pindai di Docker
+
+Image memasang Tesseract dari Debian trixie (5.5.0 saat diuji), sedangkan Ubuntu 24.04 memasang 5.3.4. Data bahasa `ind` keduanya sama (`ind.traineddata` sha256 69786901...). Pelacakan membaca ulang kotak kata induk hasil pindai dan memakainya hanya bila hash-nya sama dengan saat penerbitan ([dokumen induk hasil pindai](#dokumen-induk-hasil-pindai)).
+
+Dalam uji (`make docker-cek`, 22 Oktober 2026), kedua versi itu memberi kotak kata yang sama pada contoh hasil pindai: induk yang diterbitkan di host lalu dilacak di kontainer, dan sebaliknya, tetap dibaca kanal gesernya dan menyebut salinan yang benar. Itu tidak dijamin untuk dokumen atau versi lain. Bila kotak katanya berbeda (dalam uji dipaksa dengan data bahasa lain lewat `TESSDATA_PREFIX`), kanal geser halaman pindaian dilewati dengan catatan "kanal geser halaman pindaian dilewati: kotak kata hasil Tesseract berbeda dari saat penerbitan (sekarang ..., saat penerbitan ...)", tidak ada bit geser halaman itu yang dibaca, dan putusan hanya bertumpu pada pola latar. PDF salinan dan foto layar contoh tetap menyebut salinan yang benar, tetapi foto salinan cetak tidak lagi membawa bukti ([batasan 8](keamanan.md#batasan)).
+
+Karena itu, terbitkan dan lacak induk hasil pindai dengan image yang sama. Simpan tag image yang dipakai saat menerbitkan, dan jangan membangun ulang image di antara penerbitan dan pelacakan: Dockerfile mengunci rilis Debian (`python:3.12-slim-trixie`), tetapi pembangunan ulang tetap mengambil pustaka Python terbaru, dan rilis Debian berikutnya membawa Tesseract lain. `docker compose exec app tesseract --version` menunjukkan versi di image, dan catatan penerbitan menyimpan versi saat penerbitan. Dokumen berlapis teks tidak bergantung pada Tesseract.
+
+### Uji image
+
+`make docker-cek` (`scripts/cek_docker.py`) membangun image dengan tag sendiri (`tapak-cek:lokal`), menjalankannya dengan nama proyek compose sendiri (`tapakcek`) di port bebas (127.0.0.1:8797 untuk web, 15353 UDP dan TCP untuk kanari) dan folder kerja `out/docker-cek`, lalu menghapus hanya yang dibuatnya: kontainer, jaringan, folder kerja, dan image. Kontainer lain di mesin yang sama tidak disentuh. Semua isinya fiktif. Yang diperiksa:
+
+1. CLI di kontainer tanpa jaringan (`--network none`): kunci, log jangkar di folder host terpisah dengan atribut tambah-saja, penerbitan contoh teks dan contoh hasil pindai, pelacakan PDF salinan dan foto sintetis keduanya, dan berita acara.
+2. Compose dengan `docker-compose.jangkar.yml`: semua halaman web dan berkas statis, analisis induk hasil pindai di Terbitkan dengan Tesseract kontainer, dan keempat bukti di Lacak. Penerbitan lewat web tidak dijalankan, karena web menerbitkan dengan hingga 8 proses (sebanyak CPU) dan memakai jalur kode yang sama dengan CLI.
+3. Pendengar kanari: token terbit dijawab dan dicatat (UDP dan TCP), token karangan dijawab tetapi tidak dicatat, nama lain di zona NXDOMAIN, nama di luar zona REFUSED.
+4. Luring: soket kedua kontainer compose dicuplik sepanjang uji dan hanya boleh berupa layanan yang dipublikasikan. Registri, log jangkar, log kanari, dan log kontainer tidak memuat kata dokumen atau nama penerima.
+5. Tesseract host dan kontainer: induk hasil pindai diterbitkan di satu sisi dan dilacak di sisi lain.
+6. Benih riset: `--benih-riset 2026` menurunkan rahasia kode, id salinan, dan komitmen kode yang sama di host dan di kontainer, dan salinan #7 keduanya identik piksel demi piksel (berkas PDF-nya hanya berbeda pada /ID).
+7. Entri pelacakan terakhir dihapus dari registri di dalam kontainer: pelacakan CLI dan web ditolak.
+
+Opsi: `--tanpa-bangun --image TAG` memakai image yang ada (dan tidak menghapusnya), `--port-web`, `--port-dns`, `--proyek`, dan `--kerja` memilih port, nama, dan folder kerja lain, `--simpan-image` tidak menghapus image yang dibangun, dan `--simpan-kerja` menyimpan folder kerja. Butuh Docker Compose v2 atau lebih baru dan `.venv` dari `make setup` (TAPAK dan dnslib sisi host). Uji silang Tesseract memakai `tesseract` di host; tanpa itu bagian 5 dilewati. Skrip mengatur sendiri semua variabel yang dibaca berkas compose (`TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan lainnya), jadi lingkungan penerapan di host tidak mengubah yang diuji. Dengan `--simpan-kerja`, berkas milik uid 10001 di folder kerja hanya dapat dihapus sebagai root.
+
+Hasil 22 Oktober 2026 di mesin uji yang dipakai bersama (8 CPU, WSL2, Docker 29.4): semua 32 pemeriksaan lulus dalam sekitar 10 menit. Pembangunan tanpa cache memakan 184 detik bila citra dasar sudah terunduh (apt 51 detik, pip 73 detik, ekspor 55 detik), dengan cache 4 detik. Image berukuran 302 MB terkompresi dan 1,17 GB di disk. Di kontainer tanpa jaringan, penerbitan 20 salinan memakan 11 sampai 14 detik untuk contoh teks dan 44 sampai 51 detik untuk contoh hasil pindai 2 halaman (3 proses). Pelacakan lewat CLI memakan 10 detik (PDF teks), 21 detik (foto teks), 52 sampai 58 detik (PDF hasil pindai), dan 26 detik (foto hasil pindai); lewat web 7, 16, 37, dan 13 detik. Waktu CLI termasuk menyalakan kontainer. Dua pengulangan pada hari yang sama, dengan image yang dibangun ulang tanpa cache dan beban mesin lain yang lebih tinggi, juga lulus 32 dari 32, dalam 14 dan 15 menit: pembangunan tanpa cache 223 detik, penerbitan dan pelacakan sampai 1,5 kali lebih lama. Pengulangan kedua dijalankan dengan `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan `TAPAK_CANARY_ANSWER_IP` lain di lingkungan host, dan hasilnya sama. Pada penerapan compose terpisah dengan `docker-compose.jangkar.yml` (halaman web, pelacakan lewat web, dan kueri DNS termasuk nama di luar zona), seluruh lalu lintas jembatan jaringan kedua kontainer direkam sejak sebelum kontainer menyala: kontainer hanya membalas di port 8000 dan 5353, tanpa koneksi keluar dan tanpa kueri DNS sendiri.
+
+FastAPI versi baru (0.159 di image) membawa kait OpenTelemetry dan memasang `opentelemetry-api`. Tanpa SDK dan tanpa pengaturan, kait itu tidak mengirim apa pun; image juga menyetel `OTEL_SDK_DISABLED=true`.
 
 ## Kunci dan konfigurasi
 

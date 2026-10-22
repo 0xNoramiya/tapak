@@ -1,8 +1,14 @@
+# Build context: the image copies only pyproject.toml, README.md, tapak/ and samples/.
+# .claude holds agent worktrees (gigabytes); generated samples and photo sets are not needed.
 .venv
 .git
+.claude
 out
 data
 keys
 **/__pycache__
 .pytest_cache
+*.egg-info
 samples/photos
+samples/photos-cetak
+samples/generated

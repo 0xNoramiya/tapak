@@ -1,0 +1,21 @@
+# Optional external anchor log for the app container (docs/operasi.md, "Log jangkar eksternal").
+# Use it together with docker-compose.yml:
+#
+#   export TAPAK_ANCHOR_DIR=/mnt/jangkar      # folder on the separate storage, writable by uid 10001
+#   docker compose -f docker-compose.yml -f docker-compose.jangkar.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.jangkar.yml exec app tapak jangkar mulai
+#
+# The folder must already exist: like TAPAK itself, compose never creates it, so the log cannot
+# end up on the local disk while the separate storage is not mounted. Every later compose
+# command for this deployment needs both files (or COMPOSE_FILE=docker-compose.yml:docker-compose.jangkar.yml
+# in .env), and every other process that writes the same registry needs the same log.
+services:
+  app:
+    environment:
+      TAPAK_ANCHOR_LOG: /jangkar/tapak.log
+    volumes:
+      - type: bind
+        source: ${TAPAK_ANCHOR_DIR:?atur TAPAK_ANCHOR_DIR ke folder log jangkar di penyimpanan terpisah}
+        target: /jangkar
+        bind:
+          create_host_path: false
