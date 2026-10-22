@@ -14,6 +14,7 @@ make test           # seluruh pengujian
 make simulate       # angka simulasi Tardos
 make photos bench   # kumpulan foto sintetis lalu uji regresi dekoder
 make photos-cetak   # foto kertas cetak (printer disimulasikan); make bench melaporkannya terpisah
+make bench-check    # ketiganya dari awal; hasilnya harus sama byte demi byte dengan docs/results
 make web            # antarmuka web di http://127.0.0.1:8000
 make figures        # grafik README dibuat ulang dari kode dan data (perlu: uv pip install -e ".[figures]")
 ```
@@ -202,9 +203,16 @@ Variabel lingkungan:
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
 - DOCX, berita acara, antarmuka web end-to-end;
+- penerbitan biasa yang tetap mengundi rahasia kode dan id salinan, dan penerbitan riset dengan benih tetap;
 - aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang).
 
 Suite ini tidak memerlukan GPU, model LLM, atau jaringan. Uji foto ditandai `slow`, dan `make test-fast` melewatinya.
+
+## Benchmark foto
+
+`make photos`, `make photos-cetak`, lalu `make bench` membuat ulang `docs/results/bench_photos.json`, sumber angka benchmark di README. Penerbitan di belakang kedua set foto (20 salinan tanpa registri di `out/photos`) memakai `tapak issue --benih-riset 2026`: rahasia kode dan id salinan diturunkan dari benih itu, bukan diundi, dan foto memakai benih 2026 sendiri. Karena benihnya publik, siapa pun dapat membuat ulang kode setiap salinan, jadi opsi ini hanya untuk riset. TAPAK menolaknya tanpa `--no-registry`, tidak pernah menimpa rahasia kode yang sudah ada, dan menolak penerbitan biasa di folder kunci yang rahasianya berasal dari benih riset (penanda `code_secret.riset`). Penerbitan biasa tetap mengundi rahasia kode dan id salinan. Folder `out/photos` dari penerbitan lama dengan id acak ditolak; hapus dulu.
+
+`make bench-check` menjalankan ketiga langkah dari awal di `out/bench-check` lalu membandingkan hasilnya dengan `docs/results/bench_photos.json` byte demi byte (sekitar 9 menit di mesin uji yang dipakai bersama). Perhitungan dan OCR berjalan satu utas, jadi hasilnya tidak bergantung pada jumlah utas. Kesamaan byte demi byte berlaku untuk versi pustaka yang sama; dengan numpy, OpenCV, MuPDF, atau Tesseract versi lain, angkanya dapat sedikit berbeda.
 
 ## Mengukur salinan yang dicetak
 

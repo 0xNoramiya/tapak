@@ -267,6 +267,19 @@ def read_recipients(path: Path) -> list[Recipient]:
     return out
 
 
+COPY_ID = re.compile(r"[0-9a-f]{16}")  # the form of secrets.token_hex(8)
+
+
+def check_copy_ids(copy_ids: list[str], n: int) -> None:
+    """Refuse (ValueError) fixed copy ids that are not one distinct 16-hex id per recipient."""
+    if len(copy_ids) != n:
+        raise ValueError(f"jumlah id salinan ({len(copy_ids)}) tidak sama dengan jumlah penerima ({n})")
+    if not all(isinstance(c, str) and COPY_ID.fullmatch(c) for c in copy_ids):
+        raise ValueError("id salinan harus 16 karakter heksadesimal huruf kecil")
+    if len(set(copy_ids)) != n:
+        raise ValueError("id salinan tidak boleh ganda")
+
+
 def document_grids(master: MasterDocument, secret: bytes, settings: BackgroundSettings) -> list[PageGrid]:
     """Background cell grids of every page (keyed by the document's plan key)."""
     key = plan_key(secret, master.doc_hash)
@@ -455,8 +468,13 @@ def issue(
     semantic: SemanticSelection | None = None,
     file_stem: str | None = None,
     lexical: LexicalSelection | None = None,
+    copy_ids: list[str] | None = None,
 ) -> IssueManifest:
     """Render one marked copy per recipient into ``out_dir`` and return the manifest.
+
+    Every copy gets a fresh random 64-bit copy id. ``copy_ids`` (one per recipient, 16
+    lowercase hex characters, all different) replaces them, for research issuances that must
+    be reproducible (``tapak.keys.research_copy_ids``); a real issuance never passes it.
 
     With a semantic selection, issuance is refused (IssuanceBlocked) while any variant is
     still awaiting review, and the unit rows are excluded from the other channels. A lexical
@@ -485,6 +503,8 @@ def issue(
         settings = IssueSettings(**{**settings.__dict__, "n_max": len(recipients)})
     if len(recipients) > settings.n_max:  # type: ignore[operator]
         raise ValueError("jumlah penerima melebihi n_max kode")
+    if copy_ids is not None:
+        check_copy_ids(copy_ids, len(recipients))
     pdf_bytes = Path(pdf_path).read_bytes()
     if b"%PDF-" not in pdf_bytes[:1024]:
         raise ValueError("dokumen induk bukan berkas PDF")
@@ -524,9 +544,9 @@ def issue(
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = file_stem or Path(pdf_path).stem
     jobs = []
-    copy_ids = []
+    fixed_ids, copy_ids = copy_ids, []
     for seq, rec in enumerate(recipients, start=1):
-        copy_id = secrets.token_hex(8)
+        copy_id = secrets.token_hex(8) if fixed_ids is None else fixed_ids[seq - 1]
         copy_ids.append(copy_id)
         jobs.append((seq, copy_id, str(out_dir / f"{stem}__salinan{seq:03d}_{rec.recipient_id}.pdf")))
 
