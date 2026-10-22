@@ -97,7 +97,15 @@ document.addEventListener("DOMContentLoaded", function () {
     if (ENTER_TARGETS.indexOf(target.id) !== -1 || target.hasAttribute("data-enter")) { enter(target.children); }
     if (target.id === "galat-global") { revealNotice(); return; }
     var h = target.querySelector("[data-autofocus]");
-    if (h) { h.focus({ preventScroll: true }); }
+    if (h) {
+      h.focus({ preventScroll: true });
+      // A heading the swap left above or below the window is brought into view (below the
+      // sticky banner, through scroll-padding-top), so the focus ring is seen.
+      var r = h.getBoundingClientRect();
+      if (r.top < parseFloat(getComputedStyle(root).scrollPaddingTop) || r.bottom > window.innerHeight) {
+        h.scrollIntoView({ block: "start", behavior: reduceMotion.matches ? "auto" : "smooth" });
+      }
+    }
   });
   function enter(nodes) {
     if (reduceMotion.matches || !Element.prototype.animate) { return; }

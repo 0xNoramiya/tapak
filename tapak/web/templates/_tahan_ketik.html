@@ -1,8 +1,10 @@
 {# Plan tile: bits that survive retyping as the review stands. Rendered in the plan step and
-   swapped out of band (same id) by every response of the review steps. #}
+   swapped out of band (same id) by every response of the review steps. Its text keeps one
+   length whatever the counts, so the review below does not move on a decision. #}
 {% set kb = ketik_bits(st) %}
 <div class="stat stat-wide" id="stat-ketik"{% if oob %} hx-swap-oob="true"{% endif %}>
   <span class="stat-label">Tahan ketik ulang</span>
   <span class="stat-value">{{ kb.total|num }}</span>
-  <span class="stat-note">{% if kb.total %}bit: {{ kb.lex|num }} pilihan kata + {{ kb.sem|num }} semantik{% else %}bit; teks ketikan ulang hanya membawa kalimat aman dan pilihan kata, keduanya opsional{% endif %}</span>
+  <span class="stat-note">bit: {{ kb.lex|num }}&nbsp;bit leksikal + {{ kb.sem|num }}&nbsp;bit semantik</span>
+  <span class="stat-note stat-explain">Hanya kalimat aman dan pilihan kata, keduanya opsional, bertahan bila teks diketik ulang.</span>
 </div>

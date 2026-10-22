@@ -410,6 +410,13 @@ def _publish_button(html: str) -> str:
     return re.search(r'<button class="btn btn-primary" type="submit"[^>]*>', html).group(0)
 
 
+def _plain(html: str) -> str:
+    """Response text with entities decoded and no-break spaces (number and unit) as spaces."""
+    import html as html_lib
+
+    return html_lib.unescape(html).replace("\u00a0", " ")
+
+
 def test_word_choice_is_opt_in_and_scan_lists_points(client):
     from tapak.web.app import _STAGING
 
@@ -427,16 +434,34 @@ def test_word_choice_is_opt_in_and_scan_lists_points(client):
     rows = {re.search(r'id="lx-(l\d+)-ok"', li).group(1): li
             for li in re.findall(r'<li class="lex-point.*?</li>', r.text, re.S)}
     assert sorted(rows) == sorted(p.point_id for p in sel.points)
+    # Every form a point may take is listed: in its rule's heading, or on the point when it
+    # draws from fewer forms than the rule.
+    headings = dict(re.findall(r'<h4 class="lex-rule-forms" id="lx-aturan-(l\d+)-h">([^<]*)</h4>', r.text))
+    first_of_rule = {}
+    for p in sel.points:
+        first_of_rule.setdefault(p.rule_id, p.point_id)
     for p in sel.points:
         row = rows[p.point_id]
         assert re.search(rf'id="lx-{p.point_id}-ok"\s+aria-pressed="false"', row)
         assert f'<mark class="diff">{p.forms[0]}</mark>' in row  # the phrase, highlighted in its sentence
-        assert re.findall(r'<span class="lex-form(?: is-master)?">([^<]*)', row) == list(p.forms)  # every form
+        listed = (headings[first_of_rule[p.rule_id]] + " / " + row).lower()
+        assert all(f.lower().rstrip(",.;:") in listed for f in p.forms)
+    # Only a rule with several points gets the bulk buttons; their names say which rule.
+    for rule_id, first in first_of_rule.items():
+        several = sum(q.rule_id == rule_id for q in sel.points) > 1
+        assert (f'id="lx-aturan-{first}-ok"' in r.text) == several
+        if several:
+            forms = headings[first]
+            assert f'aria-label="Semua titik \u201c{forms}\u201d"' in r.text
+            assert f'titik \u201c{forms}\u201d sekaligus?' in r.text  # the confirmation quotes the forms
+    assert 'class="lex-aside" role="group"' in r.text and "<aside" not in r.text  # no nested landmark
     assert 'id="lx-tinjau-h" tabindex="-1" data-autofocus' in r.text  # focus moves to the list
-    assert "0 bit leksikal + 0 bit semantik" in r.text
-    assert "belum mencapai 64 bit" in r.text and "Cukup untuk satu pembocor" not in r.text
+    text = _plain(r.text)
+    assert "0 bit leksikal + 0 bit semantik" in text
+    assert "belum mencapai 64 bit" in text and 'stamp-ok">Cukup untuk satu pembocor' not in r.text
     assert "peringatan tanda terlihat" in r.text  # a retyped-text name always carries the caveat
     assert _status(r.text).startswith(f"{len(sel.points)} dari {len(sel.points)} titik pilihan kata menunggu")
+    assert _status(r.text).endswith("Belum cukup untuk satu pembocor.")  # the verdict is announced too
     assert "disabled" in _publish_button(r.text) and "setiap titik pilihan kata disetujui atau ditolak" in r.text
     assert 'id="stat-ketik" hx-swap-oob="true"' in r.text
     # Opting out again drops the scan and its decisions.
@@ -506,12 +531,16 @@ def test_word_choice_refusals_name_categories_only(client):
     r = client.post(f"/terbitkan/{sid}/leksikal")
     sel = _STAGING[sid].lexical
     assert sel.refused
+    assert f'<summary>{sum(sel.refused.values())} frasa ditolak pemeriksaan otomatis</summary>' in r.text
     block = re.search(r'<ul class="lex-refused"[^>]*>(.*?)</ul>', r.text, re.S).group(1)
     categories = {getattr(lx, n) for n in dir(lx) if n.startswith("REFUSE_")}
-    items = re.findall(r"<li><span>([^<]*)</span><b class=\"tnum\">(\d+)</b></li>", block)
+    # the count is read as "<category>: <n> frasa", never as part of the category
+    items = re.findall(r'<li><span>([^<]*)</span><span class="sr-only">: </span>'
+                       r'<b class="tnum">(\d+)<span class="sr-only"> frasa</span></b></li>', block)
     assert len(items) == len(sel.refused) and re.sub(r"<li>.*?</li>", "", block).strip() == ""
-    for category, n in items:
-        assert category in categories and sel.refused[category] == int(n)
+    for label, n in items:
+        category = label[:1].lower() + label[1:]
+        assert label[:1].isupper() and category in categories and sel.refused[category] == int(n)
 
 
 def test_sample_copy_rows_mark_point_words():
@@ -519,8 +548,9 @@ def test_sample_copy_rows_mark_point_words():
 
     a = [("Rapat", (0, 4, 0)), ("pada", None), ("saat", None), ("<b>", (0, 4, 3)), ("dan", None)]
     b = [("Rapat", (0, 4, 0)), ("ketika", None), ("<b>", (0, 4, 2)), ("dan", None)]
-    assert str(_sample_line(a, b)) == 'Rapat <mark class="diff">pada saat</mark> &lt;b&gt; <mark class="lex-same">dan</mark>'
-    assert str(_sample_line(b, a)) == 'Rapat <mark class="diff">ketika</mark> &lt;b&gt; <mark class="lex-same">dan</mark>'
+    differs = '<span class="sr-only"> (berbeda)</span>'  # not told by colour alone
+    assert str(_sample_line(a, b)) == f'Rapat <mark class="diff">pada saat{differs}</mark> &lt;b&gt; <mark class="lex-same">dan</mark>'
+    assert str(_sample_line(b, a)) == f'Rapat <mark class="diff">ketika{differs}</mark> &lt;b&gt; <mark class="lex-same">dan</mark>'
 
 
 def test_word_choice_blocks_publishing_while_pending(client):
@@ -535,6 +565,9 @@ def test_word_choice_blocks_publishing_while_pending(client):
     r = client.post(f"/terbitkan/{sid}/terbitkan")
     assert "diblokir" in r.text and "titik pilihan kata masih menunggu" in r.text
     assert "tapak leksikal" not in r.text  # no CLI hint in the web
+    # pending points by the number the list shows ("Titik 2"), not by internal id
+    assert f"(titik {', '.join(str(i + 1) for i in range(1, min(len(sel.points), 11)))}" in r.text
+    assert not re.search(r"\bl\d+\b", re.search(r'id="semantik-galat"[^>]*>([^<]*)', r.text).group(1))
     assert r.headers.get("HX-Retarget") == "#semantik"
     assert not list(load_settings().workspaces.glob("*/manifest.json"))
 
@@ -556,7 +589,9 @@ def test_word_choice_publish_stores_selection_and_lacak_names_the_channel(client
     bits = sel.bits
     r = client.post(f"/terbitkan/{sid}/terbitkan")
     assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
-    assert f"{bits} bit leksikal + 0 bit semantik" in r.text and "belum mencapai 64 bit" in r.text
+    assert f"{bits} bit leksikal + 0 bit semantik" in _plain(r.text) and "belum mencapai 64 bit" in _plain(r.text)
+    assert 'stamp-warn">Belum cukup' in r.text and "pita bias" not in r.text
+    assert r.text.index('class="issued-actions"') < r.text.index('class="issued-retype"')  # actions first
     doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
     folder = load_settings().workspaces / doc
     stored = json.loads((folder / "leksikal.json").read_text(encoding="utf-8"))
@@ -587,3 +622,139 @@ def test_word_choice_with_every_point_rejected_issues_without_the_channel(client
     manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.lexical_digest is None and not (folder / "leksikal.json").exists()
     assert "bit leksikal" not in r.text
+
+
+def test_word_choice_decisions_are_frozen_while_issuing(client, monkeypatch):
+    """A decision sent while the copies are issued is refused, and issuance uses the decisions
+    as they were when it started: copies, manifest and leksikal.json always agree."""
+    import json
+
+    import tapak.service as service
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueManifest
+    from tapak.web.app import _STAGING
+
+    sid, page = _analyse(client)
+    units = re.findall(r'name="unit" value="(u\d+)"', page)
+    client.post(f"/terbitkan/{sid}/varian", data={"unit": units})
+    st = _STAGING[sid]
+    for unit, vs in st.sets.items():
+        for i in vs.pending():
+            client.post(f"/terbitkan/{sid}/varian/{unit}/{i}/disetujui")
+    client.post(f"/terbitkan/{sid}/leksikal")
+    for p in st.lexical.points:
+        client.post(f"/terbitkan/{sid}/leksikal/{p.point_id}/disetujui")
+    approved = st.lexical.digest
+    first = st.lexical.points[0].point_id
+    unit = next(iter(st.sets))
+    real = service.issue_document
+    seen = {}
+
+    def racing(*args, **kwargs):
+        seen["point"] = client.post(f"/terbitkan/{sid}/leksikal/{first}/ditolak")
+        seen["rule"] = client.post(f"/terbitkan/{sid}/leksikal/aturan/{first}/ditolak").status_code
+        seen["optout"] = client.post(f"/terbitkan/{sid}/leksikal/batal").status_code
+        seen["variant"] = client.post(f"/terbitkan/{sid}/varian/{unit}/1/ditolak").status_code
+        seen["publish"] = client.post(f"/terbitkan/{sid}/terbitkan").status_code
+        # even a change that got past the guard does not reach this issuance
+        st.lexical.set_status(first, "ditolak")
+        st.sets[unit].set_status(1, "ditolak")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(service, "issue_document", racing)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
+    assert seen.pop("point").status_code == 409
+    assert seen == {"rule": 409, "optout": 409, "variant": 409, "publish": 409}
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    folder = load_settings().workspaces / doc
+    stored = json.loads((folder / "leksikal.json").read_text(encoding="utf-8"))
+    assert all(p["status"] == "disetujui" for p in stored["points"])
+    manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.lexical_digest == approved
+    assert len(manifest.shift_excluded_rows) == len({(p["page"], p["row"]) for p in stored["points"]})
+    variants = json.loads((folder / "varian.json").read_text(encoding="utf-8"))
+    assert all(x == "disetujui" for v in variants["sets"] for x in v["status"][1:])
+
+
+def test_publish_controls_disable_every_review_button(client):
+    sid, _ = _analyse(client)
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    form = re.search(r'<form class="publish-form"[^>]*>', r.text).group(0)
+    assert 'hx-disabled-elt="#semantik button"' in form
+    assert '<h2 id="langkah4" tabindex="-1">' in r.text and 'href="#langkah4"' in r.text  # a way past the list
+
+
+def test_review_actions_keep_the_session_alive(client):
+    import os
+    import time
+
+    from tapak.web import app as webapp
+
+    sid, _ = _analyse(client)
+    st = webapp._STAGING[sid]
+    long_ago = time.time() - webapp.STAGING_TTL_S - 60  # uploaded more than the idle limit ago
+    os.utime(st.folder, (long_ago, long_ago))
+    st.last_used = long_ago
+    assert client.post(f"/terbitkan/{sid}/leksikal").status_code == 200
+    webapp._expire_staging()  # what the next analysis by anyone runs
+    assert sid in webapp._STAGING and st.folder.exists()
+    st.last_used = long_ago  # idle for real: dropped
+    webapp._expire_staging()
+    assert sid not in webapp._STAGING and not st.folder.exists()
+
+
+def test_word_choice_without_points_shows_only_the_outcome(client, monkeypatch):
+    from tapak.marker import lexical as lx
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    real = lx.scan_candidates
+
+    def nothing(master, lexicon=None, *args, **kwargs):
+        sel = real(master, lexicon, *args, **kwargs)
+        sel.points = []
+        sel.refused = {lx.REFUSE_FIT: 3, lx.REFUSE_ORDER: 2}
+        return sel
+
+    monkeypatch.setattr(lx, "scan_candidates", nothing)
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    assert r.status_code == 200 and _STAGING[sid].lexical.points == []
+    assert "Salinan diterbitkan tanpa kanal pilihan kata." in r.text
+    assert _status(r.text) == "Tidak ada titik pilihan kata di dokumen ini. Salinan diterbitkan tanpa kanal pilihan kata."
+    for absent in ('class="lex-counter"', 'class="meter', "lx-tinjau-h", "lx-batal", "Belum cukup", "peringatan tanda terlihat"):
+        assert absent not in r.text, absent
+    assert "<summary>5 frasa ditolak pemeriksaan otomatis</summary>" in r.text
+    assert 'id="langkah-lx" tabindex="-1" data-autofocus' in r.text
+    assert "disabled" not in _publish_button(r.text)
+
+
+def test_variant_status_mentions_word_choice_still_pending(client):
+    from tapak.web.app import _STAGING
+
+    sid, page = _analyse(client)
+    units = re.findall(r'name="unit" value="(u\d+)"', page)
+    client.post(f"/terbitkan/{sid}/leksikal")
+    n = len(_STAGING[sid].lexical.points)
+    r = client.post(f"/terbitkan/{sid}/varian", data={"unit": units})
+    for unit, idx in re.findall(r"/varian/(u\d+)/(\d+)/disetujui", r.text):
+        r = client.post(f"/terbitkan/{sid}/varian/{unit}/{idx}/disetujui")
+    assert _status(r.text) == f"Semua varian sudah ditinjau. {n} titik pilihan kata masih menunggu."
+
+
+def test_word_choice_sample_shows_the_most_different_pair_first(client):
+    from tapak.web.app import _STAGING
+
+    sid, _ = _analyse(client)
+    client.post(f"/terbitkan/{sid}/leksikal")
+    sel = _STAGING[sid].lexical
+    for p in sel.points:
+        r = client.post(f"/terbitkan/{sid}/leksikal/{p.point_id}/disetujui")
+    pv = _STAGING[sid].lex_preview[1]
+    assert pv["differ"] > 0 and pv["differing"]
+    sample = r.text[r.text.index('id="lx-contoh-h"'):]
+    assert f"berbeda pada {pv['differ']} dari {len(sel.points)} titik" in sample
+    if pv["same"]:  # rows alike in both copies come last, folded
+        assert sample.index("Baris yang berbeda") < sample.index(f"<summary>{len(pv['same'])} baris sama di kedua contoh</summary>")
+    again = client.post(f"/terbitkan/{sid}/leksikal/{sel.points[0].point_id}/disetujui")
+    assert again.text[again.text.index('id="lx-contoh-h"'):] == sample  # stable between clicks

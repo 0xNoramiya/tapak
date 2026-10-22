@@ -73,7 +73,7 @@
       </div>
     </div>
     {# The live region sits outside #semantik, so it survives the swap and is announced. #}
-    {% if oob and not lex_announce %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}</p>{% endif %}
+    {% if oob and not lex_announce %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}{% if lex_pending %} {{ lex_pending }} titik pilihan kata masih menunggu.{% endif %}</p>{% endif %}
     {% for unit in st.units if unit.unit_id in st.sets %}
     {% set vs = st.sets[unit.unit_id] %}
     {% set page = unit.page + 1 %}
@@ -146,7 +146,7 @@
 <section class="card publish{% if not blocked %} is-ready{% endif %}" aria-labelledby="langkah4">
   <div class="publish-row">
     <div class="publish-text">
-      <h2 id="langkah4">Terbitkan</h2>
+      <h2 id="langkah4" tabindex="-1">Terbitkan</h2>
       <p class="lead{% if blocked %} is-blocked{% endif %}" id="langkah4-status">
         {% if pending.n and lex_pending %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian dan titik pilihan kata disetujui atau ditolak ({{ pending.n }} varian dan {{ lex_pending }} titik menunggu).
         {% elif pending.n %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
@@ -154,7 +154,9 @@
         {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
       </p>
     </div>
-    <form class="publish-form" hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="find button[type=submit]">
+    {# While the copies are issued every review control is disabled too (the server refuses
+       review changes then as well). #}
+    <form class="publish-form" hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="#semantik button">
       <button class="btn btn-primary" type="submit" {% if blocked %}disabled{% endif %} aria-describedby="langkah4-status">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>

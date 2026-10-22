@@ -6,15 +6,19 @@ sent to the internet; HTMX is served from ./static.
 
 from __future__ import annotations
 
+import copy
 import csv
 import difflib
 import html
 import io
+import itertools
 import re
 import secrets
 import shutil
 import threading
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -71,6 +75,10 @@ class Staging:
     master: MasterDocument | None = field(default=None, repr=False)
     # (approved point ids, sample-copy rows): recomputed only when the approvals change.
     lex_preview: tuple | None = field(default=None, repr=False)
+    # Set (under _LOCK) while the copies are being issued: review actions are refused meanwhile.
+    issuing: bool = False
+    # Last request on this session; idle sessions expire STAGING_TTL_S after it.
+    last_used: float = field(default_factory=time.time)
 
     @property
     def pdf(self) -> bool:
@@ -694,7 +702,7 @@ def _expire_staging() -> None:
     now = time.time()
     with _LOCK:
         for sid, st in list(_STAGING.items()):
-            stale = not st.folder.exists() or now - st.folder.stat().st_mtime > STAGING_TTL_S
+            stale = not st.folder.exists() or (now - st.last_used > STAGING_TTL_S and not st.issuing)
             if stale:
                 shutil.rmtree(st.folder, ignore_errors=True)
                 _STAGING.pop(sid, None)
@@ -721,11 +729,33 @@ def _plan_summary(master, s: IssueSettings, n: int) -> dict[str, object]:
 
 
 def _staging(sid: str) -> Staging:
+    """The issuance session ``sid``; every request on it counts as activity."""
     st = _STAGING.get(sid)
     if st is None:
         raise HTTPException(404, "Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa.",
                             headers={"X-Tapak-Mulai-Lagi": "1"})
+    st.last_used = time.time()
     return st
+
+
+ISSUING_MESSAGE = "Penerbitan sedang berjalan. Keputusan tidak dapat diubah lagi; tunggu hasilnya."
+
+
+def _review_session(sid: str) -> Staging:
+    """The session for a review action: refused (409) once its copies are being issued, so the
+    copies and their record are made from the same decisions."""
+    st = _staging(sid)
+    if st.issuing:
+        raise HTTPException(409, ISSUING_MESSAGE)
+    return st
+
+
+@contextmanager
+def _reviewing(sid: str) -> Iterator[Staging]:
+    """_review_session held under _LOCK, for a change to the review state (publishing takes
+    its snapshot under the same lock)."""
+    with _LOCK:
+        yield _review_session(sid)
 
 
 # --- Terbitkan: word choice (opt-in lexical channel) -------------------------------------------
@@ -777,27 +807,34 @@ def _point_runs(words: list) -> list[tuple[str, bool]]:
 
 def _sample_line(words: list, other: list) -> Markup:
     """One printed row of a sample copy with its point words marked: <mark class="diff"> where
-    the other sample copy shows another form, <mark class="lex-same"> where both agree."""
+    the other sample copy shows another form (also said in words for screen readers),
+    <mark class="lex-same"> where both agree."""
     theirs = [t for t, point in _point_runs(other) if point]
     out, k = [], 0
     for text, point in _point_runs(words):
         if point:
-            same = k < len(theirs) and theirs[k] == text
-            out.append(f'<mark class="{"lex-same" if same else "diff"}">{escape(text)}</mark>')
+            if k < len(theirs) and theirs[k] == text:
+                out.append(f'<mark class="lex-same">{escape(text)}</mark>')
+            else:
+                out.append(f'<mark class="diff">{escape(text)}<span class="sr-only"> (berbeda)</span></mark>')
             k += 1
         else:
             out.append(str(escape(text)))
     return Markup(" ".join(out))
 
 
+SAMPLE_LABELS = tuple(f"pratinjau-{i}" for i in range(1, 9))
+
+
 def _sample_copies(st: Staging, sel: LexicalSelection) -> dict[str, object] | None:
     """The rows holding approved points as two sample copies print them, and the shift bits
     those rows cost.
 
-    The forms come from the slots the issuance plan gives the lexical channel and from two
-    codewords drawn like a recipient's (fixed labels, so the sample does not change between
-    clicks); the rows are lexical.copy_rows, the words copy_text joins. They are a preview
-    only and never stored. Recomputed only when the set of approved points changes.
+    The forms come from the slots the issuance plan gives the lexical channel and from
+    codewords drawn like a recipient's for a few fixed labels (SAMPLE_LABELS, so the sample
+    does not change between clicks); the pair that differs on the most points is shown. The
+    rows are lexical.copy_rows, the words copy_text joins. They are a preview only and never
+    stored. Recomputed only when the set of approved points changes.
     """
     from tapak.marker import lexical as lx
     from tapak.marker.pdf_shift import build_shift_slots
@@ -817,11 +854,14 @@ def _sample_copies(st: Staging, sel: LexicalSelection) -> dict[str, object] | No
     pkey = plan_key(secret, master.doc_hash)
     p = derive_bias(secret, master.doc_hash, params)
     slots = lx.lexical_slots(sel, params.length, pkey, p, RETYPE_BAND)
-    choices, copies = [], []
-    for label in ("pratinjau-1", "pratinjau-2"):
-        choice = lx.choices_for_codeword(slots, derive_codeword(secret, master.doc_hash, label, p), sel.points)
-        choices.append(choice)
-        copies.append(lx.copy_rows(master, carrying, choice))
+    choices = [lx.choices_for_codeword(slots, derive_codeword(secret, master.doc_hash, label, p), sel.points)
+               for label in SAMPLE_LABELS]
+
+    def differ(pair: tuple[int, int]) -> int:
+        return sum(1 for pt in carrying if choices[pair[0]][pt.point_id] != choices[pair[1]][pt.point_id])
+
+    pair = max(itertools.combinations(range(len(choices)), 2), key=differ)  # first best pair: stable
+    copies = [lx.copy_rows(master, carrying, choices[i]) for i in pair]
     rows = []
     for rid in sorted(copies[0]):
         a, b = copies[0][rid], copies[1][rid]
@@ -829,11 +869,15 @@ def _sample_copies(st: Staging, sel: LexicalSelection) -> dict[str, object] | No
                      "same": [t for t, _ in a] == [t for t, _ in b]})
     shift_all = len(build_shift_slots(master.layout, params.length, pkey))
     shift_left = len(build_shift_slots(master.layout, params.length, pkey, sel.shift_excluded_rows()))
-    preview = {"rows": rows, "points": len(carrying),
-               "differ": sum(1 for pt in carrying if choices[0][pt.point_id] != choices[1][pt.point_id]),
+    preview = {"differing": [r for r in rows if not r["same"]], "same": [r for r in rows if r["same"]],
+               "points": len(carrying), "differ": differ(pair),
                "shift_all": shift_all, "shift_lost": shift_all - shift_left}
     st.lex_preview = (key, preview)
     return preview
+
+
+def _bare_form(form: str) -> str:
+    return form.lower().strip(".,;:!?\"'()")
 
 
 def _rule_groups(sel: LexicalSelection, lexicon) -> list[dict[str, object]]:
@@ -853,10 +897,22 @@ def _rule_groups(sel: LexicalSelection, lexicon) -> list[dict[str, object]]:
             g = groups[pt.rule_id] = {"first": pt.point_id, "forms": rule.forms if rule else pt.forms,
                                       "note": rule.note if rule else "", "example": rule.example if rule else "",
                                       "points": [], "pending": 0, "rejectable": 0}
-        g["points"].append({"p": pt, "context": _marked_context(pt)})
+        # A point draws from fewer forms than its rule when the rule's count is not a power of
+        # two: name them then (case and punctuation alone are not worth a line).
+        own = {_bare_form(f) for f in pt.forms} != {_bare_form(f) for f in g["forms"]}
+        g["points"].append({"p": pt, "context": _marked_context(pt), "own_forms": own})
         g["pending"] += pt.status == STATUS_PENDING
         g["rejectable"] += pt.status != STATUS_REJECTED
     return list(groups.values())
+
+
+def _sentence_case(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def _keep_units(text: str) -> str:
+    """A number and the unit after it (bit, kata) never break across lines."""
+    return re.sub(r"(\d) (bit|kata)\b", "\\1\u00a0\\2", text)
 
 
 def _lexical_view(st: Staging) -> dict[str, object]:
@@ -866,26 +922,36 @@ def _lexical_view(st: Staging) -> dict[str, object]:
 
     sel = st.lexical
     bits = _retype_bits(st)
-    view: dict[str, object] = {"sel": sel, "bits": bits, "lexicon": None, "lexicon_error": "",
+    view: dict[str, object] = {"sel": sel, "bits": bits, "lexicon": None, "lexicon_title": "", "lexicon_error": "",
                                "lone_bits": lx.LONE_LEAKER_BITS, "lone_words": lx.format_count(lx.LONE_LEAKER_WORDS)}
     try:
-        view["lexicon"] = lx.load_lexicon(sel.lexicon if sel is not None else lx.DEFAULT_LEXICON)
+        lexicon = view["lexicon"] = lx.load_lexicon(sel.lexicon if sel is not None else lx.DEFAULT_LEXICON)
+        # "naskah_dinas_v1" reads "naskah dinas" (the version is shown on its own)
+        view["lexicon_title"] = re.sub(r"_v\d+$", "", lexicon.name).replace("_", " ")
     except lx.LexiconError as exc:
         view["lexicon_error"] = str(exc)
     if sel is None:
         return view
     pending, total = len(sel.pending()), len(sel.points)
+    enough = bits["total"] >= lx.LONE_LEAKER_BITS
+    if not total:
+        status = "Tidak ada titik pilihan kata di dokumen ini. Salinan diterbitkan tanpa kanal pilihan kata."
+    else:
+        status = ((f"{pending} dari {total} titik pilihan kata menunggu tinjauan Anda. " if pending
+                   else "Semua titik pilihan kata sudah ditinjau. ")
+                  + f"{bits['lex']} bit leksikal + {bits['sem']} bit semantik. "
+                  + ("Cukup untuk satu pembocor." if enough else "Belum cukup untuk satu pembocor."))
     view.update(
         groups=_rule_groups(sel, view["lexicon"]), pending=pending, total=total,
         # Body words still to add use the density of the points not rejected (the table average
         # when there are none).
-        verdict=lx.capacity_verdict(bits["total"], sel.body_words or None, sel.candidate_bits or None),
-        enough=bits["total"] >= lx.LONE_LEAKER_BITS,
-        refused=sorted(sel.refused.items(), key=lambda kv: (-kv[1], kv[0])),
+        verdict=_keep_units(_sentence_case(
+            lx.capacity_verdict(bits["total"], sel.body_words or None, sel.candidate_bits or None))),
+        enough=enough,
+        refused=[(_sentence_case(c), n) for c, n in sorted(sel.refused.items(), key=lambda kv: (-kv[1], kv[0]))],
+        refused_total=sum(sel.refused.values()),
         preview=_sample_copies(st, sel),
-        status=(f"{pending} dari {total} titik pilihan kata menunggu tinjauan Anda. " if pending
-                else "Semua titik pilihan kata sudah ditinjau. ")
-        + f"{bits['lex']} bit leksikal + {bits['sem']} bit semantik.")
+        status=status)
     return view
 
 
@@ -908,24 +974,28 @@ def terbitkan_leksikal(request: Request, sid: str) -> HTMLResponse:
     """Opt in: scan the master for word-choice points (each then awaits the issuer's review)."""
     from tapak.marker import lexical as lx
 
-    st = _staging(sid)
-    if not st.pdf:
-        raise HTTPException(400, "Pilihan kata hanya tersedia untuk dokumen induk PDF.")
-    if st.lexical is None:
+    with _reviewing(sid) as st:
+        if not st.pdf:
+            raise HTTPException(400, "Pilihan kata hanya tersedia untuk dokumen induk PDF.")
+        scanned = st.lexical is not None
+    if not scanned:
         try:
-            st.lexical = lx.scan_candidates(_staging_master(st), lx.load_lexicon())
+            found = lx.scan_candidates(_staging_master(st), lx.load_lexicon())
         except lx.LexiconError as exc:
             return _lexical_page(request, st, lex_error=f"Pemindaian tidak dapat dilakukan: {exc}")
-        st.lex_preview = None
+        with _reviewing(sid):
+            if st.lexical is None:  # a second scan request does not replace the first one's decisions
+                st.lexical = found
+                st.lex_preview = None
     return _lexical_page(request, st, lex_focus=True)
 
 
 @app.post("/terbitkan/{sid}/leksikal/batal", response_class=HTMLResponse)
 def terbitkan_leksikal_batal(request: Request, sid: str) -> HTMLResponse:
     """Opt out again: drop the scan and every decision (copies are issued without the channel)."""
-    st = _staging(sid)
-    st.lexical = None
-    st.lex_preview = None
+    with _reviewing(sid) as st:
+        st.lexical = None
+        st.lex_preview = None
     return _lexical_page(request, st, lex_focus=True)
 
 
@@ -941,22 +1011,22 @@ def terbitkan_leksikal_aturan(request: Request, sid: str, point_id: str, status:
     """
     from tapak.marker.semantic import STATUS_APPROVED, STATUS_PENDING, STATUS_REJECTED
 
-    st = _staging(sid)
-    sel = _lexical_or_400(st)
-    try:
-        rule_id = sel.point(point_id).rule_id
-    except KeyError:
-        raise HTTPException(400, "Permintaan tidak valid") from None
-    points = [p for p in sel.points if p.rule_id == rule_id]
-    if status not in (STATUS_APPROVED, STATUS_REJECTED):
-        raise HTTPException(400, "Permintaan tidak valid")
-    if status == STATUS_APPROVED:
-        if konfirmasi != "ya":
-            raise HTTPException(400, "Persetujuan sekaligus memerlukan konfirmasi. Baca setiap kalimatnya, lalu "
-                                     "setujui satu per satu atau konfirmasi persetujuan sekaligus.")
-        points = [p for p in points if p.status == STATUS_PENDING]
-    for p in points:
-        sel.set_status(p.point_id, status)
+    with _reviewing(sid) as st:
+        sel = _lexical_or_400(st)
+        try:
+            rule_id = sel.point(point_id).rule_id
+        except KeyError:
+            raise HTTPException(400, "Permintaan tidak valid") from None
+        points = [p for p in sel.points if p.rule_id == rule_id]
+        if status not in (STATUS_APPROVED, STATUS_REJECTED):
+            raise HTTPException(400, "Permintaan tidak valid")
+        if status == STATUS_APPROVED:
+            if konfirmasi != "ya":
+                raise HTTPException(400, "Persetujuan sekaligus memerlukan konfirmasi. Baca setiap kalimatnya, lalu "
+                                         "setujui satu per satu atau konfirmasi persetujuan sekaligus.")
+            points = [p for p in points if p.status == STATUS_PENDING]
+        for p in points:
+            sel.set_status(p.point_id, status)
     return _lexical_page(request, st)
 
 
@@ -965,14 +1035,14 @@ def terbitkan_leksikal_putusan(request: Request, sid: str, point_id: str, status
     """Record the issuer's decision for one word-choice point."""
     from tapak.marker.semantic import STATUSES
 
-    st = _staging(sid)
-    sel = _lexical_or_400(st)
-    if status not in STATUSES:
-        raise HTTPException(400, "Permintaan tidak valid")
-    try:
-        sel.set_status(point_id, status)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    with _reviewing(sid) as st:
+        sel = _lexical_or_400(st)
+        if status not in STATUSES:
+            raise HTTPException(400, "Permintaan tidak valid")
+        try:
+            sel.set_status(point_id, status)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     return _lexical_page(request, st)
 
 
@@ -983,7 +1053,7 @@ async def terbitkan_varian(request: Request, sid: str) -> HTMLResponse:
     from tapak.marker.master import load_master
     from tapak.marker.semantic import generate_variant_set
 
-    st = _staging(sid)
+    st = _review_session(sid)
     form = await request.form()
     chosen = set(form.getlist("unit"))
     s = settings()
@@ -996,32 +1066,33 @@ async def terbitkan_varian(request: Request, sid: str) -> HTMLResponse:
         return {u.unit_id: generate_variant_set(master, u, provider) for u in st.units if u.unit_id in chosen}
 
     try:
-        old = st.sets
-        st.sets = await run_in_threadpool(_generate)
-        for uid, vs in st.sets.items():  # keep reviewer decisions for variants whose text is unchanged
-            prev = old.get(uid)
+        generated = await run_in_threadpool(_generate)
+    except (RuntimeError, ValueError) as exc:
+        return _page(request, "_semantik.html", oob=True, st=st, block_error=f"Varian tidak dapat dibuat: {exc}")
+    with _reviewing(sid):
+        for uid, vs in generated.items():  # keep reviewer decisions for variants whose text is unchanged
+            prev = st.sets.get(uid)
             if prev is None:
                 continue
             decided = {t: st_ for t, st_ in zip(prev.variants[1:], prev.status[1:]) if st_ != "menunggu"}
             for i, text in enumerate(vs.variants[1:], start=1):
                 if text in decided:
                     vs.set_status(i, decided[text])
-    except (RuntimeError, ValueError) as exc:
-        return _page(request, "_semantik.html", oob=True, st=st, block_error=f"Varian tidak dapat dibuat: {exc}")
+        st.sets = generated
     return _page(request, "_semantik.html", oob=True, st=st)
 
 
 @app.post("/terbitkan/{sid}/varian/{unit_id}/{index}/{status}", response_class=HTMLResponse)
 def terbitkan_putusan(request: Request, sid: str, unit_id: str, index: int, status: str) -> HTMLResponse:
     """Record a reviewer decision for one variant."""
-    st = _staging(sid)
-    vs = st.sets.get(unit_id)
-    if vs is None or status not in ("disetujui", "ditolak", "menunggu"):
-        raise HTTPException(400, "Permintaan tidak valid")
-    try:
-        vs.set_status(index, status)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    with _reviewing(sid) as st:
+        vs = st.sets.get(unit_id)
+        if vs is None or status not in ("disetujui", "ditolak", "menunggu"):
+            raise HTTPException(400, "Permintaan tidak valid")
+        try:
+            vs.set_status(index, status)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     return _page(request, "_semantik.html", oob=True, st=st)
 
 
@@ -1030,14 +1101,14 @@ def terbitkan_setujui_semua(request: Request, sid: str, unit_id: str) -> HTMLRes
     """Approve every pending variant of one sentence (still an explicit reviewer decision)."""
     from tapak.marker.semantic import bulk_approval_allowed
 
-    st = _staging(sid)
-    vs = st.sets.get(unit_id)
-    if vs is None:
-        raise HTTPException(400, "Permintaan tidak valid")
-    if not bulk_approval_allowed(vs):
-        raise HTTPException(400, "Varian dari model bahasa harus disetujui satu per satu.")
-    for i in vs.pending():
-        vs.set_status(i, "disetujui")
+    with _reviewing(sid) as st:
+        vs = st.sets.get(unit_id)
+        if vs is None:
+            raise HTTPException(400, "Permintaan tidak valid")
+        if not bulk_approval_allowed(vs):
+            raise HTTPException(400, "Varian dari model bahasa harus disetujui satu per satu.")
+        for i in vs.pending():
+            vs.set_status(i, "disetujui")
     return _page(request, "_semantik.html", oob=True, st=st)
 
 
@@ -1051,27 +1122,44 @@ def _review_error(request: Request, st: "Staging", message: str) -> HTMLResponse
 
 @app.post("/terbitkan/{sid}/terbitkan", response_class=HTMLResponse)
 def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
-    """Issue the copies (blocked while any variant or word-choice point awaits review)."""
-    from tapak.marker.lexical import capacity_verdict, require_reviewed
+    """Issue the copies (blocked while any variant or word-choice point awaits review).
+
+    The copies are issued from a snapshot of the decisions taken under _LOCK, and review
+    actions are refused until issuance ends, so the copies, the manifest and leksikal.json
+    always describe the same choices.
+    """
+    with _LOCK:
+        st = _review_session(sid)  # also refuses a second publish while the first one runs
+        sets = copy.deepcopy(st.sets)
+        lexical = LexicalSelection.from_dict(st.lexical.to_dict()) if st.lexical is not None else None
+        waiting = lexical.pending() if lexical is not None else []
+        st.issuing = not waiting
+    if waiting:
+        # The service would refuse it too, but its message names point ids and the CLI; the
+        # list shows points by number.
+        shown = ", ".join(str(int(pid[1:]) + 1) for pid in waiting[:10]) + (" ..." if len(waiting) > 10 else "")
+        return _review_error(request, st, f"Penerbitan diblokir: {len(waiting)} titik pilihan kata masih menunggu "
+                                          f"keputusan (titik {shown}). Setujui atau tolak setiap titik terlebih dahulu.")
+    try:
+        return _issue(request, st, sets, lexical)
+    finally:
+        st.issuing = False
+
+
+def _issue(request: Request, st: Staging, sets: dict, lexical: LexicalSelection | None) -> HTMLResponse:
+    """Issue the copies of a session from its snapshot of the review decisions."""
+    from tapak.marker.lexical import LONE_LEAKER_BITS, capacity_verdict
     from tapak.marker.semantic import IssuanceBlocked
     from tapak.service import WorkspaceBusy, issue_document
 
-    st = _staging(sid)
-    s = settings()
     sel = None
-    if st.sets:
-        units = [u for u in st.units if u.unit_id in st.sets]
-        sel = SemanticSelection(units, list(st.sets.values()))
-    lexical = st.lexical
-    if lexical is not None:
-        try:
-            require_reviewed(lexical)
-        except IssuanceBlocked as exc:  # the service would refuse it too; its CLI hint means nothing here
-            return _review_error(request, st, str(exc).replace(" (tapak leksikal review)", ""))
-        if not lexical.carrying():  # every point rejected: issued exactly as without the channel
-            lexical = None
+    if sets:
+        units = [u for u in st.units if u.unit_id in sets]
+        sel = SemanticSelection(units, list(sets.values()))
+    if lexical is not None and not lexical.carrying():  # every point rejected: issued as without the channel
+        lexical = None
     try:
-        out = issue_document(s, st.folder / "induk.pdf", st.recipients, st.settings, st.issuer,
+        out = issue_document(settings(), st.folder / "induk.pdf", st.recipients, st.settings, st.issuer,
                              semantic=sel, doc_name=st.doc_name, lexical=lexical)
     except IssuanceBlocked as exc:
         return _review_error(request, st, str(exc))
@@ -1088,15 +1176,16 @@ def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
     st.issued_doc = out.manifest.doc_hash
     shutil.rmtree(st.folder, ignore_errors=True)
     with _LOCK:
-        _STAGING.pop(sid, None)
+        _STAGING.pop(st.sid, None)
     retype = None
     if lexical is not None and out.manifest.lexical_digest:
         # Distinct band positions, as the CLI reports them (issuance refuses a band too small).
         summary = out.manifest.plan_summary
         lex_bits = summary.get("lexical", {}).get("positions", 0)
         sem_bits = summary.get("semantic", {}).get("positions", 0)
-        retype = {"lex": lex_bits, "sem": sem_bits,
-                  "verdict": capacity_verdict(lex_bits + sem_bits, lexical.body_words or None, lex_bits or None)}
+        verdict = capacity_verdict(lex_bits + sem_bits, lexical.body_words or None, lex_bits or None)
+        retype = {"lex": lex_bits, "sem": sem_bits, "enough": lex_bits + sem_bits >= LONE_LEAKER_BITS,
+                  "verdict": _keep_units(_sentence_case(verdict))}
     resp = _page(request, "_hasil_terbit.html", out=out, manifest=out.manifest, retype=retype)
     resp.headers["HX-Trigger"] = "registri-berubah"  # the sidebar reloads its registry state
     return resp

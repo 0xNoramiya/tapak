@@ -7,11 +7,52 @@
 {% set sel = lv.sel %}
 {% set lexicon = lv.lexicon %}
 {% if oob and lex_announce %}<p id="semantik-status" hx-swap-oob="innerHTML">{% if sel is not none %}{{ lv.status }}{% else %}Kanal pilihan kata tidak dipakai.{% endif %}</p>{% endif %}
+
+{# Refusal counts per category: never a document word. #}
+{% macro refusals(lv) %}
+{% if lv.refused %}
+<details class="more lex-refused-box">
+  <summary>{{ lv.refused_total|num }} frasa ditolak pemeriksaan otomatis</summary>
+  <ul class="lex-refused" aria-label="Frasa ditolak per kategori">
+    {% for category, n in lv.refused %}<li><span>{{ category }}</span><span class="sr-only">: </span><b class="tnum">{{ n }}<span class="sr-only"> frasa</span></b></li>{% endfor %}
+  </ul>
+  <p class="hint">Penolakan hanya disebut per kategori, tanpa kata dokumen.</p>
+</details>
+{% else %}
+<p class="hint lex-refused-box">Tidak ada frasa yang ditolak pemeriksaan otomatis.</p>
+{% endif %}
+{% endmacro %}
+
+{# Rows of the two sample copies: page, copy 1, copy 2 (labels drawn on a phone). #}
+{% macro sample_table(rows, label) %}
+<div class="lex-sample-table" role="table" aria-label="{{ label }}">
+  <div class="lex-sample-row lex-sample-cols" role="row">
+    <span role="columnheader">Hal.</span><span role="columnheader">Salinan contoh 1</span><span role="columnheader">Salinan contoh 2</span>
+  </div>
+  {% for r in rows %}
+  <div class="lex-sample-row" role="row">
+    <span class="lex-sample-page" role="cell"><span class="lex-sample-tag" aria-hidden="true">Hal. </span>{{ r.page }}</span>
+    <p class="lex-sample-line" role="cell"><span class="lex-sample-tag" aria-hidden="true">Salinan 1</span>{{ r.a }}</p>
+    <p class="lex-sample-line" role="cell"><span class="lex-sample-tag" aria-hidden="true">Salinan 2</span>{{ r.b }}{% if r.same %}<span class="sr-only"> (sama di kedua salinan)</span>{% endif %}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
 <section class="card lex" id="leksikal" aria-labelledby="langkah-lx">
-  <h2 id="langkah-lx" tabindex="-1"{% if lex_focus and sel is none %} data-autofocus{% endif %}>Pilihan kata <span class="field-optional">(opsional)</span></h2>
-  <p class="lead">Setiap penerima mendapat bentuk kata sendiri yang bermakna sama, misalnya “terdiri atas” atau “terdiri dari”, sehingga teks yang diketik ulang tetap dapat dilacak; akibatnya salinan terlihat berbeda kata bila dibandingkan, dan dokumen induk tetap menjadi catatan resmi.</p>
+  <div class="card-head">
+    <div>
+      <h2 id="langkah-lx" tabindex="-1"{% if lex_focus and (sel is none or not lv.total) %} data-autofocus{% endif %}>Pilihan kata <span class="field-optional">(opsional)</span></h2>
+      <p class="lead">Setiap penerima mendapat bentuk kata sendiri yang bermakna sama, misalnya “terdiri atas” atau “terdiri dari”, sehingga teks yang diketik ulang tetap dapat dilacak. Akibatnya salinan terlihat berbeda kata bila dibandingkan; dokumen induk tetap menjadi catatan resmi.</p>
+    </div>
+    {% if sel is not none and lv.total %}
+    {% set decided = lv.total - lv.pending %}
+    <button class="btn btn-ghost btn-small" type="button" id="lx-batal" hx-post="/terbitkan/{{ st.sid }}/leksikal/batal" hx-target="#semantik"
+            {% if decided %}hx-confirm="Jangan pakai pilihan kata? {{ decided }} keputusan titik akan dihapus."{% endif %}>Jangan pakai pilihan kata</button>
+    {% endif %}
+  </div>
   {% if lexicon and lexicon.is_draft %}
-  <p class="notice notice-warn lex-draft"><b>Leksikon {{ lexicon.name }} versi {{ lexicon.version }}: DRAF, belum disahkan peninjau bahasa Tata Naskah Dinas.</b> Pemeriksaan otomatis hanya menyaring; setiap titik tetap Anda tinjau.</p>
+  <p class="notice notice-warn lex-draft"><b>Leksikon {{ lv.lexicon_title }} versi {{ lexicon.version }}: DRAF, belum disahkan peninjau bahasa Tata Naskah Dinas.</b> Pemeriksaan otomatis hanya menyaring; setiap titik tetap Anda tinjau.</p>
   {% elif lv.lexicon_error %}
   <p class="notice notice-error lex-draft">Tabel leksikon tidak dapat dipakai: {{ lv.lexicon_error }}</p>
   {% endif %}
@@ -20,7 +61,7 @@
   {% if sel is none %}
   {% if lexicon %}
   <form class="lex-optin" hx-post="/terbitkan/{{ st.sid }}/leksikal" hx-target="#semantik" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
-    <p class="hint">TAPAK menyatakan teks ketikan ulang cukup untuk menyebut satu pembocor mulai {{ lv.lone_bits }} bit, sekitar {{ lv.lone_words }} kata isi dengan tabel ini. Dokumen yang lebih pendek tetap berakhir “tidak cukup bukti”. Tanpa pemindaian, salinan diterbitkan tanpa kanal ini.</p>
+    <p class="hint">Teks ketikan ulang baru cukup untuk menyebut satu pembocor mulai {{ lv.lone_bits }}&nbsp;bit, sekitar {{ lv.lone_words }}&nbsp;kata isi dengan tabel ini. Dokumen yang lebih pendek tetap berakhir “tidak cukup bukti”. Tanpa pemindaian, salinan diterbitkan tanpa kanal ini.</p>
     <div class="form-actions">
       <button class="btn btn-secondary" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
@@ -31,55 +72,33 @@
     </div>
   </form>
   {% endif %}
+
+  {% elif not lv.total %}
+  {# Nothing usable: the outcome first, then why (counts only); no counter, nothing to review. #}
+  <div class="lex-zero">
+    <p class="notice lex-outcome">Tidak ada frasa di dokumen ini yang lolos pemeriksaan dan muat pada barisnya. Salinan diterbitkan tanpa kanal pilihan kata.</p>
+    <p class="hint">{{ sel.body_words|num }}&nbsp;kata isi diperiksa.</p>
+    {{ refusals(lv) }}
+  </div>
+
   {% else %}
   {% set bits = lv.bits %}
+  {% set stamp %}{% if lv.enough %}<span class="stamp stamp-ok">Cukup untuk satu pembocor</span>{% else %}<span class="stamp stamp-warn">Belum cukup</span>{% endif %}{% endset %}
   <div class="lex-body">
-    <aside class="lex-aside" aria-labelledby="lx-kapasitas-h">
-      <div class="lex-counter">
-        <h3 class="label" id="lx-kapasitas-h">Tahan ketik ulang</h3>
-        <div class="lex-total-row">
-          <p class="lex-total"><span class="lex-total-n">{{ bits.total|num }}</span> bit</p>
-          {% if lv.enough %}<span class="stamp stamp-ok">Cukup untuk satu pembocor</span>{% else %}<span class="stamp stamp-warn">Belum cukup</span>{% endif %}
-        </div>
-        <p class="lex-sum">{{ bits.lex|num }} bit leksikal + {{ bits.sem|num }} bit semantik</p>
-        {% set m = meter(bits.total, lv.lone_bits) %}
-        <div class="meter{% if not lv.enough %} meter-below{% endif %}" style="--value: {{ m.value }}; --mark: {{ m.mark }}">
-          <div class="meter-track"><div class="meter-fill"></div><div class="meter-mark"></div></div>
-          <div class="meter-legend"><span>Disetujui <b>{{ bits.total|num }}</b></span><span>Satu pembocor <b>{{ lv.lone_bits }}</b></span></div>
-        </div>
-        <p class="small lex-verdict">{{ lv.verdict[:1]|upper }}{{ lv.verdict[1:] }}.</p>
-        {% if lv.pending %}<p class="hint">Bila semua titik yang menunggu disetujui: {{ sel.candidate_bits|num }} bit leksikal.</p>
-        {% elif lv.total and not bits.lex %}<p class="hint">Tidak ada titik yang disetujui: salinan diterbitkan tanpa kanal pilihan kata.</p>{% endif %}
-        <p class="hint lex-caveat">Nama yang hanya didukung teks ketikan ulang selalu diberi peringatan tanda terlihat: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya, jadi nama itu memerlukan bukti pendukung.</p>
-      </div>
-      <div class="lex-refused-box">
-        <h3 class="label" id="lx-ditolak-h">Ditolak pemeriksaan otomatis</h3>
-        {% if lv.refused %}
-        <ul class="lex-refused" aria-labelledby="lx-ditolak-h">
-          {% for category, n in lv.refused %}<li><span>{{ category }}</span><b class="tnum">{{ n }}</b></li>{% endfor %}
-        </ul>
-        <p class="hint">{{ lv.total }} titik dari {{ sel.body_words|num }} kata isi. Penolakan hanya disebut per kategori, tanpa kata dokumen.</p>
-        {% else %}
-        <p class="hint">Tidak ada. {{ lv.total }} titik dari {{ sel.body_words|num }} kata isi.</p>
-        {% endif %}
-      </div>
-    </aside>
     <div class="lex-main">
       <div class="review-head">
         {# takes focus after the scan (the scan button is gone) #}
         <h3 id="lx-tinjau-h" tabindex="-1"{% if lex_focus %} data-autofocus{% endif %}>Tinjau titik</h3>
-        {% if lv.total %}
         <div class="review-progress">
           <span class="bar{% if lv.pending %} bar-warn{% endif %}" style="--value: {{ ((lv.total - lv.pending) / lv.total)|round(3) }}"></span>
           <p class="small">{% if lv.pending %}{{ lv.pending }} dari {{ lv.total }} titik menunggu tinjauan Anda.{% else %}Semua titik sudah ditinjau.{% endif %}</p>
         </div>
-        {% endif %}
+        <a class="lex-skip" href="#langkah4">Lompat ke Terbitkan</a>
       </div>
-      {% if not lv.total %}
-      <p class="empty">Tidak ada frasa di dokumen ini yang lolos pemeriksaan dan muat pada barisnya. Salinan diterbitkan tanpa kanal pilihan kata.</p>
-      {% else %}
-      <p class="hint">Baca setiap kalimat. Setujui hanya bila setiap bentuknya tetap baku dan maknanya sama persis di kalimat itu.</p>
-      {% endif %}
+      <p class="hint">{{ lv.total }} titik dari {{ sel.body_words|num }}&nbsp;kata isi. Baca setiap kalimat. Setujui hanya bila setiap bentuknya tetap baku dan maknanya sama persis di kalimat itu.</p>
+      {# One line that stays in view while deciding, where the counter sits below the list
+         (a copy of the counter for sighted readers; the live region reads every change). #}
+      <p class="lex-live" aria-hidden="true"><span class="lex-live-n"><b>{{ bits.total|num }}</b>&nbsp;bit</span>{{ stamp }}<span class="lex-live-pending">{% if lv.pending %}{{ lv.pending }} menunggu{% else %}Semua ditinjau{% endif %}</span></p>
       {% for g in lv.groups %}
       {% set forms = g.forms|join(" / ") %}
       <article class="lex-rule" aria-labelledby="lx-aturan-{{ g.first }}-h">
@@ -90,18 +109,20 @@
             {% if note %}<p class="hint">{{ note[:1]|upper }}{{ note[1:] }}.</p>{% endif %}
             {% if g.example %}<p class="hint">Contoh: “{{ g.example }}”</p>{% endif %}
           </div>
-          <div class="lex-rule-actions" role="group" aria-label="Semua titik {{ forms }}">
+          {% if g.points|length > 1 %}
+          <div class="lex-rule-actions" role="group" aria-label="Semua titik “{{ forms }}”">
             {# Approving a whole rule asks first (the server also requires konfirmasi=ya); rejecting does not. #}
             <button class="btn btn-secondary btn-small" type="button" id="lx-aturan-{{ g.first }}-ok"
                     {% if g.pending %}hx-post="/terbitkan/{{ st.sid }}/leksikal/aturan/{{ g.first }}/disetujui" hx-vals='{"konfirmasi": "ya"}' hx-target="#semantik"
-                    hx-confirm="Setujui {{ g.pending }} titik {{ forms }} sekaligus? Lakukan ini hanya setelah setiap kalimatnya Anda baca."{% else %}aria-disabled="true"{% endif %}>
-              {{ ikon("check") }}{% if g.pending %}Setujui yang menunggu ({{ g.pending }}){% else %}Tidak ada yang menunggu{% endif %}
+                    hx-confirm="Setujui {{ g.pending }} titik “{{ forms }}” sekaligus? Lakukan ini hanya setelah setiap kalimatnya Anda baca."{% else %}aria-disabled="true"{% endif %}>
+              {% if g.pending %}{{ ikon("check") }}Setujui yang menunggu ({{ g.pending }}){% else %}Tidak ada yang menunggu{% endif %}<span class="sr-only">: {{ forms }}</span>
             </button>
             <button class="btn btn-ghost btn-small" type="button" id="lx-aturan-{{ g.first }}-no"
                     {% if g.rejectable %}hx-post="/terbitkan/{{ st.sid }}/leksikal/aturan/{{ g.first }}/ditolak" hx-target="#semantik"{% else %}aria-disabled="true"{% endif %}>
-              {{ ikon("x") }}{% if g.rejectable %}Tolak semua ({{ g.points|length }}){% else %}Semua ditolak{% endif %}
+              {% if g.rejectable %}{{ ikon("x") }}Tolak semua ({{ g.points|length }}){% else %}Semua ditolak{% endif %}<span class="sr-only">: {{ forms }}</span>
             </button>
           </div>
+          {% endif %}
         </div>
         <ol class="lex-points">
           {% for item in g.points %}
@@ -112,15 +133,12 @@
             <p class="lex-context">{{ item.context }}</p>
             {% if p.repeated %}<p class="lex-repeated">Konteks berulang: frasa dan kata di sekitarnya juga ada di bagian lain dokumen. Tolak bila bocoran dapat menukar urutan kalimat.</p>{% endif %}
             <div class="lex-point-foot">
-              <div class="lex-point-info">
-                <p class="lex-meta">
-                  {% if p.status == "disetujui" %}<span class="stamp stamp-ok">Disetujui</span>
-                  {% elif p.status == "ditolak" %}<span class="stamp stamp-danger">Ditolak</span>
-                  {% else %}<span class="stamp stamp-neutral">Menunggu</span>{% endif %}
-                  <span class="tnum">Titik {{ no }} · halaman {{ p.page + 1 }} · {{ p.bits }} bit</span>
-                </p>
-                <p class="lex-forms"><span class="lex-forms-label">Bentuk</span>{% for f in p.forms %}<span class="lex-form{% if loop.first %} is-master{% endif %}">{{ f }}{% if loop.first %}<span class="sr-only"> (induk)</span>{% endif %}</span>{% endfor %}</p>
-              </div>
+              <p class="lex-meta">
+                {% if p.status == "disetujui" %}<span class="stamp stamp-ok">Disetujui</span>
+                {% elif p.status == "ditolak" %}<span class="stamp stamp-danger">Ditolak</span>
+                {% else %}<span class="stamp stamp-neutral">Menunggu</span>{% endif %}
+                <span class="tnum">Titik {{ no }} · halaman {{ p.page + 1 }} · {{ p.bits }}&nbsp;bit{% if item.own_forms %} · bentuk: {{ p.forms|join(" / ") }}{% endif %}</span>
+              </p>
               <div class="segmented" role="group" aria-label="Putusan {{ name }}">
                 <button type="button" class="btn-approve" id="lx-{{ p.point_id }}-ok"
                         aria-pressed="{{ 'true' if p.status == 'disetujui' else 'false' }}"
@@ -138,36 +156,55 @@
       </article>
       {% endfor %}
     </div>
+    <div class="lex-aside" role="group" aria-labelledby="lx-kapasitas-h">
+      <div class="lex-counter">
+        <h3 class="label" id="lx-kapasitas-h">Tahan ketik ulang</h3>
+        <div class="lex-tally">
+          <div class="lex-total-row">
+            <p class="lex-total"><span class="lex-total-n">{{ bits.total|num }}</span>&nbsp;bit</p>
+            {{ stamp }}
+          </div>
+          <p class="lex-sum">{{ bits.lex|num }}&nbsp;bit leksikal + {{ bits.sem|num }}&nbsp;bit semantik</p>
+        </div>
+        {% set m = meter(bits.total, lv.lone_bits) %}
+        <div class="meter{% if not lv.enough %} meter-below{% endif %}" style="--value: {{ m.value }}; --mark: {{ m.mark }}">
+          <div class="meter-track"><div class="meter-fill"></div><div class="meter-mark"></div></div>
+          <div class="meter-legend"><span>Satu pembocor <b>{{ lv.lone_bits }}</b></span></div>
+        </div>
+        <p class="small lex-verdict">{{ lv.verdict }}.</p>
+        {% if lv.pending %}<p class="hint">Bila semua titik yang menunggu disetujui: {{ sel.candidate_bits|num }}&nbsp;bit leksikal.</p>
+        {% elif not bits.lex %}<p class="hint">Tidak ada titik yang disetujui: salinan diterbitkan tanpa kanal pilihan kata.</p>{% endif %}
+        <p class="hint lex-caveat">Nama yang hanya didukung teks ketikan ulang selalu diberi peringatan tanda terlihat: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya, jadi nama itu memerlukan bukti pendukung.</p>
+      </div>
+      {{ refusals(lv) }}
+    </div>
   </div>
 
-  {% if lv.total %}
   <div class="lex-sample">
     <h3 id="lx-contoh-h">Contoh dua salinan</h3>
     {% set pv = lv.preview %}
     {% if pv %}
-    <p class="hint">Baris yang memuat titik yang disetujui, seperti tercetak pada dua salinan contoh. Bentuk yang berbeda diberi latar; bentuk yang sama digarisbawahi titik-titik. Kedua contoh berbeda pada {{ pv.differ }} dari {{ pv.points }} titik. Baris ini keluar dari kanal geser ({{ pv.shift_lost }} dari {{ pv.shift_all }} bit geser).</p>
-    <div class="lex-sample-table" role="table" aria-labelledby="lx-contoh-h">
-      <div class="lex-sample-row lex-sample-cols" role="row">
-        <span role="columnheader">Hal.</span><span role="columnheader">Salinan contoh 1</span><span role="columnheader">Salinan contoh 2</span>
-      </div>
-      {% for r in pv.rows %}
-      <div class="lex-sample-row{% if r.same %} is-same{% endif %}" role="row">
-        <span class="lex-sample-page" role="cell">{{ r.page }}</span>
-        <p class="lex-sample-line" role="cell"><span class="lex-sample-tag" aria-hidden="true">1</span>{{ r.a }}</p>
-        <p class="lex-sample-line" role="cell"><span class="lex-sample-tag" aria-hidden="true">2</span>{{ r.b }}{% if r.same %}<span class="sr-only"> (sama di kedua salinan)</span>{% endif %}</p>
-      </div>
-      {% endfor %}
-    </div>
+    {% if pv.differ %}
+    <p class="small">Dua salinan contoh yang paling berbeda, dari delapan: berbeda pada {{ pv.differ }} dari {{ pv.points }} titik yang disetujui.</p>
+    <p class="hint">Baris yang memuat titik yang disetujui, seperti tercetak. Bentuk yang berbeda diberi latar; bentuk yang sama digarisbawahi titik-titik.</p>
+    {% else %}
+    <p class="small">Delapan salinan contoh memakai bentuk yang sama pada {{ pv.points }} titik yang disetujui; salinan penerima tetap dapat berbeda.</p>
+    {% endif %}
+    {% if pv.differing %}
+    {{ sample_table(pv.differing, "Baris yang berbeda pada kedua salinan contoh") }}
+    {% endif %}
+    {% if pv.same and pv.differing %}
+    <details class="more lex-sample-same">
+      <summary>{{ pv.same|length }} baris sama di kedua contoh</summary>
+      {{ sample_table(pv.same, "Baris yang sama pada kedua salinan contoh") }}
+    </details>
+    {% elif pv.same %}
+    {{ sample_table(pv.same, "Baris pada kedua salinan contoh") }}
+    {% endif %}
+    <p class="hint">Baris-baris ini digambar ulang kata demi kata, jadi keluar dari kanal geser ({{ pv.shift_lost|num }}&nbsp;dari {{ pv.shift_all|num }}&nbsp;bit geser). Tabel rencana di atas menunjukkan angka sebelum pilihan kata.</p>
     {% else %}
     <p class="empty">Setujui titik untuk melihat bagaimana dua salinan berbeda.</p>
     {% endif %}
-  </div>
-  {% endif %}
-
-  <div class="lex-foot">
-    {% set decided = lv.total - lv.pending %}
-    <button class="btn btn-ghost btn-small" type="button" id="lx-batal" hx-post="/terbitkan/{{ st.sid }}/leksikal/batal" hx-target="#semantik"
-            {% if decided %}hx-confirm="Jangan pakai pilihan kata? {{ decided }} keputusan titik akan dihapus."{% endif %}>{{ ikon("x") }}Jangan pakai pilihan kata</button>
   </div>
   {% endif %}
 </section>
