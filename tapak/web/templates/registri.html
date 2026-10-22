@@ -83,6 +83,58 @@
   </section>
   {% endif %}
 
+  {# anchor: state of the external anchor log (tapak.registry.anchor.AnchorStatus) #}
+  {% set jangkar = anchor|default(none) %}
+  {% if jangkar is not none and (has_registry or jangkar.configured) %}
+  {% set jangkar_tolak = (jangkar.configured and not jangkar.ok) or (not jangkar.configured and jangkar.required_by is not none) %}
+  <section class="card jangkar{% if jangkar_tolak %} is-rusak{% endif %}" aria-labelledby="jangkar-h">
+    <div class="card-head">
+      <div>
+        <h2 id="jangkar-h">Log jangkar</h2>
+        <p class="lead">Nomor dan hash setiap entri, ditambahkan ke berkas di penyimpanan terpisah. Entri yang dihapus dari ujung registri hanya terlihat dengan log ini, atau dengan jangkar yang tercetak di berita acara.</p>
+      </div>
+      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}Hilang{% elif jangkar.configured %}Tidak cocok{% else %}Tidak diatur{% endif %}</span>
+      {% elif jangkar.configured %}<span class="stamp stamp-ok">Cocok</span>
+      {% else %}<span class="stamp stamp-neutral">Tidak diatur</span>{% endif %}
+    </div>
+    {% if jangkar.configured %}
+    <dl class="kv">
+      <dt>Lokasi</dt>
+      <dd class="mono small">{{ jangkar.path }}</dd>
+      {% if jangkar.ok %}
+      <dt>Dijangkarkan</dt>
+      <dd class="tnum">{% if jangkar.anchored_seq %}Sampai entri #{{ jangkar.anchored_seq }}{% else %}Belum ada entri{% endif %}{% if jangkar.lag %}; {{ jangkar.lag|num }} entri terakhir dicatat pada penulisan berikutnya{% endif %}</dd>
+      {% endif %}
+      {% if not jangkar.missing %}
+      <dt>Baris</dt>
+      <dd class="tnum">{{ jangkar.lines|num }}, {{ jangkar.signed_lines|num }} bertanda tangan</dd>
+      {% endif %}
+      {% if jangkar.acks %}
+      <dt>Pengakuan</dt>
+      <dd class="tnum">{{ jangkar.acks|length|num }} pengakuan pemulihan, {{ jangkar.released|length|num }} entri dilepas{% if jangkar.released_traces %} ({{ jangkar.released_traces|num }} pelacakan){% endif %}</dd>
+      {% endif %}
+    </dl>
+    {% if jangkar.problems %}
+    <div class="notice notice-error integritas-catatan" role="alert">
+      <p>Pelacakan dan penerbitan ditolak sampai perbedaan ini diperiksa dengan <span class="mono nowrap">tapak verify</span>.</p>
+      <ul class="notes">{% for p in jangkar.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    {% if jangkar.warnings %}
+    <div class="notice notice-warn integritas-catatan">
+      <ul class="notes">{% for w in jangkar.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    {% elif jangkar.required_by is not none %}
+    <div class="notice notice-error" role="alert">
+      <p>Registri ini memakai log jangkar sejak entri #{{ jangkar.required_by }}, tetapi lokasinya tidak diatur di server ini, jadi pelacakan dan penerbitan ditolak. Jalankan server dengan <span class="mono nowrap">tapak --log-jangkar BERKAS web</span> atau atur TAPAK_ANCHOR_LOG.</p>
+    </div>
+    {% else %}
+    <p class="empty">Belum dipakai. Pilih berkas di penyimpanan yang tidak dapat disunting orang yang dapat menyunting registri, jalankan <span class="mono nowrap">tapak --log-jangkar BERKAS jangkar mulai</span>, lalu jalankan server dengan lokasi yang sama.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <div class="{{ 'split-even' if has_registry else 'stack' }}">
     <section class="card" aria-labelledby="kunci-h">
       <div class="card-head">

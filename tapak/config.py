@@ -17,6 +17,11 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
 
+def _optional_path(name: str) -> Path | None:
+    value = os.environ.get(name, "").strip()
+    return Path(value) if value else None
+
+
 @dataclass(frozen=True)
 class Settings:
     """Runtime settings.
@@ -31,6 +36,9 @@ class Settings:
         llm_provider: "mock" (default, no model needed) or "llamacpp".
         llm_model_path: GGUF model file for the llamacpp provider.
         llm_server_url: local llama.cpp server URL (loopback only).
+        anchor_log: external anchor log (``TAPAK_ANCHOR_LOG`` or ``tapak --log-jangkar``),
+            an append-only file outside the registry that exposes entries deleted from the
+            end of the chain (``tapak.registry.anchor``); None (default) when not used.
     """
 
     data_dir: Path = field(default_factory=lambda: Path(_env("TAPAK_DATA", "data")))
@@ -41,6 +49,7 @@ class Settings:
     llm_provider: str = field(default_factory=lambda: _env("TAPAK_LLM", "mock"))
     llm_model_path: str = field(default_factory=lambda: _env("TAPAK_LLM_MODEL", ""))
     llm_server_url: str = field(default_factory=lambda: _env("TAPAK_LLM_URL", "http://127.0.0.1:8080"))
+    anchor_log: Path | None = field(default_factory=lambda: _optional_path("TAPAK_ANCHOR_LOG"))
 
     @property
     def registry_path(self) -> Path:

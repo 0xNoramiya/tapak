@@ -44,7 +44,7 @@ def run_demo(workdir: Path, keep: bool = False) -> int:
     """Run the scenario in ``workdir``; return 0 if every expected outcome happened."""
     import os
 
-    saved = {k: os.environ.get(k) for k in ("TAPAK_DATA", "TAPAK_KEY_DIR", "TAPAK_CANARY_DOMAIN")}
+    saved = {k: os.environ.get(k) for k in ("TAPAK_DATA", "TAPAK_KEY_DIR", "TAPAK_CANARY_DOMAIN", "TAPAK_ANCHOR_LOG")}
     try:
         return _run(Path(workdir), keep)
     finally:
@@ -71,6 +71,7 @@ def _run(workdir: Path, keep: bool) -> int:
     marker.write_text("folder demo TAPAK; boleh dihapus\n", encoding="utf-8")
     os.environ["TAPAK_DATA"] = str(workdir / "data")
     os.environ["TAPAK_KEY_DIR"] = str(workdir / "keys")
+    os.environ.pop("TAPAK_ANCHOR_LOG", None)  # the demo registry never writes to an operator's anchor log
     domain = "kanari.tapak.test"
     os.environ["TAPAK_CANARY_DOMAIN"] = domain
 

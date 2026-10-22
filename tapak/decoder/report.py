@@ -165,6 +165,8 @@ class ReportInfo:
         trace_entry, trace_entry_hash: number and hash of the registry entry that logged this
             trace (None and "" when it was not logged). Printed as an anchor for
             ``tapak verify --jangkar``, so deleting the entry later is detected.
+        anchor_text: the state of the external anchor log for this trace (one sentence, see
+            ``tapak.registry.anchor``); "" prints nothing.
     """
 
     case_number: str
@@ -194,6 +196,7 @@ class ReportInfo:
     place: str = ""
     trace_entry: int | None = None
     trace_entry_hash: str = ""
+    anchor_text: str = ""
 
     def __post_init__(self) -> None:
         if any(t not in EVIDENCE_TYPES for t in self.evidence_type.split(", ")):
@@ -821,6 +824,7 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "stages": _stage_views(attribution),
         "trace_anchor": (f"{info.trace_entry}:{info.trace_entry_hash}"
                          if info.trace_entry is not None and info.trace_entry_hash else ""),
+        "anchor_text": info.anchor_text[:1].upper() + info.anchor_text[1:],
         "channel_rows": channel_rows,
         "unread_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_UNREAD],
         "unexamined_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_NOT_EXAMINED],

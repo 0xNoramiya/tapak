@@ -18,6 +18,13 @@
   .integritas-putusan .stamp-lg { grid-row: auto; justify-self: start; margin-bottom: 8px; }
 }
 
+/* external anchor log: location and counts, then the problems that refuse traces */
+.jangkar { display: flex; flex-direction: column; gap: 16px; }
+.jangkar > .card-head { margin-bottom: 0; }
+.jangkar.is-rusak { border-color: var(--danger-line); }
+.jangkar .notice p { margin: 0; }
+.jangkar .notice .notes { margin: 6px 0 0; }
+
 /* public key and Merkle export side by side, equal height */
 .registri .split-even { align-items: stretch; }
 .kode { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

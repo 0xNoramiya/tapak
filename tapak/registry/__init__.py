@@ -14,4 +14,7 @@ Modules (import from them directly; this package file stays empty so that
   (``verify_registry``, console script ``tapak-verify-registry``).
 * ``tapak.registry.merkle``: daily Merkle roots (``export_daily_roots``,
   ``check_daily_roots``, ``merkle_root``, ``merkle_proof``, ``verify_proof``).
+* ``tapak.registry.anchor``: the optional external anchor log (``AnchorLog``,
+  ``compare_anchor``, ``start_log``, ``acknowledge``), an append-only file on separate
+  storage that exposes entries deleted from the end of the chain (entry kind ``anchor_log``).
 """

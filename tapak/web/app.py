@@ -364,9 +364,9 @@ _REGISTRY_STATUS: dict[str, object] = {}
 
 
 def _registry_key(s: Settings) -> str:
-    """Path, size and modification time of the registry and the public key file."""
+    """Path, size and modification time of the registry, the public key file and the anchor log."""
     stamp = []
-    for p in (s.registry_path, s.public_key_path):
+    for p in (s.registry_path, s.public_key_path, *([s.anchor_log] if s.anchor_log else [])):
         try:
             st = p.stat()
             stamp.append((str(p), st.st_size, st.st_mtime_ns))
@@ -413,7 +413,8 @@ def _verify_status(s: Settings) -> dict[str, object]:
     from tapak.registry.verify import verify_registry
 
     try:
-        report = verify_registry(s.registry_path, s.public_key_path.read_text().strip(), require_signed=False)
+        report = verify_registry(s.registry_path, s.public_key_path.read_text().strip(), require_signed=False,
+                                 anchor_log=s.anchor_log)
     except (OSError, ValueError):  # SigningKeyError and UnicodeDecodeError are ValueErrors
         return unreadable
     return _report_status(report)
@@ -1499,7 +1500,7 @@ def registri_page(request: Request) -> HTMLResponse:
     from tapak.canary_dns.store import check_events_chain
     from tapak.registry.signing import SigningKeyError, normalize_public_key
     from tapak.registry.verify import verify_registry
-    from tapak.service import list_workspaces
+    from tapak.service import anchor_status, list_workspaces
 
     s = settings()
     key = _registry_key(s)
@@ -1514,14 +1515,15 @@ def registri_page(request: Request) -> HTMLResponse:
         except OSError as exc:
             key_error = f"berkas tidak dapat dibaca ({exc.strerror or exc})"
     if public_key and s.registry_path.exists():
-        report = verify_registry(s.registry_path, public_key, require_signed=False)
+        report = verify_registry(s.registry_path, public_key, require_signed=False, anchor_log=s.anchor_log)
         with _LOCK:  # the sidebar of this page reuses the check instead of verifying again
             _REGISTRY_STATUS.update(key=key, value=_report_status(report))
     docs = list_workspaces(s)
     return _page(request, "registri.html", title="Registri", active="registri", report=report, docs=docs,
                  alerts=_canary_events(s, docs), registry=_registry_status(), public_key=public_key,
                  key_error=key_error, public_key_path=str(s.public_key_path),
-                 canary_log=check_events_chain(s.canary_db) if s.canary_db.exists() else None)
+                 canary_log=check_events_chain(s.canary_db) if s.canary_db.exists() else None,
+                 anchor=anchor_status(s))
 
 
 @app.get("/registri/status", response_class=HTMLResponse)

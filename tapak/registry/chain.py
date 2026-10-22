@@ -31,12 +31,19 @@ Signing rules (signed entries always form a prefix of the chain):
 An unsigned entry followed by a signed one is therefore evidence that a signature was
 removed.
 
-Entry kinds: ``document`` (one per issued document), ``copy`` (one per copy) and
+Entry kinds: ``document`` (one per issued document), ``copy`` (one per copy),
 ``trace`` (one per trace of a recorded document, appended before the evidence is decoded;
 trace number k spends eps * 6 / (pi^2 k^2) of the document's false-accusation budget, see
 ``tapak.tardos.spending``; a trace that runs the staged accusation also records its stage
-policy and the eps of every stage, ``stage_policy`` and ``stage_eps``). Other kinds, such as the canary log's ``canary_anchor``, are
-accepted as any JSON object.
+policy and the eps of every stage, ``stage_policy`` and ``stage_eps``) and ``anchor_log``
+(the external anchor log of ``tapak.registry.anchor`` was started, started again after a
+loss, or an alarm was acknowledged: event, log id, released ``[seq, entry_hash]`` pairs and
+the SHA-256 of the operator's reason). Other kinds, such as the canary log's
+``canary_anchor``, are accepted as any JSON object.
+
+A registry opened with an anchor log (``Registry.open(path, anchor=...)``) checks the log
+against the chain at the start of every write transaction and appends one line per new
+entry to it after the transaction has committed, never before (``tapak.registry.anchor``).
 
 A ``document`` entry of a document that opted into the lexical channel (word choice) also
 carries ``retype_positions``, ``lexical_digest``, ``lexicon_version``, ``lexicon_digest``,
@@ -64,7 +71,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from tapak.registry.signing import Signer, verify_signature
 
@@ -76,7 +83,8 @@ SCHEMA_VERSION = 1
 KIND_DOCUMENT = "document"
 KIND_COPY = "copy"
 KIND_TRACE = "trace"
-KIND_LABELS = {KIND_DOCUMENT: "dokumen", KIND_COPY: "salinan", KIND_TRACE: "pelacakan"}
+KIND_ANCHOR = "anchor_log"
+KIND_LABELS = {KIND_DOCUMENT: "dokumen", KIND_COPY: "salinan", KIND_TRACE: "pelacakan", KIND_ANCHOR: "log jangkar"}
 CANARY_DIGEST_PREFIX = "sha256:"
 _HEX = frozenset("0123456789abcdef")
 
@@ -90,8 +98,13 @@ COPY_FIELDS = frozenset({
     "semantic_variant_ids", "issued_at", "issuer", "canary_token", "file_sha256",
 })
 TRACE_FIELDS = frozenset({"doc_hash", "trace_no", "evidence_sha256", "eps_share", "eps", "created_at"})
+# Events of the external anchor log: started, started again after the log was lost, and an
+# alarm acknowledged by the operator (the released pairs are the anchored entries gone).
+ANCHOR_FIELDS = frozenset({"event", "log_id", "released", "reason_sha256", "created_at"})
+ANCHOR_EVENTS = ("start", "restart", "ack")
 KIND_FIELDS: dict[str, frozenset[str]] = {
     KIND_DOCUMENT: DOCUMENT_FIELDS, KIND_COPY: COPY_FIELDS, KIND_TRACE: TRACE_FIELDS,
+    KIND_ANCHOR: ANCHOR_FIELDS,
 }
 # Fields a row may carry in addition (added later; older rows stay valid without them).
 LEXICAL_DOCUMENT_FIELDS = frozenset({
@@ -274,6 +287,48 @@ def _stage_problems(payload: dict[str, Any], share: float) -> list[str]:
     return []
 
 
+def anchor_payload_problems(payload: object) -> list[str]:
+    """Problems (Indonesian) with an ``anchor_log`` payload; empty when it is valid.
+
+    ``event`` is one of :data:`ANCHOR_EVENTS`, ``log_id`` 32 lowercase hex, ``released`` a
+    sorted list of distinct ``[seq, entry_hash]`` pairs that is non-empty exactly for an
+    acknowledgement (``ack``), ``reason_sha256`` the SHA-256 of the operator's reason
+    (required for ``restart`` and ``ack``, optional for ``start``) and ``created_at`` a
+    timestamp. Never raises, whatever the payload holds.
+    """
+    if not isinstance(payload, dict):
+        return ["isi entri log jangkar bukan objek JSON"]
+    if set(payload) != ANCHOR_FIELDS:
+        return [f"kolom entri log jangkar tidak sesuai skema: kurang {sorted(ANCHOR_FIELDS - set(payload))}, "
+                f"berlebih {sorted(set(payload) - ANCHOR_FIELDS)}"]
+    problems = []
+    event = payload["event"]
+    if not isinstance(event, str) or event not in ANCHOR_EVENTS:
+        problems.append("peristiwa log jangkar tidak dikenal")
+    log_id = payload["log_id"]
+    if not (isinstance(log_id, str) and len(log_id) == 32 and set(log_id) <= _HEX):
+        problems.append("log_id entri log jangkar bukan 32 karakter heksadesimal")
+    released = payload["released"]
+    if not (isinstance(released, list) and all(
+            isinstance(r, list) and len(r) == 2 and isinstance(r[0], int) and not isinstance(r[0], bool)
+            and r[0] >= 1 and _is_sha256_hex(r[1]) for r in released)):
+        problems.append("released entri log jangkar harus daftar [nomor entri, hash]")
+    elif released != [list(pair) for pair in sorted({(r[0], r[1]) for r in released})]:
+        problems.append("released entri log jangkar harus terurut dan tanpa pasangan ganda")
+    elif (event == "ack") != bool(released):
+        problems.append("released hanya diisi, dan wajib diisi, pada pengakuan (ack)")
+    reason = payload["reason_sha256"]
+    if reason is not None and not _is_sha256_hex(reason):
+        problems.append("reason_sha256 entri log jangkar bukan SHA-256 heksadesimal")
+    elif reason is None and event in ("restart", "ack"):
+        problems.append("alasan wajib dicatat untuk memulai ulang log jangkar dan untuk pengakuan")
+    try:
+        parse_time(payload["created_at"])
+    except (TypeError, ValueError):
+        problems.append("created_at entri log jangkar bukan waktu ISO 8601 dengan zona waktu")
+    return problems
+
+
 def utc_now() -> str:
     """Current UTC time, ISO 8601 with milliseconds."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -378,6 +433,16 @@ class Entry:
                 "signature": self.signature, "signer": self.signer}
 
 
+class AnchorHook(Protocol):
+    """What :class:`Registry` needs from an anchor log (``tapak.registry.anchor.AnchorLog``)."""
+
+    def prepare(self, registry: Registry) -> object:
+        """Check the log against the chain inside the write transaction; raise to refuse the write."""
+
+    def record(self, entries: list[Entry]) -> None:
+        """Write one line per committed entry; raise if they cannot be written."""
+
+
 def describe_entry(entry: Entry) -> str:
     """One Indonesian line identifying an entry, for the key holder's review before signing.
 
@@ -392,6 +457,9 @@ def describe_entry(entry: Entry) -> str:
             parts.append(f"{key} {p[key]}")
     if entry.kind == KIND_TRACE:
         parts.append(f"pelacakan ke-{p.get('trace_no')}, {len(p.get('evidence_sha256') or [])} berkas bukti")
+    if entry.kind == KIND_ANCHOR:
+        parts.append(f"peristiwa {p.get('event')}, log {str(p.get('log_id'))[:8]}, "
+                     f"{len(p.get('released') or [])} entri dilepas")
     if entry.kind not in KIND_FIELDS:
         parts.append("kolom: " + ", ".join(sorted(map(str, p))))
     return "  ".join(parts)
@@ -420,6 +488,9 @@ def _check_payload(kind: str, payload: object) -> None:
     problems = trace_payload_problems(payload) if kind == KIND_TRACE else []
     if problems:
         raise ValueError("isi entri 'trace' tidak sah: " + "; ".join(problems))
+    problems = anchor_payload_problems(payload) if kind == KIND_ANCHOR else []
+    if problems:
+        raise ValueError(f"isi entri '{KIND_ANCHOR}' tidak sah: " + "; ".join(problems))
     if kind == KIND_DOCUMENT and set(payload) & LEXICAL_DOCUMENT_FIELDS:
         lexical = lexical_document_problems(payload)
         if lexical:
@@ -493,20 +564,31 @@ def lexical_document_problems(payload: dict[str, Any]) -> list[str]:
 class Registry:
     """Handle on one registry file. Use :meth:`open`; close with :meth:`close` or ``with``."""
 
-    def __init__(self, conn: sqlite3.Connection, path: Path) -> None:
+    def __init__(self, conn: sqlite3.Connection, path: Path, anchor: AnchorHook | None = None) -> None:
         self._conn = conn
         self.path = path
         self._in_tx = False
         self.trigger_repairs: list[str] = []
+        self._anchor = anchor
+        self._appended: list[Entry] = []
+
+    @property
+    def anchor(self) -> AnchorHook | None:
+        """The external anchor log this handle writes to (None: no anchor log)."""
+        return self._anchor
 
     @classmethod
-    def open(cls, path: str | Path, repair_triggers: bool = False) -> "Registry":
+    def open(cls, path: str | Path, repair_triggers: bool = False, anchor: AnchorHook | None = None) -> "Registry":
         """Open (and create if needed) the registry file with its schema and triggers.
 
         A file whose ``entries`` table exists but whose triggers are missing or altered was
         edited outside TAPAK: opening it raises RegistryError (run ``tapak-verify-registry``
         first). With ``repair_triggers=True`` the triggers are re-created instead and the
         repairs are listed in :attr:`trigger_repairs`.
+
+        With an ``anchor`` (``tapak.registry.anchor.AnchorLog``), every write transaction
+        first checks the anchor log against the chain (and refuses on a mismatch), and the
+        entries it appended are written to the anchor log after the commit.
         """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -541,7 +623,7 @@ class Registry:
         except BaseException:
             conn.close()
             raise
-        reg = cls(conn, path)
+        reg = cls(conn, path, anchor)
         reg.trigger_repairs = repairs
         return reg
 
@@ -557,21 +639,39 @@ class Registry:
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
-        """Group several appends atomically (all or nothing). Nested use joins the outer one."""
+        """Group several appends atomically (all or nothing). Nested use joins the outer one.
+
+        With an anchor log, the outermost transaction checks the log first, under the write
+        lock (``anchor.prepare``, which raises on a mismatch), and hands the entries it
+        appended to ``anchor.record`` only once COMMIT has succeeded. A rolled-back or failed
+        commit never reaches the anchor log, so the log cannot get ahead of the registry.
+        """
         if self._in_tx:
             yield
             return
         self._conn.execute("BEGIN IMMEDIATE")
         self._in_tx = True
+        self._appended = []
         try:
+            if self._anchor is not None:
+                self._anchor.prepare(self)
             yield
         except BaseException:
             self._conn.execute("ROLLBACK")
+            self._in_tx, self._appended = False, []
             raise
-        else:
+        try:
             self._conn.execute("COMMIT")
+        except BaseException:
+            if self._conn.in_transaction:
+                self._conn.execute("ROLLBACK")
+            self._appended = []
+            raise
         finally:
             self._in_tx = False
+        appended, self._appended = self._appended, []
+        if self._anchor is not None and appended:
+            self._anchor.record(appended)  # after the commit: may raise, the entries stay committed
 
     # ---- reading -------------------------------------------------------------------
 
@@ -579,6 +679,12 @@ class Registry:
         """The last entry, or None for an empty registry."""
         row = self._conn.execute(f"SELECT {_COLUMNS} FROM entries ORDER BY seq DESC LIMIT 1").fetchone()
         return _row_to_entry(row) if row else None
+
+    def raw_rows(self) -> list[tuple[Any, ...]]:
+        """Every row exactly as stored, in ``seq`` order: ``(seq, kind, payload, prev_hash,
+        created_at, entry_hash, signature, signer)`` with the payload as text. Never parses a
+        payload, so a row edited outside TAPAK cannot make this raise."""
+        return self._conn.execute(f"SELECT {_COLUMNS} FROM entries ORDER BY seq").fetchall()
 
     def entries(self, kind: str | None = None) -> list[Entry]:
         """All entries in order, optionally only those of one kind."""
@@ -677,7 +783,9 @@ class Registry:
             self._conn.execute(
                 f"INSERT INTO entries ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (seq, kind, text.decode("utf-8"), prev_hash, stamp, entry_hash, signature, public))
-        return Entry(seq, kind, stored_payload, prev_hash, stamp, entry_hash, signature, public)
+            entry = Entry(seq, kind, stored_payload, prev_hash, stamp, entry_hash, signature, public)
+            self._appended.append(entry)  # anchored after the outermost transaction commits
+        return entry
 
     def _sign_pending(self, signer: Signer, up_to: int | None) -> int:
         """Check the whole chain, then sign unsigned entries up to ``up_to`` (call inside a transaction).
@@ -834,6 +942,32 @@ class Registry:
             if stage_policy is not None:
                 payload.update(stage_policy=stage_policy, stage_eps=list(split_stage_eps(share, stage_policy)))
             return self.append(KIND_TRACE, payload, signer=signer, created_at=stamp)  # validates the values
+
+    def record_anchor_event(
+        self,
+        *,
+        event: str,
+        log_id: str,
+        released: Sequence[tuple[int, str]] = (),
+        reason_sha256: str | None = None,
+        signer: Signer | None = None,
+    ) -> Entry:
+        """Log an event of the external anchor log (``tapak.registry.anchor``); return the entry.
+
+        ``event`` is ``start`` (a log was started), ``restart`` (a new log replaces a lost
+        one) or ``ack`` (the operator acknowledged anchored entries that the registry no
+        longer has; ``released`` lists them as ``(seq, entry_hash)``). ``reason_sha256`` is
+        the SHA-256 of the operator's reason: the reason itself stays in the anchor log.
+        """
+        pairs = [[int(seq), str(h)] for seq, h in sorted({(int(s), str(h)) for s, h in released})]
+        with self.transaction():
+            head = self.head()
+            stamp = utc_now()
+            if head and parse_time(stamp) < parse_time(head.created_at):
+                stamp = head.created_at  # clock stepped back: keep timestamps monotonic
+            payload = {"event": event, "log_id": log_id, "released": pairs, "reason_sha256": reason_sha256,
+                       "created_at": stamp}
+            return self.append(KIND_ANCHOR, payload, signer=signer, created_at=stamp)  # validates the values
 
 
 def sign_pending(registry: Registry, signer: Signer, up_to: int | None = None) -> int:
