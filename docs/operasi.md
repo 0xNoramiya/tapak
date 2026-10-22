@@ -14,7 +14,9 @@ make test           # seluruh pengujian
 make simulate       # angka simulasi Tardos
 make photos bench   # kumpulan foto sintetis lalu uji regresi dekoder
 make photos-cetak   # foto kertas cetak (printer disimulasikan); make bench melaporkannya terpisah
-make bench-check    # ketiganya dari awal; hasilnya harus sama byte demi byte dengan docs/results
+make photos-ponsel  # foto make photos lewat ISP ponsel simulasi; dilaporkan terpisah
+make photos-layar   # foto salinan di monitor simulasi (subpiksel, moire) dengan ISP ponsel; dilaporkan terpisah
+make bench-check    # semua kumpulan foto dari awal; hasilnya harus sama byte demi byte dengan docs/results
 make web            # antarmuka web di http://127.0.0.1:8000
 make figures        # grafik README dibuat ulang dari kode dan data (perlu: uv pip install -e ".[figures]")
 ```
@@ -240,6 +242,8 @@ Variabel lingkungan:
 - penanda, kanal 3 lewat MuPDF dan poppler, ketidakterlihatan pada 600 dpi;
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
 - simulator printer, profil latar cetak, dan templat induk tepat;
+- ISP ponsel dan monitor simulasi: aliran foto bawaan tidak berubah (hash emas), setiap profil dan jenis baru deterministik, moire muncul di frekuensi yang diramalkan, uji ujung ke ujung per jenis baru;
+- kanal latar pada foto layar: penyaring komponen berkala tidak bergantung pada kode penerima dan menurunkan galat bit pada foto bermoire;
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
 - log jangkar: entri yang dihapus dari ujung, diganti, atau diubah, log yang hilang, jendela mati listrik, tanda tangan baris, pengakuan dan awal ulang, isi log tanpa data dokumen, CLI, berita acara, dan web;
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
@@ -282,3 +286,24 @@ unset CETAK_OUT CETAK_ISSUED_CETAK
 ```
 
 Setiap profil diterbitkan sekali untuk 100 penerima fiktif. Id salinan diundi saat penerbitan, jadi penerbitan baru memberi kode lain dan angka yang sedikit berbeda; `CETAK_ISSUED_LAYAR` atau `CETAK_ISSUED_CETAK` memakai ulang folder penerbitan yang ada. Tabel profil bawaan memakai penerbitan dari riset sebelumnya, yang id salinannya tidak ada di repositori. Hasil di `docs/results/cetak_*` diukur sebelum kanal latar memakai strata kejenuhan dan uji pilot; perintah di atas kini memakai dekoder sekarang, jadi angka profil cetak dapat berbeda. Satu foto cetak memerlukan sekitar 20 sampai 60 detik (1600 px) atau 1 sampai 2 menit (4000 px) per proses di mesin uji yang dipakai bersama; `--workers` mengatur jumlah proses (bawaan 3).
+
+## Mengukur foto ponsel dan foto layar
+
+Angka foto ponsel dan foto layar di [cara kerja](cara-kerja.md#foto-ponsel-dan-foto-layar-simulasi) dan [batasan 10](keamanan.md#batasan) dibuat ulang dengan `research/ponsel/`. Salinan dan gambar bukti ada di `out/riset_ponsel`, hasil JSONL di `research/ponsel/hasil/`. Protokol dan semua benih ditetapkan di `ukur.py` sebelum pengukuran.
+
+```bash
+export PYTHONPATH=.
+U=".venv/bin/python research/ponsel/ukur.py"
+K=".venv/bin/python research/ponsel/kandidat.py"
+$U terbit                                       # 20 salinan nota dinas dan surat telegram, id salinan berbenih
+$U buat --split pengembangan                    # gambar bukti dengan benih pengembangan
+$U lacak --split pengembangan --dekoder lama
+$K cache && $K nilai base,notch,flat,halo,nh2   # pemilihan perubahan dekoder, benih pengembangan saja
+$U lacak --split pengembangan --dekoder baru
+$U buat --split uji                             # set uji yang ditahan, sekali di akhir
+$U lacak --split uji --dekoder lama
+$U lacak --split uji --dekoder baru
+$U ringkas                                      # tabel di dokumentasi
+```
+
+Dekoder `lama` adalah dekoder commit sebelum studi ini, diekspor ke `out/riset_ponsel/dekoder_lama`; `baru` adalah dekoder sekarang. Set uji hanya dilacak sekali per dekoder, dan `lacak --split uji` menolak menimpa hasilnya tanpa `--ulang`. Satu set berisi 500 gambar; membuatnya memerlukan sekitar 20 sampai 30 menit, dan melacaknya juga sekitar 20 sampai 30 menit per dekoder, dengan 3 proses di mesin uji yang dipakai bersama.

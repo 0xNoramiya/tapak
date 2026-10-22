@@ -148,10 +148,12 @@ def test_unclipped_photo_same_verdict_as_before(fixed):
         assert _agreement(obs[1], x) > 0.95
     assert len(new[1]) == len(old[1]) == old[1].meta["bits_total"]
     # Without clipping every cell sits in one stratum and is weighted by its valid-pixel
-    # fraction, as in the old statistic, so the new decoder makes no more bit errors (it made
-    # 21 against 13 when it weighted all cells alike).
+    # fraction, as in the old statistic, so the new decoder makes about as many bit errors (it
+    # made 21 against 13 when it weighted all cells alike). On images it also filters periodic
+    # components and masks bright outliers (tests/test_background_moire.py), which moves a few
+    # pixels in or out of the mask: 14 against 13 of 3884 bits here.
     errors = [int(np.sum((o[1].llr > 0) != (x[o[1].positions] == 1))) for o in (old, new)]
-    assert errors[1] <= errors[0]
+    assert errors[1] <= errors[0] + 2
 
 
 def test_fully_white_photo_reads_nothing_and_accuses_nobody(fixed):

@@ -4,6 +4,8 @@ TAPAK ?= .venv/bin/tapak
 PHOTO_DATA ?= out/photos
 PHOTO_SET ?= samples/photos
 PHOTO_SET_CETAK ?= samples/photos-cetak
+PHOTO_SET_PONSEL ?= samples/photos-ponsel
+PHOTO_SET_LAYAR ?= samples/photos-layar
 BENCH_JSON ?= docs/results/bench_photos.json
 BENCH_CHECK = out/bench-check
 # Research seed of the benchmark issuance: the code secret and the copy ids are derived from
@@ -14,7 +16,7 @@ BENIH_RISET = 2026
 ONE_THREAD = OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_THREAD_LIMIT=1
 ISSUED_COPIES = "$$(ls -d $(PHOTO_DATA)/data/dokumen/*/salinan | head -1)"
 
-.PHONY: setup samples samples-pindaian test test-fast simulate table photos photos-cetak photos-issued bench bench-check demo web verify docker figures clean
+.PHONY: setup samples samples-pindaian test test-fast simulate table photos photos-cetak photos-ponsel photos-layar photos-issued bench bench-check demo web verify docker figures clean
 
 setup:            ## create the virtualenv and install TAPAK (needs network once)
 	uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
@@ -37,12 +39,12 @@ simulate:         ## Tardos collusion simulation (acceptance numbers)
 table:            ## code length / threshold table
 	$(TAPAK) simulate --table
 
-photos-issued:    ## the issuance behind both photo sets: 20 copies, no registry, secret and copy ids from BENIH_RISET
+photos-issued:    ## the issuance behind every photo set: 20 copies, no registry, secret and copy ids from BENIH_RISET
 	@if [ -d $(PHOTO_DATA)/data/dokumen ] && \
 		[ "$$(head -n1 $(PHOTO_DATA)/keys/code_secret.riset 2>/dev/null)" != "$(BENIH_RISET)" ]; then \
 		echo "$(PHOTO_DATA) memuat penerbitan lain (bukan benih riset $(BENIH_RISET)); hapus dulu: rm -rf $(PHOTO_DATA)" >&2; \
 		exit 2; fi
-	@test -d $(PHOTO_DATA)/data/dokumen || { rm -rf $(PHOTO_SET) $(PHOTO_SET_CETAK) && \
+	@test -d $(PHOTO_DATA)/data/dokumen || { rm -rf $(PHOTO_SET) $(PHOTO_SET_CETAK) $(PHOTO_SET_PONSEL) $(PHOTO_SET_LAYAR) && \
 		$(ONE_THREAD) $(TAPAK) --data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys \
 		issue samples/nota_dinas.pdf samples/recipients.csv --no-registry --canary-domain "" --workers 3 \
 		--benih-riset $(BENIH_RISET); }
@@ -55,6 +57,14 @@ photos-cetak: photos-issued  ## phone photos of printed copies (simulated laser)
 	$(ONE_THREAD) $(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
 		--out $(PHOTO_SET_CETAK) --seqs 13,7,1,20 --angles 10,30 --per-copy 1 --all-pages \
 		--no-screenshots --cetak laser --seed 2026
+
+photos-ponsel: photos-issued  ## the make photos scenes processed by the simulated phone ISP, in samples/photos-ponsel
+	$(ONE_THREAD) $(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
+		--out $(PHOTO_SET_PONSEL) --seqs 13,7,1,20 --per-copy 2 --no-screenshots --isp ponsel --seed 2026
+
+photos-layar: photos-issued   ## phone photos of the copies on a simulated monitor (with the phone ISP), in samples/photos-layar
+	$(ONE_THREAD) $(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
+		--out $(PHOTO_SET_LAYAR) --seqs 13,7,1,20 --per-copy 2 --no-screenshots --layar --isp ponsel --seed 2026
 
 demo:             ## the 90-second scenario, non-interactive
 	$(TAPAK) demo --workdir out/demo
@@ -74,16 +84,18 @@ figures:          ## README figures in docs/img (needs: uv pip install -e ".[fig
 	$(PY) docs/figures/fig_hasil.py
 
 clean:
-	rm -rf out samples/photos samples/photos-cetak .pytest_cache
+	rm -rf out samples/photos samples/photos-cetak samples/photos-ponsel samples/photos-layar .pytest_cache
 
-bench:            ## trace every image of the photo sets (make photos, optionally make photos-cetak); prints are reported separately
+bench:            ## trace every image of the photo sets (make photos, optionally photos-cetak, photos-ponsel, photos-layar); each medium reported separately
 	$(ONE_THREAD) $(PY) -m tapak.benchmark --photos $(PHOTO_SET) --cetak $(PHOTO_SET_CETAK) \
+		--ponsel $(PHOTO_SET_PONSEL) --layar $(PHOTO_SET_LAYAR) \
 		--data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys --json $(BENCH_JSON)
 
-bench-check:      ## photos, photos-cetak and bench from scratch in out/bench-check; must equal docs/results/bench_photos.json byte for byte
+bench-check:      ## every photo set and bench from scratch in out/bench-check; must equal docs/results/bench_photos.json byte for byte
 	rm -rf $(BENCH_CHECK)
-	$(MAKE) --no-print-directory photos photos-cetak bench PHOTO_DATA=$(BENCH_CHECK) \
+	$(MAKE) --no-print-directory photos photos-cetak photos-ponsel photos-layar bench PHOTO_DATA=$(BENCH_CHECK) \
 		PHOTO_SET=$(BENCH_CHECK)/photos PHOTO_SET_CETAK=$(BENCH_CHECK)/photos-cetak \
+		PHOTO_SET_PONSEL=$(BENCH_CHECK)/photos-ponsel PHOTO_SET_LAYAR=$(BENCH_CHECK)/photos-layar \
 		BENCH_JSON=$(BENCH_CHECK)/bench_photos.json
 	cmp $(BENCH_CHECK)/bench_photos.json docs/results/bench_photos.json
 	@echo "bench_photos.json terulang persis, byte demi byte"

@@ -1,0 +1,1618 @@
+{
+  "rows": [
+    {
+      "file": "photo_s013_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.44807377734848,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -24.77753295325251,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -20.65134195512662,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -44.42946228226866,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -86.50851107701628,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -82.01447458414343,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -53.480258974210116,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s013_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -83.92909528918459,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s013_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.83702190736136,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s013_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -86.49799542231379,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -89.2931610487985,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -89.24508393127185,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -84.77233117052637,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -87.980721143189,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -29.66062904295807,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -84.97942850338481,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -78.38860056184646,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s007_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s007_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -88.99040807600758,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s007_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -88.25372914849211,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.66462588757594,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -84.57765073976357,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -79.64829132545961,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.07783389863451,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -56.73478515811519,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -80.56638337489828,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.43016741856661,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s001_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -79.21264684100798,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s001_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.12733834977244,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s001_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.92319264473755,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a0_0.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -83.72974779331355,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a0_1.jpg",
+      "kind": "photo",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.90483231356184,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a10_0.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -73.87101569651234,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a10_1.jpg",
+      "kind": "photo",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -82.54529867911087,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a20_0.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -87.61136901911092,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a20_1.jpg",
+      "kind": "photo",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -87.94851601149067,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a30_0.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -88.27303912744476,
+      "medium": "layar"
+    },
+    {
+      "file": "photo_s020_p1_a30_1.jpg",
+      "kind": "photo",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.51155659309948,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s020_p1_0.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.9116147697737,
+      "medium": "layar"
+    },
+    {
+      "file": "screenshot_s020_p1_1.jpg",
+      "kind": "screenshot",
+      "angle": null,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -89.51416516286372,
+      "medium": "layar"
+    },
+    {
+      "file": "cetak_s013_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s007_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s001_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s020_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 1 halaman"
+    },
+    {
+      "file": "cetak_s013_p1_a10_0.jpg + cetak_s013_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s013_p1_a30_0.jpg + cetak_s013_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a10_0.jpg + cetak_s007_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s007_p1_a30_0.jpg + cetak_s007_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 7,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a10_0.jpg + cetak_s001_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s001_p1_a30_0.jpg + cetak_s001_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 1,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a10_0.jpg + cetak_s020_p2_a10_0.jpg",
+      "kind": "cetak",
+      "angle": 10.0,
+      "pages": 2,
+      "expected": 20,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "cetak_s020_p1_a30_0.jpg + cetak_s020_p2_a30_0.jpg",
+      "kind": "cetak",
+      "angle": 30.0,
+      "pages": 2,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -6.136520934206057,
+      "medium": "cetak, 2 halaman"
+    },
+    {
+      "file": "ponsel_s013_p1_a0_0.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -71.07871175519989,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a0_1.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -77.68014162207153,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a10_0.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -75.44377347852739,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a10_1.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -53.052282877904716,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a20_0.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -83.59805601273719,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a20_1.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -64.13047331472715,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a30_0.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -47.94923196872038,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s013_p1_a30_1.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -79.1419386986044,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a0_0.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -78.95621116195188,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a0_1.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -89.01085285181131,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a10_0.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -61.70213089965543,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a10_1.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -81.02122633526578,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a20_0.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -59.72076259339883,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a20_1.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -76.86228986097584,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a30_0.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -51.28324325573915,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s007_p1_a30_1.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -60.91910383891617,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a0_0.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -83.84976988543931,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a0_1.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -75.43944194566336,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a10_0.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -76.42361693292581,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a10_1.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.62136581499544,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a20_0.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -68.48943074687439,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a20_1.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -54.14622700058699,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a30_0.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -55.89935034435415,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s001_p1_a30_1.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -36.08786463864156,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a0_0.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -82.19071862847807,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a0_1.jpg",
+      "kind": "ponsel",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -74.48806145424483,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a10_0.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -59.52049392888189,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a10_1.jpg",
+      "kind": "ponsel",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -68.35605181375239,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a20_0.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -61.74124239334125,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a20_1.jpg",
+      "kind": "ponsel",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -72.17527856294853,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a30_0.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -78.20432033687288,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "ponsel_s020_p1_a30_1.jpg",
+      "kind": "ponsel",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -69.81199087662984,
+      "medium": "foto ponsel"
+    },
+    {
+      "file": "fotolayar_s013_p1_a0_0.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -59.22291723978141,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a0_1.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [],
+      "outcome": "tidak cukup bukti",
+      "log10_fa": null,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a10_0.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -86.98834877622556,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a10_1.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -87.09156761280879,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a20_0.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -74.6742242710459,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a20_1.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -83.3420809725512,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a30_0.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -69.76714605296068,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s013_p1_a30_1.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 13,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -75.5927057252598,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a0_0.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -59.55270063230162,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a0_1.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -45.858505177132756,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a10_0.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -85.78477364901207,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a10_1.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -78.68611255747773,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a20_0.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -88.67469396707497,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a20_1.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -30.82724255795902,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a30_0.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -60.183235126842064,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s007_p1_a30_1.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 7,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -77.46569993359121,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a0_0.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -86.52237900650833,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a0_1.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -70.9200990777806,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a10_0.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -52.42520671534787,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a10_1.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -22.47982034889338,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a20_0.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -34.92316954378106,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a20_1.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -66.46535661674888,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a30_0.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -67.33768126936454,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s001_p1_a30_1.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 1,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -30.05540180322878,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a0_0.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -83.16111259547245,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a0_1.jpg",
+      "kind": "fotolayar",
+      "angle": 0.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -87.79434308084836,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a10_0.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -79.21340963372673,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a10_1.jpg",
+      "kind": "fotolayar",
+      "angle": 10.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -30.052767016083422,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a20_0.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -39.60314608894785,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a20_1.jpg",
+      "kind": "fotolayar",
+      "angle": 20.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -82.99494247547929,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a30_0.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -74.81146142298488,
+      "medium": "foto layar (monitor)"
+    },
+    {
+      "file": "fotolayar_s020_p1_a30_1.jpg",
+      "kind": "fotolayar",
+      "angle": 30.0,
+      "pages": 1,
+      "expected": 20,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -70.525835558365,
+      "medium": "foto layar (monitor)"
+    }
+  ]
+}

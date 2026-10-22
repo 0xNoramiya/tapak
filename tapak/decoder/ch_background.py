@@ -6,7 +6,14 @@ Steps:
    handwriting, stains) and pixels outside the evidence;
 2. flatten illumination: divide by a smooth estimate of the paper level computed from the
    unmasked pixels only, so shadows and vignetting vanish and the pattern becomes a
-   relative modulation of about +/- amplitude/base (0.8 % with the defaults);
+   relative modulation of about +/- amplitude/base (0.8 % with the defaults). On images
+   (the trace passes the bias vector) two more things happen here. Narrowband periodic
+   components are removed tile by tile (``suppress_periodic``): a photographed screen adds
+   moire, a few strong sinusoids from its pixel grid, while the pattern is broadband and
+   loses almost nothing. Then pixels beyond OUTLIER_LEVEL in either direction are masked:
+   darker ones are extra ink as before, brighter ones the halos a phone's sharpening leaves
+   beside text. The modulation is then recomputed without those pixels and filtered once
+   more. A page rendered from a forwarded PDF (no bias) is decoded exactly as before;
 3. average the modulation over every cell of the grid and despread it with the cell's keyed
    sign: u_c = pn_c * v_c is s_b times the cell's gain plus noise, b being the cell's bit;
 4. decide whether a pattern is present. Two tests, each with its fixed threshold z = 3
@@ -43,6 +50,8 @@ Steps:
 The tests are a detection aid only. The false-accusation bound never depends on them: the
 weights use no codeword (only the evidence, the master, the keyed cell layout and the bias
 vector, which is the same for every copy), so the bound holds for any input, noise included.
+The periodic filter and the outlier mask look at the evidence alone, before any keyed sign
+is applied, so they leave the decoy and pilot tests exactly as calibrated.
 
 No codeword is consulted at any step.
 """
@@ -64,6 +73,11 @@ SAT_EDGES = (0.0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98)  # lower edges of the s
 SAT_SMOOTH_CELLS = 1.0  # Gaussian sigma (in cells) of the saturated share that picks the stratum
 MIN_STRATUM_CELLS = 40  # a stratum with fewer cells gets weight 0 (its gain cannot be estimated)
 CELL_CLIP = 5.0  # despread cell values beyond this many robust deviations are clipped
+OUTLIER_LEVEL = 0.08  # |relative modulation| beyond this is not the pattern (ink, stains, halos)
+NOTCH_TILE = 128      # tile (px of the rectified page) in which periodic components are found
+NOTCH_PEAK = 6.0      # a peak exceeds the mean magnitude of the bins around it this many times
+NOTCH_MIN_BINS = 3.0  # bins this close to zero frequency are never removed
+NOTCH_RADIUS = 1      # bins removed around each peak (in every direction)
 
 
 def pattern_z(t: np.ndarray, t_decoy: np.ndarray, sigma: float) -> float:
@@ -156,6 +170,67 @@ def relative_modulation(rectified: np.ndarray, usable: np.ndarray, sigma_px: flo
     den = cv2.GaussianBlur(w, (0, 0), sigma_px)
     paper = num / np.maximum(den, 1e-6)
     return np.where(usable, img / np.maximum(paper, 1.0) - 1.0, 0.0)
+
+
+def _ring_mean(a: np.ndarray, outer: int = 9, inner: int = 3) -> np.ndarray:
+    """Mean of each value's outer x outer neighbourhood without its inner x inner centre, on a
+    periodic grid (a spectrum wraps around)."""
+    p = outer // 2
+    ap = np.pad(a, p, mode="wrap")
+    big = cv2.boxFilter(ap, -1, (outer, outer), normalize=False, borderType=cv2.BORDER_CONSTANT)[p:-p, p:-p]
+    small = cv2.boxFilter(ap, -1, (inner, inner), normalize=False, borderType=cv2.BORDER_CONSTANT)[p:-p, p:-p]
+    return (big - small) / float(outer * outer - inner * inner)
+
+
+def suppress_periodic(mod: np.ndarray, usable: np.ndarray, tile: int = NOTCH_TILE, peak: float = NOTCH_PEAK,
+                      min_bins: float = NOTCH_MIN_BINS, radius: int = NOTCH_RADIUS) -> tuple[np.ndarray, int]:
+    """Remove narrowband periodic components from the paper modulation, tile by tile.
+
+    A photographed screen adds moire: its pixel grid, sampled by the camera and resampled by
+    the messenger, leaves a few strong sinusoids on the paper, whose frequency drifts across
+    the page with the perspective. The pattern itself is broadband (independent keyed cells),
+    so it has no isolated spectral peaks. In Hann-windowed tiles of ``tile`` px overlapping
+    by half, a frequency bin is removed (with ``radius`` bins around it) when it is a local
+    maximum, lies at least ``min_bins`` bins from zero frequency and exceeds ``peak`` times
+    the mean magnitude of the bins around it; the tiles are recombined by weighted
+    overlap-add, so where nothing is removed the result equals ``mod``. Returns the filtered
+    modulation (zero where not usable) and the number of bins found.
+
+    Only the evidence is used, never a keyed sign or a codeword, so the decoy and pilot tests
+    and the false-accusation bound are unaffected.
+    """
+    h, w = mod.shape
+    step = tile // 2
+    # Half a tile of padding on every side: every pixel then lies under windows whose sum is
+    # about one, so dividing by that sum never amplifies a filtered tile.
+    big_h = int(np.ceil((h + 2 * step - tile) / step)) * step + tile
+    big_w = int(np.ceil((w + 2 * step - tile) / step)) * step + tile
+    x = np.zeros((big_h, big_w), dtype=np.float64)
+    x[step:step + h, step:step + w] = np.where(usable, mod, 0.0)
+    win1 = np.hanning(tile + 2)[1:-1]
+    win = np.outer(win1, win1)
+    acc = np.zeros_like(x)
+    wsum = np.zeros_like(x)
+    f = np.fft.fftfreq(tile) * tile
+    far = np.hypot(f[None, :], f[:, None]) >= min_bins
+    kernel = np.ones((2 * radius + 1, 2 * radius + 1), np.uint8)
+    found = 0
+    for y0 in range(0, big_h - tile + 1, step):
+        for x0 in range(0, big_w - tile + 1, step):
+            t = x[y0:y0 + tile, x0:x0 + tile] * win
+            spec = np.fft.fft2(t)
+            mag = np.abs(spec).astype(np.float32)
+            local_max = cv2.dilate(np.pad(mag, 1, mode="wrap"), np.ones((3, 3), np.uint8))[1:-1, 1:-1]
+            peaks = (mag >= local_max) & (mag > np.float32(peak) * np.maximum(_ring_mean(mag), 1e-12)) & far
+            if peaks.any():
+                found += int(peaks.sum())
+                cut = cv2.dilate(np.pad(peaks.astype(np.uint8), radius, mode="wrap"), kernel)
+                spec[cut[radius:-radius, radius:-radius] > 0] = 0.0
+                t = np.real(np.fft.ifft2(spec))
+            acc[y0:y0 + tile, x0:x0 + tile] += t
+            wsum[y0:y0 + tile, x0:x0 + tile] += win
+    out = (acc / np.maximum(wsum, 1e-9))[step:step + h, step:step + w]
+    return np.where(usable, out, 0.0), found
 
 
 def cell_means(mod: np.ndarray, usable: np.ndarray, grid: PageGrid, dpi: float) -> tuple[np.ndarray, np.ndarray]:
@@ -258,11 +333,21 @@ def decode_background(
     sigma_px = 3.0 * grid.cell_pt * dpi / 72.0
     mod = relative_modulation(rectified, usable, sigma_px)
     # Second pass: drop ink present in the evidence but not in the master (the pattern
-    # itself is below 1 %, ink is tens of percent darker than paper).
+    # itself is below 1 %, ink is tens of percent darker than paper). On images (bias given)
+    # periodic components (moire of a photographed screen) are removed first, and bright
+    # outliers are dropped as well: the halos a phone's sharpening leaves next to text.
+    if bias is not None:
+        mod, _ = suppress_periodic(mod, usable)
+        outliers = np.abs(mod) > OUTLIER_LEVEL
+    else:
+        outliers = mod < -OUTLIER_LEVEL
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    extra_ink = cv2.dilate((usable & (mod < -0.08)).astype(np.uint8), k).astype(bool)
+    extra_ink = cv2.dilate((usable & outliers).astype(np.uint8), k).astype(bool)
     usable &= ~extra_ink
     mod = relative_modulation(rectified, usable, sigma_px)
+    periodic = 0
+    if bias is not None:
+        mod, periodic = suppress_periodic(mod, usable)
     means, frac = cell_means(mod, usable, grid, dpi)
     ok = frac >= MIN_VALID_FRACTION
     cb = grid.cell_bit
@@ -287,6 +372,8 @@ def decode_background(
     share = saturated_share(rectified, usable, grid, dpi, frac)
     meta: dict[str, object] = {"page": grid.page, "bits_total": len(page_slots), "decoy_z": round(z_decoy, 2),
                                "clipped_share": round(float(np.mean(share[sel] >= 0.5)) if sel.any() else 0.0, 3)}
+    if bias is not None:
+        meta["periodic_bins"] = periodic
 
     if bias is None:
         mu = fit_mu(t[seen], sigma) if z_decoy >= SIGNAL_Z else 0.0

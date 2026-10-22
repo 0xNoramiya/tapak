@@ -15,6 +15,17 @@ pages of issued PDF copies into the kind of images that reach an investigator:
   background pattern; this kind reproduces that (see the limitations in docs/keamanan.md).
 * ``screenshot``: a screen capture of a PDF viewer (96 to 150 dpi, optional gray viewer
   chrome) forwarded twice on WhatsApp. No perspective.
+* ``ponsel`` (optional): the ``photo`` above, same scene and sensor noise, but processed by a
+  phone ISP (``tapak.ponsel.IspParams``: burst HDR, noise reduction, local tone mapping,
+  sharpening with halos, the camera's own JPEG) before the user crops and WhatsApp
+  recompresses it.
+* ``fotolayar`` (optional): a phone photo of the copy shown in a PDF viewer on a simulated
+  LCD monitor (``tapak.ponsel.ScreenParams``: RGB subpixels at the monitor's pixel density,
+  display gamma, backlight, angular falloff, reflections), sampled through a Bayer filter,
+  so the pixel grid shows up as moire; normally with the ISP stage as well.
+
+The ISP and the monitor are opt-in; without them every function here produces exactly the
+bytes it produced before they existed (tests/test_ponsel.py holds golden hashes).
 
 Every image comes with its ground truth: the homography from page pixel coordinates to
 output image coordinates and every random parameter that was drawn. Pixel coordinates
@@ -48,18 +59,33 @@ import numpy as np
 
 from tapak.marker.issue import IssueManifest
 from tapak.marker.render import render_pages
+from tapak.ponsel import (
+    ISP_PROFILES,
+    MONITORS,
+    IspParams,
+    ScreenParams,
+    angular_falloff,
+    bayer_mosaic,
+    demosaic_luma,
+    isp_process,
+    render_display,
+    view_angles,
+)
 
 KIND_PHOTO = "photo"
 KIND_SCREENSHOT = "screenshot"
 KIND_PRINT = "cetak"  # phone photo of a printed page (print_page, then photo)
-_KIND_SEED = {KIND_PHOTO: 1, KIND_SCREENSHOT: 2, KIND_PRINT: 3}
+KIND_PHONE = "ponsel"  # the photo above, processed by the phone ISP
+KIND_SCREEN_PHOTO = "fotolayar"  # phone photo of the copy on a simulated monitor
+_KIND_SEED = {KIND_PHOTO: 1, KIND_SCREENSHOT: 2, KIND_PRINT: 3, KIND_PHONE: 4, KIND_SCREEN_PHOTO: 5}
+_ISP_SEED_OFFSET = 100  # the ISP of a file draws from its own generator (kind seed + 100)
 INK_REFLECTANCE = 0.06  # printed black toner reflects a few percent of the light
 PAPER_GRAY = 245        # page gray levels at or above this count as blank paper (pattern: 251 to 255)
 MIN_LONG_SIDE = 64      # smallest accepted output long side (px)
 DPI_RANGE = (72, 1200)  # accepted render resolutions of make_photo_set
 
 # Output names written by make_photo_set (and removed again before a new run).
-_OUTPUT_NAME = re.compile(r"((photo|cetak)_s\d+_p\d+_a[0-9.e+-]+_\d+|screenshot_s\d+_p\d+_\d+)\.jpg")
+_OUTPUT_NAME = re.compile(r"((photo|cetak|ponsel|fotolayar)_s\d+_p\d+_a[0-9.e+-]+_\d+|screenshot_s\d+_p\d+_\d+)\.jpg")
 
 
 class ManifestNotFoundError(FileNotFoundError):
@@ -426,8 +452,15 @@ def _motion_kernel(length: float, angle_deg: float) -> np.ndarray:
     return kernel / kernel.sum()
 
 
+def _isp_generator(rng: np.random.Generator, isp_rng: np.random.Generator | None) -> np.random.Generator:
+    """The ISP's generator: ``isp_rng``, or a jumped copy of ``rng`` (an independent stream
+    that leaves ``rng`` itself untouched, so the scene stays that of the plain photo)."""
+    return isp_rng if isp_rng is not None else np.random.Generator(rng.bit_generator.jumped())
+
+
 def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
-               params: PhotoParams | None = None) -> tuple[bytes, dict[str, object]]:
+               params: PhotoParams | None = None, isp: IspParams | None = None,
+               isp_rng: np.random.Generator | None = None) -> tuple[bytes, dict[str, object]]:
     """Simulate a phone photo of a printed page; return the final JPEG bytes and meta.
 
     ``meta`` holds ``homography`` (page pixel coordinates to output image coordinates,
@@ -437,9 +470,18 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
     and ``params`` (every random value drawn, plus ``highlight_clip_frac``, the share of
     camera pixels that clipped to white, and ``paper_clip_frac``, the same share among the
     blank paper pixels that carry the background pattern).
+
+    With ``isp`` (opt-in) the camera frame goes through the phone ISP
+    (``tapak.ponsel.isp_process``) instead of the plain sharpening and tone curve. Scene,
+    geometry and sensor noise are drawn from ``rng`` exactly as without it, so the same
+    generator state gives the same photo with and without the ISP; the ISP's own values come
+    from ``isp_rng`` (default: a jumped copy of ``rng``). ``meta["kind"]`` is then "ponsel",
+    ``meta["params"]["isp"]`` holds the ISP's values, and ``highlight_clip_frac`` and
+    ``paper_clip_frac`` are the shares at white in the saved camera image.
     """
     _check_page(page_img)
     params = params or PhotoParams()
+    isp_gen = _isp_generator(rng, isp_rng) if isp is not None else None
     if params.long_side < MIN_LONG_SIDE:
         raise ValueError(f"sisi panjang gambar minimal {MIN_LONG_SIDE} piksel")
     drawn: dict[str, object] = {}
@@ -492,18 +534,27 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
     img = cv2.GaussianBlur(img, (0, 0), sigmaX=blur_out / down)
     if motion_out > 0.0:  # the kernel reproduces fractional lengths, so any length is applied
         img = cv2.filter2D(img, -1, _motion_kernel(motion_out / down, motion_angle))
-    sigma = np.sqrt(noise_read ** 2 + noise_shot * np.clip(img, 0.0, None))
-    img += sigma * rng.standard_normal(img.shape, dtype=np.float32)
-    # Phone image processing: unsharp mask, then bright paper clips to white.
-    if sharpen > 0.0:
-        img += np.float32(sharpen) * (img - cv2.GaussianBlur(img, (0, 0), sigmaX=params.sharpen_sigma / down))
-    drawn["highlight_clip_frac"] = float(np.mean(img >= 255.0))
-    drawn["paper_clip_frac"] = float(np.mean(img[on_paper] >= 255.0)) if on_paper.any() else 0.0
-    del on_paper
-    img = np.clip(img, 0.0, 255.0)
-    img = 255.0 * np.power(img / np.float32(255.0), np.float32(gamma))
-    camera_img = np.clip(np.rint(img), 0, 255).astype(np.uint8)
-    del img, sigma
+    if isp is not None:
+        normal = rng.standard_normal(img.shape, dtype=np.float32)  # the plain photo's noise draw
+        camera_img = isp_process(img, normal, isp, isp_gen, noise_read=noise_read, noise_shot=noise_shot,  # type: ignore[arg-type]
+                                 base_sharpen=sharpen, base_sharpen_sigma=params.sharpen_sigma / down,
+                                 tone_exponent=gamma, edge_sigma=blur_out / down, drawn=drawn, paper=on_paper)
+        drawn["highlight_clip_frac"] = float(np.mean(camera_img >= 255))
+        drawn["paper_clip_frac"] = float(np.mean(camera_img[on_paper] >= 255)) if on_paper.any() else 0.0
+        del img, normal, on_paper
+    else:
+        sigma = np.sqrt(noise_read ** 2 + noise_shot * np.clip(img, 0.0, None))
+        img += sigma * rng.standard_normal(img.shape, dtype=np.float32)
+        # Phone image processing: unsharp mask, then bright paper clips to white.
+        if sharpen > 0.0:
+            img += np.float32(sharpen) * (img - cv2.GaussianBlur(img, (0, 0), sigmaX=params.sharpen_sigma / down))
+        drawn["highlight_clip_frac"] = float(np.mean(img >= 255.0))
+        drawn["paper_clip_frac"] = float(np.mean(img[on_paper] >= 255.0)) if on_paper.any() else 0.0
+        del on_paper
+        img = np.clip(img, 0.0, 255.0)
+        img = 255.0 * np.power(img / np.float32(255.0), np.float32(gamma))
+        camera_img = np.clip(np.rint(img), 0, 255).astype(np.uint8)
+        del img, sigma
 
     # User crop, WhatsApp downscale, two compressions.
     x0, y0, x1, y1 = geo.crop_box
@@ -514,7 +565,7 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
     data = _double_jpeg(np.ascontiguousarray(out), q1, q2)
 
     meta: dict[str, object] = {
-        "kind": KIND_PHOTO,
+        "kind": KIND_PHOTO if isp is None else KIND_PHONE,
         "homography": _to_list(geo.homography),
         "camera_matrix": _to_list(geo.camera_matrix),
         "view_angle_deg": geo.view_angle_deg,
@@ -523,6 +574,8 @@ def photo_jpeg(page_img: np.ndarray, rng: np.random.Generator,
         "settings": _settings(params),
         "params": drawn,
     }
+    if isp is not None:
+        meta["isp_settings"] = _settings(isp)
     return data, meta
 
 
@@ -830,6 +883,231 @@ def printed_photo_jpeg(pdf_bytes: bytes, page: int, rng: np.random.Generator,
 
 
 # ---------------------------------------------------------------------------------------
+# Photo of a monitor (optional)
+
+
+NOISE_REFERENCE_CD = 150.0  # white luminance at which the PhotoParams noise applies (paper in a 500 lx office)
+CAMERA_OETF_GAMMA = 2.2     # the camera encodes linear light with about the sRGB curve
+
+
+def _to_output(geo: _Geometry) -> np.ndarray:
+    """Camera frame px -> output px (user crop, then WhatsApp downscale), as in _photo_geometry."""
+    x0, y0, x1, y1 = geo.crop_box
+    out_w, out_h = geo.out_size
+    return _resize_matrix(out_w / (x1 - x0), out_h / (y1 - y0)) @ _translation(-x0, -y0)
+
+
+def screen_photo_jpeg(page_img: np.ndarray, rng: np.random.Generator, params: PhotoParams | None = None,
+                      screen: ScreenParams | None = None, isp: IspParams | None = None,
+                      isp_rng: np.random.Generator | None = None,
+                      render_dpi: float = 200.0) -> tuple[bytes, dict[str, object]]:
+    """Simulate a phone photo of a copy shown on a monitor; return the JPEG bytes and meta.
+
+    ``page_img`` is the copy's page rendered at ``render_dpi``. A PDF viewer shows it at the
+    monitor's resolution, fit to a share of the screen height (``screen.page_height_frac``),
+    on a light or dark viewer background. The monitor (``screen``; see tapak.ponsel for the
+    model and its sources) turns drive levels into light through its gamma, backlight,
+    angular falloff and RGB subpixels, plus front-surface reflections. A phone at
+    ``screen.distance_cm`` (the page then fills focal_rel * page size / distance of the frame,
+    at most ``screen.max_fill``) and a view angle from ``params`` integrates that light through
+    its lens and, with ``screen.cfa``, a Bayer filter, adds sensor noise (``params`` noise
+    scaled by the camera gain a dimmer screen needs), then either the plain tone curve and
+    sharpening of ``photo_jpeg`` (``isp`` None) or the phone ISP. The user crop, WhatsApp
+    downscale and double JPEG follow as for ``photo_jpeg``. ``params.fill``, ``focal_rel``,
+    ``blur_sigma``, ``motion_px``, ``paper_albedo`` and ``shadow_prob`` do not apply here.
+
+    ``meta`` is that of ``photo_jpeg`` (``homography`` maps ``page_img`` pixels to output
+    pixels) with ``kind`` "fotolayar", ``screen_settings``, ``isp_settings`` (None for the
+    plain tail) and ``screen``: the monitor, its ppi, the page resolution on screen, the
+    distance and fill, ``pixel_pitch_px`` (the screen pixel pitch along the screen's x and y
+    axes in output pixels at the page centre) and ``grid_frequency`` (its inverse, cycles per
+    output pixel: above 0.5 the grid aliases into moire).
+    """
+    _check_page(page_img)
+    params = params or PhotoParams()
+    screen = screen or ScreenParams()
+    if params.long_side < MIN_LONG_SIDE:
+        raise ValueError(f"sisi panjang gambar minimal {MIN_LONG_SIDE} piksel")
+    if render_dpi <= 0:
+        raise ValueError("resolusi render harus lebih dari 0 dpi")
+    isp_gen = _isp_generator(rng, isp_rng) if isp is not None else None
+    drawn: dict[str, object] = {}
+
+    # Monitor, viewer and room.
+    name = screen.monitor or str(rng.choice(list(screen.monitors)))
+    mon = MONITORS[name]
+    distance = float(screen.distance_cm) if screen.distance_cm is not None else _uniform(rng, screen.distance_range)
+    zoom = _uniform(rng, screen.page_height_frac)
+    dark = bool(rng.random() < screen.dark_prob)
+    bg_level = int(rng.integers(45, 80)) if dark else int(rng.integers(195, 225))
+    bar_level = int(rng.integers(30, 50)) if dark else int(rng.integers(225, 245))
+    d_gamma = _uniform(rng, screen.gamma)
+    brightness = _uniform(rng, screen.brightness_cd)
+    contrast = _uniform(rng, screen.contrast)
+    backlight = _uniform(rng, screen.backlight_falloff)
+    deg_h = _uniform(rng, screen.falloff_deg_h)
+    deg_v = _uniform(rng, screen.falloff_deg_v)
+    ax = _uniform(rng, screen.aperture_x)
+    ay = _uniform(rng, screen.aperture_y)
+    ambient = _uniform(rng, screen.ambient)
+    glare_peak = _uniform(rng, screen.glare_peak)
+    glare_size = _uniform(rng, screen.glare_size)
+    glare_xy = (_uniform(rng, (0.1, 0.9)), _uniform(rng, (0.1, 0.9)))
+    room = _uniform(rng, screen.room)
+    bezel_cm = _uniform(rng, screen.bezel_cm)
+    drawn.update(monitor=name, ppi=mon.ppi, distance_cm=distance, page_height_frac=zoom, viewer_dark=dark,
+                 viewer_background=bg_level, display_gamma=d_gamma, brightness_cd=brightness, contrast=contrast,
+                 backlight_falloff=backlight, falloff_deg_h=deg_h, falloff_deg_v=deg_v, aperture_x=ax,
+                 aperture_y=ay, ambient=ambient, glare=screen.glare,
+                 glare_peak=glare_peak if screen.glare else 0.0, glare_size=glare_size,
+                 glare_xy=list(glare_xy), room=room, bezel_cm=bezel_cm)
+
+    # The viewer on screen (drive levels), with a black bezel around the lit area.
+    ph, pw = page_img.shape
+    width, height = mon.width_px, mon.height_px
+    bar = max(1, int(round(0.04 * height)))
+    page_dpi = zoom * height / (ph / render_dpi)
+    sw, sh = max(1, int(round(pw * page_dpi / render_dpi))), max(1, int(round(ph * page_dpi / render_dpi)))
+    if sh > height - bar or sw > width:
+        raise ValueError("halaman tidak muat di layar; perkecil page_height_frac")
+    shown = cv2.resize(page_img, (sw, sh), interpolation=cv2.INTER_AREA)
+    bezel = max(1, int(round(bezel_cm / 2.54 * mon.ppi)))
+    canvas = np.zeros((height + 2 * bezel, width + 2 * bezel), dtype=np.float32)
+    lit = np.zeros(canvas.shape, dtype=bool)
+    lit[bezel:bezel + height, bezel:bezel + width] = True
+    canvas[lit] = bg_level
+    canvas[bezel:bezel + bar, bezel:bezel + width] = bar_level
+    ox, oy = bezel + (width - sw) // 2, bezel + bar + (height - bar - sh) // 2
+    canvas[oy:oy + sh, ox:ox + sw] = shown
+    drawn.update(page_dpi_on_screen=page_dpi)
+
+    # Camera pose: the page on screen fills focal_rel * size / distance of the frame.
+    long_cm = max(sh, sw) / mon.ppi * 2.54
+    fill = min(screen.max_fill, screen.focal_rel * long_cm / distance)
+    gparams = replace(params, fill=(fill, fill), focal_rel=(screen.focal_rel, screen.focal_rel),
+                      sensor_long_side=screen.sensor_long_side)
+    geo = _photo_geometry((sh, sw), gparams, rng, drawn)
+    drawn["distance_effective_cm"] = screen.focal_rel * long_cm / fill
+    cw, ch = geo.frame_size
+    h_canvas = geo.h_frame @ _translation(-ox, -oy)
+    k_frame = np.linalg.inv(_to_output(geo)) @ geo.camera_matrix
+
+    # Light leaving the screen: gamma, backlight, angular falloff; reflections on top.
+    lin = np.float32(1.0 / contrast) + np.float32(1.0 - 1.0 / contrast) * np.power(
+        canvas / np.float32(255.0), np.float32(d_gamma))
+    yy, xx = np.mgrid[0:canvas.shape[0], 0:canvas.shape[1]].astype(np.float32)
+    cx, cy = bezel + (width - 1) / 2.0, bezel + (height - 1) / 2.0
+    r2 = ((xx - cx) ** 2 + (yy - cy) ** 2) / np.float32((width / 2.0) ** 2 + (height / 2.0) ** 2)
+    angle_h, angle_v = view_angles(h_canvas, k_frame, canvas.shape)
+    lin *= (1.0 - np.float32(backlight) * r2) * angular_falloff(angle_h, angle_v, deg_h, deg_v)
+    lin[~lit] = 0.0
+    drawn["view_angle_on_page_deg"] = float(np.hypot(angle_h[oy + sh // 2, ox + sw // 2],
+                                                     angle_v[oy + sh // 2, ox + sw // 2]))
+    del angle_h, angle_v, r2
+    reflect = np.full(canvas.shape, np.float32(ambient), dtype=np.float32)
+    if screen.glare:
+        gx = bezel + glare_xy[0] * width
+        gy = bezel + glare_xy[1] * height
+        sigma = glare_size * height
+        reflect += np.float32(glare_peak) * np.exp(-((xx - gx) ** 2 + (yy - gy) ** 2) / np.float32(2 * sigma * sigma))
+    del xx, yy
+
+    # Camera: exposure, vignetting, lens and motion blur, sensor.
+    exposure = _uniform(rng, params.exposure)
+    vignette = _uniform(rng, (0.10, 0.30))
+    lens = _uniform(rng, screen.lens_sigma_px)
+    motion = _uniform(rng, screen.motion_px)
+    motion_angle = _uniform(rng, (0.0, 180.0))
+    noise_read = _uniform(rng, params.noise_read)
+    noise_shot = _uniform(rng, params.noise_shot)
+    sharpen = _uniform(rng, params.sharpen)
+    gamma = _uniform(rng, params.gamma)
+    q1 = _quality(rng, params.jpeg_quality_1)
+    q2 = _quality(rng, params.jpeg_quality_2)
+    gain = NOISE_REFERENCE_CD / brightness
+    drawn.update(exposure=exposure, vignette=vignette, lens_sigma_px=lens, motion_px=motion,
+                 motion_angle_deg=motion_angle, noise_read=noise_read, noise_shot=noise_shot, camera_gain=gain,
+                 sharpen=sharpen, gamma=gamma, jpeg_quality_1=q1, jpeg_quality_2=q2, downscale=geo.down)
+    optical = render_display(lin, reflect, h_canvas, (cw, ch), lens_sigma=lens,
+                             motion_kernel=_motion_kernel(motion, motion_angle) if motion > 0.05 else None,
+                             aperture=(ax, ay), subpixels=screen.subpixels, cfa=screen.cfa, room=room,
+                             supersample=screen.supersample)
+    del lin, reflect, canvas
+    half_diag = np.float32(0.5 * math.hypot(cw, ch))
+    vx = (np.arange(cw, dtype=np.float32)[None, :] - np.float32(cw / 2)) / half_diag
+    vy = (np.arange(ch, dtype=np.float32)[:, None] - np.float32(ch / 2)) / half_diag
+    light = (1.0 - np.float32(vignette) * (vx * vx + vy * vy)) * np.float32(255.0 * exposure)
+    raw = bayer_mosaic(optical * light[None]) if screen.cfa else optical * light
+    del optical, light
+    h_page_frame = geo.h_frame @ _resize_matrix(sw / pw, sh / ph)
+    paper = cv2.warpPerspective((page_img >= PAPER_GRAY).astype(np.uint8), h_page_frame, (cw, ch),
+                                flags=cv2.INTER_NEAREST, borderValue=0).astype(bool)
+    read_eff, shot_eff = noise_read * gain, noise_shot * gain
+    normal = rng.standard_normal(raw.shape, dtype=np.float32)
+    demosaic = demosaic_luma if screen.cfa else None
+    if isp is not None:
+        camera_img = isp_process(raw, normal, isp, isp_gen, noise_read=read_eff, noise_shot=shot_eff,  # type: ignore[arg-type]
+                                 base_sharpen=sharpen, base_sharpen_sigma=params.sharpen_sigma / geo.down,
+                                 tone_exponent=gamma / CAMERA_OETF_GAMMA, edge_sigma=lens, drawn=drawn, paper=paper,
+                                 demosaic=demosaic)
+    else:
+        img = raw + np.sqrt(np.float32(read_eff ** 2) + np.float32(shot_eff) * np.clip(raw, 0.0, None)) * normal
+        drawn["raw_clip_frac"] = float(np.mean(img >= 255.0))
+        img = np.clip(img, 0.0, 255.0)
+        if demosaic is not None:
+            img = demosaic(img)
+        if sharpen > 0.0:
+            img += np.float32(sharpen) * (img - cv2.GaussianBlur(img, (0, 0), sigmaX=params.sharpen_sigma / geo.down))
+        img = np.clip(img, 0.0, 255.0)
+        img = np.float32(255.0) * np.power(img / np.float32(255.0), np.float32(gamma / CAMERA_OETF_GAMMA))
+        camera_img = np.clip(np.rint(img), 0, 255).astype(np.uint8)
+        del img
+    del raw, normal
+    drawn["highlight_clip_frac"] = float(np.mean(camera_img >= 255))
+    drawn["paper_clip_frac"] = float(np.mean(camera_img[paper] >= 255)) if paper.any() else 0.0
+    del paper
+
+    x0, y0, x1, y1 = geo.crop_box
+    out = camera_img[y0:y1, x0:x1]
+    out_w, out_h = geo.out_size
+    if (out_w, out_h) != (x1 - x0, y1 - y0):
+        out = cv2.resize(out, (out_w, out_h), interpolation=cv2.INTER_AREA)
+    data = _double_jpeg(np.ascontiguousarray(out), q1, q2)
+
+    to_out = _to_output(geo)
+    h_page_out = to_out @ h_page_frame
+    h_canvas_out = to_out @ h_canvas
+    centre = np.array([[ox + (sw - 1) / 2.0, oy + (sh - 1) / 2.0]])
+    pc = apply_homography(h_canvas_out, centre)[0]
+    pitch = [float(np.linalg.norm(apply_homography(h_canvas_out, centre + d)[0] - pc)) for d in ([1.0, 0.0], [0.0, 1.0])]
+    meta: dict[str, object] = {
+        "kind": KIND_SCREEN_PHOTO,
+        "homography": _to_list(h_page_out / h_page_out[2, 2]),
+        "camera_matrix": _to_list(geo.camera_matrix),
+        "view_angle_deg": geo.view_angle_deg,
+        "page_size": [int(pw), int(ph)],
+        "image_size": [int(out_w), int(out_h)],
+        "settings": _settings(params),
+        "screen_settings": _settings(screen),
+        "isp_settings": _settings(isp) if isp is not None else None,
+        "screen": {"monitor": name, "ppi": mon.ppi, "page_dpi_on_screen": page_dpi, "distance_cm": distance,
+                   "fill": fill, "pixel_pitch_px": pitch, "grid_frequency": [1.0 / p for p in pitch]},
+        "params": drawn,
+    }
+    return data, meta
+
+
+def screen_photo(page_img: np.ndarray, rng: np.random.Generator, params: PhotoParams | None = None,
+                 screen: ScreenParams | None = None, isp: IspParams | None = None,
+                 isp_rng: np.random.Generator | None = None,
+                 render_dpi: float = 200.0) -> tuple[np.ndarray, dict[str, object]]:
+    """Simulate a phone photo of a copy on a monitor; return the decoded image and meta (see
+    ``screen_photo_jpeg``)."""
+    data, meta = screen_photo_jpeg(page_img, rng, params, screen, isp, isp_rng, render_dpi)
+    return decode_jpeg(data), meta
+
+
+# ---------------------------------------------------------------------------------------
 # Screenshot
 
 
@@ -931,9 +1209,12 @@ def screenshot(page_img: np.ndarray, rng: np.random.Generator,
 # Photo set for regression tests
 
 
-def _file_rng(seed: int, seq: int, page: int, kind: str, angle: float, index: int) -> np.random.Generator:
-    """One generator per output file, independent of which other files are produced."""
-    return np.random.default_rng([seed, seq, page, _KIND_SEED[kind], int(round(angle * 1000)), index])
+def _file_rng(seed: int, seq: int, page: int, kind: str, angle: float, index: int,
+              isp: bool = False) -> np.random.Generator:
+    """One generator per output file, independent of which other files are produced
+    (``isp``: the file's separate generator for the ISP stage)."""
+    kind_seed = _KIND_SEED[kind] + (_ISP_SEED_OFFSET if isp else 0)
+    return np.random.default_rng([seed, seq, page, kind_seed, int(round(angle * 1000)), index])
 
 
 def stale_outputs(out_dir: Path | str) -> list[Path]:
@@ -1006,6 +1287,8 @@ def make_photo_set(
     photo_params: PhotoParams | None = None,
     screenshot_params: ScreenshotParams | None = None,
     print_params: PrintParams | None = None,
+    isp: IspParams | None = None,
+    screen_params: ScreenParams | None = None,
 ) -> list[dict[str, object]]:
     """Write synthetic photos and screenshots of issued copies plus ``truth.json``.
 
@@ -1018,6 +1301,14 @@ def make_photo_set(
     and angles are produced once. With ``print_params`` every photo is taken of a printed
     page (``printed_photo_jpeg``) and named ``cetak_s013_p1_a30_0.jpg``; its homography maps
     page pixels at ``print_params.out_dpi`` (the item's ``render_dpi``).
+
+    Opt-in phone variants: with ``isp`` (and no ``screen_params``) every photo is the plain
+    photo of the same file name and generator, processed by the phone ISP, and named
+    ``ponsel_s013_p1_a30_0.jpg`` (kind "ponsel"); with ``screen_params`` every photo is taken
+    of the copy on a simulated monitor (``screen_photo_jpeg``, kind "fotolayar", named
+    ``fotolayar_s013_p1_a30_0.jpg``), with the ISP when ``isp`` is given. The ISP draws from
+    the file's own ISP generator. Their items also carry ``isp`` (profile name or "netral")
+    and, for screen photos, ``screen``. Without these options nothing changes.
 
     All inputs and every selected copy PDF are checked before anything is written. Then
     images left in ``out_dir`` by an earlier run (see ``stale_outputs``) and the old
@@ -1043,6 +1334,8 @@ def make_photo_set(
         if missing:
             raise ValueError("nomor salinan tidak ada di manifest: " + ", ".join(str(s) for s in missing))
         selected = list(dict.fromkeys(seqs))
+    if print_params is not None and (isp is not None or screen_params is not None):
+        raise ValueError("foto cetak tidak dapat digabung dengan ISP ponsel atau foto layar")
     pdfs = {seq: _read_copy(issued_dir, by_seq[seq].file, by_seq[seq].file_sha256) for seq in selected}
     base_photo = photo_params or PhotoParams()
     base_shot = screenshot_params or ScreenshotParams()
@@ -1058,6 +1351,10 @@ def make_photo_set(
         renders = render_pages(pdfs[seq], dpi, None if all_pages else [0])
         for page_no, page_img in enumerate(renders, start=1):
             photo_kind = KIND_PRINT if print_params is not None else KIND_PHOTO
+            if screen_params is not None:
+                photo_kind = KIND_SCREEN_PHOTO
+            elif isp is not None:
+                photo_kind = KIND_PHONE
             jobs = [(photo_kind, a, i) for a in unique_angles.values() for i in range(per_copy)]
             if screenshots:
                 jobs += [(KIND_SCREENSHOT, 0.0, i) for i in range(per_copy)]
@@ -1069,6 +1366,20 @@ def make_photo_set(
                     data, meta = photo_jpeg(page_img, rng, params)
                     name = f"photo_s{seq:03d}_p{page_no}_a{angle:g}_{index}.jpg"
                     angle_field: float | None = angle
+                elif kind == KIND_PHONE:  # the plain photo's generator: same scene, plus the ISP
+                    rng = _file_rng(seed, seq, page_no, KIND_PHOTO, angle, index)
+                    params = replace(base_photo, angle_deg=angle, long_side=long_side)
+                    data, meta = photo_jpeg(page_img, rng, params, isp=isp,
+                                            isp_rng=_file_rng(seed, seq, page_no, kind, angle, index, isp=True))
+                    name = f"ponsel_s{seq:03d}_p{page_no}_a{angle:g}_{index}.jpg"
+                    angle_field = angle
+                elif kind == KIND_SCREEN_PHOTO:
+                    params = replace(base_photo, angle_deg=angle, long_side=long_side)
+                    isp_rng = _file_rng(seed, seq, page_no, kind, angle, index, isp=True) if isp is not None else None
+                    data, meta = screen_photo_jpeg(page_img, rng, params, screen_params, isp=isp, isp_rng=isp_rng,
+                                                   render_dpi=float(dpi))
+                    name = f"fotolayar_s{seq:03d}_p{page_no}_a{angle:g}_{index}.jpg"
+                    angle_field = angle
                 elif kind == KIND_PRINT:
                     params = replace(base_photo, angle_deg=angle, long_side=long_side)
                     data, meta = printed_photo_jpeg(pdfs[seq], page_no - 1, rng, print_params, params)
@@ -1084,6 +1395,8 @@ def make_photo_set(
                 item: dict[str, object] = {"file": name, "seq": seq, "copy_id": copy.copy_id, "page": page_no,
                                            "kind": kind, "angle": angle_field, "render_dpi": item_dpi}
                 item.update({k: v for k, v in meta.items() if k != "kind"})
+                if kind in (KIND_PHONE, KIND_SCREEN_PHOTO):
+                    item["isp"] = isp.name if isp is not None else "netral"
                 items.append(item)
 
     truth = {
@@ -1138,7 +1451,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-screenshots", action="store_true", help="tanpa tangkapan layar")
     ap.add_argument("--cetak", choices=["laser", "inkjet"], default=None,
                     help="foto halaman yang dicetak dulu (model printer laser atau inkjet), bukan foto layar")
+    ap.add_argument("--isp", choices=["netral", "ponsel"], default="netral",
+                    help="pemrosesan gambar kamera: netral (seperti sebelumnya) atau ponsel (HDR, pengurangan "
+                         "derau, pemetaan nada lokal, penajaman, JPEG kamera)")
+    ap.add_argument("--layar", action="store_true",
+                    help="foto salinan yang ditampilkan di monitor simulasi (subpiksel, gamma, sudut), bukan halaman")
+    ap.add_argument("--silau", action="store_true", help="dengan --layar: tambahkan pantulan lampu di layar")
     args = ap.parse_args(argv)
+    if args.silau and not args.layar:
+        ap.error("--silau hanya berlaku bersama --layar")
 
     photo_params = PhotoParams(crop_into_page=args.crop_into_page)
     print(f"Membuat foto sintetis dari {args.issued} (benih {args.seed}, sisi panjang {args.long_side} px) ...")
@@ -1148,7 +1469,9 @@ def main(argv: list[str] | None = None) -> int:
                                angles=tuple(args.angles), seed=args.seed, dpi=args.dpi,
                                long_side=args.long_side, all_pages=args.all_pages,
                                screenshots=not args.no_screenshots, photo_params=photo_params,
-                               print_params={"laser": PrintParams(), "inkjet": INKJET}.get(args.cetak or ""))
+                               print_params={"laser": PrintParams(), "inkjet": INKJET}.get(args.cetak or ""),
+                               isp=ISP_PROFILES[args.isp],
+                               screen_params=ScreenParams(glare=args.silau) if args.layar else None)
     except ManifestNotFoundError as exc:
         print(f"Galat: {exc}. Terbitkan salinan dulu dengan 'tapak issue'.", file=sys.stderr)
         return 2
@@ -1163,7 +1486,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if n_old:
         print(f"{n_old} gambar lama dari proses sebelumnya dihapus agar folder sesuai truth.json.")
-    n_photo = sum(1 for it in items if it["kind"] in (KIND_PHOTO, KIND_PRINT))
+    n_photo = sum(1 for it in items if it["kind"] != KIND_SCREENSHOT)
     n_shot = len(items) - n_photo
     n_copies = len({it["seq"] for it in items})
     print(f"Selesai: {n_photo} foto dan {n_shot} tangkapan layar dari {n_copies} salinan ditulis ke {args.out}")
