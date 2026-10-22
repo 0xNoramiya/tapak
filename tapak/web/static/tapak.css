@@ -750,7 +750,8 @@ fieldset.field > legend { padding: 0; margin-bottom: 6px; }
 .choice:has(> input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .choice:has(> input[aria-invalid="true"]) { border-color: var(--danger-line); }
 .choice > input { margin-top: 2px; flex: none; }
-.choice > input:focus-visible { outline: none; }
+/* the card carries the focus ring; without :has() the radio keeps its own */
+@supports selector(:has(*)) { .choice > input:focus-visible { outline: none; } }
 .choice-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .choice-title { font-weight: 500; }
 .choice-desc { font-size: var(--fs-sm); color: var(--ink-muted); }

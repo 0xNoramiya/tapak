@@ -792,6 +792,8 @@ def test_background_profile_defaults_to_layar(client):
     # the print profile is never called invisible
     invisible = re.compile(r"\b(tidak|tak) terlihat", re.I)
     assert not invisible.search(cetak) and not invisible.search(PRINT_BACKGROUND_WARNING)
+    # and the page says "not visible" only of the default profile (not in its header, say)
+    assert [m.group(0) for m in invisible.finditer(_plain(page))] == ["Tidak terlihat"]
     # The warning is plain markup (shown by CSS while "Cetak" is checked) and describes that option.
     assert f'id="latar-peringatan">{PRINT_BACKGROUND_WARNING}</p>' in page
     assert 'aria-describedby="latar-cetak-ket latar-peringatan err-latar"' in _radio(page, "cetak")
