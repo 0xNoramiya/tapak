@@ -874,3 +874,232 @@ def test_stepper_step_three_covers_both_text_reviews(client):
     assert _STAGING[sid].lexical.pending() and not _STAGING[sid].sets
     stepper = re.search(r'<ol class="stepper alur-stepper" id="stepper"[^>]*hx-swap-oob="true">.*?</ol>', r.text, re.S).group(0)
     assert current in stepper and labels(stepper) == list(ISSUE_STEPS)
+
+
+# --- scanned masters (halaman pindaian) ------------------------------------------------------
+
+
+def _one_page(pdf: bytes, page: int = 0) -> bytes:
+    import pymupdf
+
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        doc.select([page])
+        return doc.tobytes()
+
+
+@pytest.fixture(scope="module")
+def scans() -> dict[str, bytes]:
+    """Fictional scans of the sample (samplegen.scanned_sample), small to stay fast: page 1 alone
+    at 200 dpi (the lowest resolution accepted) with an invisible OCR layer, the two-page sample
+    with only page 2 scanned, and page 1 at 150 dpi (refused)."""
+    from tapak.samplegen import scanned_sample
+
+    sample = SAMPLE.read_bytes()
+    page1 = _one_page(sample)
+    return {"pindaian": scanned_sample(page1, dpi=200, ocr_layer=True),
+            "campuran": scanned_sample(sample, dpi=200, scan_pages={1}),
+            "rendah": scanned_sample(page1, dpi=150)}
+
+
+def _scan_files(pdf: bytes, name: str, n: int = 4) -> dict:
+    """A scanned master and the first ``n`` recipients of the sample list."""
+    rows = (ROOT / "samples" / "recipients.csv").read_text(encoding="utf-8").splitlines()[: n + 1]
+    return {"dokumen": (name, pdf, "application/pdf"),
+            "penerima": ("recipients.csv", ("\n".join(rows) + "\n").encode(), "text/csv")}
+
+
+def _analyse_scan(client, pdf: bytes, name: str = "nota_pindaian.pdf") -> tuple[str, str]:
+    r = client.post("/terbitkan/analisis", files=_scan_files(pdf, name), data={"c": "3", "eps": "1e-6"})
+    assert r.status_code == 200 and "Rencana penandaan" in r.text, r.text[:400]
+    return re.search(r"/terbitkan/([0-9a-f]{16})/terbitkan", r.text).group(1), r.text
+
+
+def _source_words() -> set[str]:
+    """Longer words of the sample's page 1 that neither the templates ("Rencana", "dengan") nor the
+    recipient list ("Sintetis") contain: the scan shows them as ink and its OCR layer holds them
+    as invisible text, but no page may print them."""
+    from tapak.marker.layout import extract_layout
+
+    sources = [*(ROOT / "tapak" / "web" / "templates").glob("*.html"), ROOT / "samples" / "recipients.csv"]
+    ui = " ".join(p.read_text(encoding="utf-8") for p in sources)
+    words = {w.text.strip(".,;:()") for w in extract_layout(_one_page(SAMPLE.read_bytes())).words()}
+    return {w for w in words if len(w) >= 6 and w.isalpha() and not re.search(rf"\b{w}\b", ui)}
+
+
+def test_scanned_master_is_accepted_and_the_plan_shows_page_modes(client, scans):
+    from tapak.web.app import SCAN_GATE_LINES, _STAGING
+
+    sid, page = _analyse_scan(client, scans["pindaian"])
+    record = _STAGING[sid].scan
+    assert record["pages"] == [0] and record["dpi"] == [200] and record["ocr_layer_dropped"] == [0]
+    text = _plain(page)
+    # page tile: scanned pages count Tesseract's word boxes, never words
+    assert "1 halaman pindaian (200 dpi)" in text and "halaman teks" not in text
+    assert re.search(r"\d+ kotak kata \(Tesseract\)", text) and not re.search(r"\d+ kata</span>", page)
+    assert re.search(r'<li class="mode mode-pindaian">.*?<span>Halaman 1: pindaian, 200 dpi</span></li>', page)
+    assert ("Halaman pindaian membawa kanal geser (kotak kata dari Tesseract, ditanam pada piksel gambar) dan pola "
+            "latar; karakter tak terlihat, huruf kembar, varian semantik, dan pilihan kata tidak berlaku di sana") in text
+    assert f"hanya hash daftar kotaknya yang dicatat ({record['boxes_sha256'][:16]}...)" in text
+    assert "Lapisan teks OCR tak terlihat di halaman 1 tidak disalin ke salinan" in text
+    assert "salinan sekitar 4 kali ukuran induk (contoh 300 dpi: sekitar 2,9 MB per halaman)" in text
+    # the gate: pixel-identical scanned page only (the gray-level sentence is about text pages)
+    assert f'id="gerbang-pindaian">{SCAN_GATE_LINES[True]}</span>' in page and "selisih maksimum" not in text
+    # channels: shift and background in the page image; no text channel has slots on a scan
+    assert "Bertahan: cetak, foto, tangkapan layar; di halaman pindaian: digeser di piksel gambar" in text
+    assert "foto layar; di halaman pindaian: ditambahkan ke piksel kertas" in text
+    assert '<span class="ch-name">Karakter tak terlihat' not in page and '<span class="ch-name">Huruf kembar' not in page
+    # not one word of the document (scan or OCR layer) reaches the page
+    leaked = sorted(w for w in _source_words() if re.search(rf"\b{w}\b", text))
+    assert not leaked, leaked
+
+
+def test_mixed_master_shows_text_and_scanned_pages(client, scans):
+    from tapak.web.app import SCAN_GATE_LINES, _STAGING, _staging_master
+
+    sid, page = _analyse_scan(client, scans["campuran"], "nota_campuran.pdf")
+    text = _plain(page)
+    assert "1 halaman teks, 1 halaman pindaian (200 dpi)" in text
+    assert re.search(r"\d+ kata, \d+ kotak kata \(Tesseract\)", text)
+    assert "<span>Halaman 1: teks</span>" in page and "<span>Halaman 2: pindaian, 200 dpi</span>" in page
+    assert "Tanpa tanda, halaman teks digambar ulang identik dengan aslinya: selisih maksimum" in text
+    assert SCAN_GATE_LINES[True] in text
+    # the text channels stay on the text page, and step 3 still applies there
+    assert '<span class="ch-name">Karakter tak terlihat' in page
+    assert "salin-tempel, berkas diteruskan (halaman teks saja)" in text
+    assert "is-na" not in page and "Tidak berlaku" not in text
+    assert text.count("Hanya halaman teks. Halaman pindaian (halaman 2) tidak membawa kanal ini.") == 2
+    # the word-choice preview plans on the issuance layout, scanned rows included
+    master = _staging_master(_STAGING[sid])
+    assert any(w.id[0] == 1 for w in master.shift_layout.words())
+    assert not any(w.id[0] == 1 for w in master.layout.words())
+
+
+def test_low_resolution_scan_and_unmarkable_pdf_are_refused_in_the_document_field(client, scans):
+    import pymupdf
+
+    from tapak.web.app import NOTHING_TO_MARK, _STAGING
+
+    before = set(_STAGING)
+    hx = {"HX-Request": "true"}
+    r = client.post("/terbitkan/analisis", files=_scan_files(scans["rendah"], "nota_150dpi.pdf"),
+                    data={"c": "3", "eps": "1e-6"}, headers=hx)
+    assert r.status_code == 200 and r.headers.get("HX-Reswap") == "none" and "<form" not in r.text
+    slot = re.search(r'id="err-dokumen" hx-swap-oob="innerHTML">(.*?)</span>\s*<span id="err-penerima"',
+                     r.text, re.S).group(1)
+    assert "Halaman 1 hasil pindaian beresolusi 150 dpi; TAPAK memerlukan minimal 200 dpi" in slot
+    assert "Pindai ulang dokumen pada 300 dpi." in slot and 'class="field-error" role="alert"' in slot
+    # neither a text layer nor a page-filling scan: nothing to mark
+    with pymupdf.open() as doc:
+        doc.new_page()
+        blank = doc.tobytes()
+    r = client.post("/terbitkan/analisis", files=_scan_files(blank, "kosong.pdf"), data={"c": "3", "eps": "1e-6"},
+                    headers=hx)
+    assert NOTHING_TO_MARK in r.text and NOTHING_TO_MARK.endswith("Tidak ada yang dapat ditandai.")
+    assert set(_STAGING) == before
+
+
+def test_missing_tesseract_is_reported_in_the_document_field(client, scans, monkeypatch):
+    from tapak.marker import raster
+
+    def no_tesseract(master):
+        raise raster.OcrUnavailable("Tesseract tidak terpasang; halaman pindaian memerlukan tesseract-ocr dan "
+                                    "tesseract-ocr-ind")
+
+    monkeypatch.setattr(raster, "prepare_scans", no_tesseract)
+    r = client.post("/terbitkan/analisis", files=_scan_files(scans["pindaian"], "nota_pindaian.pdf"),
+                    data={"c": "3", "eps": "1e-6"}, headers={"HX-Request": "true"})
+    assert r.headers.get("HX-Reswap") == "none"
+    assert ('id="err-dokumen" hx-swap-oob="innerHTML"><span class="field-error" role="alert">Tesseract tidak '
+            "terpasang; halaman pindaian memerlukan tesseract-ocr dan tesseract-ocr-ind.</span>") in r.text
+
+
+def test_scan_gate_failure_refuses_the_master(client, scans, monkeypatch):
+    from tapak.marker import render
+    from tapak.marker.render import GateResult
+    from tapak.web.app import SCAN_GATE_LINES
+
+    monkeypatch.setattr(render, "visual_gate", lambda master: GateResult(False, 0, 0.0, 100, False))
+    r = client.post("/terbitkan/analisis", files=_scan_files(scans["pindaian"], "nota_pindaian.pdf"),
+                    data={"c": "3", "eps": "1e-6"}, headers={"HX-Request": "true"})
+    assert r.headers.get("HX-Reswap") == "none" and SCAN_GATE_LINES[False] in r.text
+    assert SCAN_GATE_LINES[False].endswith("penerbitan ditolak.") and "tingkat abu-abu" not in r.text
+
+
+def test_all_scanned_master_marks_the_text_review_not_applicable(client, scans):
+    from tapak.web.app import ISSUE_STEPS
+
+    sid, page = _analyse_scan(client, scans["pindaian"])
+    stepper = re.search(r'<ol class="stepper alur-stepper" id="stepper"[^>]*>.*?</ol>', page, re.S).group(0)
+    assert re.findall(r'<span class="stepper-label">([^<]*)', stepper) == list(ISSUE_STEPS)
+    items = re.findall(r'<li class="stepper-item[^"]*".*?</li>', stepper, re.S)
+    assert 'class="stepper-item is-na"' in items[2] and "tidak berlaku</span>" in items[2]
+    assert "(selesai)" not in items[2] and "aria-current" not in items[2] and "icon-minus" in items[2]
+    assert 'aria-current="step"><span class="stepper-num">4</span>' in items[3]
+    text = _plain(page)
+    assert '<h2 id="langkah3">Tinjau teks</h2>' in page
+    assert "Tidak berlaku: semua halaman dokumen ini hasil pindai." in text
+    # neither safe sentences nor word choice are offered, and publishing is not blocked
+    assert 'name="unit"' not in page and 'id="leksikal"' not in page and "Pindai titik pilihan kata" not in page
+    assert "bit. Tidak berlaku: semua halaman dokumen ini hasil pindai." in text
+    assert "disabled" not in _publish_button(page)
+    r = client.post(f"/terbitkan/{sid}/leksikal", headers={"HX-Request": "true"})
+    assert r.status_code == 400 and "Pilihan kata tidak berlaku: semua halaman dokumen ini hasil pindai." in r.text
+
+
+def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(client, scans):
+    import json
+
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueManifest
+    from tapak.web.app import SCAN_GATE_LINES, _STAGING
+
+    sid, page = _analyse_scan(client, scans["pindaian"])
+    record = dict(_STAGING[sid].scan)
+    assert "Halaman pindaian ditandai di piksel gambar" in page  # the publish busy line says it takes longer
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and "4 salinan siap dibagikan" in r.text
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    folder = load_settings().workspaces / doc
+    manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.scan == record and manifest.gate["scan_identical"] is True
+    with sqlite3.connect(load_settings().registry_path) as con:
+        payloads = [json.loads(p) for (p,) in con.execute("SELECT payload FROM entries WHERE kind = 'document'")]
+    assert payloads[-1]["scan"]["boxes_sha256"] == record["boxes_sha256"]
+    # the result: page modes, the scan gate and the copy sizes measured on the files
+    text = _plain(r.text)
+    assert "Mode halaman: 0 halaman teks, 1 halaman pindaian (halaman 1; 200 dpi)." in text
+    assert SCAN_GATE_LINES[True] in text
+    sizes = [(folder / "salinan" / c.file).stat().st_size / 1e6 for c in manifest.copies]
+    biggest = f"{max(sizes):.1f}".replace(".", ",")
+    assert re.search(rf"Ukuran salinan: rata-rata \d+,\d MB, terbesar {biggest} MB \(dokumen induk \d+,\d MB\)", text)
+    leaked = sorted(w for w in _source_words() if re.search(rf"\b{w}\b", text))
+    assert not leaked, leaked
+    # Lacak: the document is marked as having scanned pages (busy line), and a copy is read
+    form = client.get(f"/lacak?dokumen={doc}").text
+    assert re.search(rf'<option value="{doc}" selected data-pratinjau="[^"]*" data-pindaian>', form)
+    assert "membaca ulang kotak kata halaman pindaian (beberapa detik per halaman)" in form
+    copy = client.get(f"/dokumen/{doc}/salinan/2")
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
+    assert r.status_code == 200 and "Salinan #2" in r.text
+    assert 'Geser kata dan baris <span class="kanal-sub">(termasuk halaman pindaian)</span>' in r.text
+    assert "dipetakan ke halaman 1 (halaman pindaian, korelasi" in _plain(r.text)
+
+
+def test_lacak_warns_next_to_the_verdict_when_scanned_shift_was_skipped(client, monkeypatch):
+    import tapak.decoder.trace as trace
+    from tapak.web.app import templates
+
+    note = (f"{trace.SCAN_SHIFT_SKIPPED}: kotak kata hasil Tesseract berbeda dari saat penerbitan (sekarang "
+            "tesseract 9, saat penerbitan tesseract 5); TAPAK tidak menebak letak kata, pola latar tetap dibaca")
+    tpl = templates.env.from_string("{% for n in peringatan_terlihat(notes) %}[P]{{ n }}{% endfor %}")
+    assert tpl.render(notes=["catatan biasa", note]) == f"[P]{note}"
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6"})
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/terbitkan", r.text).group(1)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    monkeypatch.setattr(trace, "attach_recorded_scans", lambda master, manifest: note)  # simulated drift
+    r = client.post("/lacak", data={"dokumen": doc, "teks": "Teks ini tidak berasal dari dokumen mana pun."})
+    assert r.status_code == 200 and "Tidak cukup bukti" in r.text
+    verdict = r.text[:r.text.index('class="verdict-actions"')]
+    assert f'<p class="notice notice-warn verdict-note"><b>Perhatian:</b> {note}</p>' in verdict
+    assert r.text.count(trace.SCAN_SHIFT_SKIPPED) == 1  # not repeated among the notes

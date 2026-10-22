@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // region of its own, and the disabled button has lost focus: say it in the page's region.
     var busy = form && form.querySelector ? form.querySelector(".busy") : null;
     if (!busy && form && form.matches && form.matches(".lacak-form")) { busy = document.querySelector(".lacak-sibuk"); }
-    if (busy) { announce(busy.textContent.replace(/\s+/g, " ").trim()); }
+    if (busy) { announce(shownText(busy).replace(/\s+/g, " ").trim()); }
     if (!hasOwnIndicator(e.detail.elt)) {
       e.detail.xhr.tapakBusy = true;
       busyCount += 1;
@@ -60,6 +60,17 @@ document.addEventListener("DOMContentLoaded", function () {
     busyCount = Math.max(0, busyCount - 1);
     if (!busyCount) { root.classList.remove("is-busy"); }
   });
+  // The text of a busy line as it will show: parts that CSS hides for the current choice (the
+  // scanned-page line of Lacak) are left out. The line itself is still hidden at this point,
+  // so each part is judged by its own computed display.
+  function shownText(el) {
+    var out = "";
+    Array.prototype.forEach.call(el.childNodes, function (n) {
+      if (n.nodeType === 3) { out += n.nodeValue; }
+      else if (n.nodeType === 1 && getComputedStyle(n).display !== "none") { out += shownText(n); }
+    });
+    return out;
+  }
   function hasOwnIndicator(elt) {
     if (!elt || !elt.matches) { return false; }
     return elt.matches("[data-loading-text]") || !!elt.querySelector(".htmx-indicator");

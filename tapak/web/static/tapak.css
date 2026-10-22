@@ -1092,6 +1092,11 @@ td .bar { margin-right: 8px; }
 .stepper-item.is-done::after { background: var(--accent-line); }
 .stepper-item[aria-current="step"] { color: var(--ink); font-weight: 600; }
 .stepper-item[aria-current="step"] .stepper-num { border-color: var(--accent); color: var(--accent-text); }
+/* a step that does not apply to this document (step 3 of a master whose pages are all scans):
+   a dashed ring with a dash, the label muted with a short tag; progress passes it */
+.stepper-item.is-na .stepper-num { border-style: dashed; color: var(--ink-muted); }
+.stepper-item.is-na::after { background: var(--accent-line); }
+.stepper-na { margin-left: 8px; font: 500 var(--fs-label)/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
 @container main (max-width: 620px) {
   .stepper-item:not([aria-current="step"]) .stepper-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .stepper-item:not(:last-child)::after { margin: 0 8px; }
@@ -1179,7 +1184,9 @@ mark.diff {
   border-radius: 50%;
   animation: spin 700ms linear infinite;
 }
-.busy { align-items: center; gap: 12px; font-size: var(--fs-ui); color: var(--ink-muted); }
+.busy { flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: var(--fs-ui); color: var(--ink-muted); }
+/* a long line (scanned pages) goes under the bar where it would be squeezed beside it */
+.busy > span:not(.busy-bar) { flex: 1 1 16rem; min-width: 0; }
 .busy-bar { position: relative; flex: 0 0 120px; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
 .busy-bar::after {
   content: "";

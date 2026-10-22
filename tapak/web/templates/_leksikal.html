@@ -44,6 +44,7 @@
     <div>
       <h2 id="langkah-lx" tabindex="-1"{% if lex_focus and (sel is none or not lv.total) %} data-autofocus{% endif %}>Pilihan kata <span class="field-optional">(opsional)</span></h2>
       <p class="lead">Setiap penerima mendapat bentuk kata sendiri yang bermakna sama, misalnya “terdiri atas” atau “terdiri dari”, sehingga teks yang diketik ulang tetap dapat dilacak. Akibatnya salinan terlihat berbeda kata bila dibandingkan; dokumen induk tetap menjadi catatan resmi.</p>
+      {% if st.scan %}<p class="hint teks-saja">Hanya halaman teks. Halaman pindaian (halaman {{ st.plan.scan_nums }}) tidak membawa kanal ini.</p>{% endif %}
     </div>
     {% if sel is not none and lv.total %}
     {% set decided = lv.total - lv.pending %}
