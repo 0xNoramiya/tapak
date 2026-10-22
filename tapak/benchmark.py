@@ -71,6 +71,17 @@ def _entries(folder: Path) -> list[dict]:
     return truth["items"] if isinstance(truth, dict) else truth
 
 
+def check_issuance(folder: Path, entries: list[dict], by_copy: dict[str, int]) -> None:
+    """Refuse (SystemExit) a photo set made from another issuance than the one traced against:
+    its copy ids are not copies of this document, so every trace would count as an honest
+    "tidak cukup bukti" without anyone noticing."""
+    stale = [e["file"] for e in entries if e.get("copy_id") not in by_copy]
+    if stale:
+        remake = "make photos-cetak" if any(e.get("kind") == KIND_PRINT for e in entries) else "make photos"
+        raise SystemExit(f"set foto {folder} dibuat dari penerbitan lain ({len(stale)} dari {len(entries)} foto "
+                         f"bukan salinan dokumen terbitan yang diuji, misalnya {stale[0]}); jalankan ulang: {remake}")
+
+
 def _outcome(accused: list[int], expected: int, identified: bool) -> str:
     if not identified:
         return "tidak cukup bukti"
@@ -110,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     jobs: list[tuple[list[tuple[Path, dict]], dict]] = []
     for folder in folders:
         entries = _entries(folder)
+        check_issuance(folder, entries, by_copy)
         for e in entries:
             jobs.append(([(folder, e)], {"kind": e["kind"], "angle": e.get("angle"), "pages": 1}))
         for p1, p2 in print_pairs(entries):
@@ -119,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     for items, info in jobs:
         files = [(e["file"], (folder / e["file"]).read_bytes()) for folder, e in items]
         e = items[0][1]
-        expected = by_copy.get(e["copy_id"], e.get("seq"))
+        expected = by_copy[e["copy_id"]]
         out = trace_evidence(settings, doc.doc_hash, files[0][0], files[0][1], more=files[1:])
         a = out.attribution
         accused = [c.copy.seq for c in a.accused]

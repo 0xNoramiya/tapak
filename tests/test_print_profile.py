@@ -75,36 +75,70 @@ def _without_file_id(data: bytes) -> bytes:
     return data[:start] + data[end:]
 
 
-def test_default_issuance_is_bit_for_bit_unchanged(tmp_path, monkeypatch, recipients):
-    """Without a choice, and with the explicit "layar" profile, issuance writes the same bytes
-    (copy ids fixed so the codewords are the same; the random file id aside), and the print
-    profile changes them."""
+# Default issuance as written by the code before the print profile existed (commit 3500a5d),
+# recorded with PyMuPDF 1.28.2 from the sample tapak.samplegen writes: SHA-256 of copies 1 and
+# 2 (copy ids 0 and 1, trailer /ID cut out).
+GOLDEN_PYMUPDF = "1.28.2"
+GOLDEN_SAMPLE_SHA256 = "fac9bba95c8bf9290395bc6078a3d640ab5587c347a2db8dcbc6791fd4e3a65d"
+GOLDEN_DEFAULT_COPIES = ["65463815919bd413100c27033736219959586e0f2c9e178ee9d1017ceec483de",
+                         "108d16546deb8a19a6f496bbd984883bc1755ecdf2e24253caa5edf306882f8b"]
+
+
+def test_default_background_is_pinned():
+    """The default pattern itself, written out: a change to it must fail here, not only change
+    the default and the "layar" profile alike."""
+    expected = {"cell_mm": 2.0, "cells_per_bit": 8, "amplitude": 2.0, "base": 253.0, "px_per_cell": 4}
+    assert asdict(IssueSettings().background) == expected
+    assert asdict(SCREEN_BACKGROUND) == expected and asdict(background_profile("layar")) == expected
+
+
+def _issue_fixed_ids(monkeypatch, recipients, folder, settings) -> list[bytes]:
+    """Issue two copies with copy ids 0 and 1; the copies' bytes without the trailer /ID."""
     import itertools
 
     import tapak.marker.issue as issue_mod
     from conftest import SAMPLE, SECRET
 
-    files = {}
-    for name, settings in (("bawaan", IssueSettings(workers=1)),
-                           ("layar", IssueSettings(workers=1, background=background_profile("layar"))),
-                           ("cetak", IssueSettings(workers=1, background=background_profile("cetak")))):
-        counter = itertools.count()
-        monkeypatch.setattr(issue_mod.secrets, "token_hex", lambda n: f"{next(counter):0{2 * n}x}")
-        m = issue(SAMPLE, recipients[:2], tmp_path / name, SECRET, settings, issuer="pytest")
-        files[name] = [_without_file_id((tmp_path / name / c.file).read_bytes()) for c in m.copies]
-        assert m.background == asdict(background_profile("cetak" if name == "cetak" else "layar"))
+    counter = itertools.count()
+    monkeypatch.setattr(issue_mod.secrets, "token_hex", lambda n: f"{next(counter):0{2 * n}x}")
+    m = issue(SAMPLE, recipients[:2], folder, SECRET, settings, issuer="pytest")
+    assert [c.copy_id for c in m.copies] == ["0000000000000000", "0000000000000001"]
+    return [_without_file_id((folder / c.file).read_bytes()) for c in m.copies]
+
+
+def test_default_issuance_is_bit_for_bit_unchanged(tmp_path, monkeypatch, recipients, sample_pdf):
+    """Without a choice, issuance writes the same bytes as the code before the print profile
+    (golden hashes; skipped when PyMuPDF or the generated sample differ from the recording)."""
+    import hashlib
+
+    import pymupdf
+
+    if pymupdf.VersionBind != GOLDEN_PYMUPDF or hashlib.sha256(sample_pdf).hexdigest() != GOLDEN_SAMPLE_SHA256:
+        pytest.skip(f"golden hashes recorded with PyMuPDF {GOLDEN_PYMUPDF} and another sample PDF")
+    files = _issue_fixed_ids(monkeypatch, recipients, tmp_path / "bawaan", IssueSettings(workers=1))
+    assert [hashlib.sha256(f).hexdigest() for f in files] == GOLDEN_DEFAULT_COPIES
+
+
+def test_layar_profile_is_the_default_and_cetak_differs(tmp_path, monkeypatch, recipients):
+    """The explicit "layar" profile writes the same bytes as no choice; the print profile does not."""
+    files = {name: _issue_fixed_ids(monkeypatch, recipients, tmp_path / name,
+                                    IssueSettings(workers=1, background=background_profile(name)))
+             for name in ("layar", "cetak")}
+    files["bawaan"] = _issue_fixed_ids(monkeypatch, recipients, tmp_path / "bawaan", IssueSettings(workers=1))
     assert files["bawaan"] == files["layar"]
     assert all(a != b for a, b in zip(files["bawaan"], files["cetak"]))
 
 
-def test_cli_and_service_offer_the_profile(tmp_path, capsys):
+def test_cli_and_service_offer_the_profile(tmp_path, capsys, monkeypatch):
     from tapak.cli import build_parser, main
-    from tests_support import RECIPIENTS
+    from tests_support import RECIPIENTS, SAMPLE
+
+    monkeypatch.chdir(tmp_path)  # any working directory: no path relative to the repository root
 
     args = build_parser().parse_args(["issue", "a.pdf", "b.csv"])
     assert args.latar == "layar"
     rc = main(["--data", str(tmp_path / "data"), "--keys", str(tmp_path / "keys"), "issue",
-               "samples/nota_dinas.pdf", str(RECIPIENTS), "--no-registry", "--canary-domain", "",
+               str(SAMPLE), str(RECIPIENTS), "--no-registry", "--canary-domain", "",
                "--workers", "1", "--latar", "cetak"])
     out = capsys.readouterr().out
     assert rc == 0 and "profil cetak (242 +/- 5" in out and PRINT_BACKGROUND_WARNING in out

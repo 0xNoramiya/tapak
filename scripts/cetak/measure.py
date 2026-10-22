@@ -3,6 +3,7 @@
     python -m scripts.cetak.measure trials --profile layar --seqs 1-20 --pages 0,1 --long 1600,4000
     python -m scripts.cetak.measure composites --profile cetak --coalitions 16 --pages 0,1 --long 1600
     python -m scripts.cetak.measure report
+    CETAK_OUT=out/cetak-r1 python -m scripts.cetak.measure trials --profile cetak --reps 1   # fresh seeds
 
 Trials: copy s, page p, long side L: the page is printed (tapak.photos.print_page, laser
 preset unless --printer says otherwise) and photographed (all photo parameters drawn from
@@ -16,6 +17,12 @@ Composites (c = 3 cut-and-paste on paper): three copies are cut into bands at th
 space nearest 1/3 and 2/3 of the text block (top from member 1, middle from 2, bottom from
 3), printed as one sheet and photographed. Coalitions are drawn from copies 1 to 20 with the
 fixed seed 31337.
+
+Repetitions: ``--reps 1`` (or higher) draws a fresh print and photo for every trial, and for
+composites fresh coalitions (seed [31337, r]) and fresh prints. The print profile's
+242 +/- 5 was chosen from three candidates on repetition 0 of the research's seeds, so only
+repetitions above 0 are an independent check of it; write them to their own CETAK_OUT so the
+report does not mix them with repetition 0.
 
 Verdict: the production rule (tapak.decoder.trace.run_trace: fused LLRs, Chernoff threshold
 from the bias vector and the decoder weights only, eps1 = eps / N), over all 100 copies. A
@@ -57,7 +64,7 @@ def _use_template(kind: str) -> None:
     from tapak.decoder import rectify
 
     if kind == "supersampled":  # the shift decoder's template before exact templates
-        image.render_page_exact = lambda pdf, page, dpi: rectify.render_page(pdf, page, dpi)
+        image.render_page_exact = lambda pdf, page, dpi, **_: rectify.render_page(pdf, page, dpi)
     else:
         image.render_page_exact = rectify.render_page_exact
 
@@ -107,9 +114,10 @@ def trial(job: tuple) -> dict:
     return {"job": job, "t": round(rec["t_total"], 1)}
 
 
-def coalitions(k: int) -> list[tuple[int, int, int]]:
-    """The first k coalitions of three copies out of 1 to 20 (seed fixed before any result)."""
-    rng = np.random.default_rng(31337)
+def coalitions(k: int, rep: int = 0) -> list[tuple[int, int, int]]:
+    """The first k coalitions of three copies out of 1 to 20 (seed fixed before any result;
+    repetition r > 0 draws new coalitions from the seed [31337, r])."""
+    rng = np.random.default_rng(31337 if rep == 0 else [31337, rep])
     return [tuple(int(s) for s in sorted(rng.choice(np.arange(1, 21), 3, replace=False))) for _ in range(k)]
 
 
@@ -122,15 +130,15 @@ def cut_rows(ctx, page: int, dpi: int) -> list[int]:
     return [int(round(c * dpi / 72.0)) for c in cuts]
 
 
-def composite_path(profile, template, prn, coal, page, long_side):
+def composite_path(profile, template, prn, coal, page, long_side, rep=0):
     """Result file of one composite page."""
-    tag = "-".join(f"{s:03d}" for s in coal)
+    tag = "-".join(f"{s:03d}" for s in coal) + (f"_r{rep}" if rep else "")
     return OUT / "composites" / f"{profile}__{template}__{prn}" / f"c{tag}_p{page}_L{long_side}.npz"
 
 
 def composite(job: tuple) -> dict:
     """Cut three copies together, print the sheet, photograph and decode it."""
-    profile, template, prn, coal, page, long_side = job
+    profile, template, prn, coal, page, long_side, rep = job
     path = composite_path(*job)
     if path.exists():
         return {"job": job, "skipped": True}
@@ -145,12 +153,12 @@ def composite(job: tuple) -> dict:
     text = np.vstack([layers[0][0][:c1], layers[1][0][c1:c2], layers[2][0][c2:]])
     background = np.vstack([layers[0][1][:c1], layers[1][1][c1:c2], layers[2][1][c2:]])
     del layers
-    rng = np.random.default_rng([4242, *coal, page, long_side])
+    rng = np.random.default_rng([4242, *coal, page, long_side] + ([rep] if rep else []))
     sheet, _ = print_page(text, background, rng, prm)
     del text, background
     data, meta = photo_jpeg(sheet, rng, PhotoParams(sensor_long_side=max(2400, long_side), long_side=long_side))
     rec, arrays = _decode(load_gray(data), profile)
-    rec.update(job=[profile, template, prn, list(coal), page, long_side], cuts=[c1, c2],
+    rec.update(job=[profile, template, prn, list(coal), page, long_side, rep], cuts=[c1, c2],
                t_total=time.perf_counter() - t0, view_angle=meta["view_angle_deg"])
     _save(path, rec, arrays)
     return {"job": job, "t": round(rec["t_total"], 1)}
@@ -292,13 +300,13 @@ def report() -> dict:
             rl = [r for r in recs if r["job"][5] == long_side]
             out = summary.setdefault(f"composite {profile}/{template}/{prn}/L{long_side}", {})
             by_coal = defaultdict(list)
-            for r in rl:
-                by_coal[tuple(r["job"][3])].append(r)
+            for r in rl:  # the same coalition may come back in another repetition
+                by_coal[(tuple(r["job"][3]), r["job"][6] if len(r["job"]) > 6 else 0)].append(r)
             for chans in (["background"], ["shift", "background"]):
                 label = "+".join(chans)
                 one = [verdict(ctx, [r["sb"][c] for c in chans if c in r["sb"]], list(r["job"][3])) for r in rl]
                 two = [verdict(ctx, [x["sb"][c] for x in rr for c in chans if c in x["sb"]], list(coal))
-                       for coal, rr in by_coal.items() if len(rr) == 2]
+                       for (coal, _), rr in by_coal.items() if len(rr) == 2]
                 for pages, rows in (("1 page", one), ("2 pages", two)):
                     if rows:
                         out[f"{pages} {label}"] = {
@@ -343,8 +351,8 @@ def main() -> None:
                 if s in TEST_SEQS]
         _run(trial, [j for j in jobs if not trial_path(*j).exists()], args.workers, args.profile)
     else:
-        jobs = [(args.profile, args.template, args.printer, c, p, L) for c in coalitions(args.coalitions)
-                for p in _range(args.pages) for L in _range(args.long)]
+        jobs = [(args.profile, args.template, args.printer, c, p, L, r) for r in _range(args.reps)
+                for c in coalitions(args.coalitions, r) for p in _range(args.pages) for L in _range(args.long)]
         _run(composite, [j for j in jobs if not composite_path(*j).exists()], args.workers, args.profile)
 
 

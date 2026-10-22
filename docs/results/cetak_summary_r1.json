@@ -1,0 +1,378 @@
+{
+ "cetak/exact/inkjet/L1600": {
+  "p1 shift": {
+   "traces": 10,
+   "with_bits": 10,
+   "read_mean": 101.8,
+   "ber": 0.07465618860510806,
+   "bits": 1018,
+   "ber_median": 0.0784313725490196,
+   "ber_max": 0.13131313131313133
+  },
+  "p1 background": {
+   "traces": 10,
+   "with_bits": 10,
+   "read_mean": 1942.0,
+   "ber": 0.03594232749742533,
+   "bits": 19420,
+   "ber_median": 0.0,
+   "ber_max": 0.3537590113285273
+  },
+  "p1 background found": 10,
+  "1 page shift": {
+   "n": 10,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.2775401687666166
+   ],
+   "insufficient": 10,
+   "wrong": 0,
+   "top_is_true": 10,
+   "ratio_median": 0.5009049773849628,
+   "ratio_min": 0.360111914772661,
+   "ratio_max": 0.6152009593030806,
+   "innocent_max": 0.3912776186339124,
+   "positions_median": 101.0
+  },
+  "1 page background": {
+   "n": 10,
+   "named": 10,
+   "wilson": [
+    0.7224598312333834,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 10,
+   "ratio_median": 4.3320459532289455,
+   "ratio_min": 1.7000108820610578,
+   "ratio_max": 4.441797915343591,
+   "innocent_max": 0.423382547212332,
+   "positions_median": 1941.5
+  },
+  "1 page shift+background": {
+   "n": 10,
+   "named": 10,
+   "wilson": [
+    0.7224598312333834,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 10,
+   "ratio_median": 4.356954332523769,
+   "ratio_min": 1.79664293700534,
+   "ratio_max": 4.463609323241137,
+   "innocent_max": 0.4342581539307447,
+   "positions_median": 1980.0
+  }
+ },
+ "cetak/exact/laser/L1600": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 101.95,
+   "ber": 0.06866110838646396,
+   "bits": 2039,
+   "ber_median": 0.06368355282130155,
+   "ber_max": 0.19387755102040816
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1942.0,
+   "ber": 0.01943872296601442,
+   "bits": 38840,
+   "ber_median": 0.003604531410916581,
+   "ber_max": 0.26416065911431513
+  },
+  "p1 background found": 20,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.0,
+   "ber": 0.04430379746835443,
+   "bits": 1580,
+   "ber_median": 0.03164556962025317,
+   "ber_max": 0.14285714285714285
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1942.0,
+   "ber": 0.006230690010298661,
+   "bits": 38840,
+   "ber_median": 0.0033470648815653965,
+   "ber_max": 0.03553038105046344
+  },
+  "p2 background found": 20,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 38,
+   "ratio_median": 0.5737677110370015,
+   "ratio_min": 0.3276082125538497,
+   "ratio_max": 0.6971910006850892,
+   "innocent_max": 0.5120812950846253,
+   "positions_median": 87.0
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 1,
+   "wilson": [
+    0.008881219432873136,
+    0.23613589351256675
+   ],
+   "insufficient": 19,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9017663745267683,
+   "ratio_min": 0.6916987294347665,
+   "ratio_max": 1.0059317172721671,
+   "innocent_max": 0.516518672606846,
+   "positions_median": 180.0
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.236404707182725,
+   "ratio_min": 2.334718355496109,
+   "ratio_max": 4.391737008211841,
+   "innocent_max": 0.5476614929231058,
+   "positions_median": 1937.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.607267565633919,
+   "ratio_min": 4.745749099267352,
+   "ratio_max": 5.8012342237147605,
+   "innocent_max": 0.6519768537871053,
+   "positions_median": 3263.5
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.266028200314146,
+   "ratio_min": 2.419354859164381,
+   "ratio_max": 4.446059788126097,
+   "innocent_max": 0.5484830868504497,
+   "positions_median": 1970.0
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.604798305363421,
+   "ratio_min": 4.79902654750114,
+   "ratio_max": 5.811832164718974,
+   "innocent_max": 0.6627835496683591,
+   "positions_median": 3264.5
+  }
+ },
+ "cetak/exact/laser/L4000": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 103.0,
+   "ber": 0.0,
+   "bits": 2060,
+   "ber_median": 0.0,
+   "ber_max": 0.0
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1938.6,
+   "ber": 0.02230991437119571,
+   "bits": 38772,
+   "ber_median": 0.005921730175077239,
+   "ber_max": 0.2456046883324454
+  },
+  "p1 background found": 20,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.8,
+   "ber": 0.0,
+   "bits": 1596,
+   "ber_median": 0.0,
+   "ber_max": 0.0
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1938.9,
+   "ber": 0.029269173242560214,
+   "bits": 38778,
+   "ber_median": 0.0010298661174047373,
+   "ber_max": 0.3177028451001054
+  },
+  "p2 background found": 20,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.6174095993606648,
+   "ratio_min": 0.4779862456560337,
+   "ratio_max": 0.7643193283707006,
+   "innocent_max": 0.3978305160481678,
+   "positions_median": 91.5
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 8,
+   "wilson": [
+    0.21880396741419272,
+    0.613422057684794
+   ],
+   "insufficient": 12,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9740211997466435,
+   "ratio_min": 0.7849087561677746,
+   "ratio_max": 1.1298327375817068,
+   "innocent_max": 0.4223896265335038,
+   "positions_median": 183.0
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.194012488090028,
+   "ratio_min": 1.5703977856363514,
+   "ratio_max": 4.432570362297565,
+   "innocent_max": 0.5266252772249768,
+   "positions_median": 1936.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.556144304908324,
+   "ratio_min": 4.415948736929361,
+   "ratio_max": 5.768090897147853,
+   "innocent_max": 0.6440367796252355,
+   "positions_median": 3263.5
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.238418782030163,
+   "ratio_min": 1.7440012213404024,
+   "ratio_max": 4.463289071399681,
+   "innocent_max": 0.5207963633532585,
+   "positions_median": 1971.0
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.557042394312134,
+   "ratio_min": 4.500736065997318,
+   "ratio_max": 5.77258778064379,
+   "innocent_max": 0.6429172342274603,
+   "positions_median": 3264.0
+  }
+ },
+ "composite cetak/exact/laser/L1600": {
+  "1 page background": {
+   "n": 32,
+   "innocents_named": 0,
+   "at_least_one": 31,
+   "all_three": 23,
+   "member_ratio_median": 1.389533866858217,
+   "innocent_max": 0.4478352928037701
+  },
+  "2 pages background": {
+   "n": 16,
+   "innocents_named": 0,
+   "at_least_one": 16,
+   "all_three": 15,
+   "member_ratio_median": 1.8835689399287587,
+   "innocent_max": 0.5819758514724852
+  },
+  "1 page shift+background": {
+   "n": 32,
+   "innocents_named": 0,
+   "at_least_one": 31,
+   "all_three": 23,
+   "member_ratio_median": 1.4243649319732272,
+   "innocent_max": 0.45695366450999836
+  },
+  "2 pages shift+background": {
+   "n": 16,
+   "innocents_named": 0,
+   "at_least_one": 16,
+   "all_three": 15,
+   "member_ratio_median": 1.9009030508872613,
+   "innocent_max": 0.5770276262637455
+  },
+  "background found": 31
+ }
+}

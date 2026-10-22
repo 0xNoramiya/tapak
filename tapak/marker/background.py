@@ -17,11 +17,13 @@ two copies together cancels exactly the positions where the copies differ (they 
 erased), which is the marking-assumption behaviour Tardos codes are built for.
 
 Two profiles. The default (``SCREEN_BACKGROUND``, "layar") is meant for screens,
-screenshots and photos of screens: printers render levels above about 250 as plain paper, so
-on a printed copy it vanishes and only channel 1 remains. The opt-in print profile
-(``PRINT_BACKGROUND``, "cetak") keeps every cell below that cutoff (242 +/- 5, levels 237 to
-247) and survives a simulated office print with the same decoder, at a price: the page
-looks light gray and its texture may be noticed (``PRINT_BACKGROUND_WARNING``).
+screenshots and photos of screens. The printer model assumes office printers render levels
+above about 250 as plain paper (no manufacturer figure; not measured on a real printer), so
+on a printed copy the default pattern vanishes and only channel 1 remains. The opt-in print
+profile (``PRINT_BACKGROUND``, "cetak") keeps every cell below that assumed cutoff
+(242 +/- 5, levels 237 to 247) and survives a simulated office print with the same decoder,
+at a price: the page looks light gray and its texture may be noticed
+(``PRINT_BACKGROUND_WARNING``).
 """
 
 from __future__ import annotations
@@ -59,12 +61,14 @@ class BackgroundSettings:
 
 
 SCREEN_BACKGROUND = BackgroundSettings()
-"""Default profile "layar": invisible on screen and on paper, but dropped by printers."""
+"""Default profile "layar": invisible on screen and on paper; its levels (251 to 255) lie above
+the assumed printer highlight cutoff, so a (simulated) print drops it."""
 
 PRINT_BACKGROUND = BackgroundSettings(base=242.0, amplitude=5.0)
-"""Opt-in profile "cetak": levels 237 to 247, below the highlight cutoff of office printers
-(about 250), so the pattern survives printing. The page prints as a light gray (dL* about
--3.4 against paper on the simulated laser) with a texture near the visibility threshold."""
+"""Opt-in profile "cetak": levels 237 to 247, below the assumed highlight cutoff of office
+printers (about 250, not measured), so the pattern survives a simulated print. The page
+prints as a light gray (dL* about -3.4 against paper on the simulated laser) with a texture
+near the visibility threshold."""
 
 BACKGROUND_PROFILES: dict[str, BackgroundSettings] = {"layar": SCREEN_BACKGROUND, "cetak": PRINT_BACKGROUND}
 

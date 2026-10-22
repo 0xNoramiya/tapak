@@ -10,6 +10,7 @@ from tapak.benchmark import (
     MEDIUM_PRINT_1,
     MEDIUM_PRINT_2,
     MEDIUM_SCREEN,
+    check_issuance,
     group_label,
     medium,
     print_pairs,
@@ -49,6 +50,46 @@ def test_print_pairs_join_pages_of_the_same_print():
     pairs = print_pairs(entries)
     assert [(a["file"], b["file"]) for a, b in pairs] == [
         ("cetak_s001_p1_a10_0.jpg", "cetak_s001_p2_a10_0.jpg"), ("cetak_s001_p1_a30_0.jpg", "cetak_s001_p2_a30_0.jpg")]
+
+
+def test_photo_sets_from_another_issuance_are_refused(tmp_path):
+    by_copy = {"aaaa": 1, "bbbb": 2}
+    fresh = [{"file": "cetak_s001_p1_a10_0.jpg", "kind": "cetak", "copy_id": "aaaa", "seq": 1}]
+    check_issuance(tmp_path, fresh, by_copy)  # every copy id known: nothing to say
+    stale = fresh + [{"file": "cetak_s002_p1_a10_0.jpg", "kind": "cetak", "copy_id": "cccc", "seq": 2}]
+    with pytest.raises(SystemExit, match=r"penerbitan lain \(1 dari 2 foto.*cetak_s002.*make photos-cetak"):
+        check_issuance(tmp_path, stale, by_copy)
+    screen = [{"file": "photo_s001_p1_a0_0.jpg", "kind": "photo", "copy_id": "dddd", "seq": 1}]
+    with pytest.raises(SystemExit, match="jalankan ulang: make photos$"):
+        check_issuance(tmp_path, screen, by_copy)
+
+
+def test_benchmark_stops_on_a_stale_printed_set(tmp_path, monkeypatch, capsys):
+    """Printed photos left from an earlier issuance (out/ issued anew, samples/photos-cetak kept)
+    stop the benchmark before any trace, instead of counting as "tidak cukup bukti"."""
+    from tapak.benchmark import main
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueSettings, read_recipients
+    from tapak.service import ensure_keys, issue_document
+    from tests_support import RECIPIENTS, SAMPLE
+
+    monkeypatch.setenv("TAPAK_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("TAPAK_KEY_DIR", str(tmp_path / "keys"))
+    s = load_settings()
+    out = issue_document(s, SAMPLE, read_recipients(RECIPIENTS)[:2], IssueSettings(workers=1), "uji",
+                         ensure_keys(s, create_signing_key=False), record=False)
+    layar, cetak = tmp_path / "layar", tmp_path / "cetak"
+    layar.mkdir()
+    cetak.mkdir()
+    known = out.manifest.copies[0].copy_id
+    (layar / "truth.json").write_text(json.dumps({"items": [
+        {"file": "photo_s001_p1_a0_0.jpg", "kind": "photo", "copy_id": known, "seq": 1, "page": 1}]}))
+    (cetak / "truth.json").write_text(json.dumps({"items": [
+        {"file": "cetak_s001_p1_a10_0.jpg", "kind": "cetak", "copy_id": "06391e87968373f1", "seq": 1, "page": 1}]}))
+    with pytest.raises(SystemExit, match=f"set foto {cetak} dibuat dari penerbitan lain"):
+        main(["--photos", str(layar), "--cetak", str(cetak), "--data", str(tmp_path / "data"),
+              "--keys", str(tmp_path / "keys")])
+    assert "photo_s001" not in capsys.readouterr().out  # nothing was traced
 
 
 @pytest.mark.slow

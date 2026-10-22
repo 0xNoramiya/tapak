@@ -24,9 +24,10 @@ simulate:         ## Tardos collusion simulation (acceptance numbers)
 table:            ## code length / threshold table
 	$(TAPAK) simulate --table
 
-photos-issued:    ## the issuance behind both photo sets (20 copies, no registry), made once
-	@test -d $(PHOTO_DATA)/data/dokumen || $(TAPAK) --data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys \
-		issue samples/nota_dinas.pdf samples/recipients.csv --no-registry --canary-domain ""
+photos-issued:    ## the issuance behind both photo sets (20 copies, no registry), made once; a new one drops both sets
+	@test -d $(PHOTO_DATA)/data/dokumen || { rm -rf samples/photos samples/photos-cetak && \
+		$(TAPAK) --data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys \
+		issue samples/nota_dinas.pdf samples/recipients.csv --no-registry --canary-domain ""; }
 
 photos: photos-issued  ## synthetic photo and screenshot degradation set in samples/photos
 	$(PY) -m tapak.photos --issued $(ISSUED_COPIES) \

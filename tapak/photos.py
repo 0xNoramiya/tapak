@@ -545,7 +545,8 @@ class PrintParams:
        (``snap_text``), as a printer's RIP does; tints (the background) are halftoned.
     2. **Highlight dropout.** Gray levels at or above ``white_cutoff`` (about 2 % toner
        coverage) print as plain paper: the smallest dot the engine develops reliably is
-       larger than such a tint asks for.
+       larger than such a tint asks for. The default 250 is an assumption (no
+       manufacturer figure was found and no printer was measured).
     3. **Halftone.** Remaining tints are screened: a clustered-dot (AM) screen at
        ``screen_lpi`` and ``screen_angle_deg`` (600-dpi office lasers use roughly 85 to
        106 lpi), or a dispersed 8 x 8 ordered dither (``screen="dispersed"``), a stand-in
