@@ -255,4 +255,4 @@ $U lacak --split uji --dekoder baru
 $U ringkas                                      # tabel di dokumentasi
 ```
 
-Dekoder `lama` adalah dekoder commit sebelum studi ini, diekspor ke `out/riset_ponsel/dekoder_lama`; `baru` adalah dekoder sekarang. Set uji hanya dilacak sekali per dekoder, dan `lacak --split uji` menolak menimpa hasilnya tanpa `--ulang`. Satu set berisi 500 gambar; membuatnya memerlukan sekitar 15 sampai 25 menit dan melacaknya 1 sampai 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama.
+Dekoder `lama` adalah dekoder commit sebelum studi ini, diekspor ke `out/riset_ponsel/dekoder_lama`; `baru` adalah dekoder sekarang. Set uji hanya dilacak sekali per dekoder, dan `lacak --split uji` menolak menimpa hasilnya tanpa `--ulang`. Satu set berisi 500 gambar; membuatnya memerlukan sekitar 20 sampai 30 menit, dan melacaknya juga sekitar 20 sampai 30 menit per dekoder, dengan 3 proses di mesin uji yang dipakai bersama.
