@@ -3,8 +3,8 @@
 The coalition must see exactly where its copies agree (background cells and shift units) from
 the copies alone, estimate the master position of agreeing data units from typography, and
 produce a PDF in which those marks are neutralized while the disagreeing ones follow the rule.
-The tests use a geser-v1 issuance (the scheme of every document issued before geser-v2): the
-coalition here knows the geser-v1 layout rule.
+The geser-v1 tests use a geser-v1 issuance (the scheme of every document issued before
+geser-v2); the geser-v2 tests use the default issuance, where every word group is a data unit.
 """
 
 from __future__ import annotations
@@ -27,10 +27,12 @@ from tapak.collusion import (
     image_cell_levels,
     image_cell_values,
     plan_forgery,
+    row_signs,
     shift_units,
     typographic_shift,
 )
 from tapak.marker.background import PageGrid, SCREEN_BACKGROUND, pattern_image
+from tapak.marker.pdf_shift import SCHEME_V1, SCHEME_V2
 from tapak.marker.plan import CHANNEL_BACKGROUND, CHANNEL_SHIFT
 
 MEMBERS = (4, 12)
@@ -40,6 +42,14 @@ MEMBERS = (4, 12)
 def coalition(issued_v1):
     """Two copies of the geser-v1 issuance."""
     out, manifest = issued_v1
+    return [(out / manifest.copies[s - 1].file).read_bytes() for s in MEMBERS]
+
+
+@pytest.fixture(scope="module")
+def coalition_v2(issued):
+    """Two copies of the default (geser-v2) issuance."""
+    out, manifest = issued
+    assert manifest.shift_scheme == SCHEME_V2
     return [(out / manifest.copies[s - 1].file).read_bytes() for s in MEMBERS]
 
 
@@ -147,6 +157,7 @@ def test_forged_pdf_carries_the_plan(ctx_v1, coalition):
 
     ctx = ctx_v1
     forged, view, plan = attack(ctx.master, coalition, "salin", 1.0, rng=np.random.default_rng(2))
+    assert view.scheme == SCHEME_V1  # the scheme the master is grouped for
     images = copy_backgrounds(forged)
     assert sorted(images) == sorted(view.levels)
     for page, img in images.items():
@@ -186,3 +197,102 @@ def test_reversal_keeps_every_mark_and_escapes_the_erasure_check(ctx_v1, coaliti
     result = run_trace(obs, ctx, notes)
     assert result.erasure.z is not None and not result.erasure.flagged
     assert not result.named_seqs
+
+
+# --- geser-v2: every word group is a data unit ---------------------------------------------
+
+
+def test_row_signs_reads_equal_gaps_and_splits_at_a_tab():
+    """All gaps of a row are equal in the master, so the gaps of a copy give the sign pattern;
+    a gap no pattern explains (a label) splits the row, and a uniform piece stays undecided
+    unless a known (disagreeing) sign anchors it."""
+    d = 0.07
+    s = [1, -1, -1, 1, 1, -1]
+    gaps = [3.0 + d * (s[i + 1] - s[i]) for i in range(5)]
+    assert row_signs(gaps, d) == s
+    assert row_signs([g + 0.02 for g in gaps], d) == s  # within delta / 2 of the pattern
+    tab = [20.0] + gaps[1:]
+    assert row_signs(tab, d) == [None] + s[1:]
+    assert row_signs(tab, d, known=[1, None, None, None, None, None]) == s
+    assert row_signs([3.0] * 4, d) == [None] * 5
+    assert row_signs([3.0] * 4, d, known=[None, -1, None, None, None]) == [-1] * 5
+    assert row_signs([], d, known=[1]) == [1] and row_signs([], d) == [None]
+    with pytest.raises(ValueError):
+        row_signs(gaps, d, known=[None])
+    with pytest.raises(ValueError):
+        shift_units([], scheme="geser-v9")
+
+
+def test_v2_coalition_sees_agreement_and_reads_rows(ctx, coalition_v2):
+    """geser-v2: every slot of the plan is a coalition unit, agreement is exact, word and row
+    deltas are told apart, and the row-wise typographic estimate is right for the groups it
+    decides (most of them)."""
+    view = coalition_view(coalition_v2, scheme=SCHEME_V2)
+    assert view.scheme == SCHEME_V2 and abs(view.delta_pt - ctx.shift.word_pt) < 1e-3
+    x = ctx.codewords[[s - 1 for s in MEMBERS]].astype(np.int64)
+    slots = {(s.page,) + s.ref: s.positions[0] for s in ctx.plan.channel(CHANNEL_SHIFT)}
+    assert len(view.units) == len(slots) and all(u.ref in slots for u in view.units)
+    disp = copy_displacements(coalition_v2[0], ctx.master)
+    agreeing = decided = right = 0
+    for u in view.units:
+        q = slots[u.ref]
+        assert u.agree == (x[0, q] == x[1, q])
+        if u.kind == "baris" and not u.agree:
+            assert abs(np.ptp(u.positions) - 2 * ctx.shift.row_pt) < 1e-3
+        if not u.agree:
+            continue
+        agreeing += 1
+        if u.typographic is None:
+            continue
+        decided += 1
+        row = ctx.master.layout.pages[u.ref[0]].rows[u.ref[1]]
+        if u.kind == "kata":
+            true = np.mean([disp[row.words[i].id][0] for i in row.groups[u.ref[2]].word_indices])
+        else:
+            true = np.median([disp[w.id][1] for w in row.words])
+        right += int(abs(true - u.typographic) < 1e-3)
+    assert decided > 0.8 * agreeing and right >= 0.98 * decided
+
+
+def test_v2_forgery_puts_agreeing_groups_back_and_is_flagged(ctx, coalition_v2):
+    """The forged geser-v2 PDF has its decided agreeing groups at their master positions; the
+    decoder reads those positions as unmarked (the shift strengths alone flag it), the
+    coalition is not named and nobody else is. Reversing instead keeps every group marked and
+    is not flagged."""
+    from tapak.decoder.erasure import erasure_check
+    from tapak.decoder.trace import collect_file, run_trace
+
+    forged, view, plan = attack(ctx.master, coalition_v2, "acak", 1.0, channels=("geser",),
+                                rng=np.random.default_rng(2))
+    assert view.scheme == SCHEME_V2 and plan.counts["unit_sama_dinetralkan"] > 0.8 * plan.counts["unit_sama"]
+    disp = copy_displacements(forged, ctx.master)
+    back_home = []
+    for u in view.units:
+        if u.agree and u.typographic is not None and u.kind == "kata":
+            row = ctx.master.layout.pages[u.ref[0]].rows[u.ref[1]]
+            back_home.append(abs(np.mean([disp[row.words[i].id][0] for i in row.groups[u.ref[2]].word_indices])) < 1e-3)
+    assert len(back_home) > 200 and np.mean(back_home) >= 0.98  # a wrong typographic sign moves a group to 2 delta
+    obs, notes = collect_file("bukti.pdf", forged, ctx)
+    shift = [o for o in obs if o.channel == CHANNEL_SHIFT]
+    check = erasure_check(shift, ctx.p)
+    assert check.flagged and check.units == {"geser": len(shift[0].strengths)}
+    honest = [o for o in collect_file("salinan.pdf", coalition_v2[0], ctx)[0] if o.channel == CHANNEL_SHIFT]
+    assert not erasure_check(honest, ctx.p).flagged
+    x = ctx.codewords[[s - 1 for s in MEMBERS]].astype(np.int64)
+    agree = x[0] == x[1]
+
+    def signed(sb):
+        w = np.tanh(np.abs(sb.llr) / 2) * np.where((sb.llr > 0) == (x[0][sb.positions] == 1), 1.0, -1.0)
+        return float(np.sum(w[agree[sb.positions]]))
+
+    assert signed(shift[0]) < 0.25 * signed(honest[0])
+    result = run_trace(obs, ctx, notes)
+    assert result.named_seqs <= set(MEMBERS)
+    flipped, _, back = attack(ctx.master, coalition_v2, "acak", 1.0, rng=np.random.default_rng(3), neutralize="balik")
+    for u in view.units:
+        if u.agree and u.typographic is not None:
+            assert back.moves[u.ref] == pytest.approx(-2.0 * u.typographic)
+    obs2, notes2 = collect_file("bukti.pdf", flipped, ctx)
+    reversed_ = run_trace(obs2, ctx, notes2)
+    assert reversed_.erasure.z is not None and not reversed_.erasure.flagged
+    assert not reversed_.named_seqs
