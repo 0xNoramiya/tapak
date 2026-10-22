@@ -70,6 +70,30 @@
       <p class="notice notice-warn latar-peringatan" id="latar-peringatan">{{ peringatan_cetak }}</p>
       <span id="err-latar">{% if errors.latar %}<span class="field-error">{{ errors.latar }}</span>{% endif %}</span>
     </fieldset>
+    {% set geser = values.geser if values.geser is defined and values.geser else geser_bawaan %}
+    <fieldset class="field latar geser" aria-describedby="hint-geser">
+      <legend class="field-label">Skema geser kata</legend>
+      <span class="hint" id="hint-geser">Geser kata dan baris yang tetap terbaca pada foto kertas cetak.</span>
+      <div class="choices">
+        <label class="choice">
+          <input type="radio" name="geser" value="v1" {% if geser == "v1" %}checked{% endif %}
+                 aria-describedby="geser-v1-ket err-geser" {% if errors.geser %}aria-invalid="true"{% endif %}>
+          <span class="choice-body">
+            <span class="choice-title">v1{% if geser_bawaan == "v1" %} <span class="field-optional">(bawaan)</span>{% endif %}</span>
+            <span class="choice-desc" id="geser-v1-ket">Kelompok kata kontrol dan data berselang-seling, geser 0,05 mm.</span>
+          </span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="geser" value="v2" {% if geser == "v2" %}checked{% endif %}
+                 aria-describedby="geser-v2-ket err-geser" {% if errors.geser %}aria-invalid="true"{% endif %}>
+          <span class="choice-body">
+            <span class="choice-title">v2{% if geser_bawaan == "v2" %} <span class="field-optional">(bawaan)</span>{% endif %}</span>
+            <span class="choice-desc" id="geser-v2-ket">Setiap kelompok kata membawa bit, geser 0,025 mm: lebih banyak posisi pada foto kertas cetak yang tajam.</span>
+          </span>
+        </label>
+      </div>
+      <span id="err-geser">{% if errors.geser %}<span class="field-error">{{ errors.geser }}</span>{% endif %}</span>
+    </fieldset>
     <details class="more" id="more-params" {% if errors.c or errors.eps %}open{% endif %}>
       <summary>Parameter kode dan kanari</summary>
       <div class="param-grid">

@@ -475,3 +475,29 @@ def test_scanned_sample_is_deterministic(sample_pdf):
     one = _one_page(sample_pdf)
     assert scanned_sample(one, dpi=100) == scanned_sample(one, dpi=100)
     assert Path(__file__).exists()
+
+
+def test_scanned_master_follows_shift_scheme_v2(tmp_path, scan_one):
+    """Scanned pages use the scheme of the document: under geser-v2 every word box group of a
+    row with three or more groups moves by 0.025 mm, within the change bounds, and a copy PDF
+    names its copy through the joint decoder."""
+    from tapak.marker.pdf_shift import SCHEME_V2, ShiftSettings
+
+    src = tmp_path / "pindaian.pdf"
+    src.write_bytes(scan_one)
+    recipients = [Recipient(f"R{i:03d}", f"Penerima Fiktif {i}", "Jabatan", "Satuan Uji") for i in range(1, 4)]
+    manifest = issue(src, recipients, tmp_path / "salinan", SECRET,
+                     IssueSettings(workers=1, n_max=20, shift=ShiftSettings.for_scheme(SCHEME_V2)), issuer="pytest")
+    assert manifest.shift_scheme == SCHEME_V2
+    ctx = load_context(scan_one, manifest, SECRET)
+    assert not ctx.warnings
+    groups = {s.ref for s in ctx.plan.channel(CHANNEL_SHIFT) if len(s.ref) == 2}
+    rows = ctx.master.shift_layout.pages[0].rows
+    assert groups == {(r.index, g) for r in rows if len(r.groups) >= 3 for g in range(len(r.groups))}
+    c = manifest.copies[1]
+    result, obs = trace_files([(c.file, (tmp_path / "salinan" / c.file).read_bytes())], ctx)
+    assert [a.copy.seq for a in result.accused] == [2]
+    shift = next(sb for sb in obs if sb.channel == CHANNEL_SHIFT)
+    x = ctx.codewords[1]
+    assert shift.meta["scheme"] == SCHEME_V2 and len(shift) > 80
+    assert np.mean((shift.llr > 0) == (x[shift.positions] == 1)) > 0.9

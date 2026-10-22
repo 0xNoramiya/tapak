@@ -146,10 +146,10 @@ def _cmd_keys_init(args: argparse.Namespace) -> int:
 def _issue_settings(args: argparse.Namespace):
     from tapak.marker.background import background_profile
     from tapak.marker.issue import IssueSettings
-    from tapak.marker.pdf_shift import ShiftSettings
+    from tapak.marker.pdf_shift import SCHEME_CHOICES, ShiftSettings
 
     return IssueSettings(c=args.c, eps=args.eps, n_max=args.n_max, constant=args.constant,
-                         shift=ShiftSettings(word_mm=args.shift_mm, row_mm=args.shift_mm),
+                         shift=ShiftSettings.for_scheme(SCHEME_CHOICES[args.geser], args.shift_mm),
                          background=background_profile(args.latar),
                          workers=args.workers, canary_domain=args.canary_domain or None)
 
@@ -680,6 +680,7 @@ PASSTHROUGH = {"canary-dns": "tapak.canary_dns.__main__", "photos": "tapak.photo
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for all subcommands (Indonesian help and errors)."""
     from tapak.registry.signing import IndonesianArgumentParser
+    from tapak.marker.pdf_shift import DEFAULT_SCHEME, SCHEME_CHOICES
     from tapak.tardos.spending import DEFAULT_STAGE_POLICY, STAGE_POLICIES
 
     ap = IndonesianArgumentParser(prog="tapak", description="TAPAK: atribusi kebocoran dokumen rahasia")
@@ -725,7 +726,13 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--eps", type=float, default=1e-6)
     i.add_argument("--n-max", type=int, default=None)
     i.add_argument("--constant", choices=["skoric", "tardos"], default="skoric")
-    i.add_argument("--shift-mm", type=float, default=0.05)
+    i.add_argument("--shift-mm", type=float, default=0.05,
+                   help="besar geser dalam mm (paling besar 0,05; pada skema v2 geser kata paling besar 0,025)")
+    i.add_argument("--geser", choices=sorted(SCHEME_CHOICES), default=next(
+        k for k, v in SCHEME_CHOICES.items() if v == DEFAULT_SCHEME),
+                   help="skema geser: v1 (kelompok kontrol dan data berselang-seling, 0,05 mm) atau v2 (setiap "
+                        "kelompok kata membawa bit, 0,025 mm, lebih banyak posisi pada foto kertas cetak "
+                        "beresolusi tinggi)")
     i.add_argument("--workers", type=int, default=None)
     i.add_argument("--issuer", default="operator")
     i.add_argument("--canary-domain", default=None, help="domain kanari (kosongkan untuk menonaktifkan)")

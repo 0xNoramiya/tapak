@@ -194,7 +194,7 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
     lexical = _usable_lexical(lexical, manifest, master.doc_hash, warnings)
     shift_rows, text_words = lexical_exclusions(manifest)
     retype = {"retype_positions": manifest.retype_positions, "shift_excluded_rows": shift_rows,
-              "text_excluded_words": text_words}
+              "text_excluded_words": text_words, "shift_scheme": manifest.shift_settings.scheme}
     try:
         plan = build_document_plan(master, params, secret, tuple(manifest.channels), excluded,  # type: ignore[arg-type]
                                    background, semantic, lexical, **retype)  # type: ignore[arg-type]

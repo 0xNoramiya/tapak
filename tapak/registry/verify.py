@@ -25,7 +25,9 @@ checks:
 10. a ``document`` entry with lexical fields (word-choice channel) has all of them, with
     valid digests, a known position rule and position lists only;
 11. a ``document`` entry with scanned pages (field ``scan``) holds page numbers, resolutions,
-    an OCR engine description and a digest only.
+    an OCR engine description and a digest only;
+12. a ``document`` entry with a ``shift_scheme`` field names a known shift scheme other than
+    geser-v1.
 
 What a hash chain cannot show by itself is entries deleted from the *end*: a shorter
 chain is still a valid chain. That needs a value kept outside the file: a recorded
@@ -57,10 +59,12 @@ from tapak.registry.chain import (
     KIND_TRACE,
     LEXICAL_DOCUMENT_FIELDS,
     SCAN_DOCUMENT_FIELD,
+    SHIFT_SCHEME_DOCUMENT_FIELD,
     ZERO_HASH,
     entry_content_problems,
     lexical_document_problems,
     scan_document_problems,
+    shift_scheme_problems,
     parse_time,
     trace_payload_problems,
     trigger_problems,
@@ -321,6 +325,9 @@ def verify_registry(
             if isinstance(payload, dict) and SCAN_DOCUMENT_FIELD in payload:
                 problems.extend((seq, f"entri dokumen: {text}")
                                 for text in scan_document_problems(payload[SCAN_DOCUMENT_FIELD]))
+            if isinstance(payload, dict) and SHIFT_SCHEME_DOCUMENT_FIELD in payload:
+                problems.extend((seq, f"entri dokumen: {text}")
+                                for text in shift_scheme_problems(payload[SHIFT_SCHEME_DOCUMENT_FIELD]))
         elif kind == KIND_TRACE and isinstance(seq, int):
             _check_trace(row, doc_eps, report.traces, problems)
         report.entries += 1

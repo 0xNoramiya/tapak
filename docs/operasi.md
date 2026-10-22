@@ -231,4 +231,18 @@ unset CETAK_OUT CETAK_ISSUED_CETAK
 .venv/bin/python -m scripts.cetak.needbits          # posisi terbaca yang diperlukan per jejak
 ```
 
+Angka kapasitas kanal geser (skema v1 dan v2, [batasan 3](keamanan.md#batasan)) berasal dari `research/kapasitas/`. Protokol, benih, grid, dan aturan keputusan ditetapkan di `ukur.py` sebelum pengukuran; benih pengembangan dipakai untuk memilih rancangan, benih uji tertahan dijalankan sekali di akhir:
+
+```bash
+export PYTHONPATH=.
+.venv/bin/python research/kapasitas/ukur.py dev            # grid pengembangan (semua kandidat)
+.venv/bin/python research/kapasitas/ukur.py dev-veld       # dekode ulang dev dengan medan geser halaman
+.venv/bin/python research/kapasitas/ukur.py ringkas dev    # tabel dan pilihan kandidat
+.venv/bin/python research/kapasitas/ukur.py uji --kandidat v2f   # uji tertahan, sekali
+.venv/bin/python research/kapasitas/ukur.py ringkas uji
+.venv/bin/python research/kapasitas/ukur.py visibilitas    # isyarat geometris dan potongan gambar
+```
+
+Salinan dan pengamatan mentah ada di `out/riset_kapasitas/` (tidak di-commit), baris ringkas di `research/kapasitas/hasil/`, dan potongan gambar di `research/kapasitas/potongan/`. Grid pengembangan memerlukan sekitar 2 jam dan uji tertahan sekitar 3 sampai 4 jam dengan 3 proses di mesin bersama.
+
 Setiap profil diterbitkan sekali untuk 100 penerima fiktif. Id salinan diundi saat penerbitan, jadi penerbitan baru memberi kode lain dan angka yang sedikit berbeda; `CETAK_ISSUED_LAYAR` atau `CETAK_ISSUED_CETAK` memakai ulang folder penerbitan yang ada. Tabel profil bawaan memakai penerbitan dari riset sebelumnya, yang id salinannya tidak ada di repositori. Hasil di `docs/results/cetak_*` diukur sebelum kanal latar memakai strata kejenuhan dan uji pilot; perintah di atas kini memakai dekoder sekarang, jadi angka profil cetak dapat berbeda. Satu foto cetak memerlukan sekitar 20 sampai 60 detik (1600 px) atau 1 sampai 2 menit (4000 px) per proses di mesin uji yang dipakai bersama; `--workers` mengatur jumlah proses (bawaan 3).
