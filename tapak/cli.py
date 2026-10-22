@@ -50,6 +50,8 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
         return 0
     params = TardosParams(c=args.c, eps=args.eps, n_max=args.n, constant=args.constant)
     strategies = args.strategies.split(",") if args.strategies else None
+    if args.stage_policy:
+        return _simulate_staged(args, params, strategies)
     t0 = time.perf_counter()
     rep = run_simulation(params, n_users=args.n, coalition=args.coalition, trials=args.trials,
                          strategies=strategies, seed=args.seed, ber=args.ber, erasure=args.erasure)
@@ -83,6 +85,39 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     worst_fa = max(r.false_accusation_trials for r in rep.results)
     worst_det = min(r.detection_rate for r in rep.results)
     return 0 if worst_fa == 0 and worst_det > 0.99 else 1
+
+
+def _simulate_staged(args: argparse.Namespace, params, strategies: list[str] | None) -> int:
+    """``tapak simulate --bertahap``: single-stage against staged accusation on the same leaks."""
+    from tapak.tardos.attacks import STRATEGY_LABELS
+    from tapak.tardos.simulate import run_staged_simulation
+
+    coalition = params.c if args.coalition is None else args.coalition
+    t0 = time.perf_counter()
+    rep = run_staged_simulation(params, args.n, coalition, trials=args.trials, strategies=strategies, seed=args.seed,
+                                ber=args.ber, erasure=args.erasure, policy=args.stage_policy)
+    print(f"Simulasi pelacakan bertahap ({rep.policy}): N={args.n}, c={params.c}, eps={params.eps:g}, m={params.length}, "
+          f"koalisi={coalition}, percobaan={args.trials}, BER={args.ber}, hapus={args.erasure}")
+    print(f"{'strategi':<12} {'anggota tertangkap':>19} {'minimal 1':>15} {'semua':>15} {'tuduhan salah':>14} "
+          f"{'tambahan per tahap':>19}")
+    for r in rep.results:
+        n = r.trials
+        print(f"{STRATEGY_LABELS.get(r.strategy, r.strategy):<12} "
+              f"{r.single_member_fraction:>8.3f} -> {r.staged_member_fraction:<6.3f} "
+              f"{r.single_detected_trials / n:>6.3f} -> {r.staged_detected_trials / n:<5.3f} "
+              f"{r.single_all_caught_trials / n:>6.3f} -> {r.staged_all_caught_trials / n:<5.3f} "
+              f"{r.single_false_accusation_trials:>5} -> {r.staged_false_accusation_trials:<5} "
+              f"{str(r.stage_members[1:]):>19}")
+    for b in rep.bound_check.values():
+        if b["evaluations"]:
+            print(f"Uji batas tahap 2 dan seterusnya: target {b['target']:g}, empiris {b['empirical']:.2e} "
+                  f"dari {int(b['evaluations'])} skor inosen")
+    print("Kiri: satu tahap (seluruh jatah di tahap 1); kanan: bertahap. Deteksi tahap 2 dan seterusnya hanya diukur.")
+    print(f"Waktu: {time.perf_counter() - t0:.1f} s")
+    if args.json:
+        Path(args.json).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.json).write_text(json.dumps(rep.to_dict(), indent=2), encoding="utf-8")
+    return 0 if all(r.staged_false_accusation_trials == 0 for r in rep.results) else 1
 
 
 # --- keys ---------------------------------------------------------------------------------
@@ -416,6 +451,9 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     if args.trace_no is not None and not (args.master or args.manifest):
         raise ValueError("--pelacakan-ke hanya untuk mode lepas (--master dan --manifest); dengan --doc nomor "
                          "pelacakan diambil dari registri")
+    if args.stage_policy is not None and not (args.master or args.manifest):
+        raise ValueError("--bertahap hanya untuk mode lepas (--master dan --manifest); dengan --doc pelacakan "
+                         "selalu bertahap dan kebijakannya dicatat di registri")
     if args.master or args.manifest:
         if not (args.master and args.manifest):
             raise ValueError("--master dan --manifest harus diberikan bersama")
@@ -437,9 +475,11 @@ def _cmd_trace(args: argparse.Namespace) -> int:
             raise ValueError(f"{args.master}: dokumen induk harus berkas PDF atau DOCX")
         eps = manifest.tardos_params.eps
         # Repeating a recorded trace with its own share only raises the threshold; without
-        # --pelacakan-ke the trace spends all of eps and is not counted anywhere.
-        spending = (TraceSpending.unlogged(eps) if args.trace_no is None
-                    else TraceSpending.logged(eps, args.trace_no))
+        # --pelacakan-ke the trace spends all of eps and is not counted anywhere. --bertahap
+        # repeats the staged accusation of a trace that used it (its policy is in the registry
+        # entry and the berita acara); without it the trace has a single stage, as before.
+        spending = (TraceSpending.unlogged(eps, args.stage_policy) if args.trace_no is None
+                    else TraceSpending.logged(eps, args.trace_no, args.stage_policy))
         if master.startswith(b"PK"):  # a DOCX master: text-layer channel only
             from tapak.service import _trace_docx
 
@@ -482,7 +522,7 @@ def _cmd_trace(args: argparse.Namespace) -> int:
                      "berjumlah paling banyak eps")
         extra.append(f"Jangkar entri pelacakan (catat di luar sistem): tapak verify --jangkar "
                      f"{outcome.trace_entry}:{outcome.trace_entry_hash}")
-    accused = {c.copy.seq for c in outcome.attribution.accused}
+    accused = outcome.attribution.named_seqs
     for a in outcome.canary:
         # As in the berita acara: a copy that is not accused is not identified, not even by number.
         which = f"salinan #{a['seq']} ({a['recipient_id']})" if a["seq"] in accused else \
@@ -499,16 +539,22 @@ def _cmd_trace(args: argparse.Namespace) -> int:
 
 
 def _write_json(path: Path, attribution) -> None:
-    """Attribution as JSON; copies that are not accused keep their score but lose their identity."""
+    """Attribution as JSON; copies that are not accused keep their score but lose their identity.
+
+    A copy named at a later stage keeps its identity in that stage's list only, next to the
+    copies (``basis``) that stage rests on.
+    """
     data = attribution.to_dict()
-    for c in data["candidates"]:
+    named = attribution.named_seqs
+    hidden = {"seq": None, "copy_id": "", "recipient_id": "", "nama": "", "jabatan": "", "satuan": ""}
+    for c in data["candidates"] + [c for st in data["stages"] for c in st["candidates"]]:
         # log10_false_accusation is the authoritative bound; the float underflows below 1e-308.
         if c["false_accusation_probability"] < 1e-300:
             c["false_accusation_probability"] = None
         if not c["accused"]:
-            c["copy"] = {"seq": None, "copy_id": "", "recipient_id": "", "nama": "", "jabatan": "", "satuan": ""}
+            c["copy"] = dict(hidden)
     for ch in data["channels"]:
-        shown = [s for s in ch["accused_seqs"] if any(c.copy.seq == s for c in attribution.accused)]
+        shown = [s for s in ch["accused_seqs"] if s in named]
         ch["accused_seqs"], ch["accused_hidden"] = shown, len(ch["accused_seqs"]) - len(shown)
         if ch["top_seq"] not in shown:
             ch["top_seq"] = None
@@ -602,6 +648,7 @@ PASSTHROUGH = {"canary-dns": "tapak.canary_dns.__main__", "photos": "tapak.photo
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for all subcommands (Indonesian help and errors)."""
     from tapak.registry.signing import IndonesianArgumentParser
+    from tapak.tardos.spending import DEFAULT_STAGE_POLICY, STAGE_POLICIES
 
     ap = IndonesianArgumentParser(prog="tapak", description="TAPAK: atribusi kebocoran dokumen rahasia")
     ap.add_argument("--data", default=None, help="folder data (bawaan: data/ atau $TAPAK_DATA)")
@@ -625,6 +672,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--erasure", type=float, default=0.0, help="laju posisi terhapus")
     s.add_argument("--seed", type=int, default=2026, help="benih bilangan acak (hasil dapat diulang)")
     s.add_argument("--table", action="store_true", help="cetak tabel parameter")
+    s.add_argument("--bertahap", dest="stage_policy", nargs="?", const=DEFAULT_STAGE_POLICY, default=None,
+                   choices=sorted(STAGE_POLICIES), metavar="KEBIJAKAN",
+                   help="bandingkan tuduhan satu tahap dengan pelacakan bertahap pada bocoran yang sama "
+                        f"(bawaan {DEFAULT_STAGE_POLICY})")
     s.add_argument("--json", default=None, help="tulis hasil lengkap ke berkas JSON ini")
     s.set_defaults(func=_cmd_simulate)
 
@@ -712,6 +763,11 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--pelacakan-ke", dest="trace_no", type=int, default=None, metavar="K",
                    help="mode lepas: ulangi pelacakan ke-K yang tercatat dengan jatah eps-nya, 6/(pi^2 K^2) dari "
                         "eps (lihat berita acara); tanpa ini mode lepas memakai seluruh eps")
+    t.add_argument("--bertahap", dest="stage_policy", nargs="?", const=DEFAULT_STAGE_POLICY, default=None,
+                   choices=sorted(STAGE_POLICIES), metavar="KEBIJAKAN",
+                   help="mode lepas: pelacakan bertahap (tahap 2 dan seterusnya mencari anggota koalisi lain "
+                        f"berdasarkan salinan yang sudah dituduh) dengan kebijakan ini (bawaan {DEFAULT_STAGE_POLICY}), "
+                        "seperti tercatat di berita acara; tanpa ini mode lepas hanya satu tahap")
     t.add_argument("--report", default=None, help="tulis berita acara PDF ke berkas ini")
     t.add_argument("--nomor-perkara", default=None, help="nomor perkara untuk berita acara")
     t.add_argument("--pemeriksa", default=None, help="nama pemeriksa untuk berita acara")

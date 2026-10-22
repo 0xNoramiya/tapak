@@ -373,8 +373,9 @@ def visible_marks_note(observations: list[SoftBits], attribution: Attribution, c
     carries that copy's marks: the statistics name it correctly as the source of the word
     choices, not as the typist. The caveat is added when some accused copy is not accused by
     the other channels alone (always the case when only these channels were read). The check
-    reruns the same code-blind accusation on the other channels with the same budget; it
-    never changes the verdict or the threshold.
+    reruns the same code-blind accusation on the other channels with the same budget and
+    stages (a copy named at a later stage is checked too); it never changes the verdict or
+    the threshold.
     """
     if not attribution.accused:
         return None
@@ -388,8 +389,8 @@ def visible_marks_note(observations: list[SoftBits], attribution: Attribution, c
         m = ctx.params.length
         alone = attribute(fuse(hidden, m), fuse_by_physical_channel(hidden, m), ctx.p, ctx.codewords, ctx.refs,
                           ctx.params, spending)
-        named = {c.copy.seq for c in alone.accused}
-    only_visible = [c.copy.seq for c in attribution.accused if c.copy.seq not in named]
+        named = alone.named_seqs
+    only_visible = [c.copy.seq for _, c in attribution.named if c.copy.seq not in named]
     if not only_visible:
         return None
     return "salinan " + ", ".join(f"#{k}" for k in only_visible) + ": " + VISIBLE_MARKS_NOTE

@@ -34,7 +34,8 @@ removed.
 Entry kinds: ``document`` (one per issued document), ``copy`` (one per copy) and
 ``trace`` (one per trace of a recorded document, appended before the evidence is decoded;
 trace number k spends eps * 6 / (pi^2 k^2) of the document's false-accusation budget, see
-``tapak.tardos.spending``). Other kinds, such as the canary log's ``canary_anchor``, are
+``tapak.tardos.spending``; a trace that runs the staged accusation also records its stage
+policy and the eps of every stage, ``stage_policy`` and ``stage_eps``). Other kinds, such as the canary log's ``canary_anchor``, are
 accepted as any JSON object.
 
 A ``document`` entry of a document that opted into the lexical channel (word choice) also
@@ -97,8 +98,12 @@ LEXICAL_DOCUMENT_FIELDS = frozenset({
     "retype_positions", "lexical_digest", "lexicon_version", "lexicon_digest", "shift_excluded_rows",
     "text_excluded_words",
 })
+# A trace logged for a staged accusation also records the stage policy and the eps of every
+# stage, before decoding (both or neither; traces logged before staging have neither).
+STAGE_TRACE_FIELDS = frozenset({"stage_policy", "stage_eps"})
 KIND_OPTIONAL: dict[str, frozenset[str]] = {
     KIND_COPY: frozenset({"recipient_mac"}), KIND_DOCUMENT: LEXICAL_DOCUMENT_FIELDS,
+    KIND_TRACE: STAGE_TRACE_FIELDS,
 }
 
 _COLUMNS = "seq, kind, payload, prev_hash, created_at, entry_hash, signature, signer"
@@ -207,16 +212,20 @@ def trace_payload_problems(payload: object) -> list[str]:
 
     Checks the field set, the hashes (64 lowercase hex), the trace number (whole number from
     1), that ``eps_share`` follows the fixed schedule eps * 6 / (pi^2 k^2) for that number,
-    and the timestamp. Never raises, whatever the payload holds.
+    and the timestamp. A trace logged for a staged accusation also carries ``stage_policy``
+    (a known policy name) and ``stage_eps`` (the eps of every stage: the policy's split of
+    ``eps_share``, adding up to it); a trace without them has a single stage. Never raises,
+    whatever the payload holds.
     """
     from tapak.tardos.spending import eps_for_trace
 
     if not isinstance(payload, dict):
         return ["isi entri pelacakan bukan objek JSON"]
     problems = []
-    if set(payload) != TRACE_FIELDS:
+    allowed = TRACE_FIELDS | STAGE_TRACE_FIELDS
+    if not TRACE_FIELDS <= set(payload) <= allowed:
         problems.append(f"kolom entri pelacakan tidak sesuai skema: kurang {sorted(TRACE_FIELDS - set(payload))}, "
-                        f"berlebih {sorted(set(payload) - TRACE_FIELDS)}")
+                        f"berlebih {sorted(set(payload) - allowed)}")
     if not _is_sha256_hex(payload.get("doc_hash")):
         problems.append("doc_hash entri pelacakan bukan SHA-256 heksadesimal")
     evidence = payload.get("evidence_sha256")
@@ -229,11 +238,34 @@ def trace_payload_problems(payload: object) -> list[str]:
         problems.append("eps entri pelacakan harus di antara 0 dan 1")
     elif not (_is_number(share) and math.isclose(share, eps_for_trace(eps, k), rel_tol=1e-9)):
         problems.append(f"eps_share tidak sesuai jadwal eps x 6 / (pi^2 k^2) untuk pelacakan ke-{k}")
+    else:
+        problems += _stage_problems(payload, share)
     try:
         parse_time(payload.get("created_at"))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         problems.append("created_at entri pelacakan bukan waktu ISO 8601 dengan zona waktu")
     return problems
+
+
+def _stage_problems(payload: dict[str, Any], share: float) -> list[str]:
+    """Problems with the optional stage fields of a ``trace`` payload whose share is valid."""
+    from tapak.tardos.spending import split_stage_eps
+
+    present = set(payload) & STAGE_TRACE_FIELDS
+    if not present:
+        return []
+    if present != STAGE_TRACE_FIELDS:
+        return ["stage_policy dan stage_eps entri pelacakan harus hadir bersama"]
+    try:
+        expected = split_stage_eps(share, payload["stage_policy"])
+    except ValueError:
+        return ["stage_policy entri pelacakan bukan kebijakan tahap yang dikenal"]
+    stages = payload["stage_eps"]
+    if not (isinstance(stages, list) and len(stages) == len(expected) and all(_is_number(v) for v in stages)
+            and all(math.isclose(v, e, rel_tol=1e-9) for v, e in zip(stages, expected))
+            and math.isclose(math.fsum(stages), share, rel_tol=1e-9)):
+        return [f"stage_eps tidak sesuai kebijakan {payload['stage_policy']} untuk eps_share pelacakan ini"]
+    return []
 
 
 def utc_now() -> str:
@@ -725,6 +757,7 @@ class Registry:
         evidence_sha256: list[str],
         eps: float,
         signer: Signer | None = None,
+        stage_policy: str | None = None,
     ) -> Entry:
         """Log one trace of a recorded document before its evidence is decoded; return the entry.
 
@@ -733,9 +766,11 @@ class Registry:
         same number. The payload holds the document hash, the SHA-256 of every evidence file,
         the trace number, the document's budget ``eps`` and the part this trace spends
         (``eps_share`` = eps * 6 / (pi^2 k^2)), and the time: no name, verdict or content.
+        With ``stage_policy`` (a staged accusation, ``tapak.tardos.staged``) it also holds the
+        policy name and the eps of every stage (``stage_eps``), fixed here, before decoding.
         Refuses (ValueError) a document without a ``document`` entry.
         """
-        from tapak.tardos.spending import eps_for_trace
+        from tapak.tardos.spending import eps_for_trace, split_stage_eps
 
         evidence = [str(d).lower() for d in evidence_sha256]
         with self.transaction():
@@ -748,8 +783,11 @@ class Registry:
             stamp = utc_now()
             if head and parse_time(stamp) < parse_time(head.created_at):
                 stamp = head.created_at  # clock stepped back: keep timestamps monotonic
+            share = eps_for_trace(float(eps), trace_no)
             payload = {"doc_hash": doc_hash, "trace_no": trace_no, "evidence_sha256": evidence,
-                       "eps_share": eps_for_trace(float(eps), trace_no), "eps": float(eps), "created_at": stamp}
+                       "eps_share": share, "eps": float(eps), "created_at": stamp}
+            if stage_policy is not None:
+                payload.update(stage_policy=stage_policy, stage_eps=list(split_stage_eps(share, stage_policy)))
             return self.append(KIND_TRACE, payload, signer=signer, created_at=stamp)  # validates the values
 
 

@@ -118,6 +118,20 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
   jatah eps &times; 6 / (&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max.
   Jumlah 6 / (&pi;&sup2; k&sup2;) untuk semua k adalah 1, sehingga semua pelacakan dokumen yang sama,
   berapa pun banyaknya, bersama-sama tetap dalam batas eps.</li>
+  {% if staged %}
+  <li><strong>Pelacakan bertahap.</strong> Pelacakan ini memakai kebijakan tahap {{ stage_policy }},
+  yang ditetapkan sebelum bukti dibaca{% if trace_no is not none %} dan dicatat di registri bersama
+  nomor pelacakan{% endif %}. Tahap 1 adalah tuduhan biasa di atas, dengan sebagian jatah eps pelacakan.
+  Bila tahap 1 menuduh salinan, tahap 2 menilai ulang setiap salinan lain. Bobot posisinya dihitung dari
+  bit yang bocor, vektor bias, bobot dekoder, dan kata kode salinan yang sudah dituduh: posisi yang
+  bitnya tidak dimiliki satu pun salinan yang sudah dituduh mendapat bobot, karena di sana sedikitnya
+  satu anggota koalisi lain pasti memegang bit itu. Bobot dan ambang tahap tidak pernah memakai kata
+  kode salinan yang sedang dinilai. Setiap tahap memakai ambang Chernoff yang sama dengan jatah eps-nya
+  sendiri, dan ambang itu dicatat sebelum skor tahap tersebut dihitung. Tahap 3 dan seterusnya mengulang
+  langkah ini dengan semua salinan yang sudah dituduh, sampai tidak ada salinan baru atau sampai tahap
+  terakhir kebijakan. Jumlah jatah semua tahap sama dengan jatah pelacakan, sehingga batas peluang
+  tuduhan salah tetap berlaku untuk semua tahap bersama.</li>
+  {% endif %}
   <li><strong>Arti peluang tuduhan salah.</strong> Angka peluang tuduhan salah pada Bagian V adalah
   batas atas peluang bahwa, di antara semua penerima lain yang tidak bersalah, ada yang secara
   kebetulan memperoleh skor setinggi skor salinan tersebut. Contohnya, 2,3 &times; 10<sup>&minus;12</sup>
@@ -178,7 +192,8 @@ tidak ada pernyataan apa pun tentang keadaan kanal tersebut pada bukti.</p>
 <p>Posisi kode terbaca (gabungan semua kanal): {{ n_observed }} dari {{ m }}; posisi efektif
 setelah pembobotan keyakinan: {{ effective_positions }}. Ambang Z = {{ z }} untuk
 {% if trace_no is not none %}pelacakan ke-{{ trace_no }} dengan jatah eps {{ eps_share }} dari
-eps = {{ eps }}{% else %}eps = {{ eps }}{% endif %} (eps1 = {{ eps1 }}), ditetapkan pada
+eps = {{ eps }}{% else %}eps = {{ eps }}{% endif %}{% if staged %}, tahap 1 dengan jatah eps
+{{ eps_stage1 }}{% endif %} (eps1 = {{ eps1 }}), ditetapkan pada
 {{ z_fixed_at }}, sebelum skor dihitung.</p>
 <p>Pelacakan: {{ trace_text }}.</p>
 
@@ -237,8 +252,48 @@ dicantumkan dalam berita acara ini.</p>
 </table>
 <p>{% if identified %}Skor salinan yang diberi identitas di atas mencapai atau melampaui ambang Z.
 {% endif %}Baris "Peringkat" adalah skor tertinggi berikutnya sebagai pembanding; skor itu di bawah
-ambang, sehingga pemiliknya tidak dituduh dan identitasnya tidak dicantumkan.</p>
+ambang{% if stages %} tahap 1{% endif %}, sehingga pemiliknya tidak dituduh pada tahap ini dan
+identitasnya tidak dicantumkan di tabel ini.</p>
 {% endif %}
+
+{% for st in stages %}
+<h3>Tahap {{ st.stage }}: mencari anggota koalisi lain berdasarkan salinan yang sudah dituduh ({{ st.basis }})</h3>
+<p>Tahap ini dijalankan karena salinan {{ st.basis }} dituduh pada tahap sebelumnya, dan bobot
+posisinya memakai kode salinan itu. Posisi yang bitnya tidak dimiliki salinan tersebut: {{ st.positions }}.
+{% if st.z_finite %}Ambang Z{{ st.stage }} = {{ st.z }}{% else %}Ambang tahap ini tidak terhingga{% endif %} untuk
+jatah eps tahap {{ st.eps_stage }} ({{ st.fraction }} % dari jatah pelacakan; eps1 = {{ st.eps1 }}),
+ditetapkan pada {{ st.fixed_at }}, sebelum skor tahap ini dihitung. Skor tahap ini memakai bobot tahap
+ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
+{% if st.rows %}
+<table class="grid hasil">
+  <colgroup>
+    <col class="c-seq"><col class="c-id"><col class="c-nama"><col class="c-skor">
+    <col class="c-z"><col class="c-peluang"><col class="c-kanal">
+  </colgroup>
+  <thead>
+    <tr>
+      <th>Nomor salinan</th><th>ID penerima</th><th>Nama</th><th class="r">Skor tahap {{ st.stage }}</th>
+      <th class="r">Ambang Z{{ st.stage }}</th><th class="r">Peluang tuduhan salah</th><th>Dasar</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in st.rows %}
+    <tr class="dituduh">
+      <td>{{ r.seq }}</td>
+      <td class="mono">{{ r.recipient_id }}</td>
+      <td>{{ r.nama }}{% if r.jabatan %}<div class="kecil">{{ r.jabatan }}</div>{% endif %}</td>
+      <td class="r">{{ r.score }}</td>
+      <td class="r">{{ r.threshold }}</td>
+      <td class="r">&le; {{ r.probability }}</td>
+      <td>{{ r.basis_text }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Tidak ada salinan lain yang skornya mencapai ambang tahap {{ st.stage }}{% if st.best_other_score is not none and st.z_finite %} (skor tertinggi {{ st.best_other_score }}){% endif %}; tidak ada nama tambahan.</p>
+{% endif %}
+{% endfor %}
 
 {% if notes %}
 <h3>Catatan pemeriksaan</h3>
@@ -285,8 +340,22 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
     <div class="label-rumus">Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya,
     dalam bahasa Inggris):</div>
     <div class="mono rumus">{{ threshold_rule }}</div></td></tr>
-  <tr><th>Nilai ambang Z</th><td>{{ z }}</td></tr>
+  <tr><th>Nilai ambang Z{% if staged %} (tahap 1){% endif %}</th><td>{{ z }}</td></tr>
   <tr><th>Ambang ditetapkan pada</th><td>{{ z_fixed_at }}<div class="mono">{{ z_fixed_at_raw }}</div></td></tr>
+  {% if stages %}
+  <tr><th>Aturan ambang tahap lanjutan</th><td>Ambang Chernoff yang sama dengan bobot tahap: bobot hanya
+    pada posisi yang bitnya tidak dimiliki salinan yang sudah dituduh, dihitung dari bit yang bocor,
+    vektor bias, bobot dekoder, dan kata kode salinan yang sudah dituduh, tidak pernah dari kata kode
+    salinan yang dinilai.
+    <div class="label-rumus">Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya,
+    dalam bahasa Inggris):</div>
+    <div class="mono rumus">{{ stage_rule }}</div></td></tr>
+  {% for st in stages %}
+  <tr><th>Tahap {{ st.stage }}</th><td>dasar {{ st.basis }}; Z{{ st.stage }} = {{ st.z }}; jatah eps
+    tahap {{ st.eps_stage }}, eps1 = {{ st.eps1 }}; ditetapkan {{ st.fixed_at }}
+    <div class="mono">{{ st.fixed_at_raw }}</div></td></tr>
+  {% endfor %}
+  {% endif %}
   <tr><th>Code digest salinan yang dituduh</th><td>
     {% if digests %}
     {% for seq, digest in digests %}
@@ -335,7 +404,15 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
   bertahan, dan itu pun hanya bila susunan kalimat tidak diubah.</li>
   <li>Kode dirancang untuk koalisi hingga {{ case.c }} penerima. Bila lebih banyak penerima
   bekerja sama, peluang menemukan pembocor menurun, tetapi batas peluang tuduhan salah tetap
-  berlaku karena ambang tidak bergantung pada ukuran koalisi.</li>
+  berlaku karena ambang tidak bergantung pada ukuran koalisi.{% if staged %} Pelacakan bertahap
+  dapat menemukan anggota koalisi lain setelah tahap 1, tetapi tidak menjamin semua anggota
+  ditemukan.{% endif %}</li>
+  {% if stages %}
+  <li>Nama yang dituduh pada tahap 2 atau sesudahnya ditemukan dengan bantuan salinan yang dituduh
+  sebelumnya, jadi selalu dicantumkan bersama salinan itu. Batas peluang tuduhan salahnya tetap berlaku
+  walaupun salah satu salinan dasar ternyata tidak terlibat; yang bergantung pada salinan dasar hanya
+  kemampuan tahap itu menemukan anggota koalisi lain.</li>
+  {% endif %}
   <li>Batas peluang tuduhan salah berlaku dengan syarat rahasia kode tidak bocor dan catatan
   penerbitan tidak diubah. Keutuhan catatan diperiksa melalui komitmen kode setiap salinan dan
   registri penerbitan (status: {{ registry }}).</li>

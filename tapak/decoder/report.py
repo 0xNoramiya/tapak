@@ -8,7 +8,10 @@ Python, not in the template:
   formatted strings built by ``_view``;
 * a recipient's identity (copy number, recipient id, name, code digest) reaches the
   template only for a copy whose score reached the threshold Z, and always in the same row
-  as its score, Z and the bound on the false-accusation probability;
+  as its score, Z and the bound on the false-accusation probability. A copy named at a later
+  stage of a staged accusation is shown only in that stage's rows, with the stage score, the
+  stage's Z and bound, and the copies named before it that the stage rests on (which are
+  always shown too, since a later stage runs only after them);
 * every other copy is shown without identity: ranked score rows marked "identitas tidak
   dicantumkan", and counts instead of copy numbers in the per-channel table and in canary
   events. With the verdict "tidak cukup bukti" this means no identity at all;
@@ -439,6 +442,29 @@ def check_consistent(attribution: Attribution) -> None:
     if (attribution.verdict == VERDICT_IDENTIFIED) != any(c.accused for c in attribution.candidates):
         raise ValueError("hasil atribusi tidak konsisten: putusan tidak sesuai dengan daftar "
                          "salinan yang dituduh")
+    _check_stages(attribution)
+
+
+def _check_stages(attribution: Attribution) -> None:
+    """Later stages: numbered 2, 3, ...; each runs only after a stage that named someone, rests on
+    exactly the copies named before it, scores only the others, and names by its own Z."""
+    named = [c.copy.seq for c in attribution.accused]
+    for k, st in enumerate(attribution.stages, start=2):
+        z = st.threshold.threshold
+        if st.stage != k or st.threshold.stage != k or not named or sorted(st.basis) != sorted(named):
+            raise ValueError(f"hasil atribusi tidak konsisten: tahap {st.stage} tidak bersandar pada salinan "
+                             "yang dituduh pada tahap sebelumnya")
+        if any(c.copy.seq in named for c in st.candidates):
+            raise ValueError(f"hasil atribusi tidak konsisten: tahap {st.stage} menilai ulang salinan yang "
+                             "sudah dituduh")
+        for c in st.candidates:
+            if c.accused != (math.isfinite(z) and c.score >= z):
+                raise ValueError(f"hasil atribusi tidak konsisten: status tuduhan tahap {st.stage} tidak sesuai "
+                                 "dengan skor dan ambang tahap itu")
+        if k > 2 and not attribution.stages[k - 3].accused:
+            raise ValueError(f"hasil atribusi tidak konsisten: tahap {st.stage} berjalan setelah tahap yang "
+                             "tidak menuduh siapa pun")
+        named += [c.copy.seq for c in st.accused]
 
 
 # Copy numbers in free text: '#5', 'salinan005', 'salinan #5', 'salinan nomor 5', 'copy-5'.
@@ -493,11 +519,12 @@ def _seq_list_text(seqs: list[int], shown_seqs: set[int]) -> str:
 def _log10_false_accusation(c: CopyCandidate, n_copies: int, share: float = 1.0) -> float:
     """log10 of the bound (n - 1) * P(innocent >= S) / share, exact where the float underflows.
 
-    ``share`` is the fraction of eps this trace spends (1 for a trace that is not logged):
-    dividing by it makes the bound hold for all traces of the document together, as in
-    ``attribute``. The float ``false_accusation_probability`` loses precision below about
-    1e-308 (subnormal numbers), so it is never used here: a rounded-down bound would
-    understate the risk.
+    ``share`` is the fraction of eps the stage that scored the copy spends
+    (``ThresholdRecord.stage_share``: the trace's share without stages, 1 for a trace that is
+    not logged): dividing by it makes the bound hold for all stages and traces of the document
+    together, as in ``attribute``. The float ``false_accusation_probability`` loses precision
+    below about 1e-308 (subnormal numbers), so it is never used here: a rounded-down bound
+    would understate the risk.
     """
     if math.isfinite(c.log10_bound):
         return min(0.0, math.log10(max(n_copies - 1, 1)) + c.log10_bound - math.log10(share))
@@ -520,7 +547,7 @@ def _accused_rows(attribution: Attribution, n_read: int) -> list[dict[str, Any]]
     """Identity rows, one per accused copy; each carries score, Z and probability."""
     z = attribution.threshold.threshold
     n_copies = len(attribution.candidates)
-    share = attribution.threshold.share
+    share = attribution.threshold.stage_share
     return [
         {
             "seq": f"#{c.copy.seq}",
@@ -539,7 +566,7 @@ def _anonymous_rows(attribution: Attribution, n_read: int) -> list[dict[str, Any
     if not math.isfinite(z):
         return []
     n_copies = len(attribution.candidates)
-    share = attribution.threshold.share
+    share = attribution.threshold.stage_share
     rows = []
     for rank, c in enumerate(attribution.candidates, 1):
         if c.accused:
@@ -548,6 +575,47 @@ def _anonymous_rows(attribution: Attribution, n_read: int) -> list[dict[str, Any
         if len(rows) == RUNNER_UP_ROWS:
             break
     return rows
+
+
+def _stage_views(attribution: Attribution) -> list[dict[str, Any]]:
+    """Later stages of a staged accusation, in order, as formatted strings.
+
+    A copy named at a stage appears only in its stage's rows, with that stage's score, Z and
+    bound, and every stage states the copies named before it that its weights rest on.
+    """
+    n_copies = len(attribution.candidates)
+    views = []
+    for st in attribution.stages:
+        t = st.threshold
+        others = [c for c in st.candidates if not c.accused]
+        views.append({
+            "stage": st.stage,
+            "basis": ", ".join(f"#{s}" for s in st.basis),
+            "positions": format_int(t.n_observed),
+            "z": format_number(t.threshold),
+            "z_finite": math.isfinite(t.threshold),
+            "eps_stage": format_probability_html(t.stage_spent, round_up=False),
+            "eps1": format_probability_html(t.eps1, round_up=False),
+            "fraction": _strip_zeros(format_number(100 * t.stage_spent / t.spent, 2)),
+            "fixed_at": format_datetime(t.fixed_at),
+            "fixed_at_raw": t.fixed_at,
+            "best_other_score": format_number(others[0].score) if others else None,
+            "rows": [
+                {
+                    "seq": f"#{c.copy.seq}",
+                    "recipient_id": c.copy.recipient_id,
+                    "nama": c.copy.nama,
+                    "jabatan": ", ".join(x for x in (c.copy.jabatan, c.copy.satuan) if x),
+                    "score": format_number(c.score),
+                    "threshold": format_number(t.threshold),
+                    "probability": format_probability_html(
+                        c.false_accusation_probability, _log10_false_accusation(c, n_copies, t.stage_share)),
+                    "basis_text": st.basis_text(),
+                }
+                for c in st.accused
+            ],
+        })
+    return views
 
 
 def _in_label_order(names: Iterable[str], labels: dict[str, str]) -> list[str]:
@@ -641,11 +709,12 @@ def _registry_text(info: ReportInfo) -> str:
 
 
 def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None,
-                  trace_no: int | None = None) -> str:
+                  trace_no: int | None = None, stage_policy: str | None = None) -> str:
     """The command that repeats this examination (file names optionally redacted).
 
-    For a logged trace, ``--pelacakan-ke`` repeats it with that trace's share of eps, so the
-    threshold and the verdict come out the same.
+    For a logged trace, ``--pelacakan-ke`` repeats it with that trace's share of eps, and
+    ``--bertahap`` with the staged accusation's policy, so the thresholds and the verdict
+    come out the same.
     """
     evidence = list(info.evidence_names) or [info.evidence_name]
     names = evidence + [info.document_name, info.manifest_name]
@@ -654,17 +723,24 @@ def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None,
     args = names[:-2] + ["--master", names[-2], "--manifest", names[-1]]
     if trace_no is not None:
         args += ["--pelacakan-ke", str(trace_no)]
+    if stage_policy is not None:
+        args += ["--bertahap", stage_policy]
     return "tapak trace " + " ".join(shlex.quote(a) for a in args)
 
 
 def _trace_text(t: ThresholdRecord) -> str:
     """Section V and VI: which trace of the document this was and the eps it spent."""
     if t.trace_no is None:
-        return ("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; "
+        text = ("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; "
                 "ambang memakai seluruh eps")
-    return (f"pelacakan ke-{t.trace_no} untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps "
-            f"pelacakan ini 6 / (\u03c0\u00b2 \u00d7 {t.trace_no}\u00b2) = "
-            f"{_strip_zeros(format_number(100 * t.share, 2))} % dari eps")
+    else:
+        text = (f"pelacakan ke-{t.trace_no} untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps "
+                f"pelacakan ini 6 / (\u03c0\u00b2 \u00d7 {t.trace_no}\u00b2) = "
+                f"{_strip_zeros(format_number(100 * t.share, 2))} % dari eps")
+    if t.stage_eps is not None:
+        text += (f"; pelacakan bertahap (kebijakan {t.stage_policy}): tahap 1 memakai "
+                 f"{_strip_zeros(format_number(100 * t.stage_spent / t.spent, 2))} % dari jatah itu")
+    return text
 
 
 def _canary_rows(info: ReportInfo, shown_seqs: set[int], redact: Callable[[str], str]) -> list[dict[str, str]]:
@@ -693,8 +769,8 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
     t = attribution.threshold
     p = info.params
     identified = attribution.verdict == VERDICT_IDENTIFIED
-    shown_seqs = {c.copy.seq for c in attribution.accused}
-    redact = make_redactor((c.copy for c in attribution.candidates if not c.accused), shown_seqs)
+    shown_seqs = attribution.named_seqs
+    redact = make_redactor((c.copy for c in attribution.candidates if c.copy.seq not in shown_seqs), shown_seqs)
     channel_rows = _channel_rows(attribution, info, shown_seqs)
     n_read = sum(1 for r in channel_rows if r["status"] == STATUS_READ)
     others = [c for c in attribution.candidates if not c.accused]
@@ -736,6 +812,11 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "trace_no": t.trace_no,
         "eps_share": format_probability_html(t.spent, round_up=False),
         "trace_text": _trace_text(t),
+        "staged": t.stage_eps is not None,
+        "stage_policy": t.stage_policy or "",
+        "eps_stage1": format_probability_html(t.stage_spent, round_up=False),
+        "stage_rule": attribution.stages[0].threshold.rule if attribution.stages else "",
+        "stages": _stage_views(attribution),
         "trace_anchor": (f"{info.trace_entry}:{info.trace_entry_hash}"
                          if info.trace_entry is not None and info.trace_entry_hash else ""),
         "channel_rows": channel_rows,
@@ -750,8 +831,8 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "caveats": [redact(n) for n in attribution.notes if VISIBLE_MARKS_NOTE in n],
         "canary_rows": _canary_rows(info, shown_seqs, redact),
         "digests": [(f"#{c.copy.seq}", info.code_digests.get(c.copy.seq, "tidak tersedia"))
-                    for c in attribution.accused],
-        "command": rerun_command(info, redact, t.trace_no),
+                    for _, c in attribution.named],
+        "command": rerun_command(info, redact, t.trace_no, t.stage_policy),
         "examined_at": format_datetime(info.examined_at, with_day=True),
         "received_at": format_datetime(info.evidence_received_at) if info.evidence_received_at else "",
         "issued_at": format_datetime(info.issued_at),

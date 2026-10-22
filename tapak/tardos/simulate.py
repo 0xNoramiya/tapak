@@ -14,6 +14,11 @@ bound of ``detection.miss_bound``; for noisy reads the simulation is the only me
 Zero false accusations in 1000 trials only shows the rate is below about 3e-3 (rule of
 three). To check the bound itself, ``bound_check`` also counts how often innocent scores
 exceed thresholds computed for loose targets (1e-2, 1e-3) that are testable by sampling.
+
+``run_staged_simulation`` compares, on the same code draws and leaked words, the single-stage
+accusation (the whole budget at stage 1) with the staged accusation of ``staged.py`` under a
+stage policy, counting members caught at every stage, innocents named at every stage, and how
+often innocent scores of the later stages exceed their own thresholds at loose targets.
 """
 
 from __future__ import annotations
@@ -28,6 +33,8 @@ from tapak.tardos.attacks import STRATEGIES, add_channel_noise
 from tapak.tardos.code import random_code
 from tapak.tardos.detection import proven_miss_probability
 from tapak.tardos.params import TardosParams
+from tapak.tardos.spending import DEFAULT_STAGE_POLICY, split_stage_eps
+from tapak.tardos.staged import staged_accuse
 
 
 @dataclass
@@ -180,6 +187,200 @@ def run_simulation(
         results=results,
         bound_check=bound_check,
     )
+
+
+@dataclass
+class StagedStrategyResult:
+    """Single-stage versus staged accusation for one strategy, summed over all trials.
+
+    ``single_*`` is the ordinary accusation with the whole budget at stage 1; ``staged_*``
+    the staged accusation (stage 1 with its fraction, then the side-informed stages). Lists
+    ``stage_*`` have one entry per stage of the policy (stage 1 first): ``stage_runs`` trials
+    in which the stage ran, ``stage_members`` members newly named there, ``stage_innocents``
+    innocents named there, ``stage_max_innocent_over_threshold`` the largest innocent score
+    over that stage's (finite) threshold, ``stage_mean_threshold`` the mean finite threshold
+    and ``stage_mean_positions`` the mean number of positions with non-zero weight.
+    """
+
+    strategy: str
+    trials: int
+    coalition: int
+    single_members_caught: int
+    single_detected_trials: int
+    single_all_caught_trials: int
+    single_false_accusation_trials: int
+    staged_members_caught: int
+    staged_detected_trials: int
+    staged_all_caught_trials: int
+    staged_false_accusation_trials: int
+    stage_runs: list[int]
+    stage_members: list[int]
+    stage_innocents: list[int]
+    stage_max_innocent_over_threshold: list[float]
+    stage_mean_threshold: list[float]
+    stage_mean_positions: list[float]
+    single_max_innocent_over_threshold: float = -math.inf
+    single_mean_threshold: float = 0.0
+
+    @property
+    def single_member_fraction(self) -> float:
+        """Fraction of all coalition members named by the single-stage accusation."""
+        return self.single_members_caught / (self.trials * self.coalition)
+
+    @property
+    def staged_member_fraction(self) -> float:
+        """Fraction of all coalition members named at some stage."""
+        return self.staged_members_caught / (self.trials * self.coalition)
+
+
+@dataclass
+class StagedSimulationReport:
+    """Output of :func:`run_staged_simulation` (serializable with :meth:`to_dict`).
+
+    ``stage_eps1`` is the per-copy target of every stage; ``single_eps1`` the single-stage
+    target (the sum of the stage targets). ``bound_check`` holds, per loose target, how often
+    an innocent copy's score at a stage >= 2 reached that stage's threshold recomputed for
+    the target with the same weights (``exceed`` out of ``evaluations``).
+    """
+
+    params: dict[str, object]
+    n_users: int
+    coalition: int
+    trials: int
+    ber: float
+    erasure: float
+    seed: int
+    policy: str
+    single_eps1: float
+    stage_eps1: list[float]
+    results: list[StagedStrategyResult]
+    bound_check: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, object]:
+        """JSON-friendly dictionary including the member fractions (non-finite numbers: None)."""
+        out = asdict(self)
+        for r_dict, r in zip(out["results"], self.results):
+            r_dict.update(single_member_fraction=r.single_member_fraction,
+                          staged_member_fraction=r.staged_member_fraction)
+            for key, value in r_dict.items():
+                if isinstance(value, float) and not math.isfinite(value):
+                    r_dict[key] = None
+                elif isinstance(value, list):
+                    r_dict[key] = [None if isinstance(v, float) and not math.isfinite(v) else v for v in value]
+        for b in out["bound_check"].values():
+            if not math.isfinite(b["empirical"]):
+                b["empirical"] = None
+        return out
+
+
+def run_staged_simulation(
+    params: TardosParams,
+    n_users: int,
+    coalition: int,
+    trials: int = 1000,
+    strategies: list[str] | None = None,
+    seed: int = 2026,
+    ber: float = 0.0,
+    erasure: float = 0.0,
+    policy: str = DEFAULT_STAGE_POLICY,
+    eps_share: float | None = None,
+    bound_levels: tuple[float, ...] = (1e-2, 1e-3),
+) -> StagedSimulationReport:
+    """Simulate the single-stage and the staged accusation on the same codes and leaks.
+
+    ``eps_share`` is the budget of the simulated trace (default ``params.eps``, a trace that
+    spends the whole budget); the single-stage accusation spends all of it at stage 1, the
+    staged one splits it with ``policy``. Per-copy targets divide by ``params.n_max``.
+    """
+    strategies = list(STRATEGIES) if strategies is None else strategies
+    unknown = set(strategies) - set(STRATEGIES)
+    if unknown:
+        raise ValueError(f"strategi tidak dikenal: {sorted(unknown)} (pilihan: {sorted(STRATEGIES)})")
+    if not 1 <= coalition < n_users:
+        raise ValueError("ukuran koalisi harus antara 1 dan jumlah penerima dikurangi 1")
+    share = params.eps if eps_share is None else float(eps_share)
+    stage_e1 = [e / params.n_max for e in split_stage_eps(share, policy)]
+    single_e1 = share / params.n_max
+    k = len(stage_e1)
+    rng = np.random.default_rng(seed)
+    acc = {s: {"single": [0, 0, 0, 0], "staged": [0, 0, 0, 0], "runs": [0] * k, "members": [0] * k,
+               "innocents": [0] * k, "ratio": [-math.inf] * k, "z": [0.0] * k, "nz": [0] * k, "pos": [0] * k,
+               "sratio": -math.inf, "sz": 0.0} for s in strategies}
+    exceed = {lvl: 0 for lvl in bound_levels}
+    evaluations = 0
+
+    for _ in range(trials):
+        p, x_bits = random_code(params, n_users, rng)
+        x = x_bits.astype(np.float64)
+        members = rng.choice(n_users, size=coalition, replace=False)
+        is_member = np.zeros(n_users, dtype=bool)
+        is_member[members] = True
+        z_single_full = threshold(p, single_e1)
+        for name in strategies:
+            y, w = STRATEGIES[name](x_bits[members], rng)
+            y, w = add_channel_noise(y, w, rng, ber=ber, erasure=erasure)
+            a = acc[name]
+            z = z_single_full if bool(np.all(w == 1.0)) else threshold(p, single_e1, w)
+            s = scores(x, y, p, w)
+            single = (s >= z) if math.isfinite(z) else np.zeros(n_users, dtype=bool)
+            _tally(a["single"], single, is_member)
+            a["sz"] += z
+            if math.isfinite(z):
+                a["sratio"] = max(a["sratio"], float(np.max(s[~is_member]) / z))
+            named = np.zeros(n_users, dtype=bool)
+            for st in staged_accuse(x_bits, y, p, stage_e1, w):
+                i = st.stage - 1
+                a["runs"][i] += 1
+                a["pos"][i] += st.n_observed
+                a["members"][i] += int(np.count_nonzero(is_member[st.accused]))
+                a["innocents"][i] += int(np.count_nonzero(~is_member[st.accused]))
+                innocent = ~is_member[st.scored]
+                if math.isfinite(st.threshold):
+                    a["z"][i] += st.threshold
+                    a["nz"][i] += 1
+                    if innocent.any():
+                        a["ratio"][i] = max(a["ratio"][i], float(np.max(st.scores[innocent]) / st.threshold))
+                if st.stage >= 2 and st.n_observed and innocent.any():
+                    evaluations += int(np.count_nonzero(innocent))
+                    for lvl in bound_levels:
+                        exceed[lvl] += int(np.count_nonzero(st.scores[innocent] >= threshold(p, lvl, st.weights)))
+                named[st.accused] = True
+            _tally(a["staged"], named, is_member)
+
+    results = []
+    for name in strategies:
+        a = acc[name]
+        results.append(StagedStrategyResult(
+            strategy=name, trials=trials, coalition=coalition,
+            single_members_caught=a["single"][0], single_detected_trials=a["single"][1],
+            single_all_caught_trials=a["single"][2], single_false_accusation_trials=a["single"][3],
+            staged_members_caught=a["staged"][0], staged_detected_trials=a["staged"][1],
+            staged_all_caught_trials=a["staged"][2], staged_false_accusation_trials=a["staged"][3],
+            stage_runs=a["runs"], stage_members=a["members"], stage_innocents=a["innocents"],
+            stage_max_innocent_over_threshold=a["ratio"],
+            stage_mean_threshold=[z / n if n else math.nan for z, n in zip(a["z"], a["nz"])],
+            stage_mean_positions=[q / n if n else math.nan for q, n in zip(a["pos"], a["runs"])],
+            single_max_innocent_over_threshold=a["sratio"], single_mean_threshold=a["sz"] / trials,
+        ))
+    bound_check = {
+        f"{lvl:g}": {"target": lvl, "exceed": float(exceed[lvl]), "evaluations": float(evaluations),
+                     "empirical": exceed[lvl] / evaluations if evaluations else float("nan")}
+        for lvl in bound_levels
+    }
+    return StagedSimulationReport(
+        params=params.to_dict(), n_users=n_users, coalition=coalition, trials=trials, ber=ber, erasure=erasure,
+        seed=seed, policy=policy, single_eps1=single_e1, stage_eps1=stage_e1, results=results,
+        bound_check=bound_check,
+    )
+
+
+def _tally(counts: list[int], named: np.ndarray, is_member: np.ndarray) -> None:
+    """Add (members named, at least one, all, any innocent) of one trial to ``counts``."""
+    hits = int(np.count_nonzero(named & is_member))
+    counts[0] += hits
+    counts[1] += int(hits > 0)
+    counts[2] += int(hits == int(is_member.sum()))
+    counts[3] += int(np.any(named & ~is_member))
 
 
 @dataclass

@@ -18,7 +18,8 @@ checks:
    signing workflow, and the verdict then names them;
 8. an empty registry is a problem (nothing to verify, or every entry deleted);
 9. every ``trace`` entry is valid (fields, hashes, eps share on the schedule
-   eps * 6 / (pi^2 k^2)), follows the ``document`` entry of its document with the same eps,
+   eps * 6 / (pi^2 k^2), and for a staged trace a known stage policy whose stage eps are
+   that policy's split of the share), follows the ``document`` entry of its document with the same eps,
    and its number continues that document's count (1, 2, 3, ...): a duplicate or skipped
    number means the trace log was not written by TAPAK;
 10. a ``document`` entry with lexical fields (word-choice channel) has all of them, with
