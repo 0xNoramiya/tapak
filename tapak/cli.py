@@ -248,13 +248,18 @@ def _issue_settings(args: argparse.Namespace):
 
 
 def _cmd_issue(args: argparse.Namespace) -> int:
-    from tapak.marker.issue import IssueSettings, SemanticSelection, read_recipients
+    from tapak.config import WORKERS_ENV, worker_limit
+    from tapak.marker.issue import IssueSettings, SemanticSelection, issue_workers, read_recipients
     from tapak.service import ensure_keys, issue_document
 
     s = _settings(args)
     if args.canary_domain is None:
         args.canary_domain = s.canary_domain
     recipients = read_recipients(Path(args.recipients))
+    workers = issue_workers(len(recipients), args.workers)  # a bad TAPAK_WORKERS stops here
+    limit = worker_limit()
+    if args.workers and limit is not None and args.workers > limit:
+        print(f"Catatan: --workers {args.workers} dibatasi {WORKERS_ENV}={limit}")
     copy_ids, warnings = None, []
     if args.benih_riset is not None:
         # Research only (make photos): the secret and the copy ids come from a public seed, so the
@@ -317,7 +322,8 @@ def _cmd_issue(args: argparse.Namespace) -> int:
                          if m.gate["scan_identical"] else "; halaman pindaian TIDAK identik")
         print(f"Gerbang visual: {'lulus' if m.gate.get('passed') else 'GAGAL'} (selisih maks {m.gate.get('max_diff')})"
               + scan_gate)
-    print(f"{len(m.copies)} salinan ditulis ke {out.folder / 'salinan'} dalam {m.elapsed_s:.2f} s")
+    print(f"{len(m.copies)} salinan ditulis ke {out.folder / 'salinan'} dalam {m.elapsed_s:.2f} s"
+          + ("" if is_docx else f" ({workers} proses)"))
     if m.scan:
         sizes = [(out.folder / "salinan" / c.file).stat().st_size / 1e6 for c in m.copies]
         master_mb = (out.folder / "induk.pdf").stat().st_size / 1e6
@@ -844,6 +850,7 @@ def _cmd_anchor_ack(args: argparse.Namespace) -> int:
 
 
 def _cmd_anchor_status(args: argparse.Namespace) -> int:
+    from tapak.registry.anchor import MAX_LOG_BYTES, size_text
     from tapak.service import anchor_status
 
     s = _settings(args)
@@ -851,9 +858,10 @@ def _cmd_anchor_status(args: argparse.Namespace) -> int:
     print(f"Registri   : {s.registry_path}")
     print(f"Log jangkar: {status.path or '(tidak diatur)'}")
     print(f"Keadaan    : {status.describe()}")
+    if status.unavailable == "too_large":
+        print(f"Ukuran     : {size_text(status.size)}, di atas batas {size_text(MAX_LOG_BYTES)}; teruskan ke segmen "
+              "baru dengan tapak jangkar rotasi BERKAS_BARU")
     if status.configured and not status.missing:
-        from tapak.registry.anchor import MAX_LOG_BYTES, size_text
-
         print(f"Baris      : {status.lines} ({status.signed_lines} bertanda tangan), id log {status.log_id or '-'}")
         print(f"Ukuran     : {size_text(status.size)} dari batas {size_text(MAX_LOG_BYTES)}")
         print(f"Dapat ditulis: {'tidak' if status.unwritable else 'ya'}")
@@ -899,18 +907,30 @@ def _cmd_registry_merkle(args: argparse.Namespace) -> int:
 def _cmd_web(args: argparse.Namespace) -> int:
     import uvicorn
 
+    from tapak.config import worker_limit
+
     _settings(args)
+    worker_limit()  # a bad TAPAK_WORKERS is reported here, before the server starts
     uvicorn.run("tapak.web.app:app", host=args.host, port=args.port, log_level="info")
     return 0
 
 
 def _cmd_demo(args: argparse.Namespace) -> int:
+    from tapak.config import worker_limit
     from tapak.demo import run_demo
 
+    worker_limit()  # a bad TAPAK_WORKERS is reported before the demo folder is touched
     return run_demo(Path(args.workdir), keep=args.keep)
 
 
 PASSTHROUGH = {"canary-dns": "tapak.canary_dns.__main__", "photos": "tapak.photos"}
+
+
+def _positive_int(text: str) -> int:
+    """argparse type: a positive integer (Indonesian error otherwise)."""
+    if not (text.isascii() and text.isdigit()) or int(text) < 1:
+        raise argparse.ArgumentTypeError(f"harus bilangan bulat positif, bukan {text!r}")
+    return int(text)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -986,7 +1006,9 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--n-max", type=int, default=None)
     i.add_argument("--constant", choices=["skoric", "tardos"], default="skoric")
     i.add_argument("--shift-mm", type=float, default=0.05)
-    i.add_argument("--workers", type=int, default=None)
+    i.add_argument("--workers", type=_positive_int, default=None, metavar="N",
+                   help="jumlah proses penerbitan (bawaan: sebanyak CPU, paling banyak 8; tidak pernah lebih dari "
+                        "TAPAK_WORKERS bila diatur)")
     i.add_argument("--issuer", default="operator")
     i.add_argument("--canary-domain", default=None, help="domain kanari (kosongkan untuk menonaktifkan)")
     i.add_argument("--semantic", default=None, help="varian.json yang sudah disetujui")

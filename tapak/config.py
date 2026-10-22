@@ -13,8 +13,51 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+WORKERS_ENV = "TAPAK_WORKERS"
+# Most worker processes chosen automatically (without --workers or TAPAK_WORKERS).
+AUTO_WORKERS_MAX = 8
+
+
 def _env(name: str, default: str) -> str:
     return os.environ.get(name, default)
+
+
+def worker_limit() -> int | None:
+    """The cap on worker processes from ``TAPAK_WORKERS``; None when it is unset or empty.
+
+    Raises ValueError (Indonesian) when it holds anything but a positive integer.
+    """
+    raw = os.environ.get(WORKERS_ENV, "").strip()
+    if not raw:
+        return None
+    if not (raw.isascii() and raw.isdigit()) or int(raw) < 1:
+        raise ValueError(f"{WORKERS_ENV} harus bilangan bulat positif (jumlah proses kerja paling banyak), "
+                         f"bukan {raw!r}")
+    return int(raw)
+
+
+def available_cpus() -> int:
+    """CPUs this process may run on: its affinity mask (``taskset``, ``docker --cpuset-cpus``),
+    else ``os.cpu_count()``. A CPU quota (``docker --cpus``) is not visible here: set
+    ``TAPAK_WORKERS`` for that."""
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError):
+        return os.cpu_count() or 1
+
+
+def pool_size(jobs: int, requested: int | None = None) -> int:
+    """Worker processes for ``jobs`` independent jobs.
+
+    ``requested`` (``--workers``) when given, else the available CPUs up to
+    :data:`AUTO_WORKERS_MAX`; never more than ``TAPAK_WORKERS`` (ValueError when that is not a
+    positive integer) nor more than the jobs, and at least 1.
+    """
+    limit = worker_limit()
+    n = requested if requested else min(available_cpus(), AUTO_WORKERS_MAX)
+    if limit is not None:
+        n = min(n, limit)
+    return max(1, min(n, jobs))
 
 
 def _optional_path(name: str) -> Path | None:

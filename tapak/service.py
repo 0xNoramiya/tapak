@@ -243,10 +243,12 @@ def issue_document(
     ``PRINT_BACKGROUND_WARNING``. ``copy_ids`` fixes the copy ids of a PDF issuance
     (research seed only, see ``tapak.keys``); None draws them at random.
     """
+    from tapak.config import worker_limit
     from tapak.marker.background import PRINT_BACKGROUND, PRINT_BACKGROUND_WARNING, background_profile
     from tapak.registry.anchor import AnchorWriteError
     from tapak.registry.chain import Registry, registry_from_manifest
 
+    worker_limit()  # a bad TAPAK_WORKERS (ValueError) is refused before the workspace is claimed
     if latar is not None:
         issue_settings = replace(issue_settings, background=background_profile(latar))
 

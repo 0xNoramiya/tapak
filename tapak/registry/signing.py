@@ -223,6 +223,7 @@ _ARG_ERRORS = [
     (re.compile(r"argument (.+?): invalid \w+ value: (.+)"), "nilai {1} tidak sah untuk {0}"),
     (re.compile(r"argument (.+?): not allowed with argument (.+)"), "argumen {0} tidak boleh dipakai bersama {1}"),
     (re.compile(r"ambiguous option: (\S+)"), "opsi {0} ambigu"),
+    (re.compile(r"argument (\S+?): (harus .+)"), "{0} {1}"),  # Indonesian messages of TAPAK's own types
 ]
 
 

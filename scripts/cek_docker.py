@@ -8,12 +8,18 @@ project (containers and networks), the scratch folder and, when it built it, the
 
 Checks, on fictional samples only:
 
-1. CLI in containers without any network (``--network none``): keys, the external anchor log
-   (its own host folder, TAPAK_ANCHOR_LOG, append-only as with chattr +a), issuance of the text
-   sample and of the scanned sample, trace of a copy PDF and of a synthetic photo of each,
-   berita acara.
+0. The image: its Python libraries are exactly requirements.lock, which matches the host .venv
+   (scripts/kunci_versi.py); a bad TAPAK_WORKERS stops the web server with the reason.
+1. CLI in containers without any network (``--network none``, TAPAK_WORKERS=``--pekerja``):
+   keys, the external anchor log (its own host folder with its media marker, TAPAK_ANCHOR_LOG,
+   append-only as with chattr +a), issuance of the text sample and of the scanned sample with
+   no more worker processes than the cap, trace of a copy PDF and of a synthetic photo of each,
+   berita acara. On copies of that deployment: a restart onto an unmarked folder is refused
+   (and allowed with --tandai-media), and a rotation to a new segment refuses the old one,
+   verifies with --segmen-lama and traces with the new one.
 2. docker-compose.yml with docker-compose.jangkar.yml: every web page and static file, a
-   scanned master analysed through Terbitkan, the four pieces of evidence traced through Lacak.
+   scanned master analysed and issued through Terbitkan (its worker processes sampled: never
+   more than TAPAK_WORKERS), the four pieces of evidence traced through Lacak.
 3. Canary listener: an issued token is answered and logged; a made-up token is answered but
    never logged; other names in the zone get NXDOMAIN and names outside it REFUSED.
 4. Offline: the CLI containers have no network; the sockets of both compose containers are
@@ -50,6 +56,9 @@ sys.path.insert(0, str(ROOT))
 
 UID = "10001"  # the image's unprivileged user
 DOMAIN = "kanari.tapak.test"
+MEDIA_MARKER = ".tapak-jangkar-media"
+DISTRIBUTIONS = ("import json, importlib.metadata as m; "
+                 "print(json.dumps({d.metadata['Name']: d.version for d in m.distributions()}))")
 TEXT_SEQ, SCAN_SEQ = 7, 13
 ANCHOR_ENV = {"TAPAK_ANCHOR_LOG": "/jangkar/tapak.log"}
 DROP_TAIL = """
@@ -108,12 +117,14 @@ class Docker:
 
     def run(self, cmd: list, mounts: dict, user: str | None = None, env: dict | None = None,
             check: bool = True) -> subprocess.CompletedProcess:
+        """``cmd`` in a throwaway container (no network, TAPAK_WORKERS=--pekerja unless ``env``
+        sets it); an empty ``cmd`` runs the image's own command."""
         c = ["docker", "run", "--rm", "--pull", "never", "--network", "none",
              "--label", f"tapak-cek={self.args.proyek}"]
         c += ["--user", user] if user else []
         for host, target in mounts.items():
             c += ["-v", f"{host}:{target}"]
-        for k, v in (env or {}).items():
+        for k, v in {"TAPAK_WORKERS": str(self.args.pekerja), **(env or {})}.items():
             c += ["-e", f"{k}={v}"]
         return sh(c + [self.image] + cmd, check=check)
 
@@ -125,6 +136,12 @@ class Docker:
     def cli(self, *cmd, check: bool = True) -> subprocess.CompletedProcess:
         """A tapak command on the main deployment, as the image's user, with the anchor log."""
         return self.run(["tapak", *cmd], self.main_mounts(), env=ANCHOR_ENV, check=check)
+
+    def cli_on(self, folder: Path, *cmd, check: bool = True) -> subprocess.CompletedProcess:
+        """A tapak command on a copy of the deployment in ``folder`` (data, keys, jangkar)."""
+        mounts = {folder / "data": "/data", folder / "keys": "/keys", folder / "jangkar": "/jangkar",
+                  self.work / "bukti": "/bukti:ro"}
+        return self.run(["tapak", *cmd], mounts, env=ANCHOR_ENV, check=check)
 
     def root(self, *cmd, caps: tuple[str, ...] = (), check: bool = True) -> subprocess.CompletedProcess:
         """A command as root on the scratch folder (ownership, permissions and removal of the
@@ -151,7 +168,7 @@ class Docker:
         env = dict(os.environ, TAPAK_IMAGE=self.image, TAPAK_PORT=str(self.args.port_web),
                    TAPAK_CANARY_PORT=str(self.args.port_dns), TAPAK_ANCHOR_DIR=str(self.work / "jangkar"),
                    TAPAK_CANARY_DOMAIN=DOMAIN, TAPAK_CANARY_ANSWER_IP="127.0.0.1", TAPAK_CANARY_NS_IP="",
-                   TAPAK_LLM="mock")
+                   TAPAK_LLM="mock", TAPAK_WORKERS=str(self.args.pekerja))
         env.pop("TAPAK_ANCHOR_LOG", None)
         return sh(["docker", "compose", "-p", self.args.proyek, "--project-directory", self.work,
                    "-f", ROOT / "docker-compose.yml", "-f", ROOT / "docker-compose.jangkar.yml", *cmd],
@@ -237,6 +254,118 @@ class SocketWatch(threading.Thread):
             self.stop.wait(0.25)
 
 
+class ProcWatch(threading.Thread):
+    """Samples the processes of a container (docker top) and keeps the most issuance workers seen
+    at once: the children of the multiprocessing fork server (its forked workers share its
+    command line, the server itself is a child of the web server)."""
+
+    def __init__(self, cid: str) -> None:
+        super().__init__(daemon=True)
+        self.cid, self.samples, self.most = cid, 0, 0
+        self.stop = threading.Event()
+
+    def run(self) -> None:
+        while not self.stop.is_set():
+            res = sh(["docker", "top", self.cid, "-eo", "pid,ppid,args"], check=False)
+            rows = [r for r in (line.split(None, 2) for line in res.stdout.splitlines()[1:]) if len(r) == 3]
+            servers = {pid for pid, _, args in rows if "multiprocessing.forkserver" in args}
+            if res.returncode == 0:
+                self.most = max(self.most, sum(1 for _, ppid, _ in rows if ppid in servers))
+                self.samples += 1
+            self.stop.wait(0.2)
+
+
+def lock_script():
+    """scripts/kunci_versi.py as a module (scripts/ is not a package)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("kunci_versi", ROOT / "scripts" / "kunci_versi.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def read_root(d: Docker, path: str) -> str:
+    """A file of uid 10001 in the scratch folder (readable by its owner only), read as root."""
+    return d.root("cat", path).stdout
+
+
+def check_image(d: Docker, cek: Cek) -> None:
+    """0. The image's libraries against requirements.lock and the host .venv; a bad cap."""
+    from packaging.utils import canonicalize_name
+
+    k = lock_script()
+    lock = k.pins((ROOT / "requirements.lock").read_text(encoding="utf-8"))
+    found = json.loads(d.run(["python", "-c", DISTRIBUTIONS], {}).stdout)
+    image = {canonicalize_name(n): v for n, v in found.items()}
+    tools = {n: image.pop(n) for n in ("pip", "setuptools", "wheel", "tapak") if n in image}
+    differ = sorted(f"{n} {image.get(n, '-')} (kunci {lock.get(n, '-')})" for n in set(image) | set(lock)
+                    if image.get(n) != lock.get(n))
+    cek(not differ, "pustaka Python image sama persis dengan requirements.lock",
+        f"{len(image)} pustaka, fastapi {image.get('fastapi')}; di luar kunci: "
+        + ", ".join(f"{n} {v}" for n, v in tools.items()) + (f"; berbeda: {', '.join(differ[:5])}" if differ else ""))
+    try:
+        host = {n: v for n, (_, v, _) in k.closure(k.runtime_requirements()).items()}
+    except SystemExit as exc:
+        host = {}
+        print(exc)
+    differ = sorted(n for n in set(host) | set(lock) if host.get(n) != lock.get(n))
+    cek(not differ, "requirements.lock sama dengan .venv host yang diuji", ", ".join(differ[:5]))
+    # The image's own command, bounded: if the server started anyway, timeout stops it (exit 124).
+    command = json.loads(sh(["docker", "image", "inspect", "-f", "{{json .Config.Cmd}}", d.image]).stdout)
+    r = d.run(["timeout", "60", *command], {}, env={"TAPAK_WORKERS": "nol"}, check=False)
+    said = (r.stderr + r.stdout).strip()
+    cek(r.returncode == 1 and "galat: TAPAK_WORKERS harus bilangan bulat positif" in said and "Traceback" not in said,
+        "TAPAK_WORKERS=nol: server web tidak menyala dan menyebut alasannya", said.splitlines()[-1][:120] if said else "")
+
+
+def check_anchor_media_and_rotation(d: Docker, cek: Cek, evidence: dict) -> None:
+    """On copies of the main deployment: the media marker refuses a restart onto an unmarked
+    folder, and a rotation moves the log to a new segment."""
+    w = d.work
+    print("\n== penanda media dan rotasi log jangkar (salinan penerapan) ==")
+    # A restart onto an empty folder (the separate storage not mounted): refused without a marker.
+    d.root("sh", "-c", "mkdir -p /w/media/data /w/media/jangkar && cp -a /w/keys /w/media/ "
+           "&& cp -a /w/data/registry.db* /w/media/data/ && chown -R 10001:10001 /w/media")
+    r = d.cli_on(w / "media", "jangkar", "status", check=False)
+    cek(r.returncode == 1 and "HILANG: log jangkar tidak ditemukan" in r.stdout,
+        "jangkar status pada folder kosong (media belum dipasang): HILANG")
+    r = d.cli_on(w / "media", "jangkar", "mulai", "--ulang", "--alasan", "uji fiktif media belum dipasang", check=False)
+    empty = d.root("ls", "-A", "/w/media/jangkar").stdout.split()
+    cek(r.returncode == 2 and f"tidak memuat penanda media log jangkar ({MEDIA_MARKER})" in r.stderr and not empty,
+        "jangkar mulai --ulang di folder tanpa penanda media ditolak, tidak ada yang ditulis",
+        "" if r.returncode == 2 else r.stdout.strip()[-160:])
+    r = d.cli_on(w / "media", "jangkar", "mulai", "--ulang", "--tandai-media", "--alasan", "uji fiktif media baru",
+                 check=False)
+    marked = d.root("ls", "-A", "/w/media/jangkar").stdout.split()
+    status = d.cli_on(w / "media", "jangkar", "status", check=False)
+    cek(r.returncode == 0 and sorted(marked) == sorted([MEDIA_MARKER, "tapak.log"]) and status.returncode == 0
+        and "dimulai ulang di entri" in status.stdout, "dengan --tandai-media: penanda dan log baru, awal ulang tercatat",
+        r.stderr.strip()[-160:])
+
+    # Rotation to a new segment on the same (marked) storage.
+    key, inside, _, seq = evidence["teks-pdf"]
+    d.root("sh", "-c", f"mkdir -p /w/rotasi/data/dokumen && cp -a /w/keys /w/jangkar /w/rotasi/ "
+           f"&& cp -a /w/data/registry.db* /w/rotasi/data/ && cp -a /w/data/dokumen/{key} /w/rotasi/data/dokumen/ "
+           "&& chown 10001:10001 /w/rotasi /w/rotasi/data /w/rotasi/data/dokumen")
+    r = d.cli_on(w / "rotasi", "jangkar", "rotasi", "/jangkar/tapak-2.log", "--alasan", "rotasi uji fiktif", check=False)
+    cek(r.returncode == 0 and "diteruskan ke segmen baru /jangkar/tapak-2.log" in r.stdout,
+        "tapak jangkar rotasi di kontainer", r.stderr.strip()[-160:])
+    old = d.cli_on(w / "rotasi", "trace", inside, "--doc", key, check=False)
+    cek(old.returncode == 2 and "sudah diteruskan ke segmen baru" in old.stderr, "pelacakan dengan segmen lama ditolak",
+        old.stderr.strip()[-160:] if old.returncode != 2 else "")
+    new = ["--log-jangkar", "/jangkar/tapak-2.log"]
+    v = d.cli_on(w / "rotasi", "verify", *new, "--segmen-lama", "/jangkar/tapak.log", check=False)
+    cek(v.returncode == 0 and "Segmen lama      : 1 dicocokkan" in v.stdout, "tapak verify --segmen-lama: rantai segmen utuh")
+    t = d.cli_on(w / "rotasi", *new, "trace", inside, "--doc", key, check=False)
+    cek(t.returncode == 0 and f"Salinan #{seq}" in t.stdout and "segmen lanjutan sejak entri" in t.stdout,
+        "pelacakan dengan segmen baru: salinan benar, rotasi disebut", t.stderr.strip()[-160:])
+    start = json.loads(read_root(d, "/w/rotasi/jangkar/tapak-2.log").splitlines()[0])
+    marker = json.loads(read_root(d, f"/w/rotasi/jangkar/{MEDIA_MARKER}"))
+    cek(start.get("media") == marker.get("media_id") and bool(start.get("previous")),
+        "segmen baru menyebut penanda media dan segmen lamanya")
+
+
 # --- the check --------------------------------------------------------------------------------
 
 
@@ -244,6 +373,9 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
     w = d.work
     from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
     from tapak.samplegen import scanned_sample
+
+    print("\n== image ==")
+    check_image(d, cek)
 
     # Versions.
     engine_ctr = d.run(["python", "-c", "from tapak.marker.raster import ocr_engine; print(ocr_engine())"],
@@ -272,7 +404,10 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
     print("\n== CLI di kontainer tanpa jaringan ==")
     cek(d.cli("keys", "init").returncode == 0, "tapak keys init")
     r = d.cli("jangkar", "mulai")
-    cek(r.returncode == 0 and (w / "jangkar" / "tapak.log").is_file(), "tapak jangkar mulai (log di folder host terpisah)")
+    start = json.loads(read_root(d, "/w/jangkar/tapak.log").splitlines()[0])
+    marker = json.loads(read_root(d, f"/w/jangkar/{MEDIA_MARKER}"))
+    cek(r.returncode == 0 and marker.get("media_id") is not None and start.get("media") == marker["media_id"],
+        "tapak jangkar mulai (log dan penanda media di folder host terpisah)", f"media {str(marker.get('media_id'))[:8]}")
     # chattr +a, as docs/operasi.md suggests: TAPAK still appends, nobody can truncate.
     attr = d.append_only(True, check=False)
     if attr.returncode == 0:
@@ -283,8 +418,9 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
         print(f"Atribut tambah-saja tidak dapat dipasang di sistem berkas ini; dilewati ({attr.stderr.strip()[-120:]})")
     for name in ("nota_dinas.pdf", "nota_dinas_pindaian.pdf"):
         t0 = time.perf_counter()
-        r = d.cli("issue", f"/sampel/{name}", "/sampel/recipients.csv", "--canary-domain", DOMAIN, "--workers", "3")
-        cek("Gerbang visual: lulus" in r.stdout, f"tapak issue {name}", f"{time.perf_counter() - t0:.0f} s")
+        r = d.cli("issue", f"/sampel/{name}", "/sampel/recipients.csv", "--canary-domain", DOMAIN)
+        cek("Gerbang visual: lulus" in r.stdout and f"({args.pekerja} proses)" in r.stdout, f"tapak issue {name}",
+            f"{time.perf_counter() - t0:.0f} s, {args.pekerja} proses (TAPAK_WORKERS, tanpa --workers)")
     docs = d.manifests()
     evidence = {}  # label -> (doc key, path inside the container, host path, expected seq)
     for kind, seq in (("teks", TEXT_SEQ), ("pindaian", SCAN_SEQ)):
@@ -310,6 +446,7 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
         report_ok = (w / "bukti" / f"{label}.pdf").read_bytes()[:5] == b"%PDF-" if r.returncode == 0 else False
         cek(named == [seq] and not skipped and report_ok and "Log jangkar: cocok" in r.stdout,
             f"CLI lacak {label}", f"salinan {named}, {seconds:.0f} s, berita acara {report_ok}")
+    check_anchor_media_and_rotation(d, cek, evidence)
 
     # 2. compose: web on the published port, canary listener on its own network.
     print("\n== docker compose (app + canary-dns, log jangkar) ==")
@@ -341,9 +478,8 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
         bad += [f"{s} {status}"] if status != 200 else []
     cek(not bad, f"{len(pages)} halaman web dan {len(statics)} berkas statis/pratinjau", ", ".join(bad))
 
-    # Terbitkan with a scanned master (OCR layer dropped), read with the container's Tesseract.
-    # Not issued here: the web issues with up to 8 worker processes (os.cpu_count), and issuance
-    # itself is the code path the CLI already ran in the container.
+    # Terbitkan with a scanned master (OCR layer dropped), read with the container's Tesseract,
+    # then issued: os.cpu_count() in the container sees every host CPU, TAPAK_WORKERS caps the pool.
     t0 = time.perf_counter()
     status, html = post_form(base + "/terbitkan/analisis", {"c": "3", "eps": "1e-6"},
                              [("dokumen", "nota_pindaian_ocr.pdf", (w / "sampel" / "nota_dinas_pindaian_ocr.pdf").read_bytes()),
@@ -351,6 +487,23 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
     sid = re.search(r"/terbitkan/([0-9a-f]{16})/terbitkan", html)
     cek(status == 200 and sid is not None and "kotak kata (Tesseract)" in html, "web Terbitkan: analisis induk hasil pindai",
         f"{time.perf_counter() - t0:.0f} s")
+    if sid is not None:
+        procs = ProcWatch(app_id)
+        procs.start()
+        t0 = time.perf_counter()
+        status, body, _ = http(base + f"/terbitkan/{sid.group(1)}/terbitkan", b"")
+        seconds = time.perf_counter() - t0
+        procs.stop.set()
+        procs.join()
+        html = body.decode("utf-8", errors="replace")
+        zipped = re.search(r"/dokumen/([0-9a-f]{16})/salinan\.zip", html)
+        peak = sh(["docker", "exec", app_id, "cat", "/sys/fs/cgroup/memory.peak"], check=False).stdout.strip()
+        peak = f", puncak memori kontainer {int(peak) / 2**20:.0f} MiB" if peak.isdigit() else ""
+        cek(status == 200 and zipped is not None and "20 salinan siap dibagikan" in html
+            and 1 <= procs.most <= args.pekerja and procs.samples >= 5,
+            "web Terbitkan: 20 salinan induk hasil pindai",
+            f"{seconds:.0f} s, paling banyak {procs.most} proses kerja sekaligus (TAPAK_WORKERS={args.pekerja}, "
+            f"{os.cpu_count()} CPU host, {procs.samples} sampel){peak}")
 
     for label, (key, _, host_path, seq) in evidence.items():
         t0 = time.perf_counter()
@@ -433,10 +586,10 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
         me = f"{os.getuid()}:{os.getgid()}"
         host_tapak("--data", w / "host/data", "--keys", w / "host/keys", "keys", "init")
         host_tapak("--data", w / "host/data", "--keys", w / "host/keys", "issue", w / "sampel/nota_dinas_pindaian.pdf",
-                   w / "sampel/recipients.csv", "--canary-domain", "", "--workers", "3")
+                   w / "sampel/recipients.csv", "--canary-domain", "", "--workers", str(args.pekerja))
         d.run(["tapak", "--data", "/k/data", "--keys", "/k/keys", "keys", "init"], {w / "kontainer": "/k"}, user=me)
         d.run(["tapak", "--data", "/k/data", "--keys", "/k/keys", "issue", "/sampel/nota_dinas_pindaian.pdf",
-               "/sampel/recipients.csv", "--canary-domain", "", "--workers", "3"],
+               "/sampel/recipients.csv", "--canary-domain", ""],
               {w / "kontainer": "/k", w / "sampel": "/sampel:ro"}, user=me)
         hm, km = manifests(w / "host/data")["pindaian"], manifests(w / "kontainer/data")["pindaian"]
         host_pdf, ctr_pdf = copy_of(w / "host/data", hm, SCAN_SEQ), copy_of(w / "kontainer/data", km, SCAN_SEQ)
@@ -480,9 +633,9 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
     # 6. Research seed: the same code secret, copy ids and code commitments on the host and in
     # the container, and copies that render to the same pixels (the PDF /ID differs per write).
     print("\n== benih riset ==")
-    seed = ["--no-registry", "--canary-domain", "", "--benih-riset", "2026", "--workers", "3"]
+    seed = ["--no-registry", "--canary-domain", "", "--benih-riset", "2026"]
     host_tapak("--data", w / "riset/h/data", "--keys", w / "riset/h/keys", "issue", w / "sampel/nota_dinas.pdf",
-               w / "sampel/recipients.csv", *seed)
+               w / "sampel/recipients.csv", *seed, "--workers", str(args.pekerja))
     d.run(["tapak", "--data", "/r/data", "--keys", "/r/keys", "issue", "/sampel/nota_dinas.pdf",
            "/sampel/recipients.csv", *seed], {w / "riset/k": "/r", w / "sampel": "/sampel:ro"},
           user=f"{os.getuid()}:{os.getgid()}")
@@ -509,7 +662,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--port-dns", type=int, default=15353, help="port pendengar kanari di host (UDP dan TCP)")
     ap.add_argument("--kerja", default=str(ROOT / "out" / "docker-cek"), help="folder kerja sementara")
     ap.add_argument("--simpan-kerja", action="store_true", help="jangan hapus folder kerja")
+    ap.add_argument("--pekerja", type=int, default=3,
+                    help="TAPAK_WORKERS di kontainer: proses kerja penerbitan paling banyak (bawaan 3)")
     args = ap.parse_args(argv)
+    if args.pekerja < 1:
+        raise SystemExit("--pekerja harus bilangan bulat positif")
     work = Path(args.kerja).resolve()
     if work.exists():
         raise SystemExit(f"{work} sudah ada; hapus dulu atau pilih --kerja lain")
@@ -521,7 +678,7 @@ def main(argv: list[str] | None = None) -> int:
             t0 = time.perf_counter()
             sh(["docker", "build", "-t", args.image, ROOT])
             built = True
-            print(f"Image {args.image} dibangun dalam {time.perf_counter() - t0:.0f} s")
+            print(f"Image {args.image} dibangun dalam {time.perf_counter() - t0:.0f} s (pustaka dari requirements.lock)")
         size = int(sh(["docker", "image", "inspect", "-f", "{{.Size}}", args.image]).stdout)
         print(f"Ukuran image {args.image}: {size / 1e6:.0f} MB (docker image inspect; terkompresi bila Docker memakai penyimpanan image containerd)")
         run_check(args, d, cek)

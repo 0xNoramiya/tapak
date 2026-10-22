@@ -222,12 +222,14 @@ def test_missing_unreadable_or_unstarted_log_is_refused(anchored, tmp_path):
     moved = log_path.rename(log_path.with_name("dipindah.log"))
     st = _status(reg_path, log_path)
     assert st.missing and not st.ok and "tidak ditemukan" in st.problems[0] and "--ulang --alasan" in st.problems[0]
+    assert st.unavailable == "missing" and st.describe().startswith("HILANG: log jangkar tidak ditemukan")
     with pytest.raises(AnchorRefused, match="tidak ditemukan"):
         _trace(reg_path, log_path)
     assert not log_path.exists()  # a write never recreates a missing log
     log_path.mkdir()  # something else in its place
     st = _status(reg_path, log_path)
     assert st.missing and "bukan berkas biasa" in st.problems[0] and "jangan menghapus" in st.problems[0]
+    assert st.unavailable == "unreadable" and st.describe().startswith("TIDAK TERBACA: ")
     log_path.rmdir()
     moved.rename(log_path)
     assert _status(reg_path, log_path).ok
@@ -235,6 +237,7 @@ def test_missing_unreadable_or_unstarted_log_is_refused(anchored, tmp_path):
     _new_registry(fresh)
     st = AnchorLog(tmp_path / "terpisah" / "belum.log").inspect_registry_file(fresh)
     assert st.missing and "belum dimulai" in st.problems[0] and "tapak jangkar mulai" in st.problems[0]
+    assert st.unavailable == "not_started" and st.describe().startswith("BELUM DIMULAI: ")
     assert not AnchorLog(tmp_path / "terpisah" / "kosong.log", public_key=PUB).inspect_registry_file(
         tmp_path / "tidak-ada.db").ok
 
@@ -826,6 +829,8 @@ def test_the_size_limit_is_announced_and_a_rotation_continues_the_log(anchored, 
     second, _ = _trace(reg_path, log_path)
     st = _status(reg_path, log_path)
     assert st.missing and "terlalu besar" in st.problems[0] and "tapak jangkar rotasi" in st.problems[0]
+    assert st.unavailable == "too_large" and st.size == log_path.stat().st_size
+    assert st.describe().startswith("TERLALU BESAR: ") and st.to_dict()["unavailable"] == "too_large"
     with pytest.raises(AnchorRefused, match="terlalu besar"):
         _trace(reg_path, log_path)
     # The rotation still reads the oversized log, and the new segment repeats nothing but the head.
@@ -1154,6 +1159,57 @@ def test_status_reports_a_log_that_cannot_be_written(tmp_path, monkeypatch, issu
     finally:
         log_path.chmod(0o644)
     assert cli.main(["jangkar", "status"]) == 0 and "Dapat ditulis: ya" in capsys.readouterr().out
+
+
+def test_registri_page_names_why_the_log_cannot_be_read(tmp_path, monkeypatch, issued_base, capsys):
+    """A log over the size limit is not "Hilang": the page says it is too large and how to rotate
+    it; a missing, unreadable or not yet started log gets its own label too."""
+    from fastapi.testclient import TestClient
+
+    from tapak.web.app import app
+
+    s, doc, evidence, log_path = _deployment(tmp_path, monkeypatch, issued_base)
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    def stamp() -> tuple[str, str]:
+        """The danger stamp of the anchor card ("" when there is none) and the card's HTML."""
+        page = client.get("/registri").text
+        card = page[page.index('id="jangkar-h"'):]
+        card = card[:card.index("</section>")]
+        if 'stamp-danger">' not in card:
+            return "", card
+        return card.split('stamp-danger">', 1)[1].split("<", 1)[0], card
+
+    limit = anchor_mod.MAX_LOG_BYTES
+    monkeypatch.setattr(anchor_mod, "MAX_LOG_BYTES", log_path.stat().st_size - 1)
+    label, card = stamp()
+    assert label == "Terlalu besar" and "Hilang" not in card
+    assert "ditolak sampai log ini diteruskan ke segmen baru" in card
+    assert "tapak jangkar rotasi BERKAS_BARU" in card and "terlalu besar" in card
+    capsys.readouterr()
+    assert cli.main(["jangkar", "status"]) == 1
+    printed = capsys.readouterr().out
+    assert "Keadaan    : TERLALU BESAR: log jangkar" in printed and "TIDAK COCOK" not in printed
+    assert "di atas batas" in printed and "tapak jangkar rotasi BERKAS_BARU" in printed
+    monkeypatch.setattr(anchor_mod, "MAX_LOG_BYTES", limit)
+    label, card = stamp()
+    assert label == "" and 'stamp-ok">Cocok' in card
+
+    moved = log_path.rename(log_path.with_name("dipindah.log"))
+    label, card = stamp()
+    assert label == "Hilang" and "ditolak sampai log ini dapat dibaca lagi" in card
+    log_path.mkdir()  # something else in its place
+    assert stamp()[0] == "Tidak terbaca"
+    log_path.rmdir()
+    moved.rename(log_path)
+    assert stamp()[0] == ""
+    # A registry that does not use a log yet, with a location set: not started, not lost.
+    (tmp_path / "kosong").mkdir()
+    _new_registry(tmp_path / "kosong" / "registry.db")
+    monkeypatch.setenv("TAPAK_DATA", str(tmp_path / "kosong"))
+    monkeypatch.setenv("TAPAK_ANCHOR_LOG", str(tmp_path / "terpisah" / "belum.log"))
+    label, card = stamp()
+    assert label == "Belum dimulai" and "ditolak sampai log dimulai dengan" in card
 
 
 def test_the_media_marker_must_sit_next_to_the_log(anchored, tmp_path):

@@ -14,7 +14,8 @@ semantic and lexical positions come from the retype band (``plan.RETYPE_BAND``).
 selection, plan, manifest and copies are exactly those of a document issued before the
 channel existed.
 
-Copies are rendered in parallel worker processes.
+Copies are rendered in parallel worker processes (:func:`issue_workers`: at most 8, the
+available CPUs and ``TAPAK_WORKERS``).
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ from __future__ import annotations
 import csv
 import json
 import multiprocessing as mp
-import os
 import re
 import secrets
 import time
@@ -33,6 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
+from tapak.config import pool_size
 from tapak.marker.background import (
     BackgroundSettings,
     PageGrid,
@@ -102,7 +103,7 @@ class IssueSettings:
     background: BackgroundSettings = field(default_factory=BackgroundSettings)
     channels: tuple[str, ...] = ("shift", "zw", "homoglyph", "background", "canary", "semantic")
     canary_domain: str | None = None  # the canary channel is used only when a domain is set
-    workers: int | None = None
+    workers: int | None = None        # default: issue_workers (CPUs, at most 8 and TAPAK_WORKERS)
     excluded_rows: tuple[RowId, ...] = ()
 
 
@@ -438,6 +439,18 @@ def _main_importable() -> bool:
     return bool(main_file) and Path(main_file).exists()
 
 
+def issue_workers(copies: int, requested: int | None = None) -> int:
+    """Worker processes :func:`issue` starts for ``copies`` copies (1: rendered in this process).
+
+    ``requested`` is ``IssueSettings.workers``; ``config.pool_size`` caps it (and the automatic
+    choice) with ``TAPAK_WORKERS`` and raises ValueError when that is not a positive integer.
+    """
+    workers = pool_size(copies, requested)
+    if not _main_importable():
+        return 1  # interactive session or stdin script: child processes cannot re-import it
+    return workers
+
+
 def _canary_enabled(settings: IssueSettings) -> bool:
     return "canary" in settings.channels and bool(settings.canary_domain)
 
@@ -488,6 +501,7 @@ def issue(
     """
     t0 = time.perf_counter()
     settings = settings or IssueSettings()
+    workers = issue_workers(len(recipients), settings.workers)  # TAPAK_WORKERS checked before any work
     if lexical is not None:
         require_lexical_reviewed(lexical)
         if CHANNEL_LEXICAL not in settings.channels:
@@ -550,9 +564,6 @@ def issue(
         copy_ids.append(copy_id)
         jobs.append((seq, copy_id, str(out_dir / f"{stem}__salinan{seq:03d}_{rec.recipient_id}.pdf")))
 
-    workers = settings.workers or min(len(jobs), os.cpu_count() or 1, 8)
-    if not _main_importable():
-        workers = 1  # interactive session or stdin script: child processes cannot re-import it
     results: dict[int, tuple[str, str, str | None, list[str]]] = {}
     if workers <= 1:
         _worker_init(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)

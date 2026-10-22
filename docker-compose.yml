@@ -13,6 +13,8 @@
 #   TAPAK_IMAGE        image tag (default tapak:latest)
 #   TAPAK_PORT         host port of the web UI on 127.0.0.1 (default 8000)
 #   TAPAK_CANARY_PORT  host port of the canary listener, UDP and TCP (default 53)
+#   TAPAK_WORKERS      cap on the worker processes of an issuance and on traces at once
+#                      (default 4; os.cpu_count() in the container counts every CPU of the host)
 # External anchor log: add docker-compose.jangkar.yml (see that file and docs/operasi.md).
 services:
   app:
@@ -26,6 +28,7 @@ services:
     environment:
       TAPAK_CANARY_DOMAIN: ${TAPAK_CANARY_DOMAIN:-kanari.tapak.test}
       TAPAK_LLM: ${TAPAK_LLM:-mock}
+      TAPAK_WORKERS: ${TAPAK_WORKERS:-4}
     networks: [web]
     restart: unless-stopped
 
