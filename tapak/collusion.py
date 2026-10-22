@@ -22,8 +22,11 @@ text PDF. Everything the attack decides is computed from those copies alone:
   undecided when it is not within delta / 2 of +/- delta (unequal gaps in the master).
 
 The forged evidence (``forge_copy``) takes one copy's place for every unit: at an agreeing
-unit the mark is neutralized (background cell level 0, data unit moved to its estimated
-master position) with probability ``erase_fraction``; at a disagreeing unit the rule picks
+unit the mark is neutralized with probability ``erase_fraction``, either erased (``hapus``:
+background cell level 0, data unit moved to its estimated master position) or reversed
+(``balik``: the cell's level negated, the data unit moved to the mirror of its position about
+the master position, so it carries the other bit at full strength); at a disagreeing unit the
+rule picks
 the first copy (``salin``), a random member per unit or cell (``acak``) or the average of the
 copies (``rata``, which erases the unit when two copies disagree, the classical averaging
 attack). The forged PDF is drawn with TAPAK's own renderer from the master with these offsets
@@ -32,8 +35,11 @@ background image, and its text layer carries no zero-width symbols or homoglyphs
 as anyone who knows the text channel would). The master is used only to draw the result,
 never to decide anything.
 
-Erasures that depend on agreement are outside the marking assumption, so the proven miss
-bound (``tapak.tardos.detection``) does not cover them; ``research/sepakat`` measures them.
+Erasures and reversals that depend on agreement are outside the marking assumption, so the
+proven miss bound (``tapak.tardos.detection``) does not cover them; ``research/sepakat``
+measures them. A reversal leaves every unit as clearly marked as in an honest copy, so the
+erasure check (``decoder/erasure.py``), which looks at how clearly units are read, cannot see
+it (``research/sepakat/balik.py``).
 """
 
 from __future__ import annotations
@@ -52,6 +58,7 @@ from tapak.marker.render import CopyMarks, render_copy
 
 RULES = ("salin", "acak", "rata")
 CHANNELS = ("latar", "geser")
+NEUTRALIZE = ("hapus", "balik")
 POSITION_TOLERANCE_PT = 0.01  # glyph origins of copies closer than this count as the same place
 PUBLIC_DELTA_PT = 0.05 * MM_TO_PT  # TAPAK's default shift, used when no disagreeing unit shows it
 
@@ -329,19 +336,24 @@ def coalition_view(copy_pdfs: list[bytes], delta: float | None = None,
 
 def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float = 1.0,
                  channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None,
-                 agree_threshold: float = 0.5) -> ForgeryPlan:
+                 agree_threshold: float = 0.5, neutralize: str = "hapus") -> ForgeryPlan:
     """Decide the forged evidence: neutralize agreeing units, apply ``rule`` at disagreeing ones.
 
     ``channels`` names the channels whose agreeing units are neutralized ("latar", "geser");
     in the others agreeing units keep copy 1's marks. Each agreeing unit (background cell,
     shift unit with a typographic estimate) is neutralized with probability
-    ``erase_fraction``. A background cell counts as agreeing when its agreement probability is
-    at least ``agree_threshold`` (always 0 or 1 for TAPAK's pattern).
+    ``erase_fraction``: erased (``neutralize="hapus"``) or reversed (``"balik"``: level
+    negated, data unit mirrored about its master position). A background cell counts as
+    agreeing when its agreement probability is at least ``agree_threshold`` (always 0 or 1
+    for TAPAK's pattern).
     """
     if rule not in RULES:
         raise ValueError(f"aturan tidak dikenal: {rule!r}")
     if not set(channels) <= set(CHANNELS):
         raise ValueError(f"kanal serangan tidak dikenal: {channels!r}")
+    if neutralize not in NEUTRALIZE:
+        raise ValueError(f"cara menetralkan tidak dikenal: {neutralize!r}")
+    reverse = neutralize == "balik"
     rng = rng or np.random.default_rng()
     counts = {k: 0 for k in ("sel_sama", "sel_sama_dihapus", "sel_beda", "unit_sama", "unit_sama_dinetralkan",
                              "unit_sama_tanpa_taksiran", "unit_beda")}
@@ -361,7 +373,7 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
         counts["sel_beda"] += int((~agree).sum())
         if "latar" in channels:
             erase = used & (rng.random(out.shape) < erase_fraction)
-            out[erase] = 0.0
+            out[erase] = -stack[0][erase] if reverse else 0.0
             counts["sel_sama_dihapus"] += int(erase.sum())
         levels[page] = out
     moves: dict[UnitRef, float] = {}
@@ -373,7 +385,7 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
                 counts["unit_sama_tanpa_taksiran"] += 1
                 continue
             if "geser" in channels and rng.random() < erase_fraction:
-                moves[u.ref] = -u.typographic
+                moves[u.ref] = (-2.0 if reverse else -1.0) * u.typographic
                 counts["unit_sama_dinetralkan"] += 1
             continue
         counts["unit_beda"] += 1
@@ -449,16 +461,17 @@ def forge_copy(master: MasterDocument, copy_pdfs: list[bytes], plan: ForgeryPlan
 
 def attack(master: MasterDocument, copy_pdfs: list[bytes], rule: str = "acak", erase_fraction: float = 1.0,
            channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None,
-           mask: tuple[float, float, float] | None = None, agree_threshold: float = 0.5
-           ) -> tuple[bytes, CoalitionView, ForgeryPlan]:
+           mask: tuple[float, float, float] | None = None, agree_threshold: float = 0.5,
+           neutralize: str = "hapus") -> tuple[bytes, CoalitionView, ForgeryPlan]:
     """Coalition view, forgery plan and forged PDF in one call (see the module docstring)."""
     view = coalition_view(copy_pdfs, mask=mask)
-    plan = plan_forgery(view, rule, erase_fraction, channels, rng, agree_threshold)
+    plan = plan_forgery(view, rule, erase_fraction, channels, rng, agree_threshold, neutralize)
     return forge_copy(master, copy_pdfs, plan), view, plan
 
 
 __all__ = [
     "CHANNELS",
+    "NEUTRALIZE",
     "RULES",
     "CoalitionView",
     "ForgeryPlan",
