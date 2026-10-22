@@ -12,14 +12,31 @@ text PDF. Everything the attack decides is computed from those copies alone:
   position where the coalition's bits agree. No key is needed: the cell grid itself (2 mm,
   centred on the page) is public.
 * Shifts (channel 1). Glyph origins are read from each copy PDF. Data units follow the public
-  layout rule (odd word groups with a right neighbour, odd-ranked eligible rows). A unit at
-  the same place in every copy carries agreeing bits; one at two places 2 delta apart carries
-  disagreeing bits, and its master position is the midpoint. For an agreeing unit the master
-  position is estimated from typography (``typographic_shift``): in a justified or ragged
-  line the word gaps on both sides of a data group are equal in the master, so
-  (left gap - right gap) / 2 is the shift; likewise (pitch above - pitch below) / 2 for a data
-  row between two lines of the same paragraph. The estimate is rounded to +/- delta, or left
-  undecided when it is not within delta / 2 of +/- delta (unequal gaps in the master).
+  layout rule of the shift scheme: under geser-v1 odd word groups with a right neighbour and
+  odd-ranked eligible rows; under geser-v2 every word group (at least 10 pt wide) of a row
+  with at least three groups, and the same rows. A unit at the same place in every copy
+  carries agreeing bits; one at two places 2 delta apart carries disagreeing bits, and its
+  master position is the midpoint. For an agreeing unit the master position is estimated from
+  typography. geser-v1 (``typographic_shift``): in a justified or ragged line the word gaps on
+  both sides of a data group are equal in the master, so (left gap - right gap) / 2 is the
+  shift; likewise (pitch above - pitch below) / 2 for a data row between two lines of the same
+  paragraph. The estimate is rounded to +/- delta, or left undecided when it is not within
+  delta / 2 of +/- delta (unequal gaps in the master). geser-v2 (``row_signs``): every group
+  of a row moves, so the row is read as a whole. All word gaps of a justified or ragged line
+  are equal in the master, and the gap between groups g and g + 1 of a copy is that gap plus
+  delta (s[g+1] - s[g]); for every group the sign whose best explanation of the whole row
+  (dynamic programming over the signs, every candidate common gap, the signs of disagreeing
+  groups fixed) is clearly cheaper than that of the other sign. A gap that no pattern explains
+  within delta / 2 (a label or a tab stop) splits the row; a group whose gaps are explained
+  both ways (a piece whose groups all moved the same way, a single group after a tab) stays
+  undecided unless a disagreeing group anchors it. Rows are read as under geser-v1, with
+  their own delta. Under geser-v2 the coalition then anchors what is left on the document as
+  a whole (``anchored_sign``): groups that share a column edge in the master (the left margin,
+  a list indent, a tab stop, the right margin of justified text) and data rows whose pitches
+  recur (lines of a paragraph, paragraph breaks) take the sign that puts them on the master
+  edges and pitches of the units already known. The same row anchoring would work under
+  geser-v1, whose rows are the same; it is applied under geser-v2 only, so the published
+  geser-v1 measurements of ``research/sepakat`` stay reproducible.
 
 The forged evidence (``forge_copy``) takes one copy's place for every unit: at an agreeing
 unit the mark is neutralized with probability ``erase_fraction``, either erased (``hapus``:
@@ -50,9 +67,18 @@ import numpy as np
 import pymupdf
 
 from tapak.marker.background import BackgroundSettings, PageGrid, pattern_image, png_bytes
-from tapak.marker.layout import DocumentLayout, Row, extract_layout
+from tapak.marker.layout import DocumentLayout, Row, extract_layout, regroup
 from tapak.marker.master import MasterDocument
-from tapak.marker.pdf_shift import MIN_ROW_GLYPHS, MM_TO_PT
+from tapak.marker.pdf_shift import (
+    MIN_JOINT_GROUPS,
+    MIN_ROW_GLYPHS,
+    MM_TO_PT,
+    SCHEME_GROUP_WIDTH,
+    SCHEME_V1,
+    SCHEME_V2,
+    SHIFT_SCHEMES,
+    V2_MAX_WORD_SHIFT_MM,
+)
 from tapak.marker.pdf_zerowidth import ZW_CHARS
 from tapak.marker.render import CopyMarks, render_copy
 
@@ -60,7 +86,11 @@ RULES = ("salin", "acak", "rata")
 CHANNELS = ("latar", "geser")
 NEUTRALIZE = ("hapus", "balik")
 POSITION_TOLERANCE_PT = 0.01  # glyph origins of copies closer than this count as the same place
+ANCHOR_TOLERANCE = 0.25  # geser-v2 anchoring: a master value matches an anchor within this many deltas
+MIN_ANCHORS = 2          # ... and needs at least this many anchors (a column edge or a line pitch)
+ANCHOR_ROUNDS = 3        # anchoring passes; every decision adds anchors for the next pass
 PUBLIC_DELTA_PT = 0.05 * MM_TO_PT  # TAPAK's default shift, used when no disagreeing unit shows it
+PUBLIC_V2_WORD_DELTA_PT = V2_MAX_WORD_SHIFT_MM * MM_TO_PT  # geser-v2 word shift, likewise
 
 UnitRef = tuple[int, ...]  # (page, row, group) for a word group, (page, row) for a row
 
@@ -75,7 +105,8 @@ class ShiftUnit:
         kind: "kata" (horizontal) or "baris" (vertical).
         positions: the unit's coordinate (points) in every copy, in copy order.
         typographic: the shift of copy 1 estimated from its own gaps (points), rounded to
-            +/- delta, or None when the gaps do not allow it.
+            +/- delta, or None when the gaps do not allow it (under geser-v2 also from the
+            column edges and line pitches of the units already known, ``anchored_sign``).
     """
 
     ref: UnitRef
@@ -98,6 +129,7 @@ class CoalitionView:
     ``agree_prob[page]`` is the probability that a cell's position has the same bit in every
     copy (0 or 1 for TAPAK's pattern, the posterior of ``agreement_posterior`` for a masked
     one); ``backgrounds[page]`` is (base, amplitude, px_per_cell) read from the images.
+    ``delta_pt`` is the word shift the coalition uses, ``scheme`` the shift scheme it assumes.
     """
 
     copies: int
@@ -106,6 +138,7 @@ class CoalitionView:
     backgrounds: dict[int, tuple[float, float, int]] = field(default_factory=dict)
     units: list[ShiftUnit] = field(default_factory=list)
     delta_pt: float = PUBLIC_DELTA_PT
+    scheme: str = SCHEME_V1
 
 
 @dataclass
@@ -257,19 +290,82 @@ def typographic_shift(gap_before: float, gap_after: float, delta: float) -> floa
     return None
 
 
-def shift_units(layouts: list[DocumentLayout], delta: float | None = None) -> tuple[list[ShiftUnit], float]:
-    """Data units of the shift channel seen in the copies, and the delta the coalition uses.
+def row_signs(gaps: np.ndarray, delta: float, known: list[int | None] | None = None,
+              tol: float = 0.5) -> list[int | None]:
+    """Shift sign (+1 or -1) of every group of a geser-v2 row read from its word gaps, or None.
 
-    Units come from the public layout rule on the first copy's rows and groups (copies have
-    the master's rows and groups). Delta is half the median spread of the disagreeing units
-    (TAPAK's default when no unit disagrees) unless given.
+    ``gaps`` holds the n - 1 gaps (points) between consecutive groups of one copy. In the
+    master all gaps of the row are equal (G0), so gap g is G0 + delta (s[g+1] - s[g]). The cost
+    of signs s and a common gap G0 is the sum over the gaps of the squared residual, at most
+    (``tol`` * delta)^2 per gap: a gap no pattern explains (a label, a tab stop) costs that
+    whatever the signs, so it splits the row. For every candidate G0 (a gap plus -2, 0 or +2
+    delta) a forward and a backward dynamic programme give, for every group and sign, the
+    lowest cost of the whole row with that group at that sign; the ``known`` signs
+    (disagreeing groups; None where unknown) are fixed. A group is decided when one sign costs
+    at least half a capped gap less than the other over all G0; otherwise (the same gaps
+    explained both ways, such as a piece whose groups all moved the same way, which cannot be
+    told from the same piece moved the other way) it is None.
     """
+    gaps = np.asarray(gaps, dtype=np.float64).reshape(-1)
+    n = gaps.size + 1
+    known = list(known) if known is not None else [None] * n
+    if len(known) != n:
+        raise ValueError("satu tanda diketahui (atau None) per kelompok")
+    signs = (-1, 1)
+    allowed = [np.array([k is None or k == sg for sg in signs]) for k in known]
+    cap = (tol * delta) ** 2
+    best = np.where(np.array(allowed), 0.0, np.inf) if n == 1 else np.full((n, 2), np.inf)
+    for g0 in sorted({float(g + 2.0 * delta * k) for g in gaps for k in (-1, 0, 1)}):
+        # step[i][t, s]: cost of gap i between group i at sign t and group i + 1 at sign s
+        step = [np.minimum((gap - g0 - delta * (np.array(signs)[None, :] - np.array(signs)[:, None])) ** 2, cap)
+                for gap in gaps]
+        fwd = np.full((n, 2), np.inf)
+        fwd[0] = np.where(allowed[0], 0.0, np.inf)
+        for i in range(1, n):
+            fwd[i] = np.where(allowed[i], np.min(fwd[i - 1][:, None] + step[i - 1], axis=0), np.inf)
+        bwd = np.full((n, 2), np.inf)
+        bwd[n - 1] = np.where(allowed[n - 1], 0.0, np.inf)
+        for i in range(n - 2, -1, -1):
+            bwd[i] = np.where(allowed[i], np.min(step[i] + bwd[i + 1][None, :], axis=1), np.inf)
+        best = np.minimum(best, fwd + bwd)
+    out: list[int | None] = []
+    for lo, hi in best:
+        if np.isfinite(min(lo, hi)) and abs(lo - hi) > 0.5 * cap:
+            out.append(-1 if lo < hi else 1)
+        else:
+            out.append(None)
+    return out
+
+
+def shift_units(layouts: list[DocumentLayout], delta: float | None = None,
+                scheme: str = SCHEME_V1) -> tuple[list[ShiftUnit], float]:
+    """Data units of the shift channel seen in the copies, and the word delta the coalition uses.
+
+    Units come from the public layout rule of ``scheme`` on the first copy's rows and groups
+    (copies have the master's rows and groups; under geser-v2 the layouts are first regrouped
+    in place to the scheme's group width). Under geser-v1 delta is half the median spread of
+    the disagreeing units (TAPAK's default when no unit disagrees) unless given, for words and
+    rows alike. Under geser-v2 words and rows each get half the median spread of their own
+    disagreeing units (the public 0.025 mm and 0.05 mm when none disagrees), and ``delta``
+    overrides the word delta only; agreeing units the row-wise estimate leaves undecided are
+    then anchored on column edges and line pitches (``anchored_sign``).
+    """
+    if scheme not in SHIFT_SCHEMES:
+        raise ValueError(f"skema geser tidak dikenal: {scheme!r}")
+    v2 = scheme == SCHEME_V2
+    if v2:
+        for lay in layouts:
+            regroup(lay, SCHEME_GROUP_WIDTH[SCHEME_V2])
     first = layouts[0]
     units: list[ShiftUnit] = []
     for page in first.pages:
         pi = page.index
         for row in page.rows:
-            for g in range(1, len(row.groups) - 1, 2):
+            if v2:
+                groups = range(len(row.groups)) if len(row.groups) >= MIN_JOINT_GROUPS else range(0)
+            else:
+                groups = range(1, len(row.groups) - 1, 2)
+            for g in groups:
                 xs = []
                 for lay in layouts:
                     r = lay.pages[pi].rows[row.index]
@@ -280,12 +376,175 @@ def shift_units(layouts: list[DocumentLayout], delta: float | None = None) -> tu
         for k in range(1, len(rows) - 1, 2):
             ys = [lay.pages[pi].rows[rows[k].index].baseline for lay in layouts]
             units.append(ShiftUnit((pi, rows[k].index), "baris", np.array(ys, dtype=np.float64)))
-    spreads = [float(np.ptp(u.positions)) for u in units if not u.agree]
-    if delta is None:
-        delta = 0.5 * float(np.median(spreads)) if spreads else PUBLIC_DELTA_PT
+    if not v2:
+        spreads = [float(np.ptp(u.positions)) for u in units if not u.agree]
+        if delta is None:
+            delta = 0.5 * float(np.median(spreads)) if spreads else PUBLIC_DELTA_PT
+        for u in units:
+            u.typographic = _typography(first, u, delta)
+        return units, delta
+    word_delta = delta if delta is not None else _kind_delta(units, "kata", PUBLIC_V2_WORD_DELTA_PT)
+    row_delta = _kind_delta(units, "baris", PUBLIC_DELTA_PT)
     for u in units:
-        u.typographic = _typography(first, u, delta)
-    return units, delta
+        if u.kind == "baris":
+            u.typographic = _typography(first, u, row_delta)
+    word_units = [u for u in units if u.kind == "kata"]
+    _v2_typography(first, word_units, word_delta)
+    _anchor_words(first, word_units, word_delta)
+    _anchor_rows(first, [u for u in units if u.kind == "baris"], row_delta)
+    return units, word_delta
+
+
+def _kind_delta(units: list[ShiftUnit], kind: str, default: float) -> float:
+    """Half the median spread of the disagreeing units of one kind (``default`` without any)."""
+    spreads = [float(np.ptp(u.positions)) for u in units if u.kind == kind and not u.agree]
+    return 0.5 * float(np.median(spreads)) if spreads else default
+
+
+def _v2_typography(layout: DocumentLayout, units: list[ShiftUnit], delta: float) -> None:
+    """Typographic estimates of geser-v2 word units, row by row (``row_signs``): copy 1's shift
+    of every decided group, +/- delta. Disagreeing groups enter with copy 1's known sign."""
+    by_row: dict[tuple[int, int], list[ShiftUnit]] = {}
+    for u in units:
+        by_row.setdefault((u.ref[0], u.ref[1]), []).append(u)
+    for (pi, ri), row_units in by_row.items():
+        row = layout.pages[pi].rows[ri]
+        words = _clean_words(row)
+        row_units.sort(key=lambda u: u.ref[2])
+        gaps = np.array([words[row.groups[g + 1].word_indices[0]][0] - words[row.groups[g].word_indices[-1]][1]
+                         for g in range(len(row.groups) - 1)])
+        known: list[int | None] = []
+        for u in row_units:
+            if u.agree:
+                known.append(None)
+            else:
+                mid = 0.5 * (float(u.positions.min()) + float(u.positions.max()))
+                known.append(1 if u.positions[0] > mid else -1)
+        for u, sign in zip(row_units, row_signs(gaps, delta, known)):
+            u.typographic = None if sign is None else float(sign * delta)
+
+
+def anchored_sign(readings: list[tuple[float, int, np.ndarray]], delta: float,
+                  tol: float = ANCHOR_TOLERANCE, min_anchors: int = MIN_ANCHORS) -> int | None:
+    """Shift sign (+1 or -1) of one unit from master values it shares with other units, or None.
+
+    Each reading is (value in copy 1, direction, anchors): moving the unit by s * delta changes
+    the value by direction * s * delta, so its master value is value - direction * s * delta,
+    and ``anchors`` are master values of units whose shift is known (the left edges of the
+    groups of one text column, a line pitch). A sign scores one point per reading whose master
+    value lies within ``tol`` * delta of at least ``min_anchors`` anchors; the sign with more
+    points is returned, None on a tie (no anchor, or both signs fit).
+    """
+    if delta <= 0:
+        raise ValueError("delta harus positif")
+    score = {}
+    for sign in (-1, 1):
+        score[sign] = 0
+        for value, direction, anchors in readings:
+            master = value - direction * sign * delta
+            score[sign] += int(np.count_nonzero(np.abs(np.asarray(anchors, dtype=np.float64) - master)
+                                                <= tol * delta) >= min_anchors)
+    if score[1] == score[-1]:
+        return None
+    return 1 if score[1] > score[-1] else -1
+
+
+def _known_shift(u: ShiftUnit) -> float | None:
+    """Copy 1's shift of a unit as the coalition knows it: from the spread of a disagreeing
+    unit, the typographic estimate of an agreeing one (None while undecided)."""
+    if u.agree:
+        return u.typographic
+    mid = 0.5 * (float(u.positions.min()) + float(u.positions.max()))
+    return float(u.positions[0]) - mid
+
+
+def _group_edges(layout: DocumentLayout, ref: UnitRef) -> tuple[float, float]:
+    row = layout.pages[ref[0]].rows[ref[1]]
+    words = _clean_words(row)
+    group = row.groups[ref[2]]
+    return words[group.word_indices[0]][0], words[group.word_indices[-1]][1]
+
+
+def _anchor_words(layout: DocumentLayout, units: list[ShiftUnit], delta: float) -> None:
+    """Decide undecided geser-v2 word groups from the text's columns (``anchored_sign``).
+
+    In the master many groups share a left edge (the left margin, a list indent, the tab stop
+    after a label) or a right edge (the right margin of justified text). The master edges of
+    every group whose shift is known are the anchors; an undecided group whose edges fit them
+    for one sign only gets that sign, and ``row_signs`` carries it through its piece of the row
+    (the groups its gaps tie to it). Repeated, since every decision adds anchors.
+    """
+    by_row: dict[tuple[int, int], list[ShiftUnit]] = {}
+    for u in units:
+        by_row.setdefault((u.ref[0], u.ref[1]), []).append(u)
+    for _ in range(ANCHOR_ROUNDS):
+        lefts, rights = [], []
+        for u in units:
+            shift = _known_shift(u)
+            if shift is not None:
+                left, right = _group_edges(layout, u.ref)
+                lefts.append(left - shift)
+                rights.append(right - shift)
+        anchors = (np.array(lefts), np.array(rights))
+        changed = False
+        for (pi, ri), row_units in by_row.items():
+            if not any(u.agree and u.typographic is None for u in row_units):
+                continue
+            row_units.sort(key=lambda u: u.ref[2])
+            known: list[int | None] = []
+            for u in row_units:
+                shift = _known_shift(u)
+                if shift is not None:
+                    known.append(1 if shift > 0 else -1)
+                    continue
+                left, right = _group_edges(layout, u.ref)
+                known.append(anchored_sign([(left, 1, anchors[0]), (right, 1, anchors[1])], delta))
+            if all(k is None for k, u in zip(known, row_units) if u.agree and u.typographic is None):
+                continue
+            row = layout.pages[pi].rows[ri]
+            words = _clean_words(row)
+            gaps = np.array([words[row.groups[g + 1].word_indices[0]][0] - words[row.groups[g].word_indices[-1]][1]
+                             for g in range(len(row.groups) - 1)])
+            for u, sign in zip(row_units, row_signs(gaps, delta, known)):
+                if u.agree and u.typographic is None and sign is not None:
+                    u.typographic = float(sign * delta)
+                    changed = True
+        if not changed:
+            return
+
+
+def _anchor_rows(layout: DocumentLayout, units: list[ShiftUnit], delta: float) -> None:
+    """Decide undecided data rows from the document's line pitches (``anchored_sign``).
+
+    A data row sits between two rows that do not move, so its pitch above is the master pitch
+    plus its shift and its pitch below the master pitch minus it. The few pitches of a
+    document (lines of a paragraph, paragraph breaks, headings) recur, so the master pitches of
+    the rows whose shift is known are the anchors; a row whose two pitches fit them for one
+    sign only gets that sign. Repeated, since every decision adds anchors.
+    """
+    pitches_of: dict[UnitRef, tuple[float, float]] = {}
+    for u in units:
+        rows = _eligible(layout, u.ref[0])
+        k = next(i for i, r in enumerate(rows) if r.index == u.ref[1])
+        pitches_of[u.ref] = (rows[k].baseline - rows[k - 1].baseline, rows[k + 1].baseline - rows[k].baseline)
+    for _ in range(ANCHOR_ROUNDS):
+        anchors = []
+        for u in units:
+            shift = _known_shift(u)
+            if shift is not None:
+                above, below = pitches_of[u.ref]
+                anchors += [above - shift, below + shift]
+        pitches = np.array(anchors)
+        changed = False
+        for u in units:
+            if u.agree and u.typographic is None:
+                above, below = pitches_of[u.ref]
+                sign = anchored_sign([(above, 1, pitches), (below, -1, pitches)], delta)
+                if sign is not None:
+                    u.typographic = float(sign * delta)
+                    changed = True
+        if not changed:
+            return
 
 
 def _typography(layout: DocumentLayout, unit: ShiftUnit, delta: float) -> float | None:
@@ -305,17 +564,18 @@ def _typography(layout: DocumentLayout, unit: ShiftUnit, delta: float) -> float 
 
 
 def coalition_view(copy_pdfs: list[bytes], delta: float | None = None,
-                   mask: tuple[float, float, float] | None = None) -> CoalitionView:
+                   mask: tuple[float, float, float] | None = None, scheme: str = SCHEME_V1) -> CoalitionView:
     """Background cell levels and shift units of a coalition's copies (at least two).
 
     ``mask`` = (base, amplitude, ratio) are the public parameters of a masked pattern
     (``research/sepakat/samaran.py``): the cell values are then read continuously and the
     agreement of every cell is the posterior of ``agreement_posterior``. Without it the cells
-    are read exactly as -1, 0, +1 and agree when equal in every copy.
+    are read exactly as -1, 0, +1 and agree when equal in every copy. ``scheme`` is the shift
+    scheme the coalition assumes (``shift_units``).
     """
     if len(copy_pdfs) < 2:
         raise ValueError("koalisi memerlukan sedikitnya dua salinan")
-    view = CoalitionView(copies=len(copy_pdfs))
+    view = CoalitionView(copies=len(copy_pdfs), scheme=scheme)
     images = [copy_backgrounds(pdf) for pdf in copy_pdfs]
     for page in sorted(set.intersection(*(set(i) for i in images))):
         if mask is None:
@@ -330,7 +590,7 @@ def coalition_view(copy_pdfs: list[bytes], delta: float | None = None,
             view.levels[page] = stack
             view.agree_prob[page] = agreement_posterior(stack, ratio, quant=0.3 / amplitude)
             view.backgrounds[page] = (base, amplitude, 4)
-    view.units, view.delta_pt = shift_units([extract_layout(pdf) for pdf in copy_pdfs], delta)
+    view.units, view.delta_pt = shift_units([extract_layout(pdf) for pdf in copy_pdfs], delta, scheme)
     return view
 
 
@@ -462,9 +722,15 @@ def forge_copy(master: MasterDocument, copy_pdfs: list[bytes], plan: ForgeryPlan
 def attack(master: MasterDocument, copy_pdfs: list[bytes], rule: str = "acak", erase_fraction: float = 1.0,
            channels: tuple[str, ...] = CHANNELS, rng: np.random.Generator | None = None,
            mask: tuple[float, float, float] | None = None, agree_threshold: float = 0.5,
-           neutralize: str = "hapus") -> tuple[bytes, CoalitionView, ForgeryPlan]:
-    """Coalition view, forgery plan and forged PDF in one call (see the module docstring)."""
-    view = coalition_view(copy_pdfs, mask=mask)
+           neutralize: str = "hapus", scheme: str | None = None) -> tuple[bytes, CoalitionView, ForgeryPlan]:
+    """Coalition view, forgery plan and forged PDF in one call (see the module docstring).
+
+    ``scheme`` is the shift scheme the coalition assumes; None takes the scheme ``master`` is
+    grouped for (``issue.apply_shift_scheme``), whose groups ``forge_copy`` draws in any case.
+    """
+    if scheme is None:
+        scheme = SCHEME_V2 if master.group_width == SCHEME_GROUP_WIDTH[SCHEME_V2] else SCHEME_V1
+    view = coalition_view(copy_pdfs, mask=mask, scheme=scheme)
     plan = plan_forgery(view, rule, erase_fraction, channels, rng, agree_threshold, neutralize)
     return forge_copy(master, copy_pdfs, plan), view, plan
 
@@ -477,6 +743,7 @@ __all__ = [
     "ForgeryPlan",
     "ShiftUnit",
     "agreement_posterior",
+    "anchored_sign",
     "attack",
     "coalition_view",
     "copy_backgrounds",
@@ -485,6 +752,7 @@ __all__ = [
     "image_cell_levels",
     "image_cell_values",
     "plan_forgery",
+    "row_signs",
     "shift_units",
     "typographic_shift",
 ]

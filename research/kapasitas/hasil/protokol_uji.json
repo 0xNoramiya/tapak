@@ -1,0 +1,443 @@
+{
+  "c": 3,
+  "eps": 1e-06,
+  "spending": "tidak dicatat (seluruh eps), satu tahap, seperti make bench",
+  "secret": {
+    "dev": "sha256('TAPAK-riset-kapasitas-dev-v1')",
+    "uji": "sha256('TAPAK-riset-kapasitas-uji-v1')"
+  },
+  "copy_id_seed": {
+    "dev": 51001,
+    "uji": 52001
+  },
+  "evidence_seed": {
+    "dev": 61001,
+    "uji": 62001
+  },
+  "coalition_seed": 63001,
+  "unmarked_seed": 64001,
+  "photo": {
+    "angle": "diundi seragam 0 sampai 30 derajat",
+    "render_dpi": 200,
+    "screen_long_side": 1600
+  },
+  "printers": {
+    "laser": "PrintParams()",
+    "inkjet": "INKJET"
+  },
+  "variants": {
+    "v1": {
+      "scheme": "geser-v1",
+      "word_mm": 0.05,
+      "row_mm": 0.05,
+      "min_group_pt": 20.0
+    },
+    "v2": {
+      "scheme": "geser-v2",
+      "word_mm": 0.025,
+      "row_mm": 0.05,
+      "min_group_pt": 20.0,
+      "degree": 1,
+      "field": null
+    },
+    "v2q": {
+      "issued_as": "v2",
+      "scheme": "geser-v2",
+      "word_mm": 0.025,
+      "row_mm": 0.05,
+      "min_group_pt": 20.0,
+      "degree": 2,
+      "field": null,
+      "note": "sama dengan v2, didekode dengan gangguan kuadratik per baris"
+    },
+    "v1c": {
+      "scheme": "geser-v1",
+      "word_mm": 0.05,
+      "row_mm": 0.05,
+      "min_group_pt": 10.0
+    },
+    "v2c": {
+      "scheme": "geser-v2",
+      "word_mm": 0.025,
+      "row_mm": 0.05,
+      "min_group_pt": 10.0,
+      "degree": 1,
+      "field": null
+    },
+    "v2cq": {
+      "issued_as": "v2c",
+      "scheme": "geser-v2",
+      "word_mm": 0.025,
+      "row_mm": 0.05,
+      "min_group_pt": 10.0,
+      "degree": 2,
+      "field": null,
+      "note": "sama dengan v2c, didekode dengan gangguan kuadratik per baris"
+    },
+    "v2f": {
+      "issued_as": "v2",
+      "scheme": "geser-v2",
+      "word_mm": 0.025,
+      "row_mm": 0.05,
+      "min_group_pt": 20.0,
+      "degree": 1,
+      "field": 3,
+      "note": "sama dengan v2; medan geser halaman (polinomial derajat 3) dikurangkan sebelum dekode per baris"
+    },
+    "v2cf": {
+      "issued_as": "v2c",
+      "scheme": "geser-v2",
+      "word_mm": 0.025,
+      "row_mm": 0.05,
+      "min_group_pt": 10.0,
+      "degree": 1,
+      "field": 3,
+      "note": "sama dengan v2c, dengan medan geser halaman seperti v2f"
+    },
+    "a010": {
+      "issued_as": "v1",
+      "probe_vshift_mm": 0.01,
+      "rows": false,
+      "note": "uji coba skema a saja (bukan kandidat): kelompok data v1 juga bergeser vertikal 0,01 mm"
+    }
+  },
+  "dev": {
+    "n": [
+      100
+    ],
+    "copies": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "cetak": [
+      [
+        "nota_dinas",
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        "surat_telegram",
+        [
+          1
+        ]
+      ]
+    ],
+    "printers_resolutions": [
+      [
+        "laser",
+        1600
+      ],
+      [
+        "laser",
+        4000
+      ],
+      [
+        "inkjet",
+        1600
+      ]
+    ],
+    "variants": [
+      "v1",
+      "v2",
+      "v1c",
+      "v2c"
+    ],
+    "decode_only": {
+      "v2q": "v2",
+      "v2cq": "v2c"
+    },
+    "probe": {
+      "variant": "a010",
+      "doc": "nota_dinas",
+      "pages": [
+        1
+      ],
+      "printers_resolutions": [
+        [
+          "laser",
+          1600
+        ],
+        [
+          "laser",
+          4000
+        ]
+      ]
+    },
+    "layar_foto_pdf": {
+      "variants": [
+        "v1",
+        "v2"
+      ],
+      "copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    "veld": {
+      "emit": {
+        "v2": [
+          "v2f"
+        ],
+        "v2c": [
+          "v2cf"
+        ]
+      },
+      "amendment": "2026-10-22, dari studi dekoder pada 40 foto dev (dekoder_dev.py): medan geser halaman menaikkan skor salinan yang benar pada 1600 px; v2f dan v2cf ditambahkan sebagai kandidat dekode saja, didekode ulang pada semua foto cetak dev v2 dan v2c (bukti dibuat ulang dengan benih yang sama), hasil di dev_veld.jsonl."
+    },
+    "choice_rule": "di antara v2, v2q, v1c, v2c, v2cq, v2f dan v2cf dipilih kandidat dengan foto cetak satu halaman benar terbanyak (laser dan inkjet, 1600 dan 4000 px, kedua dokumen) dan nol tuduhan salah; seri: benar dua halaman terbanyak, lalu median skor/ambang salinan yang benar tertinggi. Kandidat itu dibawa ke uji tertahan melawan v1, apa pun hasilnya."
+  },
+  "uji": {
+    "n": [
+      20,
+      100
+    ],
+    "cetak": [
+      [
+        "nota_dinas",
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        "surat_telegram",
+        [
+          1,
+          2
+        ]
+      ]
+    ],
+    "cetak_cells": [
+      [
+        "laser",
+        1600,
+        [
+          20,
+          100
+        ],
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      ],
+      [
+        "laser",
+        4000,
+        [
+          20,
+          100
+        ],
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      ],
+      [
+        "inkjet",
+        1600,
+        [
+          100
+        ],
+        [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      ],
+      [
+        "inkjet",
+        4000,
+        [
+          100
+        ],
+        [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      ]
+    ],
+    "kolusi": {
+      "n": 100,
+      "coalitions": 6,
+      "from_copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "printers_resolutions": [
+        [
+          "laser",
+          1600
+        ],
+        [
+          "laser",
+          4000
+        ]
+      ],
+      "pages": {
+        "nota_dinas": [
+          1,
+          2
+        ],
+        "surat_telegram": [
+          1
+        ]
+      }
+    },
+    "layar_foto_pdf": {
+      "copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    "induk": {
+      "layar": 2,
+      "foto": 2,
+      "cetak_pages": [
+        1,
+        2
+      ],
+      "printers_resolutions": [
+        [
+          "laser",
+          1600
+        ],
+        [
+          "laser",
+          4000
+        ],
+        [
+          "inkjet",
+          1600
+        ],
+        [
+          "inkjet",
+          4000
+        ]
+      ]
+    },
+    "latar_cetak": {
+      "doc": "nota_dinas",
+      "n": 100,
+      "copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "laser": [
+        [
+          1600,
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          4000,
+          [
+            1,
+            2
+          ]
+        ]
+      ],
+      "inkjet": [
+        [
+          1600,
+          [
+            1
+          ]
+        ]
+      ],
+      "kolusi": {
+        "coalitions": 6,
+        "pages": [
+          1
+        ],
+        "resolution": 1600
+      }
+    },
+    "amendment": "2026-10-22, sebelum hasil kandidat dev mana pun terlihat (hanya baris v1 dev yang sudah ada): grid uji dipangkas karena waktu hitung di mesin bersama (sekitar 3 jam, bukan 5): inkjet hanya N = 100 dan salinan 1 sampai 5, 6 koalisi (bukan 8), profil latar cetak salinan 1 sampai 6 dan 6 koalisi."
+  },
+  "decision_rule": "skema baru menjadi bawaan penerbitan baru hanya bila (1) lolos analisis keterlihatan, (2) tidak mundur pada PDF, tangkapan layar, dan foto layar (untuk setiap jenis: benar sama atau lebih banyak), (3) nol tuduhan salah di semua bukti tertahan (termasuk induk tanpa tanda, gabungan c = 3, dan profil latar cetak), dan (4) foto cetak satu halaman tertahan benar jelas lebih sering: selisih paling sedikit 10 poin persentase atas semua foto cetak satu halaman tertahan dan uji tanda McNemar eksak satu sisi pada pasangan foto yang sama p < 0,01. Bila tidak, skema baru tetap pilihan (bendera CLI dan pilihan web) atau dibuang.",
+  "visibility": {
+    "reading_distance_mm": 350,
+    "arcsec_per_mm": 589.3,
+    "vernier": "ambang vernier garis bersebelahan beberapa detik busur (Westheimer 2010; Westheimer & McKee 1977); untuk elemen terpisah ambang naik sebanding jarak, sekitar 1/60 jarak (Westheimer & McKee 1977) dan 2,8 sampai 3,8 % untuk dua titik (Groll & Hirsch 1987); panjang garis di atas sekitar 5 menit busur tidak lagi menurunkan ambang",
+    "word_gap_mm": {
+      "nota_dinas_p10": 1.29,
+      "nota_dinas_median": 1.85
+    },
+    "printer_row_quantum_um": {
+      "600 dpi": 42.3,
+      "1200 dpi": 21.2
+    },
+    "scheme_a": "dibuang: tidak ada delta yang terbaca di kertas sekaligus di bawah ambang vernier dengan margin",
+    "scheme_b_max_word_mm": 0.025,
+    "scheme_c": "hanya mengelompokkan ulang kata"
+  },
+  "phase": "uji",
+  "kandidat": "v2cf"
+}

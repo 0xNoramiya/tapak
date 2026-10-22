@@ -32,6 +32,7 @@ tapak keys init                                  # rahasia kode + kunci tanda ta
 tapak issue samples/nota_dinas.pdf samples/recipients.csv --canary-domain kanari.satuan.mil
 tapak issue dok.pdf penerima.csv --latar cetak   # pola latar yang bertahan saat dicetak (lihat di bawah)
 TAPAK_WORKERS=2 tapak issue dok.pdf penerima.csv # paling banyak 2 proses kerja (bawaan: sebanyak CPU, paling banyak 8)
+tapak issue dok.pdf penerima.csv --geser v1      # skema geser lama (bawaan: v2)
 tapak docs                                       # daftar dokumen terbitan
 tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
 tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu kebocoran, digabung
@@ -59,6 +60,8 @@ tapak kanari-izin                                # tulis ulang daftar izin token
 ```
 
 `--latar` memilih profil pola latar. `layar` (bawaan) tidak terlihat, tetapi hilang saat dokumen dicetak. `cetak` bertahan pada kertas cetak (diuji dengan printer simulasi), tetapi seluruh halaman tampak abu-abu muda dan teksturnya mungkin terlihat, sehingga TAPAK mencetak peringatan. Pakai `cetak` hanya untuk dokumen yang memang akan dicetak dan bila tampilan itu diterima ([cara kerja](cara-kerja.md#salinan-yang-dicetak)). Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Pola latar, bawaan Layar); bila Cetak dipilih, peringatan itu tampil di formulir, di rencana penandaan, dan di hasil penerbitan.
+
+`--geser` memilih skema geser kata. `v2` (bawaan) menggeser setiap kelompok kata 0,025 mm dan membaca lebih dari dua kali jumlah posisi per halaman `v1`, sehingga foto salinan cetak yang tajam sering cukup dari satu halaman penuh teks dalam uji printer simulasi (benchmark README: halaman 1 pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8; angkanya bergantung pada rahasia kode, [batasan 3](keamanan.md#batasan), dan [cara kerja](cara-kerja.md#skema-geser-v2)). `v1` adalah skema semua dokumen yang terbit sebelumnya; catatan penerbitannya tidak menyebut skema dan tetap dibaca seperti dulu. Catatan penerbitan dan registri dokumen v2 hanya menyimpan nama skemanya. Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Skema geser kata, bawaan v2).
 
 Pelacakan foto atau pindaian pertama untuk setiap halaman dan resolusi analisis merender templat induk tepat untuk kanal geser, sekitar 5 sampai 7 detik CPU per halaman penuh teks. `tapak web` menyimpannya di memori untuk pelacakan berikutnya, sedangkan setiap perintah `tapak trace` merendernya lagi.
 
@@ -144,7 +147,7 @@ tapak issue nota_pindaian.pdf penerima.csv
 make samples-pindaian        # contoh fiktif 300 dpi di samples/generated/ (tidak di-commit)
 ```
 
-* **Resolusi.** Setiap halaman pindaian minimal 200 dpi; 300 dpi disarankan. Di bawah itu penerbitan ditolak dengan pesan yang menyebut halaman dan resolusinya. Geser 0,05 mm tinggal 0,4 piksel pada 200 dpi dan 0,3 piksel pada 150 dpi, galat bit geser pada foto naik saat resolusi turun, dan Tesseract dibuat untuk sekitar 300 dpi ([batasan 8](keamanan.md#batasan)).
+* **Resolusi.** Setiap halaman pindaian minimal 200 dpi; 300 dpi disarankan. Di bawah itu penerbitan ditolak dengan pesan yang menyebut halaman dan resolusinya. Geser 0,05 mm (skema v1) tinggal 0,4 piksel pada 200 dpi dan 0,3 piksel pada 150 dpi, geser kata 0,025 mm skema v2 separuhnya, galat bit geser pada foto naik saat resolusi turun, dan Tesseract dibuat untuk sekitar 300 dpi ([batasan 8](keamanan.md#batasan)).
 * **Yang ditolak.** Halaman pindaian yang diputar (`/Rotate`), gambar dengan masker (transparansi atau warna) atau konten opsional, dan satu gambar yang dipakai di beberapa halaman belum didukung. Halaman yang memuat teks terlihat di atas gambar diperlakukan sebagai halaman teks: hanya teks itu yang ditandai. Bila halaman itu juga berlapis OCR tak terlihat, kata OCR ikut tergambar ulang dan gerbang visual menolak penerbitan. Halaman yang tersusun dari beberapa gambar (misalnya kompresi MRC: latar dan masker teks terpisah) tidak dikenali sebagai halaman pindaian: tanpa lapisan teks halaman itu tidak membawa tanda, dan dengan lapisan OCR penerbitan ditolak.
 * **Tesseract.** `tesseract-ocr` dan `tesseract-ocr-ind` diperlukan saat menerbitkan dan saat melacak, dengan versi yang sama. Pelacakan membaca ulang kotak kata (beberapa detik per halaman). Bila hasilnya berbeda dari saat penerbitan, kanal geser halaman pindaian dilewati dengan catatan, dan pola latar tetap dibaca. Simpan versi Tesseract bersama instalasi TAPAK.
 * **Keluaran.** Rencana penandaan menyebut mode setiap halaman (teks atau pindaian), kanal yang berlaku, dan lapisan OCR yang dibuang. Gerbang menyatakan bahwa salinan tanpa tanda identik piksel demi piksel dengan induk. Gambar halaman salinan disimpan tanpa kompresi lossy, jadi salinan jauh lebih besar dari induk JPEG-nya (contoh 300 dpi: sekitar 2,9 MB per halaman, induk 0,7 MB per halaman). Ukuran rata-rata dan terbesar dicetak setelah penerbitan.
@@ -154,7 +157,7 @@ make samples-pindaian        # contoh fiktif 300 dpi di samples/generated/ (tida
 
 Antarmuka web punya dua halaman utama:
 
-* **Terbitkan**: unggah PDF (berlapis teks atau hasil pindai) dan CSV penerima, pilih profil pola latar (layar atau cetak), lihat rencana penandaan dan gerbang visual, pilih kalimat aman, lalu tinjau setiap varian LLM. Kanal pilihan kata bersifat opsional: penerbit memindai titiknya, membaca setiap kalimat, lalu menyetujui atau menolak per titik (untuk aturan dengan beberapa titik, persetujuan sekaligus meminta konfirmasi; menolak sekaligus tidak). Halaman itu menampilkan jumlah bit tahan ketik ulang dengan perkiraan apakah cukup untuk satu pembocor, penolakan otomatis per kategori (tanpa kata dokumen), dan contoh baris dua salinan yang berbeda kata. Tombol terbit terkunci sampai semua varian dan titik disetujui atau ditolak, dan selama salinan diterbitkan keputusan tidak dapat diubah. Bila tidak ada titik yang disetujui, salinan diterbitkan tanpa kanal ini. Setelah terbit, unduh ZIP.
+* **Terbitkan**: unggah PDF (berlapis teks atau hasil pindai) dan CSV penerima, pilih profil pola latar (layar atau cetak) dan skema geser kata (v2 atau v1), lihat rencana penandaan dan gerbang visual, pilih kalimat aman, lalu tinjau setiap varian LLM. Kanal pilihan kata bersifat opsional: penerbit memindai titiknya, membaca setiap kalimat, lalu menyetujui atau menolak per titik (untuk aturan dengan beberapa titik, persetujuan sekaligus meminta konfirmasi; menolak sekaligus tidak). Halaman itu menampilkan jumlah bit tahan ketik ulang dengan perkiraan apakah cukup untuk satu pembocor, penolakan otomatis per kategori (tanpa kata dokumen), dan contoh baris dua salinan yang berbeda kata. Tombol terbit terkunci sampai semua varian dan titik disetujui atau ditolak, dan selama salinan diterbitkan keputusan tidak dapat diubah. Bila tidak ada titik yang disetujui, salinan diterbitkan tanpa kanal ini. Setelah terbit, unduh ZIP.
 * **Lacak**: pilih dokumen, lalu unggah foto, tangkapan layar, PDF, atau DOCX, atau tempel teks. Beberapa berkas dari kebocoran yang sama (misalnya foto tiap halaman) boleh dipilih sekaligus dan digabung dalam satu pelacakan. Hasilnya menampilkan putusan, skor, ambang, peluang tuduhan salah, kanal yang sepakat, nama yang ditemukan tahap lanjutan [pelacakan bertahap](cara-kerja.md#pelacakan-bertahap) (di bawah nama tahap 1, bersama salinan dasarnya), status registri, peringatan kanari, dan tombol unduh berita acara.
 
 Halaman PDF tanpa lapisan teks yang cocok (hasil pindai) atau dengan lapisan teks OCR tak terlihat dibaca sebagai gambar. Halaman yang diperkecil, digeser, atau dicetak ke ukuran kertas lain lebih dulu dinormalkan ke bingkai dokumen induk (skala dan pergeseran per halaman). Setelah itu, kanal geser dibaca dari teksnya dan pola latar dari gambarnya.
@@ -333,7 +336,7 @@ Variabel lingkungan:
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
 - DOCX, berita acara, antarmuka web end-to-end;
-- serangan koalisi yang menghapus tanda di bagian yang sama dan pemeriksaan pola penghapusan: kekuatan baca tanpa kode penerima, peringatan di CLI, halaman Lacak, dan berita acara, putusan yang tidak berubah;
+- serangan koalisi yang menghapus tanda di bagian yang sama dan pemeriksaan pola penghapusan: kekuatan baca tanpa kode penerima (juga dari dekoder baris skema geser v2), taksiran tipografi koalisi untuk kedua skema (pada skema v2 juga penjangkaran pada tepi kolom dan jarak baris), peringatan di CLI, halaman Lacak, dan berita acara, putusan yang tidak berubah;
 - penerbitan biasa yang tetap mengundi rahasia kode dan id salinan, dan penerbitan riset dengan benih tetap;
 - aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang).
 
@@ -341,9 +344,9 @@ Suite ini tidak memerlukan GPU, model LLM, atau jaringan. Uji foto ditandai `slo
 
 ## Benchmark foto
 
-`make photos`, `make photos-cetak`, `make photos-ponsel`, `make photos-layar`, lalu `make bench` membuat ulang `docs/results/bench_photos.json`, sumber angka benchmark di README. Keempat set dilaporkan terpisah: foto layar dan tangkapan layar, foto kertas cetak, foto dengan ISP ponsel simulasi, dan foto salinan di monitor simulasi. Penerbitan di belakang keempat set foto (20 salinan tanpa registri di `out/photos`) memakai `tapak issue --benih-riset 2026`: rahasia kode dan id salinan diturunkan dari benih itu, bukan diundi, dan foto memakai benih 2026 sendiri. Karena benihnya publik, siapa pun dapat membuat ulang kode setiap salinan, jadi opsi ini hanya untuk riset. TAPAK menolaknya tanpa `--no-registry`, tidak pernah menimpa rahasia kode yang sudah ada, dan menolak penerbitan biasa di folder kunci yang rahasianya berasal dari benih riset (penanda `code_secret.riset`). Penerbitan biasa tetap mengundi rahasia kode dan id salinan. Folder `out/photos` dari penerbitan lama dengan id acak ditolak; hapus dulu.
+`make photos`, `make photos-cetak`, `make photos-ponsel`, `make photos-layar`, lalu `make bench` membuat ulang `docs/results/bench_photos.json`, sumber angka benchmark di README. Keempat set dilaporkan terpisah: foto layar dan tangkapan layar, foto kertas cetak, foto dengan ISP ponsel simulasi, dan foto salinan di monitor simulasi. Penerbitan di belakang keempat set foto (20 salinan tanpa registri di `out/photos`, dengan skema geser bawaan v2) memakai `tapak issue --benih-riset 2026`: rahasia kode dan id salinan diturunkan dari benih itu, bukan diundi, dan foto memakai benih 2026 sendiri. Karena benihnya publik, siapa pun dapat membuat ulang kode setiap salinan, jadi opsi ini hanya untuk riset. TAPAK menolaknya tanpa `--no-registry`, tidak pernah menimpa rahasia kode yang sudah ada, dan menolak penerbitan biasa di folder kunci yang rahasianya berasal dari benih riset (penanda `code_secret.riset`). Penerbitan biasa tetap mengundi rahasia kode dan id salinan. Folder `out/photos` dari penerbitan lama dengan id acak ditolak; hapus dulu.
 
-`make bench-check` menjalankan semua langkah itu dari awal di `out/bench-check` lalu membandingkan hasilnya dengan `docs/results/bench_photos.json` byte demi byte (sekitar 16 menit di mesin uji yang dipakai bersama, dan sekitar 42 menit saat mesin itu sedang sibuk). Perhitungan dan OCR berjalan satu utas, jadi hasilnya tidak bergantung pada jumlah utas. Kesamaan byte demi byte berlaku untuk versi pustaka yang sama; dengan numpy, OpenCV, MuPDF, atau Tesseract versi lain, angkanya dapat sedikit berbeda.
+`make bench-check` menjalankan semua langkah itu dari awal di `out/bench-check` lalu membandingkan hasilnya dengan `docs/results/bench_photos.json` byte demi byte (sekitar 16 menit di mesin uji yang dipakai bersama, dan sekitar 42 menit saat mesin itu sedang sibuk). Setelah penerbitan benchmark beralih ke skema v2, pemeriksaan ini lulus lagi dari ekspor `git archive` yang bersih dalam 25 menit. Perhitungan dan OCR berjalan satu utas, jadi hasilnya tidak bergantung pada jumlah utas. Kesamaan byte demi byte berlaku untuk versi pustaka yang sama; dengan numpy, OpenCV, MuPDF, atau Tesseract versi lain, angkanya dapat sedikit berbeda.
 
 ## Mengukur salinan yang dicetak
 
@@ -369,6 +372,22 @@ unset CETAK_OUT CETAK_ISSUED_CETAK
 .venv/bin/python -m scripts.cetak.calibrate         # kalibrasi model printer
 .venv/bin/python -m scripts.cetak.needbits          # posisi terbaca yang diperlukan per jejak
 ```
+
+Angka kapasitas kanal geser (skema v1 dan v2, [batasan 3](keamanan.md#batasan)) berasal dari `research/kapasitas/`. Protokol, benih, grid, dan aturan keputusan ditetapkan di `ukur.py` sebelum pengukuran; benih pengembangan dipakai untuk memilih rancangan, benih uji tertahan dijalankan sekali di akhir:
+
+```bash
+export PYTHONPATH=.
+.venv/bin/python research/kapasitas/ukur.py dev            # grid pengembangan (semua kandidat)
+.venv/bin/python research/kapasitas/ukur.py dev-veld       # dekode ulang dev dengan medan geser halaman
+.venv/bin/python research/kapasitas/ukur.py ringkas dev    # tabel dan pilihan kandidat
+.venv/bin/python research/kapasitas/ukur.py uji --kandidat v2cf  # uji tertahan, sekali
+.venv/bin/python research/kapasitas/ukur.py ringkas uji
+.venv/bin/python research/kapasitas/ukur.py visibilitas    # isyarat geometris dan potongan gambar
+.venv/bin/python research/kapasitas/tinjauan.py lawan      # tinjauan: tuduhan salah pada bukti campuran
+.venv/bin/python research/kapasitas/tinjauan.py kalibrasi  # tinjauan: keandalan LLR bit kata
+```
+
+Salinan dan pengamatan mentah ada di `out/riset_kapasitas/` (tidak di-commit), baris ringkas di `research/kapasitas/hasil/`, dan potongan gambar di `research/kapasitas/potongan/`. Grid pengembangan memerlukan sekitar 2 jam dan uji tertahan sekitar 4 jam dengan 3 proses di mesin bersama. Skrip `scripts/cetak/` di bawah adalah studi sebelumnya (skema v1, `docs/results/cetak_*`); dijalankan sekarang, skrip itu menerbitkan dengan skema bawaan v2.
 
 Setiap profil diterbitkan sekali untuk 100 penerima fiktif. Id salinan diundi saat penerbitan, jadi penerbitan baru memberi kode lain dan angka yang sedikit berbeda; `CETAK_ISSUED_LAYAR` atau `CETAK_ISSUED_CETAK` memakai ulang folder penerbitan yang ada. Tabel profil bawaan memakai penerbitan dari riset sebelumnya, yang id salinannya tidak ada di repositori. Hasil di `docs/results/cetak_*` diukur sebelum kanal latar memakai strata kejenuhan dan uji pilot; perintah di atas kini memakai dekoder sekarang, jadi angka profil cetak dapat berbeda. Satu foto cetak memerlukan sekitar 20 sampai 60 detik (1600 px) atau 1 sampai 2 menit (4000 px) per proses di mesin uji yang dipakai bersama; `--workers` mengatur jumlah proses (bawaan 3).
 

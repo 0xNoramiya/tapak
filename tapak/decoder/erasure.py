@@ -1,10 +1,12 @@
 """Check for erasure aimed at the positions where the colluders' copies agree.
 
 A coalition that knows TAPAK can compare its copies and neutralize the marks exactly where
-they are identical (flatten the background cells, put data groups back on the line through
-their control neighbours), keeping the rest. That is outside the marking assumption and the
-proven miss bound does not cover it (``tapak.tardos.detection``, ``research/sepakat``). This
-module lets the decoder notice it without ever looking at a codeword.
+they are identical (flatten the background cells; put data groups back on the line through
+their control neighbours under geser-v1, or every agreeing word group back at its master
+position estimated from the word gaps under geser-v2), keeping the rest. That is outside the
+marking assumption and the proven miss bound does not cover it (``tapak.tardos.detection``,
+``research/sepakat``). This module lets the decoder notice it without ever looking at a
+codeword.
 
 Idea. At code position i the coalition's copies agree with probability p_i^c + (1 - p_i)^c,
 which rises with q_i = (2 p_i - 1)^2 for every coalition size (for c = 2 and 3 it is exactly
@@ -12,8 +14,11 @@ linear in q_i). An erasure that follows agreement therefore removes the marks of
 positions more often than those of low-q positions. Channel noise cannot do that: the bias
 vector p is secret, the slots are matched to positions by a keyed permutation and the
 whitened marks look the same for every bit, so how clearly a unit is read (its strength,
-``softbits.Strengths``) does not depend on p. The statistic is the correlation between the
-strengths and q over the positions measured:
+``softbits.Strengths``) does not depend on p. The shift strength is a unit's offset in noise
+units: under geser-v1 from the line through its two control neighbours (|s| / sigma), under
+geser-v2 from the row line fitted to the other groups of its row once their expected marks are
+taken off (``ch_shift.joint_strengths``); rows keep |s| / sigma in both. The statistic is the
+correlation between the strengths and q over the positions measured:
 
 * every channel output (one ``SoftBits``) turns each of its strength measures into
   standardized rank scores ((rank - 1/2) / n - 1/2) * sqrt(12), ties sharing their mean rank,
@@ -41,7 +46,12 @@ read, and at near-certain positions the same whitened sign in every copy), so ho
 document is centred on an offset rather than on 0. Measured offsets per issuance and channel
 ranged from -1.4 to +1.7 over 14 issuances, most spread out on forwarded PDFs (between-issuance
 standard deviation about 0.75), so for an unlucky document the rate is a few percent; 2 of
-856 honest evidence raised the warning (``research/sepakat``, ``balik.py``).
+856 honest evidence raised the warning (``research/sepakat``, ``balik.py``). Under geser-v2,
+with the shift strengths of ``ch_shift.joint_strengths`` and the same threshold, fresh seeds
+gave no warning on 644 honest evidence (480 copies of 12 issuances through PDF, screenshot,
+photo and print, 36 unmarked masters, 128 README benchmark traces): standard deviation of Z
+0.96, per-issuance means -0.93 to +0.69 (``research/sepakat/geser2.py``, parts ``jujur`` and
+``jujur-tinjauan``).
 
 What it does not do. It never changes a threshold, a score or the verdict and never names
 anyone. It only sees erasures that follow agreement; a coalition that erases at random (or
@@ -56,7 +66,13 @@ near 0 or turns positive, and the coalition escapes all the same; the proven bou
 cover a reversal either. Flattening the whole background and erasing only the agreeing shift
 units also passes: the strengths of the unmarked background (thousands of positions that
 carry only noise) drown the shift units. For the same reason the check is blind on prints,
-where the default background never reaches the paper.
+where the default background never reaches the paper: also under geser-v2, whose prints now
+carry enough shift positions to name a copy, it flagged 1 of 36 erased prints, while the
+shift units alone would have flagged 19. The geser-v2 shift strengths are also a weaker
+detector than the geser-v1 ones: where most groups of a row are back at their master
+positions, the row's offset makes them look like groups that all moved one way, so on their
+own they flagged 32 of 36 erased PDFs but only 13 of 36 screenshots and 6 of 36 photos; the
+warning there comes mostly from the background.
 """
 
 from __future__ import annotations

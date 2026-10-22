@@ -51,3 +51,21 @@ def ctx(issued, sample_pdf, secret):
     from tapak.decoder.trace import load_context
 
     return load_context(sample_pdf, issued[1], secret)
+
+
+@pytest.fixture(scope="session")
+def issued_v1(tmp_path_factory, sample_pdf, secret, recipients) -> tuple[Path, IssueManifest]:
+    """An issuance with shift scheme geser-v1, the scheme of every document issued before
+    geser-v2 (for tests of geser-v1 behaviour, whatever the default scheme)."""
+    from tapak.marker.pdf_shift import ShiftSettings
+
+    out = tmp_path_factory.mktemp("issued_v1")
+    manifest = issue(SAMPLE, recipients, out, secret, IssueSettings(shift=ShiftSettings()), issuer="pytest")
+    return out, manifest
+
+
+@pytest.fixture(scope="session")
+def ctx_v1(issued_v1, sample_pdf, secret):
+    from tapak.decoder.trace import load_context
+
+    return load_context(sample_pdf, issued_v1[1], secret)

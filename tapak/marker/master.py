@@ -21,7 +21,7 @@ from fontTools.pens.recordingPen import DecomposingRecordingPen
 from fontTools.ttLib import TTFont
 
 from tapak.fonts import BUNDLED, font_path
-from tapak.marker.layout import DocumentLayout, extract_layout, font_key
+from tapak.marker.layout import MIN_GROUP_WIDTH, DocumentLayout, extract_layout, font_key, regroup
 from tapak.marker.raster import ScanPage, detect_scans
 
 # Latin letter -> Cyrillic look-alike (lowercase only are used for embedding).
@@ -104,6 +104,18 @@ class MasterDocument:
     scans: dict[int, ScanPage] = field(default_factory=dict)
     scan_layout: DocumentLayout | None = None
     scan_images: dict[int, object] = field(default_factory=dict, repr=False)
+    # Minimum width (pt) of the shift groups, set by the shift scheme (pdf_shift.SCHEME_GROUP_WIDTH).
+    group_width: float = MIN_GROUP_WIDTH
+
+    def use_group_width(self, width: float) -> None:
+        """Regroup every row of the text layer and of the scanned pages into shift groups at
+        least ``width`` points wide; word boxes attached later follow the same width."""
+        if width == self.group_width:
+            return
+        self.group_width = width
+        regroup(self.layout, width)
+        if self.scan_layout is not None:
+            regroup(self.scan_layout, width)
 
     @property
     def doc_hash(self) -> str:

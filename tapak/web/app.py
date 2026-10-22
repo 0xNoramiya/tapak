@@ -50,6 +50,7 @@ from tapak.marker.background import PRINT_BACKGROUND_WARNING, background_profile
 from tapak.marker.issue import IssueSettings, Recipient, SemanticSelection, read_recipients
 from tapak.marker.lexical import LexicalSelection, LexPoint
 from tapak.marker.master import MasterDocument
+from tapak.marker.pdf_shift import DEFAULT_SCHEME, SCHEME_CHOICES
 from tapak.marker.raster import GATE_MAX_DIFF as RASTER_GATE_MAX_DIFF
 
 HERE = Path(__file__).resolve().parent
@@ -99,6 +100,8 @@ class Staging:
     issuer: str
     # Background profile chosen in step 1 ("layar" or "cetak"); st.settings.background holds its pattern.
     latar: str = "layar"
+    # Shift scheme chosen in step 1 ("v1" or "v2", pdf_shift.SCHEME_CHOICES); st.settings.shift holds it.
+    geser: str = "v1"
     units: list = field(default_factory=list)
     candidates: list = field(default_factory=list)
     sets: dict = field(default_factory=dict)
@@ -218,6 +221,9 @@ def _host_allowed(host: str) -> bool:
     return False
 
 
+# Step-1 shift scheme choice matching the default scheme of a new issuance.
+DEFAULT_GESER = next(k for k, v in SCHEME_CHOICES.items() if v == DEFAULT_SCHEME)
+
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters["num"] = lambda v, d=0: format_number(float(v), d)
@@ -232,6 +238,7 @@ templates.env.globals["peringatan_cetak"] = PRINT_BACKGROUND_WARNING
 templates.env.globals["gerbang_pindaian"] = SCAN_GATE_LINES
 templates.env.globals["sibuk_pindaian"] = SCAN_READ_BUSY
 templates.env.globals["pindaian_na"] = SCAN_ALL_NA
+templates.env.globals["geser_bawaan"] = DEFAULT_GESER
 
 
 def _visible_marks_caveats(notes: list[str]) -> list[str]:
@@ -674,6 +681,7 @@ async def terbitkan_analisis(
     penerbit: str = Form(""),
     kanari: str = Form(""),
     latar: str = Form("layar"),
+    geser: str = Form(""),
 ) -> HTMLResponse:
     """Validate inputs, analyse the master, show the embedding plan and safe sentences.
 
@@ -683,10 +691,12 @@ async def terbitkan_analisis(
     from tapak.marker.master import load_master
     from tapak.marker.raster import prepare_scans
     from tapak.marker.render import visual_gate
+    from tapak.marker.pdf_shift import ShiftSettings
     from tapak.marker.semantic import scan_candidates
 
     errors: dict[str, str] = {}
-    values = {"c": c, "eps": eps, "penerbit": penerbit, "kanari": kanari, "latar": latar}
+    geser = geser or DEFAULT_GESER
+    values = {"c": c, "eps": eps, "penerbit": penerbit, "kanari": kanari, "latar": latar, "geser": geser}
     pdf = await _read_field(dokumen, errors, "dokumen", "PDF ini terlalu besar (maksimum 40 MB).")
     csv_bytes = await _read_field(penerima, errors, "penerima", "CSV ini terlalu besar (maksimum 40 MB).")
     if not pdf and "dokumen" not in errors:
@@ -725,6 +735,8 @@ async def terbitkan_analisis(
     except ValueError as exc:
         message = str(exc)
         errors["latar"] = message[:1].upper() + message[1:] + "."
+    if geser not in SCHEME_CHOICES:
+        errors["geser"] = "Pilih skema geser v1 atau v2."
     master = None
     if pdf and "dokumen" not in errors:
         try:
@@ -767,9 +779,10 @@ async def terbitkan_analisis(
     folder.mkdir(parents=True, exist_ok=True)
     name = Path(dokumen.filename or "dokumen.pdf").name  # type: ignore[union-attr]
     (folder / "induk.pdf").write_bytes(pdf)
-    issue_settings = IssueSettings(c=c, eps=float(eps), canary_domain=kanari.strip() or None, background=background)
+    issue_settings = IssueSettings(c=c, eps=float(eps), canary_domain=kanari.strip() or None, background=background,
+                                   shift=ShiftSettings.for_scheme(SCHEME_CHOICES[geser]))
     st = Staging(sid, folder, name, recipients, issue_settings, penerbit.strip() or "operator", latar=latar,
-                 scan=scan, scan_boxes=scan_boxes)
+                 geser=geser, scan=scan, scan_boxes=scan_boxes)
     st.candidates = scan_candidates(master)
     st.units = [u for u, reasons in st.candidates if not reasons]
     st.plan = await run_in_threadpool(_plan_summary, master, issue_settings, len(recipients), scan)
@@ -811,9 +824,9 @@ def _plan_summary(master, s: IssueSettings, n: int, scan: dict | None = None) ->
 
     With scanned pages (their word boxes attached by raster.prepare_scans, ``scan`` its
     record) it also gives the mode of every page and counts the word boxes Tesseract found
-    there; their text is never read.
+    there; their text is never read. The master is regrouped for the chosen shift scheme first.
     """
-    from tapak.marker.issue import build_document_plan
+    from tapak.marker.issue import apply_shift_scheme, build_document_plan
     from tapak.marker.raster import page_modes, plan_lines
     from tapak.service import ensure_keys
     from tapak.tardos.accuse import threshold
@@ -822,7 +835,8 @@ def _plan_summary(master, s: IssueSettings, n: int, scan: dict | None = None) ->
 
     params = TardosParams(c=s.c, eps=s.eps, n_max=n, constant=s.constant)  # type: ignore[arg-type]
     secret = ensure_keys(settings(), create_signing_key=False).code_secret
-    plan = build_document_plan(master, params, secret, s.channels, set(), s.background)
+    apply_shift_scheme(master, s.shift.scheme)
+    plan = build_document_plan(master, params, secret, s.channels, set(), s.background, shift_scheme=s.shift.scheme)
     p = derive_bias(secret, master.doc_hash, params)
     pages = len(master.layout.pages)
     out: dict[str, object] = {"params": params, "summary": plan.summary(), "threshold": threshold(p, params.eps1),
@@ -884,13 +898,16 @@ def _reviewing(sid: str) -> Iterator[Staging]:
 
 
 def _staging_master(st: Staging) -> MasterDocument:
-    """The parsed master of an issuance session (parsed once, kept with the session), with the
-    word boxes of its scanned pages attached as at issuance."""
+    """The parsed master of an issuance session (parsed once, kept with the session), grouped
+    for the chosen shift scheme and with the word boxes of its scanned pages attached as at
+    issuance."""
+    from tapak.marker.issue import apply_shift_scheme
     from tapak.marker.master import load_master
     from tapak.marker.raster import attach_scan_layout
 
     if st.master is None:
         master = load_master((st.folder / "induk.pdf").read_bytes())
+        apply_shift_scheme(master, st.settings.shift.scheme)
         if st.scan_boxes:
             attach_scan_layout(master, st.scan_boxes)
         st.master = master

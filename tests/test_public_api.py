@@ -58,10 +58,11 @@ def test_result_dataclasses(ctx):
     assert "rectified" in Registration.__dataclass_fields__
 
 
-def test_signed_measurements_signs_follow_bits(issued, ctx):
+def test_signed_measurements_signs_follow_bits(issued_v1, ctx_v1):
     from tapak.decoder.ch_shift import measure_vector, signed_measurements
 
-    out, manifest = issued
+    ctx = ctx_v1  # signed_measurements reads geser-v1 slots
+    out, manifest = issued_v1
     disp = measure_vector((out / manifest.copies[2].file).read_bytes(), ctx.master)
     pos, vals, kinds = signed_measurements(ctx.master, ctx.plan, disp)
     assert set(kinds) == {"kata", "baris"}
