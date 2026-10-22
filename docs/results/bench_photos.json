@@ -10,7 +10,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -85.16485898433339,
+      "log10_fa": -86.31657756653846,
       "medium": "layar"
     },
     {
@@ -23,7 +23,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -26.366720387095587,
+      "log10_fa": -33.30664743609822,
       "medium": "layar"
     },
     {
@@ -36,7 +36,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -20.146499800367927,
+      "log10_fa": -25.393362530325756,
       "medium": "layar"
     },
     {
@@ -49,7 +49,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -39.253728810599185,
+      "log10_fa": -41.31139699668661,
       "medium": "layar"
     },
     {
@@ -62,7 +62,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -86.3424986937008,
+      "log10_fa": -88.8639873741928,
       "medium": "layar"
     },
     {
@@ -75,7 +75,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -81.01002343989677,
+      "log10_fa": -84.77830218750209,
       "medium": "layar"
     },
     {
@@ -88,7 +88,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -53.448094886690996,
+      "log10_fa": -51.546724752548826,
       "medium": "layar"
     },
     {
@@ -101,7 +101,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -84.65008314400141,
+      "log10_fa": -87.23376316420472,
       "medium": "layar"
     },
     {
@@ -114,7 +114,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -87.06682342958825,
+      "log10_fa": -89.32358457354718,
       "medium": "layar"
     },
     {
@@ -127,7 +127,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -85.71107075752487,
+      "log10_fa": -88.65743257255654,
       "medium": "layar"
     },
     {
@@ -140,7 +140,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -86.68065726016904,
+      "log10_fa": -88.77594898715932,
       "medium": "layar"
     },
     {
@@ -153,7 +153,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -89.27973256814924,
+      "log10_fa": -90.67608585274193,
       "medium": "layar"
     },
     {
@@ -166,7 +166,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -83.23195261599115,
+      "log10_fa": -84.14807391416826,
       "medium": "layar"
     },
     {
@@ -179,7 +179,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -87.94203595308578,
+      "log10_fa": -89.78201758723579,
       "medium": "layar"
     },
     {
@@ -192,7 +192,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -27.47882142076475,
+      "log10_fa": -25.90394353375626,
       "medium": "layar"
     },
     {
@@ -205,7 +205,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -85.35284198406585,
+      "log10_fa": -87.54971330321426,
       "medium": "layar"
     },
     {
@@ -218,7 +218,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -75.93897788151614,
+      "log10_fa": -77.75152612452499,
       "medium": "layar"
     },
     {
@@ -227,9 +227,11 @@
       "angle": 30.0,
       "pages": 1,
       "expected": 7,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -6.032804279991377,
       "medium": "layar"
     },
     {
@@ -242,7 +244,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -89.079941644335,
+      "log10_fa": -90.81348808839572,
       "medium": "layar"
     },
     {
@@ -255,7 +257,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -88.64520042766607,
+      "log10_fa": -90.44062028846753,
       "medium": "layar"
     },
     {
@@ -268,7 +270,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -88.19248119391217,
+      "log10_fa": -89.50209132064387,
       "medium": "layar"
     },
     {
@@ -281,7 +283,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -87.98708784528678,
+      "log10_fa": -89.976118960345,
       "medium": "layar"
     },
     {
@@ -294,7 +296,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -80.74820726666977,
+      "log10_fa": -83.31703039061412,
       "medium": "layar"
     },
     {
@@ -307,7 +309,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -88.08947604539465,
+      "log10_fa": -90.65530942362332,
       "medium": "layar"
     },
     {
@@ -320,7 +322,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -60.56761237722941,
+      "log10_fa": -63.094863561786426,
       "medium": "layar"
     },
     {
@@ -333,7 +335,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -84.14524355129046,
+      "log10_fa": -86.27407355103101,
       "medium": "layar"
     },
     {
@@ -346,7 +348,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -88.88283419051349,
+      "log10_fa": -91.18156401305795,
       "medium": "layar"
     },
     {
@@ -359,7 +361,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -81.37306578723229,
+      "log10_fa": -82.82738743065214,
       "medium": "layar"
     },
     {
@@ -372,7 +374,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -89.88598896398217,
+      "log10_fa": -91.74048327139904,
       "medium": "layar"
     },
     {
@@ -385,7 +387,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -89.41389869526576,
+      "log10_fa": -91.33438291397684,
       "medium": "layar"
     },
     {
@@ -398,7 +400,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -87.45184581103199,
+      "log10_fa": -89.28216664858874,
       "medium": "layar"
     },
     {
@@ -411,7 +413,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -91.60572371055221,
+      "log10_fa": -93.2429559997901,
       "medium": "layar"
     },
     {
@@ -424,7 +426,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -75.51886695517534,
+      "log10_fa": -72.90817432897283,
       "medium": "layar"
     },
     {
@@ -437,7 +439,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -86.60118676773014,
+      "log10_fa": -86.877323273649,
       "medium": "layar"
     },
     {
@@ -450,7 +452,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -92.14611252635933,
+      "log10_fa": -94.45814109652868,
       "medium": "layar"
     },
     {
@@ -463,7 +465,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -91.53635254613025,
+      "log10_fa": -92.88614278950678,
       "medium": "layar"
     },
     {
@@ -476,7 +478,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -91.12617559764305,
+      "log10_fa": -93.6803492234327,
       "medium": "layar"
     },
     {
@@ -489,7 +491,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -89.35582226823671,
+      "log10_fa": -90.19293513894098,
       "medium": "layar"
     },
     {
@@ -502,7 +504,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -89.50218533187525,
+      "log10_fa": -92.68294319045773,
       "medium": "layar"
     },
     {
@@ -515,7 +517,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -93.1772065271373,
+      "log10_fa": -94.66164611049608,
       "medium": "layar"
     },
     {
@@ -524,9 +526,11 @@
       "angle": 10.0,
       "pages": 1,
       "expected": 13,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -9.688653384346233,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -535,9 +539,11 @@
       "angle": 30.0,
       "pages": 1,
       "expected": 13,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -11.588343207710485,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -546,9 +552,11 @@
       "angle": 10.0,
       "pages": 1,
       "expected": 13,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -8.212638201881637,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -568,9 +576,11 @@
       "angle": 10.0,
       "pages": 1,
       "expected": 7,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -11.385634903096907,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -579,9 +589,11 @@
       "angle": 30.0,
       "pages": 1,
       "expected": 7,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        7
+      ],
+      "outcome": "benar",
+      "log10_fa": -7.992698811796581,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -612,9 +624,11 @@
       "angle": 10.0,
       "pages": 1,
       "expected": 1,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -8.4193000490835,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -623,9 +637,11 @@
       "angle": 30.0,
       "pages": 1,
       "expected": 1,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        1
+      ],
+      "outcome": "benar",
+      "log10_fa": -6.276221667817138,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -656,9 +672,11 @@
       "angle": 10.0,
       "pages": 1,
       "expected": 20,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -8.651798280709718,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -667,9 +685,11 @@
       "angle": 30.0,
       "pages": 1,
       "expected": 20,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        20
+      ],
+      "outcome": "benar",
+      "log10_fa": -11.395637399022572,
       "medium": "cetak, 1 halaman"
     },
     {
@@ -704,7 +724,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -8.312574093830085,
+      "log10_fa": -19.215701620770382,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -717,7 +737,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -7.5614416954646515,
+      "log10_fa": -17.802111754673486,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -730,7 +750,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -7.7466154291178295,
+      "log10_fa": -14.07333363678663,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -743,7 +763,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -6.791055360517307,
+      "log10_fa": -10.655709081064495,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -756,7 +776,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -6.223807368848744,
+      "log10_fa": -12.167389272911706,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -769,7 +789,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -6.31033000926729,
+      "log10_fa": -11.267916463420583,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -782,7 +802,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -8.11738873638424,
+      "log10_fa": -12.066367817012779,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -795,7 +815,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -7.644968233702622,
+      "log10_fa": -15.599409696591923,
       "medium": "cetak, 2 halaman"
     },
     {
@@ -808,7 +828,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -72.51095604749592,
+      "log10_fa": -74.05661292139628,
       "medium": "foto ponsel"
     },
     {
@@ -821,7 +841,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -78.96636826321792,
+      "log10_fa": -81.41457294804292,
       "medium": "foto ponsel"
     },
     {
@@ -834,7 +854,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -78.38402400955961,
+      "log10_fa": -80.37804671005271,
       "medium": "foto ponsel"
     },
     {
@@ -847,7 +867,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -53.6211050881553,
+      "log10_fa": -56.186374975037296,
       "medium": "foto ponsel"
     },
     {
@@ -860,7 +880,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -81.76658974133393,
+      "log10_fa": -87.1086251853552,
       "medium": "foto ponsel"
     },
     {
@@ -873,7 +893,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -68.22050095479887,
+      "log10_fa": -71.5304605836545,
       "medium": "foto ponsel"
     },
     {
@@ -886,7 +906,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -48.32176274604781,
+      "log10_fa": -52.93819600510302,
       "medium": "foto ponsel"
     },
     {
@@ -899,7 +919,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -79.28218454453646,
+      "log10_fa": -81.64668359008999,
       "medium": "foto ponsel"
     },
     {
@@ -912,7 +932,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -80.76774424558924,
+      "log10_fa": -82.92589635224601,
       "medium": "foto ponsel"
     },
     {
@@ -925,7 +945,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -89.58175629412153,
+      "log10_fa": -90.77078734186867,
       "medium": "foto ponsel"
     },
     {
@@ -938,7 +958,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -62.80590997493749,
+      "log10_fa": -63.45353878806898,
       "medium": "foto ponsel"
     },
     {
@@ -951,7 +971,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -79.835422334761,
+      "log10_fa": -81.9195462003557,
       "medium": "foto ponsel"
     },
     {
@@ -964,7 +984,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -62.7790700433694,
+      "log10_fa": -64.7237222683042,
       "medium": "foto ponsel"
     },
     {
@@ -977,7 +997,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -77.32851111022632,
+      "log10_fa": -78.96501271148895,
       "medium": "foto ponsel"
     },
     {
@@ -990,7 +1010,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -54.006741610435256,
+      "log10_fa": -54.49622610051529,
       "medium": "foto ponsel"
     },
     {
@@ -1003,7 +1023,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -62.4260660255583,
+      "log10_fa": -62.5207427015127,
       "medium": "foto ponsel"
     },
     {
@@ -1016,7 +1036,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -86.67871125482598,
+      "log10_fa": -88.90078874080373,
       "medium": "foto ponsel"
     },
     {
@@ -1029,7 +1049,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -80.28040455918693,
+      "log10_fa": -82.71101392790281,
       "medium": "foto ponsel"
     },
     {
@@ -1042,7 +1062,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -81.62889326641539,
+      "log10_fa": -83.62531018166248,
       "medium": "foto ponsel"
     },
     {
@@ -1055,7 +1075,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -89.26136235201209,
+      "log10_fa": -91.42876021641158,
       "medium": "foto ponsel"
     },
     {
@@ -1068,7 +1088,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -70.83382084826306,
+      "log10_fa": -73.27555148359001,
       "medium": "foto ponsel"
     },
     {
@@ -1081,7 +1101,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -56.56283021580306,
+      "log10_fa": -58.85479042494444,
       "medium": "foto ponsel"
     },
     {
@@ -1094,7 +1114,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -61.50263255807778,
+      "log10_fa": -63.038639472281204,
       "medium": "foto ponsel"
     },
     {
@@ -1107,7 +1127,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -37.163207255596376,
+      "log10_fa": -40.904357348249206,
       "medium": "foto ponsel"
     },
     {
@@ -1120,7 +1140,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -84.58592950852656,
+      "log10_fa": -87.55355635152786,
       "medium": "foto ponsel"
     },
     {
@@ -1133,7 +1153,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -80.27174674588161,
+      "log10_fa": -83.29273139172138,
       "medium": "foto ponsel"
     },
     {
@@ -1146,7 +1166,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -58.629830005601264,
+      "log10_fa": -63.83201399808135,
       "medium": "foto ponsel"
     },
     {
@@ -1159,7 +1179,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -68.42587756204607,
+      "log10_fa": -70.2939076170653,
       "medium": "foto ponsel"
     },
     {
@@ -1172,7 +1192,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -59.618610286098715,
+      "log10_fa": -64.21585624948482,
       "medium": "foto ponsel"
     },
     {
@@ -1185,7 +1205,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -76.2614434107824,
+      "log10_fa": -77.89383546714413,
       "medium": "foto ponsel"
     },
     {
@@ -1198,7 +1218,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -81.48822595300012,
+      "log10_fa": -83.1496702025334,
       "medium": "foto ponsel"
     },
     {
@@ -1211,7 +1231,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -70.60881633279094,
+      "log10_fa": -73.09332174001781,
       "medium": "foto ponsel"
     },
     {
@@ -1224,7 +1244,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -55.755193123100796,
+      "log10_fa": -59.29911464923846,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1233,9 +1253,11 @@
       "angle": 0.0,
       "pages": 1,
       "expected": 13,
-      "accused": [],
-      "outcome": "tidak cukup bukti",
-      "log10_fa": null,
+      "accused": [
+        13
+      ],
+      "outcome": "benar",
+      "log10_fa": -7.135072089846808,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1248,7 +1270,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -87.41371053540608,
+      "log10_fa": -90.04523609483583,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1261,7 +1283,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -87.47196568099766,
+      "log10_fa": -89.87291032049524,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1274,7 +1296,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -74.29631307765659,
+      "log10_fa": -78.51354544617186,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1287,7 +1309,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -83.09885091466732,
+      "log10_fa": -86.99589655083344,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1300,7 +1322,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -69.85858082783416,
+      "log10_fa": -73.70562589771912,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1313,7 +1335,7 @@
         13
       ],
       "outcome": "benar",
-      "log10_fa": -78.13304756174385,
+      "log10_fa": -81.05740929319057,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1326,7 +1348,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -58.91785734311459,
+      "log10_fa": -64.13466856612533,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1339,7 +1361,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -50.75397190684919,
+      "log10_fa": -51.99269579000368,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1352,7 +1374,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -86.13613416453275,
+      "log10_fa": -87.22467216312438,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1365,7 +1387,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -80.02666802256373,
+      "log10_fa": -82.80868770390371,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1378,7 +1400,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -87.1566988761424,
+      "log10_fa": -90.00480497004632,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1391,7 +1413,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -29.939731143231473,
+      "log10_fa": -27.33801529117994,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1404,7 +1426,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -67.65910799771623,
+      "log10_fa": -66.66327170343861,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1417,7 +1439,7 @@
         7
       ],
       "outcome": "benar",
-      "log10_fa": -81.83229039020237,
+      "log10_fa": -81.4804964146271,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1430,7 +1452,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -90.01217071844262,
+      "log10_fa": -91.97041624131917,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1443,7 +1465,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -70.96244850336635,
+      "log10_fa": -73.35943774531563,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1456,7 +1478,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -49.068177274031356,
+      "log10_fa": -52.05128967737414,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1469,7 +1491,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -21.65884457734928,
+      "log10_fa": -22.901779945222966,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1482,7 +1504,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -32.57613009109035,
+      "log10_fa": -31.578465501586603,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1495,7 +1517,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -67.48343270715635,
+      "log10_fa": -68.41875799450956,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1508,7 +1530,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -68.30656757897982,
+      "log10_fa": -66.35111087848495,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1521,7 +1543,7 @@
         1
       ],
       "outcome": "benar",
-      "log10_fa": -31.062083017375716,
+      "log10_fa": -32.43245727983087,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1534,7 +1556,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -87.65131690613326,
+      "log10_fa": -88.79982537350102,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1547,7 +1569,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -91.47004626494453,
+      "log10_fa": -92.5875348091407,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1560,7 +1582,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -86.12672535641983,
+      "log10_fa": -86.37096259444695,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1573,7 +1595,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -31.668688128541763,
+      "log10_fa": -33.12643295079114,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1586,7 +1608,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -41.66431784537514,
+      "log10_fa": -40.44945566203529,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1599,7 +1621,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -89.39263612531572,
+      "log10_fa": -90.8672394278711,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1612,7 +1634,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -76.21404320453385,
+      "log10_fa": -76.53653125977287,
       "medium": "foto layar (monitor)"
     },
     {
@@ -1625,7 +1647,7 @@
         20
       ],
       "outcome": "benar",
-      "log10_fa": -74.10790915542913,
+      "log10_fa": -78.0406831588616,
       "medium": "foto layar (monitor)"
     }
   ]
