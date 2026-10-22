@@ -47,7 +47,14 @@ from tapak.marker.lexical import LexicalSelection, lexical_marks, lexical_slots
 from tapak.marker.lexical import require_reviewed as require_lexical_reviewed
 from tapak.marker.lexical import validate_selection as validate_lexical_selection
 from tapak.marker.master import MasterDocument, load_master
-from tapak.marker.pdf_shift import ShiftSettings, build_shift_slots, shift_marks
+from tapak.marker.pdf_shift import (
+    DEFAULT_SCHEME,
+    SCHEME_GROUP_WIDTH,
+    SCHEME_V1,
+    ShiftSettings,
+    build_shift_slots,
+    shift_marks,
+)
 from tapak.marker.pdf_zerowidth import build_text_slots, text_marks
 from tapak.marker.plan import (
     CHANNEL_BACKGROUND,
@@ -98,7 +105,7 @@ class IssueSettings:
     eps: float = 1e-6
     n_max: int | None = None          # default: number of recipients
     constant: str = "skoric"
-    shift: ShiftSettings = field(default_factory=ShiftSettings)
+    shift: ShiftSettings = field(default_factory=lambda: ShiftSettings.for_scheme(DEFAULT_SCHEME))
     background: BackgroundSettings = field(default_factory=BackgroundSettings)
     channels: tuple[str, ...] = ("shift", "zw", "homoglyph", "background", "canary", "semantic")
     canary_domain: str | None = None  # the canary channel is used only when a domain is set
@@ -190,11 +197,14 @@ class IssueManifest:
     # dropped, OCR engine and the digest of the word boxes; never a box, word or image. None
     # (and left out of the JSON) for a document without scanned pages.
     scan: dict[str, object] | None = None
+    # Shift scheme name (pdf_shift.SHIFT_SCHEMES), only the name. None (and left out of the JSON)
+    # means geser-v1: every document issued before geser-v2, and any geser-v1 issuance since.
+    shift_scheme: str | None = None
 
     def to_json(self) -> str:
-        """Serialize to pretty JSON (lexical and scan fields only when used)."""
+        """Serialize to pretty JSON (lexical, scan and shift scheme fields only when used)."""
         d = asdict(self)
-        for key in LEXICAL_MANIFEST_FIELDS + (SCAN_MANIFEST_FIELD,):
+        for key in LEXICAL_MANIFEST_FIELDS + (SCAN_MANIFEST_FIELD, SHIFT_SCHEME_FIELD):
             if d.get(key) is None:
                 d.pop(key, None)
         return json.dumps(d, indent=2, ensure_ascii=False)
@@ -216,8 +226,9 @@ class IssueManifest:
 
     @property
     def shift_settings(self) -> ShiftSettings:
-        """Shift magnitudes used at issuance."""
-        return ShiftSettings(word_mm=self.shift_mm["word_mm"], row_mm=self.shift_mm["row_mm"])
+        """Shift magnitudes and scheme used at issuance (geser-v1 when none is recorded)."""
+        return ShiftSettings(word_mm=self.shift_mm["word_mm"], row_mm=self.shift_mm["row_mm"],
+                             scheme=self.shift_scheme or SCHEME_V1)
 
     @property
     def background_settings(self) -> BackgroundSettings | None:
@@ -230,6 +241,7 @@ class IssueManifest:
 LEXICAL_MANIFEST_FIELDS = ("retype_positions", "lexical_digest", "lexicon_version", "lexicon_digest",
                            "shift_excluded_rows", "text_excluded_words")
 SCAN_MANIFEST_FIELD = "scan"
+SHIFT_SCHEME_FIELD = "shift_scheme"
 
 
 def lexical_exclusions(manifest: IssueManifest) -> tuple[set[RowId], set[WordId]]:
@@ -280,6 +292,12 @@ def check_copy_ids(copy_ids: list[str], n: int) -> None:
         raise ValueError("id salinan tidak boleh ganda")
 
 
+def apply_shift_scheme(master: MasterDocument, scheme: str) -> None:
+    """Give the master the shift groups of ``scheme`` (``SCHEME_GROUP_WIDTH``): issuer and
+    decoder call this right after loading the master, before word boxes or plans."""
+    master.use_group_width(SCHEME_GROUP_WIDTH[scheme])
+
+
 def document_grids(master: MasterDocument, secret: bytes, settings: BackgroundSettings) -> list[PageGrid]:
     """Background cell grids of every page (keyed by the document's plan key)."""
     key = plan_key(secret, master.doc_hash)
@@ -298,6 +316,7 @@ def build_document_plan(
     retype_positions: str | None = None,
     shift_excluded_rows: set[RowId] | None = None,
     text_excluded_words: set[WordId] | None = None,
+    shift_scheme: str = SCHEME_V1,
 ) -> EmbeddingPlan:
     """The embedding plan for a document (same result at issuance and at decoding).
 
@@ -305,6 +324,8 @@ def build_document_plan(
     lexical channels; None is the original uniform rule. ``shift_excluded_rows`` and
     ``text_excluded_words`` are the lexical exclusions recorded at issuance, so the shift and
     text plans are right even when the lexical selection itself is unavailable.
+    ``shift_scheme`` (recorded at issuance; geser-v1 when absent) decides which word groups
+    carry shift bits; scanned pages follow the same scheme on their word boxes.
     """
     key = plan_key(secret, master.doc_hash)
     m = params.length
@@ -312,7 +333,7 @@ def build_document_plan(
     slots = []
     if "shift" in channels:
         slots += build_shift_slots(master.shift_layout, m, key, excluded | (shift_excluded_rows or set()),
-                                   late_pages=frozenset(master.scans))
+                                   late_pages=frozenset(master.scans), scheme=shift_scheme)
     text_slots = build_text_slots(master, m, key, excluded, text_excluded_words)
     slots += [s for s in text_slots if s.channel in channels]
     if "background" in channels:
@@ -394,6 +415,7 @@ def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C is handled by the parent, which stops the pool
     master = load_master(pdf_bytes)
+    apply_shift_scheme(master, settings.shift.scheme)
     if scan_boxes is not None:  # word boxes found once by the parent (Tesseract is not rerun per worker)
         attach_scan_layout(master, scan_boxes)
     params = _params_for(settings, None)
@@ -405,7 +427,8 @@ def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
         settings=settings,
         params=params,
         plan=build_document_plan(master, params, secret, settings.channels, set(settings.excluded_rows),
-                                 settings.background, semantic, **_lexical_plan_args(lexical)),
+                                 settings.background, semantic, **_lexical_plan_args(lexical),
+                                 shift_scheme=settings.shift.scheme),
         grids=document_grids(master, secret, settings.background),
         semantic=semantic,
         lexical=lexical,
@@ -512,6 +535,7 @@ def issue(
         master = load_master(pdf_bytes)
     except RuntimeError as exc:  # pymupdf.FileDataError for a damaged file
         raise ValueError("dokumen induk PDF tidak dapat dibuka atau rusak") from exc
+    apply_shift_scheme(master, settings.shift.scheme)
     if not master.scans and not any(True for _ in master.layout.words()):
         raise ValueError("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap "
                          "halaman pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")
@@ -534,7 +558,8 @@ def issue(
         )
     params = _params_for(settings, len(recipients))
     plan = build_document_plan(master, params, secret, settings.channels, set(settings.excluded_rows),
-                               settings.background, semantic, **_lexical_plan_args(lexical))
+                               settings.background, semantic, **_lexical_plan_args(lexical),
+                               shift_scheme=settings.shift.scheme)
     p = derive_bias(secret, master.doc_hash, params)
     if lexical is not None:
         check_retype_band(plan, p)
@@ -607,6 +632,7 @@ def issue(
         canary_domain=settings.canary_domain if _canary_enabled(settings) else None,
         semantic_digest=semantic.digest if semantic is not None and plan.channel(CHANNEL_SEMANTIC) else None,
         scan=scan_record,
+        shift_scheme=settings.shift.scheme if settings.shift.scheme != SCHEME_V1 else None,
     )
     if lexical is not None:
         manifest.retype_positions = RETYPE_BAND

@@ -125,7 +125,8 @@ def test_manifest_and_registry_entry_without_the_channel_are_unchanged(issued, t
     assert manifest_lexical_fields(manifest) is None
     with Registry.open(tmp_path / "r.db") as reg:
         entries = registry_from_manifest(manifest, reg)
-    assert set(entries[0].payload) == DOCUMENT_FIELDS
+    scheme = {"shift_scheme"} if manifest.shift_scheme else set()  # the default shift scheme's name, if not v1
+    assert set(entries[0].payload) == DOCUMENT_FIELDS | scheme
     assert all(set(e.payload) == COPY_FIELDS for e in entries[1:])
 
 
@@ -174,7 +175,7 @@ def test_issuance_records_digests_but_no_words_or_code_bits(lex_doc):
     with Registry.open(s.registry_path) as reg:
         doc = reg.find_document(m.doc_hash)
         copies = reg.copies(m.doc_hash)
-    assert set(doc) == DOCUMENT_FIELDS | LEXICAL_DOCUMENT_FIELDS
+    assert set(doc) - {"shift_scheme"} == DOCUMENT_FIELDS | LEXICAL_DOCUMENT_FIELDS
     assert doc["lexical_digest"] == sel.digest and doc["retype_positions"] == RETYPE_BAND
     assert lexical_document_problems(doc) == []
     for c in copies:  # copy entries hold no form choice (code bits)

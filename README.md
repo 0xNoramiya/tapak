@@ -53,7 +53,7 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
   <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 0 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 31 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa dan satu halaman tidak cukup. Dua halaman menyebut salinan yang benar pada 8 dari 8 pasangan, tetapi skornya hanya 1,02 sampai 1,19 kali ambang, dan dengan 100 penerima hanya 5 sampai 8 dari 20 (lihat [batasan](#batasan)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Benchmark ini masih memakai skema geser v1: satu halaman tidak cukup, dan dua halaman menyebut salinan yang benar pada 8 dari 8 pasangan, tetapi skornya hanya 1,02 sampai 1,19 kali ambang (lihat [batasan](#batasan)).
 
 Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,2 &times; 10<sup>-21</sup>. Adegan foto yang sama lewat ISP ponsel simulasi benar 32 dari 32, dan foto salinan di monitor simulasi benar 31 dari 32.
 
@@ -101,7 +101,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 
 ## Batasan
 
-- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi satu halaman tidak cukup untuk menyebut nama, dan dua halaman cukup pada 5 sampai 8 dari 20 salinan, tanpa ketahanan kolusi. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
+- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi, skema geser v2 (bawaan penerbitan baru) menyebut nama dari satu halaman teks penuh pada semua foto 4000 px uji tertahan dan 57 % foto 1600 px, tetapi lebih jarang dengan rahasia kode lain (17 dari 24 foto 4000 px pada benih pengembangan); dokumen lama (skema v1) baru cukup dari dua halaman, kadang-kadang. Tidak ada ketahanan kolusi. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
 - Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti". Dalam simulasi, satu pembocor baru dapat disebut dari sekitar 1.300 kata isi, tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan.
 - Koalisi yang memahami TAPAK dan memegang dua salinan atau lebih dapat menghapus atau membalik tanda di tempat salinannya sama, lalu lolos pada PDF, tangkapan layar, foto, dan cetakan uji. Tidak ada orang lain yang tertuduh karenanya. Penghapusan biasa pada PDF, tangkapan layar, dan foto diberi peringatan di bawah putusan; tanda yang dibalik dan cetakan tidak.
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.

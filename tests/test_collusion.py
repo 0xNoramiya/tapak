@@ -3,6 +3,8 @@
 The coalition must see exactly where its copies agree (background cells and shift units) from
 the copies alone, estimate the master position of agreeing data units from typography, and
 produce a PDF in which those marks are neutralized while the disagreeing ones follow the rule.
+The tests use a geser-v1 issuance (the scheme of every document issued before geser-v2): the
+coalition here knows the geser-v1 layout rule.
 """
 
 from __future__ import annotations
@@ -35,8 +37,9 @@ MEMBERS = (4, 12)
 
 
 @pytest.fixture(scope="module")
-def coalition(issued):
-    out, manifest = issued
+def coalition(issued_v1):
+    """Two copies of the geser-v1 issuance."""
+    out, manifest = issued_v1
     return [(out / manifest.copies[s - 1].file).read_bytes() for s in MEMBERS]
 
 
@@ -87,7 +90,8 @@ def test_typographic_shift_rounds_or_declines():
     assert unit.agree and not ShiftUnit((0, 1, 1), "kata", np.array([10.0, 10.28])).agree
 
 
-def test_coalition_sees_agreement_exactly(ctx, coalition):
+def test_coalition_sees_agreement_exactly(ctx_v1, coalition):
+    ctx = ctx_v1
     view = coalition_view(coalition)
     assert isinstance(view, CoalitionView) and view.copies == 2 and abs(view.delta_pt - ctx.shift.word_pt) < 1e-3
     x = ctx.codewords[[s - 1 for s in MEMBERS]].astype(np.int64)
@@ -137,10 +141,11 @@ def test_plan_follows_the_rule_and_the_channels(coalition):
     assert set(RULES) == {"salin", "acak", "rata"} and isinstance(keep, ForgeryPlan)
 
 
-def test_forged_pdf_carries_the_plan(ctx, coalition):
+def test_forged_pdf_carries_the_plan(ctx_v1, coalition):
     from tapak.decoder.ch_zerowidth import extract_pdf_text
     from tapak.marker.pdf_zerowidth import ZW_CHARS
 
+    ctx = ctx_v1
     forged, view, plan = attack(ctx.master, coalition, "salin", 1.0, rng=np.random.default_rng(2))
     images = copy_backgrounds(forged)
     assert sorted(images) == sorted(view.levels)
@@ -156,13 +161,14 @@ def test_forged_pdf_carries_the_plan(ctx, coalition):
     assert copy_backgrounds(again).keys() == images.keys()
 
 
-def test_reversal_keeps_every_mark_and_escapes_the_erasure_check(ctx, coalition):
+def test_reversal_keeps_every_mark_and_escapes_the_erasure_check(ctx_v1, coalition):
     """``neutralize="balik"``: agreeing cells are negated and agreeing data units mirrored about
     their master position, so every unit stays fully marked. The erasure check (which reads how
     clearly units are marked) does not fire, the coalition is not named, and nobody else is."""
     from tapak.collusion import NEUTRALIZE
     from tapak.decoder.trace import collect_file, run_trace
 
+    ctx = ctx_v1
     view = coalition_view(coalition)
     with pytest.raises(ValueError):
         plan_forgery(view, "acak", neutralize="lain")

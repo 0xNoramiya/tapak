@@ -107,15 +107,18 @@ def _issue_fixed_ids(monkeypatch, recipients, folder, settings) -> list[bytes]:
 
 
 def test_default_issuance_is_bit_for_bit_unchanged(tmp_path, monkeypatch, recipients, sample_pdf):
-    """Without a choice, issuance writes the same bytes as the code before the print profile
-    (golden hashes; skipped when PyMuPDF or the generated sample differ from the recording)."""
+    """A geser-v1 issuance with the screen profile, the setting of every document issued before
+    the print profile and geser-v2, writes the same bytes as the code before both (golden
+    hashes; skipped when PyMuPDF or the generated sample differ from the recording)."""
+    from tapak.marker.pdf_shift import ShiftSettings
+
     import hashlib
 
     import pymupdf
 
     if pymupdf.VersionBind != GOLDEN_PYMUPDF or hashlib.sha256(sample_pdf).hexdigest() != GOLDEN_SAMPLE_SHA256:
         pytest.skip(f"golden hashes recorded with PyMuPDF {GOLDEN_PYMUPDF} and another sample PDF")
-    files = _issue_fixed_ids(monkeypatch, recipients, tmp_path / "bawaan", IssueSettings(workers=1))
+    files = _issue_fixed_ids(monkeypatch, recipients, tmp_path / "bawaan", IssueSettings(workers=1, shift=ShiftSettings()))
     assert [hashlib.sha256(f).hexdigest() for f in files] == GOLDEN_DEFAULT_COPIES
 
 

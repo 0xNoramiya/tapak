@@ -51,6 +51,10 @@ carries ``retype_positions``, ``lexical_digest``, ``lexicon_version``, ``lexicon
 positions of the point words, never the words. Its ``copy`` entries carry no lexical form
 choice: those are code bits, recomputed from the code secret at trace time.
 
+A ``document`` entry of a document issued with shift scheme ``geser-v2`` also carries
+``shift_scheme`` (the scheme name only); a geser-v1 document, like every document issued
+before the field existed, has no such field.
+
 Data minimization: payloads carry hashes, identifiers and parameters only. Recipient
 names, document text and images never enter the registry; a copy is tied to its
 recipient through ``recipient_id`` alone. A trace entry holds the document hash, the
@@ -116,11 +120,14 @@ LEXICAL_DOCUMENT_FIELDS = frozenset({
 # digest of the word boxes, never a box, word or image.
 SCAN_DOCUMENT_FIELD = "scan"
 SCAN_RECORD_KEYS = frozenset({"pages", "dpi", "ocr_layer_dropped", "ocr_engine", "boxes_sha256"})
+# Shift scheme of a document issued with a scheme other than geser-v1 (the scheme name only).
+SHIFT_SCHEME_DOCUMENT_FIELD = "shift_scheme"
 # A trace logged for a staged accusation also records the stage policy and the eps of every
 # stage, before decoding (both or neither; traces logged before staging have neither).
 STAGE_TRACE_FIELDS = frozenset({"stage_policy", "stage_eps"})
 KIND_OPTIONAL: dict[str, frozenset[str]] = {
-    KIND_COPY: frozenset({"recipient_mac"}), KIND_DOCUMENT: LEXICAL_DOCUMENT_FIELDS | {SCAN_DOCUMENT_FIELD},
+    KIND_COPY: frozenset({"recipient_mac"}),
+    KIND_DOCUMENT: LEXICAL_DOCUMENT_FIELDS | {SCAN_DOCUMENT_FIELD, SHIFT_SCHEME_DOCUMENT_FIELD},
     KIND_TRACE: STAGE_TRACE_FIELDS,
 }
 
@@ -500,6 +507,20 @@ def _check_payload(kind: str, payload: object) -> None:
         scan = scan_document_problems(payload[SCAN_DOCUMENT_FIELD])
         if scan:
             raise ValueError("isi entri 'document' tidak sah: " + "; ".join(scan))
+    if kind == KIND_DOCUMENT and SHIFT_SCHEME_DOCUMENT_FIELD in payload:
+        scheme = shift_scheme_problems(payload[SHIFT_SCHEME_DOCUMENT_FIELD])
+        if scheme:
+            raise ValueError("isi entri 'document' tidak sah: " + "; ".join(scheme))
+
+
+def shift_scheme_problems(value: object) -> list[str]:
+    """Problems (Indonesian) with the ``shift_scheme`` field of a ``document`` payload: only a
+    known scheme other than geser-v1 is recorded (geser-v1 is the absence of the field)."""
+    from tapak.marker.pdf_shift import SCHEME_V1, SHIFT_SCHEMES
+
+    if not isinstance(value, str) or value not in SHIFT_SCHEMES or value == SCHEME_V1:
+        return ["skema geser tidak dikenal"]
+    return []
 
 
 def scan_document_problems(record: object) -> list[str]:
@@ -837,6 +858,7 @@ class Registry:
         created_at: datetime | str | None = None,
         lexical: dict[str, Any] | None = None,
         scan: dict[str, Any] | None = None,
+        shift_scheme: str | None = None,
     ) -> Entry:
         """Record one issued document (parameters and hashes only, never its contents).
 
@@ -844,7 +866,8 @@ class Registry:
         ``lexical`` holds the six lexical fields of a document that uses the word-choice
         channel (:data:`LEXICAL_DOCUMENT_FIELDS`); None for any other document, whose entry is
         then exactly as before. ``scan`` is the scanned-page record (:data:`SCAN_RECORD_KEYS`,
-        field ``scan``), likewise only for a document with scanned pages.
+        field ``scan``), likewise only for a document with scanned pages. ``shift_scheme`` is the
+        shift scheme name, only for a document issued with a scheme other than geser-v1.
         """
         if threshold_full is not None:
             threshold_full = float(threshold_full)
@@ -861,6 +884,8 @@ class Registry:
             payload.update(json.loads(json.dumps(lexical)))
         if scan is not None:
             payload[SCAN_DOCUMENT_FIELD] = json.loads(json.dumps(scan))
+        if shift_scheme is not None:
+            payload[SHIFT_SCHEME_DOCUMENT_FIELD] = shift_scheme
         return self.append(KIND_DOCUMENT, payload, signer=signer, created_at=created_at)
 
     def record_copy(
@@ -1022,7 +1047,8 @@ def registry_from_manifest(
             channels=manifest.channels, shift_mm=manifest.shift_mm, excluded_rows=manifest.excluded_rows,
             plan_summary=manifest.plan_summary, threshold_rule=threshold_rule,
             threshold_full=manifest.threshold_full, issuer=manifest.issuer, issued_at=manifest.issued_at,
-            signer=signer, lexical=manifest_lexical_fields(manifest), scan=getattr(manifest, "scan", None))]
+            signer=signer, lexical=manifest_lexical_fields(manifest), scan=getattr(manifest, "scan", None),
+            shift_scheme=getattr(manifest, "shift_scheme", None))]
         for c in manifest.copies:
             entries.append(registry.record_copy(
                 doc_hash=manifest.doc_hash, recipient_id=c.recipient.recipient_id, copy_id=c.copy_id,

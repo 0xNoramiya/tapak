@@ -1,0 +1,1991 @@
+{
+ "phase": "uji",
+ "rows": 888,
+ "cetak": {
+  "v1/nota_dinas/100/-/inkjet/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 81.0,
+      "ber": 0.0743
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.068
+     },
+     "positions_median": 101.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0734
+     },
+     "baris": {
+      "read_median": 13.0,
+      "ber": 0.0299
+     },
+     "positions_median": 79.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 0.6,
+   "max_tak_bersalah_z": 0.3,
+   "dua_halaman": {
+    "benar": 2,
+    "tidak cukup bukti": 3,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.892
+  },
+  "v1/nota_dinas/100/-/inkjet/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 82.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "positions_median": 103.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "positions_median": 80.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 0.655,
+   "max_tak_bersalah_z": 0.283,
+   "dua_halaman": {
+    "benar": 4,
+    "tidak cukup bukti": 1,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.035
+  },
+  "v1/nota_dinas/100/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 81.5,
+      "ber": 0.0419
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0337
+     },
+     "positions_median": 101.5
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0625
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0292
+     },
+     "positions_median": 79.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "skor_z_median": 0.582,
+   "max_tak_bersalah_z": 0.303,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.879
+  },
+  "v1/nota_dinas/100/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 82.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "positions_median": 103.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "positions_median": 80.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "skor_z_median": 0.627,
+   "max_tak_bersalah_z": 0.286,
+   "dua_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 4,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.008
+  },
+  "v1/nota_dinas/100/cetak/inkjet/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 81.0,
+      "ber": 0.0738
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0484
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0033
+     },
+     "positions_median": 1982.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 4.408,
+   "max_tak_bersalah_z": 0.466,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": null
+  },
+  "v1/nota_dinas/100/cetak/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 82.0,
+      "ber": 0.0492
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0079
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0052
+     },
+     "positions_median": 1980.5
+    },
+    "hal2": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0835
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0476
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.003
+     },
+     "positions_median": 1974.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 12,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 4.393,
+   "max_tak_bersalah_z": 0.462,
+   "dua_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 5.817
+  },
+  "v1/nota_dinas/100/cetak/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 82.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0232
+     },
+     "positions_median": 1982.5
+    },
+    "hal2": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.001
+     },
+     "positions_median": 1975.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 12,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 4.405,
+   "max_tak_bersalah_z": 0.468,
+   "dua_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 5.721
+  },
+  "v1/nota_dinas/20/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 82.0,
+      "ber": 0.0655
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.1292
+     },
+     "positions_median": 101.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0137
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0876
+     },
+     "positions_median": 80.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 1,
+    "tidak cukup bukti": 19,
+    "salah": 0
+   },
+   "skor_z_median": 0.664,
+   "max_tak_bersalah_z": 0.243,
+   "dua_halaman": {
+    "benar": 7,
+    "tidak cukup bukti": 3,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.024
+  },
+  "v1/nota_dinas/20/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 82.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "positions_median": 103.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 66.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "positions_median": 80.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 1,
+    "tidak cukup bukti": 19,
+    "salah": 0
+   },
+   "skor_z_median": 0.734,
+   "max_tak_bersalah_z": 0.302,
+   "dua_halaman": {
+    "benar": 9,
+    "tidak cukup bukti": 1,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.147
+  },
+  "v1/surat_telegram/100/-/inkjet/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 72.0,
+      "ber": 0.0084
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0211
+     },
+     "positions_median": 91.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 4.0,
+      "ber": 0.0526
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.4
+     },
+     "positions_median": 6.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 0.727,
+   "max_tak_bersalah_z": 0.319,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 5,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.738
+  },
+  "v1/surat_telegram/100/-/inkjet/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 72.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0
+     },
+     "positions_median": 91.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 4.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.2
+     },
+     "positions_median": 6.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 0.735,
+   "max_tak_bersalah_z": 0.309,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 5,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.739
+  },
+  "v1/surat_telegram/100/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 72.0,
+      "ber": 0.0559
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0158
+     },
+     "positions_median": 91.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 4.0,
+      "ber": 0.0256
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.25
+     },
+     "positions_median": 6.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "skor_z_median": 0.69,
+   "max_tak_bersalah_z": 0.328,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.7
+  },
+  "v1/surat_telegram/100/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 72.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0
+     },
+     "latar": {
+      "read_median": 0.0,
+      "ber": 0.4825
+     },
+     "positions_median": 91.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 4,
+     "kata": {
+      "read_median": 0.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 0.0,
+      "ber": 0.375
+     },
+     "positions_median": 0.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "skor_z_median": 0.737,
+   "max_tak_bersalah_z": 0.329,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.748
+  },
+  "v1/surat_telegram/20/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 72.0,
+      "ber": 0.052
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0316
+     },
+     "positions_median": 89.5
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 4.0,
+      "ber": 0.05
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.0
+     },
+     "positions_median": 6.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "skor_z_median": 0.38,
+   "max_tak_bersalah_z": 0.276,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.723
+  },
+  "v1/surat_telegram/20/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 72.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0
+     },
+     "positions_median": 91.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 5,
+     "kata": {
+      "read_median": 2.0,
+      "ber": 0.0
+     },
+     "baris": {
+      "read_median": 1.0,
+      "ber": 0.0
+     },
+     "positions_median": 3.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "skor_z_median": 0.766,
+   "max_tak_bersalah_z": 0.25,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 0.767
+  },
+  "v2cf/nota_dinas/100/-/inkjet/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 231.0,
+      "ber": 0.1516
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.068
+     },
+     "positions_median": 236.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 172.0,
+      "ber": 0.1595
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0882
+     },
+     "positions_median": 174.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 4,
+    "tidak cukup bukti": 6,
+    "salah": 0
+   },
+   "skor_z_median": 0.831,
+   "max_tak_bersalah_z": 0.374,
+   "dua_halaman": {
+    "benar": 4,
+    "tidak cukup bukti": 1,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.536
+  },
+  "v2cf/nota_dinas/100/-/inkjet/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 231.0,
+      "ber": 0.0457
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "positions_median": 235.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 173.0,
+      "ber": 0.0035
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "positions_median": 187.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 1.148,
+   "max_tak_bersalah_z": 0.362,
+   "dua_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.8
+  },
+  "v2cf/nota_dinas/100/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 229.5,
+      "ber": 0.1043
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0571
+     },
+     "positions_median": 235.5
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 172.5,
+      "ber": 0.1327
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0365
+     },
+     "positions_median": 175.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 1.002,
+   "max_tak_bersalah_z": 0.452,
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.502
+  },
+  "v2cf/nota_dinas/100/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 231.0,
+      "ber": 0.0346
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "positions_median": 236.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 173.0,
+      "ber": 0.0047
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "positions_median": 186.5
+    }
+   },
+   "satu_halaman": {
+    "benar": 20,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 1.175,
+   "max_tak_bersalah_z": 0.367,
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.79
+  },
+  "v2cf/nota_dinas/100/cetak/inkjet/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 231.0,
+      "ber": 0.1474
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0645
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0027
+     },
+     "positions_median": 2033.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 4.438,
+   "max_tak_bersalah_z": 0.447,
+   "dua_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": null
+  },
+  "v2cf/nota_dinas/100/cetak/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 230.5,
+      "ber": 0.1151
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0238
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0045
+     },
+     "positions_median": 2031.0
+    },
+    "hal2": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 172.0,
+      "ber": 0.1388
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0361
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0022
+     },
+     "positions_median": 2001.5
+    }
+   },
+   "satu_halaman": {
+    "benar": 12,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 4.418,
+   "max_tak_bersalah_z": 0.444,
+   "dua_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 5.825
+  },
+  "v2cf/nota_dinas/100/cetak/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 231.0,
+      "ber": 0.0446
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0228
+     },
+     "positions_median": 2030.0
+    },
+    "hal2": {
+     "photos": 6,
+     "registered": 6,
+     "kata": {
+      "read_median": 173.0,
+      "ber": 0.0019
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "latar": {
+      "read_median": 1942.0,
+      "ber": 0.0009
+     },
+     "positions_median": 2005.5
+    }
+   },
+   "satu_halaman": {
+    "benar": 12,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 4.441,
+   "max_tak_bersalah_z": 0.43,
+   "dua_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 5.732
+  },
+  "v2cf/nota_dinas/20/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 229.0,
+      "ber": 0.1697
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0922
+     },
+     "positions_median": 233.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 173.0,
+      "ber": 0.0596
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0365
+     },
+     "positions_median": 180.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 13,
+    "tidak cukup bukti": 7,
+    "salah": 0
+   },
+   "skor_z_median": 1.026,
+   "max_tak_bersalah_z": 0.395,
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.468
+  },
+  "v2cf/nota_dinas/20/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 231.0,
+      "ber": 0.0239
+     },
+     "baris": {
+      "read_median": 21.0,
+      "ber": 0.0
+     },
+     "positions_median": 238.5
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 173.0,
+      "ber": 0.0272
+     },
+     "baris": {
+      "read_median": 14.0,
+      "ber": 0.0
+     },
+     "positions_median": 181.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 20,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 1.167,
+   "max_tak_bersalah_z": 0.39,
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.881
+  },
+  "v2cf/surat_telegram/100/-/inkjet/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 210.0,
+      "ber": 0.0239
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0421
+     },
+     "positions_median": 223.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 18.0,
+      "ber": 0.2333
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.0
+     },
+     "positions_median": 19.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 5,
+    "salah": 0
+   },
+   "skor_z_median": 0.63,
+   "max_tak_bersalah_z": 0.3,
+   "dua_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.253
+  },
+  "v2cf/surat_telegram/100/-/inkjet/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 210.0,
+      "ber": 0.0162
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0
+     },
+     "positions_median": 221.0
+    },
+    "hal2": {
+     "photos": 5,
+     "registered": 5,
+     "kata": {
+      "read_median": 18.0,
+      "ber": 0.1667
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.1
+     },
+     "positions_median": 20.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 5,
+    "salah": 0
+   },
+   "skor_z_median": 0.681,
+   "max_tak_bersalah_z": 0.323,
+   "dua_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.284
+  },
+  "v2cf/surat_telegram/100/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 210.0,
+      "ber": 0.0954
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0211
+     },
+     "positions_median": 218.5
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 18.0,
+      "ber": 0.1955
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.1053
+     },
+     "positions_median": 18.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 14,
+    "salah": 0
+   },
+   "skor_z_median": 0.542,
+   "max_tak_bersalah_z": 0.561,
+   "dua_halaman": {
+    "benar": 6,
+    "tidak cukup bukti": 4,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.129
+  },
+  "v2cf/surat_telegram/100/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 210.0,
+      "ber": 0.012
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0
+     },
+     "latar": {
+      "read_median": 0.0,
+      "ber": 0.482
+     },
+     "positions_median": 222.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 4,
+     "kata": {
+      "read_median": 0.0,
+      "ber": 0.0694
+     },
+     "baris": {
+      "read_median": 0.0,
+      "ber": 0.0
+     },
+     "positions_median": 0.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 1.23,
+   "max_tak_bersalah_z": 0.407,
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.291
+  },
+  "v2cf/surat_telegram/20/-/laser/1600": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 210.0,
+      "ber": 0.1337
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0316
+     },
+     "positions_median": 217.5
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 18.0,
+      "ber": 0.1444
+     },
+     "baris": {
+      "read_median": 2.0,
+      "ber": 0.1
+     },
+     "positions_median": 18.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 15,
+    "salah": 0
+   },
+   "skor_z_median": 0.594,
+   "max_tak_bersalah_z": 0.312,
+   "dua_halaman": {
+    "benar": 5,
+    "tidak cukup bukti": 5,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.1
+  },
+  "v2cf/surat_telegram/20/-/laser/4000": {
+   "pages": {
+    "hal1": {
+     "photos": 10,
+     "registered": 10,
+     "kata": {
+      "read_median": 210.0,
+      "ber": 0.0115
+     },
+     "baris": {
+      "read_median": 19.0,
+      "ber": 0.0
+     },
+     "positions_median": 225.0
+    },
+    "hal2": {
+     "photos": 10,
+     "registered": 5,
+     "kata": {
+      "read_median": 9.0,
+      "ber": 0.1111
+     },
+     "baris": {
+      "read_median": 1.0,
+      "ber": 0.2
+     },
+     "positions_median": 8.0
+    }
+   },
+   "satu_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 1.313,
+   "max_tak_bersalah_z": 0.299,
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "dua_halaman_skor_z": 1.396
+  }
+ },
+ "total_cetak": {
+  "v1": {
+   "satu_halaman": {
+    "benar": 2,
+    "tidak cukup bukti": 198,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 28,
+    "tidak cukup bukti": 72,
+    "salah": 0
+   },
+   "skor_z_median": 0.678,
+   "posisi_median_hal1": 95.5
+  },
+  "v2cf": {
+   "satu_halaman": {
+    "benar": 118,
+    "tidak cukup bukti": 82,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 90,
+    "tidak cukup bukti": 10,
+    "salah": 0
+   },
+   "skor_z_median": 1.097,
+   "posisi_median_hal1": 228.5
+  }
+ },
+ "banding_v1": {
+  "v2cf": {
+   "pairs": 200,
+   "baru_saja_benar": 116,
+   "lama_saja_benar": 0,
+   "p_satu_sisi": 1.2037062152420224e-35
+  }
+ },
+ "kolusi": {
+  "v1/nota_dinas/100/-/laser/1600": {
+   "satu_halaman": {
+    "pages": 12,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.354
+  },
+  "v1/nota_dinas/100/-/laser/4000": {
+   "satu_halaman": {
+    "pages": 12,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.332
+  },
+  "v1/nota_dinas/100/cetak/laser/1600": {
+   "satu_halaman": {
+    "pages": 6,
+    "min1": 6,
+    "all3": 5,
+    "members": 17,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 0,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.381
+  },
+  "v1/surat_telegram/100/-/laser/1600": {
+   "satu_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 0,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.336
+  },
+  "v1/surat_telegram/100/-/laser/4000": {
+   "satu_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 0,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.35
+  },
+  "v2cf/nota_dinas/100/-/laser/1600": {
+   "satu_halaman": {
+    "pages": 12,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.343
+  },
+  "v2cf/nota_dinas/100/-/laser/4000": {
+   "satu_halaman": {
+    "pages": 12,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.322
+  },
+  "v2cf/nota_dinas/100/cetak/laser/1600": {
+   "satu_halaman": {
+    "pages": 6,
+    "min1": 6,
+    "all3": 6,
+    "members": 18,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 0,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.418
+  },
+  "v2cf/surat_telegram/100/-/laser/1600": {
+   "satu_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 0,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.39
+  },
+  "v2cf/surat_telegram/100/-/laser/4000": {
+   "satu_halaman": {
+    "pages": 6,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "dua_halaman": {
+    "pages": 0,
+    "min1": 0,
+    "all3": 0,
+    "members": 0,
+    "innocent_pages": 0
+   },
+   "max_tak_bersalah_z": 0.352
+  }
+ },
+ "layar_pdf": {
+  "v1/nota_dinas/100/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.478,
+   "pola_latar": 10
+  },
+  "v1/nota_dinas/100/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.462,
+   "pola_latar": 10
+  },
+  "v1/nota_dinas/100/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.415,
+   "pola_latar": 0
+  },
+  "v1/nota_dinas/20/foto": {
+   "benar": 9,
+   "tidak cukup bukti": 1,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.54,
+   "pola_latar": 9
+  },
+  "v1/nota_dinas/20/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.543,
+   "pola_latar": 10
+  },
+  "v1/nota_dinas/20/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.601,
+   "pola_latar": 0
+  },
+  "v1/surat_telegram/100/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.4,
+   "pola_latar": 10
+  },
+  "v1/surat_telegram/100/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.479,
+   "pola_latar": 10
+  },
+  "v1/surat_telegram/100/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.49,
+   "pola_latar": 0
+  },
+  "v1/surat_telegram/20/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.328,
+   "pola_latar": 10
+  },
+  "v1/surat_telegram/20/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.406,
+   "pola_latar": 10
+  },
+  "v1/surat_telegram/20/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.367,
+   "pola_latar": 0
+  },
+  "v2cf/nota_dinas/100/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.498,
+   "pola_latar": 10
+  },
+  "v2cf/nota_dinas/100/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.465,
+   "pola_latar": 10
+  },
+  "v2cf/nota_dinas/100/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.415,
+   "pola_latar": 0
+  },
+  "v2cf/nota_dinas/20/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.549,
+   "pola_latar": 9
+  },
+  "v2cf/nota_dinas/20/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.564,
+   "pola_latar": 10
+  },
+  "v2cf/nota_dinas/20/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.601,
+   "pola_latar": 0
+  },
+  "v2cf/surat_telegram/100/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.426,
+   "pola_latar": 10
+  },
+  "v2cf/surat_telegram/100/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.467,
+   "pola_latar": 10
+  },
+  "v2cf/surat_telegram/100/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.49,
+   "pola_latar": 0
+  },
+  "v2cf/surat_telegram/20/foto": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.338,
+   "pola_latar": 10
+  },
+  "v2cf/surat_telegram/20/layar": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.395,
+   "pola_latar": 10
+  },
+  "v2cf/surat_telegram/20/pdf": {
+   "benar": 10,
+   "tidak cukup bukti": 0,
+   "salah": 0,
+   "max_tak_bersalah_z": 0.367,
+   "pola_latar": 0
+  }
+ },
+ "layar_pdf_total": {
+  "pdf": {
+   "v1": {
+    "benar": 40,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "v2cf": {
+    "benar": 40,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   }
+  },
+  "layar": {
+   "v1": {
+    "benar": 40,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "v2cf": {
+    "benar": 40,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   }
+  },
+  "foto": {
+   "v1": {
+    "benar": 39,
+    "tidak cukup bukti": 1,
+    "salah": 0
+   },
+   "v2cf": {
+    "benar": 40,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   }
+  }
+ },
+ "induk": {
+  "v1/100/induk_cetak": {
+   "traces": 16,
+   "dituduh": 0,
+   "max_skor_z": 0.493
+  },
+  "v1/100/induk_foto": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.391
+  },
+  "v1/100/induk_layar": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.245
+  },
+  "v1/100/induk_pdf": {
+   "traces": 2,
+   "dituduh": 0,
+   "max_skor_z": 0
+  },
+  "v1/20/induk_cetak": {
+   "traces": 16,
+   "dituduh": 0,
+   "max_skor_z": 0.348
+  },
+  "v1/20/induk_foto": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.242
+  },
+  "v1/20/induk_layar": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.31
+  },
+  "v1/20/induk_pdf": {
+   "traces": 2,
+   "dituduh": 0,
+   "max_skor_z": 0
+  },
+  "v2cf/100/induk_cetak": {
+   "traces": 16,
+   "dituduh": 0,
+   "max_skor_z": 0.658
+  },
+  "v2cf/100/induk_foto": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.326
+  },
+  "v2cf/100/induk_layar": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.272
+  },
+  "v2cf/100/induk_pdf": {
+   "traces": 2,
+   "dituduh": 0,
+   "max_skor_z": 0
+  },
+  "v2cf/20/induk_cetak": {
+   "traces": 16,
+   "dituduh": 0,
+   "max_skor_z": 0.294
+  },
+  "v2cf/20/induk_foto": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.35
+  },
+  "v2cf/20/induk_layar": {
+   "traces": 4,
+   "dituduh": 0,
+   "max_skor_z": 0.335
+  },
+  "v2cf/20/induk_pdf": {
+   "traces": 2,
+   "dituduh": 0,
+   "max_skor_z": 0
+  }
+ },
+ "salah_total": 0,
+ "per_printer": {
+  "v1/inkjet/1600": {
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 2,
+    "tidak cukup bukti": 8,
+    "salah": 0
+   },
+   "skor_z_median": 0.665,
+   "ber_kata": 0.0523,
+   "ber_baris": 0.0545,
+   "posisi_nota_dinas_hal1": 101.0,
+   "posisi_nota_dinas_hal2": 79.0,
+   "posisi_surat_telegram_hal1": 91.0,
+   "posisi_surat_telegram_hal2": 6.0
+  },
+  "v1/inkjet/4000": {
+   "satu_halaman": {
+    "benar": 0,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 4,
+    "tidak cukup bukti": 6,
+    "salah": 0
+   },
+   "skor_z_median": 0.695,
+   "ber_kata": 0.0,
+   "ber_baris": 0.0072,
+   "posisi_nota_dinas_hal1": 103.0,
+   "posisi_nota_dinas_hal2": 80.0,
+   "posisi_surat_telegram_hal1": 91.0,
+   "posisi_surat_telegram_hal2": 6.0
+  },
+  "v1/laser/1600": {
+   "satu_halaman": {
+    "benar": 1,
+    "tidak cukup bukti": 79,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 7,
+    "tidak cukup bukti": 33,
+    "salah": 0
+   },
+   "skor_z_median": 0.617,
+   "ber_kata": 0.0489,
+   "ber_baris": 0.0577,
+   "posisi_nota_dinas_hal1": 101.0,
+   "posisi_nota_dinas_hal2": 79.5,
+   "posisi_surat_telegram_hal1": 90.5,
+   "posisi_surat_telegram_hal2": 6.0
+  },
+  "v1/laser/4000": {
+   "satu_halaman": {
+    "benar": 1,
+    "tidak cukup bukti": 79,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 15,
+    "tidak cukup bukti": 25,
+    "salah": 0
+   },
+   "skor_z_median": 0.713,
+   "ber_kata": 0.0,
+   "ber_baris": 0.0027,
+   "ber_latar": 0.4825,
+   "posisi_nota_dinas_hal1": 103.0,
+   "posisi_nota_dinas_hal2": 80.0,
+   "posisi_surat_telegram_hal1": 91.0,
+   "posisi_surat_telegram_hal2": 0.0
+  },
+  "v2cf/inkjet/1600": {
+   "satu_halaman": {
+    "benar": 9,
+    "tidak cukup bukti": 11,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 9,
+    "tidak cukup bukti": 1,
+    "salah": 0
+   },
+   "skor_z_median": 0.831,
+   "ber_kata": 0.1136,
+   "ber_baris": 0.0616,
+   "posisi_nota_dinas_hal1": 236.0,
+   "posisi_nota_dinas_hal2": 174.0,
+   "posisi_surat_telegram_hal1": 223.0,
+   "posisi_surat_telegram_hal2": 19.0
+  },
+  "v2cf/inkjet/4000": {
+   "satu_halaman": {
+    "benar": 15,
+    "tidak cukup bukti": 5,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 10,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 1.148,
+   "ber_kata": 0.0277,
+   "ber_baris": 0.0036,
+   "posisi_nota_dinas_hal1": 235.0,
+   "posisi_nota_dinas_hal2": 187.0,
+   "posisi_surat_telegram_hal1": 221.0,
+   "posisi_surat_telegram_hal2": 20.0
+  },
+  "v2cf/laser/1600": {
+   "satu_halaman": {
+    "benar": 34,
+    "tidak cukup bukti": 46,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 31,
+    "tidak cukup bukti": 9,
+    "salah": 0
+   },
+   "skor_z_median": 0.879,
+   "ber_kata": 0.1192,
+   "ber_baris": 0.0496,
+   "posisi_nota_dinas_hal1": 233.5,
+   "posisi_nota_dinas_hal2": 179.5,
+   "posisi_surat_telegram_hal1": 217.5,
+   "posisi_surat_telegram_hal2": 18.0
+  },
+  "v2cf/laser/4000": {
+   "satu_halaman": {
+    "benar": 60,
+    "tidak cukup bukti": 20,
+    "salah": 0
+   },
+   "dua_halaman": {
+    "benar": 40,
+    "tidak cukup bukti": 0,
+    "salah": 0
+   },
+   "skor_z_median": 1.188,
+   "ber_kata": 0.0205,
+   "ber_baris": 0.0018,
+   "ber_latar": 0.482,
+   "posisi_nota_dinas_hal1": 238.0,
+   "posisi_nota_dinas_hal2": 183.0,
+   "posisi_surat_telegram_hal1": 223.5,
+   "posisi_surat_telegram_hal2": 0.0
+  }
+ },
+ "keputusan": {
+  "kandidat": "v2cf",
+  "tidak_mundur_per_jenis": {
+   "pdf": true,
+   "layar": true,
+   "foto": true
+  },
+  "tuduhan_salah": 0,
+  "satu_halaman_lama": "2/200",
+  "satu_halaman_baru": "118/200",
+  "selisih_poin_persen": 58.0,
+  "mcnemar_p": 1.2037062152420224e-35,
+  "lolos_2": true,
+  "lolos_3": true,
+  "lolos_4": true
+ }
+}

@@ -131,17 +131,21 @@ def test_shift_vector_readout_recovers_codeword(issued, ctx):
     data = _copy_bytes(issued, 11)
     sb = decode_vector(data, ctx.master, ctx.plan, ctx.shift)
     _check_bits(sb, ctx.codewords[10])
-    assert sb.meta["slots_read"] == sb.meta["slots_total"]
-    # About 180 shift positions put the leaker's expected score (~117) right at the threshold
-    # for that many positions (~105): the channel alone may or may not suffice, but it can
-    # never point at anyone else.
+    if ctx.shift.scheme == "geser-v1":
+        assert sb.meta["slots_read"] == sb.meta["slots_total"]
+    else:  # geser-v2: a row whose groups all moved the same way cannot be read, and says so (LLR 0)
+        assert sb.meta["slots_read"] >= 0.85 * sb.meta["slots_total"]
+    # Under geser-v1 about 180 shift positions put the leaker's expected score (~117) right at
+    # the threshold for that many positions (~105); geser-v2 carries about 400. The channel alone
+    # may or may not suffice, but it can never point at anyone else.
     result = run_trace([sb], ctx)
     assert result.candidates[0].copy.seq == 11
     assert [c.copy.seq for c in result.accused] in ([11], [])
 
 
-def test_shift_decoding_survives_affine_distortion(issued, ctx):
-    """Relative encoding: a smooth affine displacement field on top of the marks cancels."""
+def test_shift_decoding_survives_affine_distortion(issued_v1, ctx_v1):
+    """Relative encoding (geser-v1): a smooth affine displacement field on top of the marks cancels."""
+    issued, ctx = issued_v1, ctx_v1
     disp = measure_vector(_copy_bytes(issued, 4), ctx.master)
     rng = np.random.default_rng(0)
     distorted = {}

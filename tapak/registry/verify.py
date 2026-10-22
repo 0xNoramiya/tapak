@@ -26,7 +26,9 @@ checks:
     valid digests, a known position rule and position lists only;
 11. a ``document`` entry with scanned pages (field ``scan``) holds page numbers, resolutions,
     an OCR engine description and a digest only;
-12. an ``anchor_log`` entry (the external anchor log was started, restarted or an alarm
+12. a ``document`` entry with a ``shift_scheme`` field names a known shift scheme other than
+    geser-v1;
+13. an ``anchor_log`` entry (the external anchor log was started, restarted or an alarm
     acknowledged) holds an event, a log id, released ``[seq, hash]`` pairs and a digest.
 
 What a hash chain cannot show by itself is entries deleted from the *end*: a shorter
@@ -76,11 +78,13 @@ from tapak.registry.chain import (
     KIND_TRACE,
     LEXICAL_DOCUMENT_FIELDS,
     SCAN_DOCUMENT_FIELD,
+    SHIFT_SCHEME_DOCUMENT_FIELD,
     ZERO_HASH,
     anchor_payload_problems,
     entry_content_problems,
     lexical_document_problems,
     scan_document_problems,
+    shift_scheme_problems,
     parse_time,
     trace_payload_problems,
     trigger_problems,
@@ -430,6 +434,9 @@ def verify_registry(
             if isinstance(payload, dict) and SCAN_DOCUMENT_FIELD in payload:
                 problems.extend((seq, f"entri dokumen: {text}")
                                 for text in scan_document_problems(payload[SCAN_DOCUMENT_FIELD]))
+            if isinstance(payload, dict) and SHIFT_SCHEME_DOCUMENT_FIELD in payload:
+                problems.extend((seq, f"entri dokumen: {text}")
+                                for text in shift_scheme_problems(payload[SHIFT_SCHEME_DOCUMENT_FIELD]))
         elif kind == KIND_TRACE and isinstance(seq, int):
             _check_trace(row, doc_eps, report.traces, problems)
         elif kind == KIND_ANCHOR:

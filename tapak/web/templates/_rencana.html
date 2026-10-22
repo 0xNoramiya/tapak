@@ -54,7 +54,7 @@
             {% for ch in order|select("in", st.plan.summary)|list + st.plan.summary.keys()|reject("in", order)|list %}
             {% set info = st.plan.summary[ch] %}
             <tr{% if ch == "background" and cetak %} class="has-note"{% endif %}>
-              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}{% if ch == "background" %} <span class="ch-profil">profil {{ st.latar }}</span>{% endif %}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}{{ on_scan.get(ch, "") }}</span>{% endif %}</th>
+              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}{% if ch == "background" %} <span class="ch-profil">profil {{ st.latar }}</span>{% elif ch == "shift" %} <span class="ch-profil">skema {{ st.geser }}</span>{% endif %}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}{{ on_scan.get(ch, "") }}</span>{% endif %}</th>
               <td class="num hide-sm">{{ info.slots|num }}</td>
               <td><span class="cov"><span class="bar" style="--value: {{ [info.positions / length, 1]|min|round(3) }}"></span><span class="cov-num">{{ info.positions|num }}</span></span></td>
             </tr>

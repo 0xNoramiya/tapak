@@ -116,10 +116,12 @@ def test_strengths_container_and_concat():
         Strengths([1, 2], [1.0])
 
 
-def test_shift_strengths_mark_implausible_units_as_erased(issued, ctx):
+def test_shift_strengths_mark_implausible_units_as_erased(issued_v1, ctx_v1):
+    """geser-v1: one strength per read unit, |s| / sigma, and 0 for an implausible offset."""
     from tapak.decoder.ch_shift import decode_displacements, measure_vector
 
-    out, manifest = issued
+    out, manifest = issued_v1
+    ctx = ctx_v1
     disp = measure_vector((out / manifest.copies[0].file).read_bytes(), ctx.master)
     sb = decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded)
     assert len(sb.strengths) == len(sb) > 100 and np.all(sb.strengths.values > 1.0)
