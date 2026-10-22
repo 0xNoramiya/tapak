@@ -232,8 +232,9 @@ def test_strengths_and_check_do_not_depend_on_codewords(issued, ctx):
 def test_attacked_pdf_is_flagged_and_the_verdict_is_the_accusation_alone(issued_seeded, ctx_seeded):
     """Erasure of the agreeing marks of three copies (a seeded issuance, so the numbers are the
     same in every session): the background still shows its pattern at the positions where the
-    copies differ, so its strengths count, and the erasure is plain. The rest of the read is
-    clear and names nobody, so the contradiction check fires too: one warning says both."""
+    copies differ, so its strengths count, and the erasure is plain. The read that is left is
+    too weak for the contradiction check (its bound is above 10^-3), so the warning is the
+    erasure warning alone."""
     from tapak.collusion import attack
     from tapak.decoder.accuse import attribute
     from tapak.decoder.fuse import fuse, fuse_by_physical_channel
@@ -249,7 +250,8 @@ def test_attacked_pdf_is_flagged_and_the_verdict_is_the_accusation_alone(issued_
     assert result.erasure.flagged and result.erasure.z < -5 and set(result.erasure.units) == {"geser", "latar"}
     assert erasure_check(obs, ctx.p, "semua") == result.erasure
     warnings = [n for n in result.notes if n.startswith(ERASURE_NOTE)]
-    assert len(warnings) == 1 and result.contradiction.flagged and CONTRADICTION_NOTE in warnings[0]
+    assert warnings == [erasure_note(result.erasure)] and not result.contradiction.flagged
+    assert CONTRADICTION_NOTE not in warnings[0] and result.contradiction.log10_bound > -3
     plain = attribute(fuse(obs, ctx.params.length), fuse_by_physical_channel(obs, ctx.params.length), ctx.p,
                       ctx.codewords, ctx.refs, ctx.params)
     assert result.verdict == plain.verdict and [c.score for c in result.candidates] == [c.score for c in plain.candidates]

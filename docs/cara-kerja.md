@@ -111,7 +111,8 @@ tapak/
                 canary, docx_marker, render (gambar ulang + gerbang visual), raster (halaman pindaian),
                 issue (paralel)
   decoder/      rectify, lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_lexical,
-                ch_docx, image, fuse, accuse, erasure (pola penghapusan), trace, report (berita acara)
+                ch_docx, image, fuse, accuse, erasure (pola penghapusan), contradiction (bacaan jelas
+                tanpa nama), trace, report (berita acara)
   assets/       font DejaVu, leksikon pilihan kata (leksikon/naskah_dinas_v1.json, draf)
   registry/     chain (rantai hash, trigger tambah-saja), signing (Ed25519), verify, merkle
   canary_dns/   server (dnslib), store (log berantai)
@@ -131,6 +132,7 @@ research/ketik/ pengukuran kanal pilihan kata (kapasitas, galat baca, atribusi)
 research/pindaian/ pengukuran induk hasil pindai (protokol, hasil, potongan gambar)
 research/ponsel/ pengukuran foto ponsel dan foto layar simulasi (protokol, pemilihan dekoder, hasil)
 research/sepakat/ koalisi yang memahami TAPAK: serangan, pemeriksaan pola penghapusan, penyamaran
+research/kontradiksi/ pemeriksaan bacaan jelas tanpa nama dan pemeriksaan pola penghapusan pada cetakan
 docs/           dokumentasi, gambar README (docs/figures membuatnya ulang), keluaran simulasi dan benchmark
 ```
 
@@ -211,6 +213,8 @@ Syarat 1 menjamin bahwa, dengan bobot diketahui, kode masih tersebar seperti tan
 Sebaran bobot dekoder diukur pada 40 foto layar dan tangkapan layar sintetis dari benchmark (`research/deteksi/llr_foto.py`, angka di `research/deteksi/hasil/llr_foto.json`). Dari posisi yang terbaca, 82 % berbobot di atas 0,95 dan 4 % terhapus. Di bobot menengah laju salahnya beberapa poin persentase di atas atau di bawah laju terkalibrasi (1 - w)/2, tetapi di bobot tertinggi dekoder terlalu yakin: bobot di atas 0,95 (rata-rata 0,998) salah 0,33 %, 2,8 kali perkiraan 0,12 %, dan bobot 0,9 sampai 0,95 salah 5,3 %, 1,5 kali perkiraannya. Karena itu batas dengan laju (1 - w)/2 tidak sah untuk foto ini, dan model "foto" di bawah memakai laju salah terukur per kelompok bobot. Laju itu juga berbeda per foto: jumlah bit salah tiap foto 0,5 sampai 4,3 kali perkiraan terkalibrasinya. Foto dengan lebih dari 100 bit salah terkalibrasi baik (0,85 sampai 1,14 kali), sedangkan foto bersih dan tangkapan layar yang hanya salah beberapa bit cenderung terlalu yakin.
 
 Sebaran ini menggabungkan posisi dari 40 gambar, dan setiap gambar hanya memuat halaman 1 (sekitar 1.990 dari 2.987 posisi). Di dalam satu foto bobot tidak bebas antarposisi: foto baik atau buruk secara keseluruhan (jumlah w^2 per foto 86 sampai 1.986). Jadi kolom "bobot foto" di bawah adalah batas untuk pembacaan semua posisi dengan bobot seperti foto yang diundi bebas per posisi, bukan batas untuk satu foto. Batas satu foto dihitung dari bobotnya sendiri (`read_miss_bound`; `research/deteksi/baca_foto.py`, angka di `research/deteksi/hasil/baca_foto.jsonl`). Dengan laju salah terukur gabungan per kelompok bobot, untuk koalisi paling banyak 3 orang batasnya paling kecil 6 x 10^-9 (tangkapan layar) dan mediannya 2 x 10^-8. Pada 9 dari 40 gambar batasnya di atas 10^-6, dan 5 gambar tidak memberi jaminan (0,85 sampai 1). Sebaran gabungan memberi 1 x 10^-17 untuk kode yang sama.
+
+**Plafon laju salah** (`read_miss_ceiling`). Syarat 2 meminta laju salah yang tepat, padahal dekoder paling banyak tahu batas atasnya. Dua sifat faktor per posisi menutup hal itu dan sekaligus membuat satu bacaan dengan ribuan bobot berbeda murah dihitung: faktornya cembung terhadap laju salah, dan logaritmanya cembung terhadap bobot. Jadi untuk semua posisi yang bobotnya di dalam satu kotak [w_bawah, w_atas] dan laju salah sebenarnya di antara 0 dan plafonnya, faktornya tidak melebihi faktor terbesar di keempat sudut kotak. Bobot bacaan dibagi menjadi paling banyak 64 kotak, dan ambang Z(p, w) tetap dihitung dari bobot yang tepat. Hasilnya batas atas P(lolos | bobot) untuk setiap kanal yang memenuhi syarat 1 dan laju salahnya tidak melebihi plafon. Batas ini tidak pernah lebih kecil dari `read_miss_bound` dengan laju yang sama (pada bacaan sintetis dengan 64 kotak paling banyak 0,3 lebih besar dalam log10) dan memerlukan sekitar 0,2 detik per ukuran koalisi. Pemeriksaan bacaan jelas tanpa nama ([di bawah](#pemeriksaan-bacaan-jelas-tanpa-nama)) memakainya.
 
 Batas pada panjang bawaan (K = 2 pi^2, N = 20, seluruh eps, koalisi paling banyak c):
 

@@ -179,8 +179,8 @@ def test_one_warning_for_either_or_both_checks():
         assert part in alone
     both = manipulation_note(erased, _check())
     assert both.startswith(ERASURE_NOTE) and both.count(CONTRADICTION_NOTE) == 1
-    assert both.count("Ini hanya peringatan") == 1 and both.count("putusan, ambang") == 1
-    assert "kedua pemeriksaan ini" in both and "z = -9,50" in both
+    assert both.count("hanya peringatan") == 1 and both.count("putusan, ambang") == 1
+    assert "Keduanya hanya peringatan" in both and "z = -9,50" in both and "Ini hanya peringatan" in alone
     for note in (alone, both, erasure_note(erased)):
         assert is_manipulation_note(note) and is_caveat(note) and EM_DASH not in note
     assert not is_manipulation_note("catatan biasa")

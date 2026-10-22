@@ -67,7 +67,7 @@ CONTRADICTION_TEMPERING = 0.3
 CONTRADICTION_BOXES = 64
 CONTRADICTION_NOTE = "bukti terbaca jelas, tetapi tidak ada salinan yang mencapai ambang"
 # Shared last sentence of a manipulation warning (erasure, contradiction or both).
-_ONLY_A_WARNING = ("Ini hanya peringatan: tidak ada nama yang disebut karena {what}, dan putusan, ambang, serta skor "
+_ONLY_A_WARNING = ("{what} hanya peringatan: tidak ada nama yang disebut karenanya, dan putusan, ambang, serta skor "
                    "tidak berubah")
 
 
@@ -159,22 +159,22 @@ def contradiction_check(fused: FusedEstimate, params: TardosParams, eps1: float,
 
 def _contradiction_sentences(check: ContradictionCheck) -> str:
     c = check.coalition
-    return (f"Dengan bobot bacaan ini, koalisi paling banyak {c} penerima yang tidak mengubah tanda di tempat salinannya "
-            f"sama hampir pasti tertangkap: peluang tidak satu pun anggotanya mencapai ambang terbukti paling besar "
-            f"{format_bound(check.log10_bound)}. Kemungkinan penyebab: tanda dibalik atau diacak oleh orang yang "
-            f"memahami TAPAK, misalnya koalisi pemegang dua salinan atau lebih yang mengubah tanda di tempat "
-            f"salinannya sama; koalisi lebih dari {c} orang; atau masalah pembacaan bukti")
+    return (f"Dengan bacaan sejelas ini, koalisi paling banyak {c} penerima yang tidak mengubah tanda di tempat "
+            f"salinannya sama hampir pasti tertangkap (peluang lolos terbukti paling besar "
+            f"{format_bound(check.log10_bound)}). Kemungkinan penyebab: tanda dibalik atau diacak oleh orang yang "
+            f"memahami TAPAK, misalnya koalisi pemegang dua salinan atau lebih; koalisi lebih dari {c} orang; atau "
+            f"masalah pembacaan bukti")
 
 
 def _contradiction_rate_text(check: ContradictionCheck) -> str:
     return (f"pada bukti jujur peringatan ini muncul dengan peluang paling besar {format_rate(check.rate)}, bila derau "
-            "bacaan tidak bergantung pada kode dan laju salah bacaan tidak melebihi perkiraan dekoder")
+            "bacaan tidak bergantung pada kode dan laju salah bacaan tidak melebihi perkiraannya")
 
 
 def contradiction_note(check: ContradictionCheck) -> str:
     """The warning shown next to the verdict for a flagged check: ``CONTRADICTION_NOTE``, the
     bound, the possible causes, and that nothing changes."""
-    tail = _ONLY_A_WARNING.format(what="peringatan ini")
+    tail = _ONLY_A_WARNING.format(what="Ini")
     return f"{CONTRADICTION_NOTE}. {_contradiction_sentences(check)}. {tail} ({_contradiction_rate_text(check)})"
 
 
@@ -191,7 +191,7 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
         return None if contradicted is None else contradiction_note(contradicted)
     if contradicted is None:
         return erasure_note(erased)
-    tail = _ONLY_A_WARNING.format(what="kedua pemeriksaan ini")
+    tail = _ONLY_A_WARNING.format(what="Keduanya")
     return (f"{ERASURE_NOTE} ({erased.text()}; peluang alarm palsu pada bukti jujur rata-rata sekitar "
             f"{format_rate(erased.alarm_rate)}, untuk dokumen tertentu dapat sampai beberapa persen). Selain itu, "
             f"{CONTRADICTION_NOTE}. {_contradiction_sentences(contradicted)}. {tail} "
