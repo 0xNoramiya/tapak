@@ -315,7 +315,7 @@ Variabel lingkungan:
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
 - DOCX, berita acara, antarmuka web end-to-end;
-- serangan koalisi yang menghapus tanda di bagian yang sama dan pemeriksaan pola penghapusan: kekuatan baca tanpa kode penerima (juga dari dekoder baris skema geser v2), taksiran tipografi koalisi untuk kedua skema, peringatan di CLI, halaman Lacak, dan berita acara, putusan yang tidak berubah;
+- serangan koalisi yang menghapus tanda di bagian yang sama dan pemeriksaan pola penghapusan: kekuatan baca tanpa kode penerima (juga dari dekoder baris skema geser v2), taksiran tipografi koalisi untuk kedua skema (pada skema v2 juga penjangkaran pada tepi kolom dan jarak baris), peringatan di CLI, halaman Lacak, dan berita acara, putusan yang tidak berubah;
 - penerbitan biasa yang tetap mengundi rahasia kode dan id salinan, dan penerbitan riset dengan benih tetap;
 - aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang).
 

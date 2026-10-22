@@ -48,9 +48,10 @@ ranged from -1.4 to +1.7 over 14 issuances, most spread out on forwarded PDFs (b
 standard deviation about 0.75), so for an unlucky document the rate is a few percent; 2 of
 856 honest evidence raised the warning (``research/sepakat``, ``balik.py``). Under geser-v2,
 with the shift strengths of ``ch_shift.joint_strengths`` and the same threshold, fresh seeds
-gave no warning on 472 honest evidence (320 copies of 8 issuances through PDF, screenshot,
-photo and print, 24 unmarked masters, 128 README benchmark traces): standard deviation of Z
-0.96, per-issuance means -0.93 to +0.49 (``research/sepakat/geser2.py``).
+gave no warning on 644 honest evidence (480 copies of 12 issuances through PDF, screenshot,
+photo and print, 36 unmarked masters, 128 README benchmark traces): standard deviation of Z
+0.96, per-issuance means -0.93 to +0.69 (``research/sepakat/geser2.py``, parts ``jujur`` and
+``jujur-tinjauan``).
 
 What it does not do. It never changes a threshold, a score or the verdict and never names
 anyone. It only sees erasures that follow agreement; a coalition that erases at random (or
@@ -66,7 +67,12 @@ cover a reversal either. Flattening the whole background and erasing only the ag
 units also passes: the strengths of the unmarked background (thousands of positions that
 carry only noise) drown the shift units. For the same reason the check is blind on prints,
 where the default background never reaches the paper: also under geser-v2, whose prints now
-carry enough shift positions to name a copy, it flagged 1 of 36 erased prints.
+carry enough shift positions to name a copy, it flagged 1 of 36 erased prints, while the
+shift units alone would have flagged 19. The geser-v2 shift strengths are also a weaker
+detector than the geser-v1 ones: where most groups of a row are back at their master
+positions, the row's offset makes them look like groups that all moved one way, so on their
+own they flagged 32 of 36 erased PDFs but only 13 of 36 screenshots and 6 of 36 photos; the
+warning there comes mostly from the background.
 """
 
 from __future__ import annotations
