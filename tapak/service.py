@@ -179,10 +179,12 @@ def issue_document(
     if copy_ids is not None and is_docx:
         raise ValueError("id salinan tetap (benih riset) hanya tersedia untuk dokumen induk PDF")
     seed = research_seed_of(settings.code_secret_path)
-    if copy_ids is None and seed is not None:  # a public secret must never mark a real document
+    # A public secret must never mark a real document: a research key folder only issues
+    # research copies (fixed copy ids), and never into a registry.
+    if seed is not None and (copy_ids is None or record):
         raise ValueError(f"folder kunci {settings.code_secret_path.parent} berisi rahasia kode dari benih riset"
-                         + (f" {seed}" if seed >= 0 else "") + ", yang publik; penerbitan biasa ditolak. "
-                         "Pakai folder kunci lain")
+                         + (f" {seed}" if seed >= 0 else "") + ", yang publik; penerbitan biasa dan pencatatan "
+                         "di registri ditolak. Pakai folder kunci lain")
     lock = _claim_workspace(folder)
     master_path = folder / ("induk.docx" if is_docx else "induk.pdf")
     master_path.write_bytes(data)

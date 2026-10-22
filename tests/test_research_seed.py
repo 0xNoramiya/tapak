@@ -108,6 +108,18 @@ def test_ordinary_issuance_refuses_a_research_key_folder(tmp_path, roster, capsy
     assert "benih riset 7" in capsys.readouterr().err
     assert not (root / "data" / "dokumen").exists() or not any((root / "data" / "dokumen").glob("*/manifest.json"))
 
+    # Not even with the research copy ids: a research key folder never issues into a registry.
+    from tapak.config import Settings
+    from tapak.marker.issue import IssueSettings, read_recipients
+    from tapak.service import issue_document
+
+    s = Settings(data_dir=root / "data", key_dir=root / "keys")
+    with pytest.raises(ValueError, match="benih riset 7"):
+        issue_document(s, SAMPLE, read_recipients(roster), IssueSettings(workers=1), "uji",
+                       copy_ids=research_copy_ids(7, N))
+    assert not s.registry_path.exists()
+    assert not (root / "data" / "dokumen").exists() or not any((root / "data" / "dokumen").glob("*/manifest.json"))
+
 
 def test_fixed_copy_ids_are_checked():
     check_copy_ids(research_copy_ids(1, 3), 3)
