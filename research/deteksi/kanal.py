@@ -38,10 +38,17 @@ Part ``sasaran`` (one JSON line per cell):
   it is shown to see how far the real miss rate is from it.
 * seed: 60000 + 1000 c + index of r.
 
+Part ``batas`` (bounds only, no simulation): for N in {20, 100} and c in {2, 3, 4, 5}, the
+proven bound for coalitions of at most c at the default length (K = 2 pi^2, whole eps) for the
+reads ``keras`` (every e above), ``lunak-kalibrasi`` and ``lunak-foto``; and for N = 20 the
+shortest code (and its K) with a proven bound of at most 1e-6 for ``keras`` with e in
+{0.02, 0.05, 0.10, 0.20} and for ``lunak-foto``.
+
 Usage (from the repository root, at most 2 worker processes on a shared machine):
 
     python research/deteksi/kanal.py derau --workers 2 > research/deteksi/hasil/kanal.jsonl
     python research/deteksi/kanal.py sasaran --workers 2 > research/deteksi/hasil/sasaran.jsonl
+    python research/deteksi/kanal.py batas --workers 2 > research/deteksi/hasil/batas_kanal.jsonl
 """
 
 from __future__ import annotations
@@ -172,18 +179,42 @@ def _erasure_cell(args: tuple[int, int]) -> dict:
     }
 
 
+def _bound_cell(args: tuple[str, int, int, int]) -> dict:
+    kind, n, c, ri = args
+    name, e, law = reads()[ri]
+    params = TardosParams(c=c, eps=EPS, n_max=n)
+    t0 = time.perf_counter()
+    row: dict = {"bagian": "batas", "N": n, "c": c, "baca": name, "laju_salah": e}
+    if kind == "bawaan":
+        per = [channel_miss_bound(params, law, k) for k in range(1, c + 1)]
+        row.update(jenis="bawaan", m=params.length, K=round(params.k_constant, 3),
+                   log10_batas=round(max(b.log10_bound for b in per), 3),
+                   galat_kuadratur=max(b.quadrature_error for b in per))
+    else:
+        req = channel_min_length(c, EPS, n, 1e-6, law)
+        row.update(jenis="panjang_minimum", delta=1e-6, m=req.length, K=round(req.k_constant, 3),
+                   batas=req.bound, batas_m_kurang_1=req.bound_below)
+    row["detik"] = round(time.perf_counter() - t0, 1)
+    return row
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("bagian", choices=["derau", "sasaran"])
+    ap.add_argument("bagian", choices=["derau", "sasaran", "batas"])
     ap.add_argument("--workers", type=int, default=MAX_WORKERS)
     args = ap.parse_args(argv)
     workers = max(1, min(args.workers, MAX_WORKERS))
     if args.bagian == "derau":
         cells = [(c, ri, li) for c in CS for ri in range(12) for li in range(len(LEVELS))]
         fn = _noise_cell
-    else:
+    elif args.bagian == "sasaran":
         cells = [(c, ri) for c in CS for ri in range(len(ERASE_FRACTIONS))]
         fn = _erasure_cell
+    else:
+        hard_and_photo = [*range(5), 10, 11]
+        cells = [("bawaan", n, c, ri) for n in (20, 100) for c in CS for ri in hard_and_photo]
+        cells += [("panjang", 20, c, ri) for c in CS for ri in (1, 2, 3, 4, 11)]
+        fn = _bound_cell
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for row in pool.map(fn, cells):
             print(json.dumps(row), flush=True)

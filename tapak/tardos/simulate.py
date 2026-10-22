@@ -9,7 +9,8 @@ the threshold fixed beforehand. Reported per strategy:
 * all-caught rate: fraction of trials in which every colluder was accused.
 
 On a noise-free read the probability of a miss (no colluder accused) is at most the proven
-bound of ``detection.miss_bound``; for noisy reads the simulation is the only measure.
+bound of ``detection.miss_bound``; with the simulated channel (flips and erasures independent
+of the code and of each other) it is at most ``detection.channel_miss_bound``.
 
 Zero false accusations in 1000 trials only shows the rate is below about 3e-3 (rule of
 three). To check the bound itself, ``bound_check`` also counts how often innocent scores

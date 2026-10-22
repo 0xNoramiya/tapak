@@ -11,7 +11,9 @@ for every collusion strategy that obeys the marking assumption. The probability 
 draw of the code (bias vector and codewords) and the coalition's own randomness, for any
 fixed coalition of c' recipients. Nothing here is asymptotic or Gaussian; the only numerics
 are a one-dimensional quadrature (checked by refinement, see below) and an optimizer whose
-inaccuracy can only make B larger.
+inaccuracy can only make B larger. The same argument extends to reads with bit errors and
+the decoder's soft weights, under two conditions on the channel (section "Noisy and
+soft-weighted reads": ``read_miss_bound``, ``channel_miss_bound``).
 
 Derivation
 ----------
@@ -100,11 +102,84 @@ codes (``research/deteksi/penyeimbang.py``), still below the bound, which covers
 Coalitions smaller than c. ``proven_miss_probability`` returns the maximum of the bound over
 c' = 1, ..., c, so it covers every coalition of at most c recipients.
 
-Scope. The bound is for hard-decision reads (weights 0 or 1) with the threshold TAPAK
-computes for that read. Soft weights (the decoder's tanh(|LLR|/2)), bit errors, and erasures
-that target positions where the colluders' bits agree are not covered; those cases are still
-only measured by simulation. It also assumes that the coalition learns nothing about p
-beyond its own bits.
+Noisy and soft-weighted reads
+-----------------------------
+The decoder does not see y but a read of it: bits yhat_i = y_i XOR f_i and weights w_i in
+[0, 1] (w_i = tanh(|L_i|/2), 0 for an erased position); scores and Z(p, w) use (yhat, w).
+The proof needs two conditions, and each is used at a named step below.
+
+(C1) The channel acts after the strategy, and its randomness is independent of the code
+     (p, X) and of the coalition's randomness R; the weights w and the flips f are functions
+     of the channel randomness alone (so they do not depend on y either). A symmetric channel
+     satisfies this: for a measurement s_i = (2 y_i - 1) A + n_i with n_i distributed like
+     -n_i, the pair (|L_i|, f_i) is a function of (2 y_i - 1) n_i, whose law does not depend
+     on y_i.
+(C2) Given w, the flips are independent across positions, with known rates
+     e_i = P(f_i = 1 | w) in [0, 1/2]. For a calibrated LLR e_i = (1 - w_i)/2
+     (``calibrated_error_rates``); whether the decoder is calibrated is measured, not assumed.
+
+Since T(z, 1-y, p) = -T(z, y, p), the coalition's total score on the read is
+sum_i w_i (1 - 2 f_i) T(z_i, y_i, p_i): its mean scales by w_i (1 - 2 e_i) per position.
+Step 2 holds with weights, Z(p, w) <= (1 + delta) (sum_i log M(lam0 w_i, p_i) + L) / lam0,
+because TAPAK's Lambda uses M(lam w_i, p_i) (``accuse._WorstCaseMgf``). With
+psi_i(p) = kappa log M(lam0 w_i, p) / lam0 and kappa = c' (1 + delta), step 3 gives
+
+    P(miss | w) <= exp(alpha K0) E[ exp(-alpha sum_i (w_i (1 - 2 f_i) T_i - psi_i(p_i))) | w ].
+
+Condition on (X_C, R, w). By (C1) the code given w is distributed as without a channel, so
+the p_i are independent, p_i depends on X_C only through z_i, and y = f(X_C, R) is fixed. By
+(C1) and (C2) the f_i are independent of p and of each other, with rates e_i. The conditional
+expectation is therefore a product over positions, and the factor of position i is at most
+H_i(z_i), where
+
+    H_i(z) = max over the allowed y of E[ ((1 - e_i) exp(-alpha w_i T(z,y,p))
+                                         + e_i exp(alpha w_i T(z,y,p))) exp(alpha psi_i(p)) | z ].
+
+The columns of X_C are independent of w (C1), so for every alpha > 0 and lam0 in TAPAK's range
+
+    P(miss | w) <= exp(alpha K0) prod_{i: w_i > 0} G(alpha; w_i, e_i),   G = sum_z P(z) H(z)
+
+(``read_miss_bound``). A position with w_i = 0 gives the factor 1 and drops out of Z, as in
+step 5. With w = 1 and e = 0 this is the hard bound (the code agrees to about 1e-12). If every
+position draws (w_i, e_i) independently from one law Q (``ChannelLaw``), averaging the same
+fixed-(alpha, lam0) product over w gives P(miss) <= exp(alpha K0) (E_Q G(alpha; w, e))^m
+(``channel_miss_bound``). The quadrature check of step 4 is repeated per support point.
+
+Erasures by the coalition where its bits differ stay covered by the law-averaged bound. With
+A(y) = E[exp(-alpha w T(z,y,p) + alpha psi(p)) | z], the y with E[T | z] <= 0 has
+(1 - e) A(y) + e A(1-y) >= exp(alpha E[psi | z] - alpha w (1 - 2e) E[T | z]) >= 1 by Jensen
+when e <= 1/2 (psi >= 0 as in step 5), so the erasure's factor 1 never exceeds H(z). In
+``read_miss_bound`` the weights must be the channel's; a read whose zero weights include
+the coalition's erasures is not covered.
+
+Where the conditions fail.
+(a) Weights that depend on the code: conditioning on w then changes the law of (z_i, p_i)
+    and the product with the prior law of z is not a bound. The extreme case is an erasure
+    aimed at the positions where all colluders agree (z = 0 or c'): the coalition can see
+    where its copies agree, and erasing there removes the positions that carry the score,
+    which the marking assumption alone does not forbid. Measured by
+    ``research/deteksi/kanal.py`` (part ``sasaran``, default length, N = 20, c = 2 to 5):
+    erasing half of them, the best strategy escapes in at most 1.6 % of trials; erasing 80 %,
+    in 96 to 99.9 %; from 90 % on, every strategy escapes in over 99 %. A bound computed as
+    if the same number of positions had been lost at random is as small as 1e-12 at 80 %.
+(b) Weights that depend on the leaked bit (a channel that reads 1 better than 0): the
+    conditional bound may fail. A law that depends only on y_i still gives a bound when the
+    expectation over (w, f) is taken inside the maximum over y; not implemented.
+(c) Flip rates that depend on the bit, or flips correlated across positions: the factor
+    needs the rate of the bit actually leaked, and correlated flips break the product
+    (given the whole flip pattern, a flipped position acts like the opposite bit; a bound for
+    at most k flips anywhere follows, not implemented).
+(d) Rates that are too optimistic: if the decoder's LLRs are overconfident, the true flip
+    rate is above (1 - w)/2 and a bound with calibrated rates is not valid. On the synthetic
+    photo set the weights above 0.95 (mean 0.998) err 0.33 % of the time against 0.12 %
+    calibrated (``research/deteksi/llr_foto.py``), so ``kanal.py`` also uses measured rates.
+(e) Bias-dependent placement: the lexical and semantic channels take their positions from the
+    bias band 0.3 to 0.7, so their weights depend on p (a few dozen positions). Not modelled.
+
+Scope. The bounds hold for every strategy obeying the marking assumption, for the threshold
+TAPAK computes for the read, under (C1) and (C2). Erasures aimed at positions where the
+colluders agree are not covered and are only measured. The proofs also assume that the
+coalition learns nothing about p beyond its own bits.
 """
 
 from __future__ import annotations
@@ -303,8 +378,24 @@ def _integrand(coalition: int, cutoff: float, panels: int, order: int) -> _Integ
     return _Integrand(coalition, cutoff, panels, order)
 
 
+class _LogBound:
+    """``bound`` and ``log10_bound`` from a dataclass field ``log_bound`` (natural log, may exceed 0)."""
+
+    log_bound: float
+
+    @property
+    def bound(self) -> float:
+        """The bound as a probability, capped at 1."""
+        return 1.0 if self.log_bound >= 0 else math.exp(self.log_bound)
+
+    @property
+    def log10_bound(self) -> float:
+        """log10 of the capped bound (exact even when the bound underflows a float)."""
+        return min(0.0, self.log_bound) / math.log(10.0)
+
+
 @dataclass(frozen=True)
-class MissBound:
+class MissBound(_LogBound):
     """Proven bound on P(no colluder reaches the threshold) for one coalition size.
 
     Attributes:
@@ -330,16 +421,6 @@ class MissBound:
     lam0: float | None
     chernoff_choice: tuple[int, ...]
     quadrature_error: float
-
-    @property
-    def bound(self) -> float:
-        """The bound as a probability, capped at 1."""
-        return 1.0 if self.log_bound >= 0 else math.exp(self.log_bound)
-
-    @property
-    def log10_bound(self) -> float:
-        """log10 of the capped bound (exact even when the bound underflows a float)."""
-        return min(0.0, self.log_bound) / math.log(10.0)
 
 
 def _min_scalar(f, lo: float, hi: float, xatol: float) -> tuple[float, float]:
@@ -641,7 +722,7 @@ class ChannelLaw:
 
 
 @dataclass(frozen=True)
-class ChannelMissBound:
+class ChannelMissBound(_LogBound):
     """Proven bound on P(no colluder reaches the threshold) for a noisy or soft-weighted read.
 
     Attributes:
@@ -669,16 +750,6 @@ class ChannelMissBound:
     lam0: float | None
     quadrature_error: float
     conditional: bool
-
-    @property
-    def bound(self) -> float:
-        """The bound as a probability, capped at 1."""
-        return 1.0 if self.log_bound >= 0 else math.exp(self.log_bound)
-
-    @property
-    def log10_bound(self) -> float:
-        """log10 of the capped bound (exact even when the bound underflows a float)."""
-        return min(0.0, self.log_bound) / math.log(10.0)
 
 
 @dataclass(frozen=True)

@@ -13,12 +13,20 @@ from tapak.tardos import attacks
 from tapak.tardos import detection as det
 from tapak.tardos.code import bias_from_uniform, random_code
 from tapak.tardos.detection import (
+    ChannelLaw,
+    ChannelMissBound,
     LengthRequirement,
     MissBound,
+    calibrated_error_rates,
+    channel_min_length,
+    channel_miss_bound,
     expected_coalition_score,
     min_length,
     miss_bound,
+    proven_channel_miss_probability,
     proven_miss_probability,
+    proven_read_miss_probability,
+    read_miss_bound,
     worst_case_strategy,
 )
 from tapak.tardos.params import TardosParams
@@ -138,6 +146,13 @@ def test_erasing_a_detectable_position_never_beats_the_maximum():
             a0 = np.log(np.sum(np.exp(itg.base + alpha * itg.t1 + shift), axis=1))
             log_pz = np.log(np.sum(np.exp(itg.base), axis=1))
             assert (np.maximum(a0, a1)[1:c] >= log_pz[1:c]).all()
+            # Also through a noisy, soft-weighted channel (flip averaged inside the maximum).
+            for w, e in ((0.7, 0.1), (1.0, 0.3), (0.2, 0.45)):
+                shift_w = alpha * c * (1 + det.Z_SLACK) * itg.log_mgf_weighted(lam0, np.array([w]))[0] / lam0
+                at = alpha * w * itg.t1
+                a1 = np.log(np.sum(np.exp(itg.base + shift_w + np.logaddexp(np.log1p(-e) - at, np.log(e) + at)), axis=1))
+                a0 = np.log(np.sum(np.exp(itg.base + shift_w + np.logaddexp(np.log1p(-e) + at, np.log(e) - at)), axis=1))
+                assert (np.maximum(a0, a1)[1:c] >= log_pz[1:c]).all()
 
 
 def test_bound_dominates_monte_carlo_where_misses_are_frequent():
@@ -290,3 +305,162 @@ def test_min_length_for_tight_targets():
         req = min_length(c, 1e-6, 100, 1e-3)
         assert req.bound <= 1e-3 < req.bound_below
         assert req.k_constant < 2 * math.pi**2
+
+
+# --- noisy and soft-weighted reads -------------------------------------------------------
+
+SOFT = ChannelLaw.calibrated((0.0, 0.4, 0.8, 1.0), (0.05, 0.15, 0.3, 0.5))
+
+
+def test_calibrated_error_rates_and_channel_law():
+    assert np.allclose(calibrated_error_rates([0.0, 0.5, 1.0]), [0.5, 0.25, 0.0])
+    with pytest.raises(ValueError):
+        calibrated_error_rates([1.2])
+    assert np.allclose(SOFT.error_rates, (0.5, 0.3, 0.1, 0.0), rtol=0, atol=1e-15)
+    assert ChannelLaw.from_dict(SOFT.to_dict()) == SOFT
+    bsc = ChannelLaw.binary_symmetric(0.1)
+    assert bsc.weights == (1.0,) and bsc.error_rates == (0.1,)
+    assert bsc.effective_fraction == pytest.approx(0.8**2)
+    # Calibrated: E[w (1 - 2e)] = E[w^2], so the fraction is E[w^2].
+    assert SOFT.effective_fraction == pytest.approx(0.15 * 0.16 + 0.3 * 0.64 + 0.5)
+    assert SOFT.with_error_rate(0.2).error_rates == (0.2,) * 4
+    for bad in (dict(weights=(1.1,), error_rates=(0.0,), probabilities=(1.0,)),
+                dict(weights=(1.0,), error_rates=(0.6,), probabilities=(1.0,)),
+                dict(weights=(1.0, 0.5), error_rates=(0.0, 0.0), probabilities=(0.5, 0.6)),
+                dict(weights=(1.0, 0.5), error_rates=(0.0,), probabilities=(0.5, 0.5)),
+                dict(weights=(), error_rates=(), probabilities=())):
+        with pytest.raises(ValueError):
+            ChannelLaw(**bad)
+
+
+def test_channel_bound_without_noise_is_the_hard_bound():
+    for m in (600, 1100, C3.length):
+        hard = miss_bound(C3, 3, length=m)
+        law = channel_miss_bound(C3, ChannelLaw.binary_symmetric(0.0), 3, length=m)
+        read = read_miss_bound(C3, np.ones(m), 0.0, 3)
+        assert isinstance(law, ChannelMissBound) and not law.conditional and read.conditional
+        assert law.length == read.length == m and law.observed == read.observed == m
+        assert law.log_bound == pytest.approx(hard.log_bound, rel=1e-9, abs=1e-9)
+        assert read.log_bound == pytest.approx(hard.log_bound, rel=1e-9, abs=1e-9)
+        assert law.quadrature_error < 1e-8 and law.bound == pytest.approx(hard.bound, rel=1e-8)
+    fixed = channel_miss_bound(C3, ChannelLaw.binary_symmetric(0.0), 3, length=1100, z=320.0)
+    assert fixed.lam0 is None and fixed.log_bound == pytest.approx(miss_bound(C3, 3, 1100, z=320.0).log_bound, rel=1e-9)
+
+
+def test_read_bound_counts_positions_like_erasures_and_laws():
+    m = 900
+    # Erasures independent of the code: the read bound is the hard bound on the observed positions.
+    w = np.zeros(1400)
+    w[np.random.default_rng(7).permutation(1400)[:m]] = 1.0
+    assert read_miss_bound(C2, w).log_bound == pytest.approx(miss_bound(C2, 2, length=m).log_bound, rel=1e-9)
+    # One (w, e) everywhere: the read bound and the law bound are the same product G^m.
+    one = channel_miss_bound(C2, ChannelLaw((0.7,), (0.1,), (1.0,)), 2, length=m)
+    assert read_miss_bound(C2, np.full(m, 0.7), 0.1, 2).log_bound == pytest.approx(one.log_bound, rel=1e-9)
+    # The read bound does not depend on the order of the positions.
+    rng = np.random.default_rng(8)
+    ws = rng.choice([0.0, 0.3, 0.9, 1.0], size=m)
+    es = calibrated_error_rates(ws)
+    perm = rng.permutation(m)
+    a, b = read_miss_bound(C2, ws, es), read_miss_bound(C2, ws[perm], es[perm])
+    assert a.log_bound == b.log_bound and a.observed == np.count_nonzero(ws)
+    # Weight 0 with probability q is worse than losing a fraction q at random (log is concave).
+    q = 0.25
+    erased = ChannelLaw((0.0, 1.0), (0.0, 0.0), (q, 1 - q))
+    assert channel_miss_bound(C2, erased, 2, length=1200).observed == pytest.approx(900)
+    assert channel_miss_bound(C2, erased, 2, length=1200).log_bound >= miss_bound(C2, 2, length=900).log_bound - 1e-9
+    nothing = read_miss_bound(C2, np.zeros(50))
+    assert nothing.bound == 1.0 and nothing.observed == 0 and math.isnan(nothing.alpha)
+
+
+def test_channel_bound_grows_with_noise_and_validation():
+    m = 1500
+    logs = [channel_miss_bound(C3, ChannelLaw.binary_symmetric(e), 3, length=m).log_bound
+            for e in (0.0, 0.02, 0.05, 0.1, 0.2)]
+    assert all(a < b for a, b in zip(logs, logs[1:]))
+    weaker = [channel_miss_bound(C3, ChannelLaw((w,), (0.0,), (1.0,)), 3, length=m).log_bound for w in (1.0, 0.6)]
+    assert weaker[0] < weaker[1]
+    # Half the bits flipped: the read says nothing, and nothing is proven.
+    assert channel_miss_bound(C3, ChannelLaw.binary_symmetric(0.5), 3, length=m).bound == 1.0
+    for kw in (dict(coalition=0), dict(length=0), dict(eps1=1.0), dict(z=-1.0)):
+        with pytest.raises(ValueError):
+            channel_miss_bound(C3, SOFT, **kw)
+    for args in (([1.5, 1.0], 0.0), ([1.0, 1.0], 0.7), ([1.0, 1.0], [0.0, 0.0, 0.0]), ([], 0.0)):
+        with pytest.raises(ValueError):
+            read_miss_bound(C3, *args)
+
+
+def test_proven_channel_probabilities_cover_smaller_coalitions():
+    law = ChannelLaw.binary_symmetric(0.05)
+    per = [channel_miss_bound(C3, law, k, length=1600).bound for k in (1, 2, 3)]
+    assert proven_channel_miss_probability(C3, law, length=1600) == max(per)
+    w = np.random.default_rng(9).choice([0.5, 1.0], size=1600)
+    reads = [read_miss_bound(C3, w, 0.05, k).bound for k in (1, 2, 3)]
+    assert proven_read_miss_probability(C3, w, 0.05) == max(reads)
+    assert per[0] < per[2] and reads[0] < reads[2]
+
+
+def test_channel_factor_matches_monte_carlo():
+    """G(alpha; w, e) is the largest per-z rule's factor, with the flip averaged inside."""
+    rng = np.random.default_rng(10)
+    c, t = 3, C3.cutoff
+    itg = det._Integrand(c, t, det._PANELS, det._ORDER)
+    alpha, lam0, kappa = 0.15, 0.09, 3 * (1 + det.Z_SLACK)
+    for w, e in ((0.6, 0.1), (1.0, 0.2), (0.3, 0.0)):
+        log_g = itg.log_g_channel(alpha, lam0, kappa, np.array([w]), np.array([e]))[0]
+        p, z, t1 = _colluder_sample(c, t, 400_000, rng)
+        q = np.minimum(p, 1 - p)
+        log_m = np.logaddexp(np.log(q) + lam0 * w * np.sqrt((1 - q) / q),
+                             np.log1p(-q) - lam0 * w * np.sqrt(q / (1 - q)))
+        psi = kappa * log_m / lam0
+        factors = []
+        for rule in ([0, 0, 0, 1], [0, 0, 1, 1], [0, 1, 0, 1], [0, 1, 1, 1]):
+            tt = np.where(np.array(rule)[z] == 1, t1, -t1)
+            v = ((1 - e) * np.exp(-alpha * w * tt) + e * np.exp(alpha * w * tt)) * np.exp(alpha * psi)
+            factors.append((float(v.mean()), float(v.std() / math.sqrt(v.size))))
+        best = max(factors)
+        assert abs(best[0] - math.exp(log_g)) < 5 * best[1]
+        assert all(f < math.exp(log_g) + 5 * s for f, s in factors)
+
+
+def test_channel_bound_dominates_monte_carlo_with_bit_errors():
+    """BSC with 10 % flips on a short code (bound about 0.82): no strategy misses more often."""
+    m = 700
+    bound = channel_miss_bound(C2, ChannelLaw.binary_symmetric(0.1), 2, length=m).bound
+    assert 0.5 < bound < 1.0
+    rep = run_simulation(C2, n_users=20, trials=200, seed=12, ber=0.1, bound_levels=(), length=m)
+    misses = {r.strategy: 1.0 - r.detection_rate for r in rep.results}
+    assert all(rate <= bound for rate in misses.values()), (bound, misses)
+    assert sum(rate >= 0.05 for rate in misses.values()) >= 4, misses
+    assert all(r.false_accusation_trials == 0 for r in rep.results)
+
+
+def test_channel_bound_dominates_monte_carlo_with_soft_weights():
+    """Soft weights with calibrated flips, read as the decoder reads them (bound about 0.83)."""
+    m = 650
+    bound = channel_miss_bound(C2, SOFT, 2, length=m).bound
+    assert 0.5 < bound < 1.0
+    rng = np.random.default_rng(13)
+    wk, ek, qk = (np.array(v) for v in (SOFT.weights, SOFT.error_rates, SOFT.probabilities))
+    trials, misses = 150, {name: 0 for name in attacks.STRATEGIES}
+    for _ in range(trials):
+        p, x = random_code(C2, 2, rng, length=m)
+        k = rng.choice(wk.size, size=m, p=qk)
+        flip = (rng.random(m) < ek[k]).astype(np.uint8)
+        for name, strategy in attacks.STRATEGIES.items():
+            y, w_s = strategy(x, rng)
+            w = wk[k] * w_s
+            z = acc.threshold(p, C2.eps1, w)
+            misses[name] += int(not (math.isfinite(z) and np.any(acc.scores(x, y ^ flip, p, w) >= z)))
+    rates = {name: v / trials for name, v in misses.items()}
+    assert all(rate <= bound for rate in rates.values()), (bound, rates)
+    assert sum(rate >= 0.05 for rate in rates.values()) >= 4, rates
+
+
+def test_channel_min_length_meets_delta():
+    law = ChannelLaw.binary_symmetric(0.05)
+    req = channel_min_length(2, 1e-6, 20, 0.5, law)
+    assert isinstance(req, LengthRequirement) and req.bound <= 0.5 < req.bound_below
+    assert proven_channel_miss_probability(C2, law, length=req.length) <= 0.5
+    assert proven_miss_probability(C2, length=req.length) < 0.05  # flips cost length
+    with pytest.raises(ValueError):
+        channel_min_length(2, 1e-6, 20, 0.0, law)

@@ -15,7 +15,8 @@ Output, one JSON object:
 * ``law``: the per-position weight law used by ``kanal.py`` and ``tapak deteksi --sebaran``
   (``tapak.tardos.detection.ChannelLaw``): bin mean weights, bin frequencies and the measured
   error rate per bin;
-* ``photos``: per image the positions observed and the wrong bits.
+* ``photos``: per image the positions observed, the wrong bits among those with weight > 0
+  and the number a calibrated LLR predicts there (sum of (1 - w) / 2).
 
 Usage (from the repository root, after an issuance and photo set in out/foto made like
 ``make photos`` with ``PHOTO_DATA=out/foto``):
@@ -92,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         photos.append({"file": e["file"], "kind": e["kind"], "angle": e.get("angle"),
                        "observed": int(seen.sum()), "weight_positive": int((w > 0).sum()),
                        "wrong_weight_positive": int(err[w > 0].sum()),
+                       "calibrated_wrong": round(float(np.sum((1.0 - w[w > 0]) / 2.0)), 1),
                        "sum_w2": round(float(np.sum(w**2)), 1)})
         print(f"{e['file']}: {int(seen.sum())} posisi, {int(err[w > 0].sum())} salah", file=sys.stderr, flush=True)
 
