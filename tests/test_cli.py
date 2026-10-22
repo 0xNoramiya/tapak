@@ -110,8 +110,34 @@ def test_cli_simulate_prints_proven_miss_bound(capsys):
     out = capsys.readouterr().out
     assert "terburuk" in out and "Batas terbukti peluang koalisi 2 orang lolos" in out
     assert main(["simulate", "--n", "10", "--c", "2", "--eps", "1e-3", "--trials", "2", "--ber", "0.01",
-                 "--strategies", "majority"]) in (0, 1)
-    assert "deteksi hanya diukur" in capsys.readouterr().out
+                 "--erasure", "0.1", "--strategies", "majority"]) in (0, 1)
+    out = capsys.readouterr().out
+    assert "lolos dengan bit salah 1 % dan 10 % posisi terhapus acak" in out
+    assert "derau tidak bergantung pada kode" in out
+
+
+def test_cli_deteksi_prints_bounds_for_read_models(tmp_path, capsys):
+    assert main(["deteksi", "--c", "2"]) == 0
+    out = capsys.readouterr().out
+    assert "koalisi 2 orang: 5.5e-17" in out and "Syarat:" in out and "tidak mengubah tuduhan" in out
+    assert "bebas dari posisi lain" in out and "bukan batas untuk satu foto tertentu" in out
+    law = tmp_path / "sebaran.json"
+    law.write_text(json.dumps({"law": {"weights": [0.0, 0.5, 1.0], "error_rates": [0.0, 0.2, 0.01],
+                                       "probabilities": [0.1, 0.2, 0.7]}}), encoding="utf-8")
+    assert main(["deteksi", "--c", "2", "--m", "900", "--sebaran", str(law), "--target", "0.5"]) == 0
+    out = capsys.readouterr().out
+    assert f"laju bit salah per bobot dari {law}" in out and "Panjang kode terpendek dengan batas <= 0.5" in out
+    assert main(["deteksi", "--c", "2", "--sebaran", str(law), "--kalibrasi", "--pelacakan-ke", "3"]) == 0
+    assert "(LLR terkalibrasi)" in capsys.readouterr().out
+    assert main(["deteksi", "--ber", "0.6"]) == 2
+    assert "laju bit salah harus di antara 0 dan 0,5" in capsys.readouterr().err
+    assert main(["deteksi", "--kalibrasi"]) == 2
+    assert "--kalibrasi hanya berlaku bersama --sebaran" in capsys.readouterr().err
+    # Options that would be ignored are refused, so the printed model is the one asked for.
+    assert main(["deteksi", "--sebaran", str(law), "--kalibrasi", "--ber", "0.1"]) == 2
+    assert "--kalibrasi dan --ber tidak dapat dipakai bersama" in capsys.readouterr().err
+    assert main(["deteksi", "--sebaran", str(law), "--erasure", "0.2"]) == 2
+    assert "--erasure tidak berlaku bersama --sebaran" in capsys.readouterr().err
 
 
 def test_cli_simulate_table_has_proven_column(capsys):

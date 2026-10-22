@@ -46,6 +46,8 @@ tapak issue dok.pdf penerima.csv --leksikal leksikal.json  # ditolak jika masih 
 tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000
 tapak simulate --table
 tapak simulate --n 100 --c 3 --coalition 5 --bertahap   # tuduhan satu tahap dan pelacakan bertahap pada bocoran yang sama
+tapak deteksi --n 20 --c 3 --ber 0.05            # batas terbukti peluang koalisi lolos dengan 5 % bit salah
+tapak deteksi --sebaran research/deteksi/hasil/llr_foto.json --target 1e-6   # bobot dekoder pada foto sintetis
 tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
 tapak kanari-izin                                # tulis ulang daftar izin token dari semua penerbitan
 ```

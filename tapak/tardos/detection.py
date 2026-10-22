@@ -11,7 +11,9 @@ for every collusion strategy that obeys the marking assumption. The probability 
 draw of the code (bias vector and codewords) and the coalition's own randomness, for any
 fixed coalition of c' recipients. Nothing here is asymptotic or Gaussian; the only numerics
 are a one-dimensional quadrature (checked by refinement, see below) and an optimizer whose
-inaccuracy can only make B larger.
+inaccuracy can only make B larger. The same argument extends to reads with bit errors and
+the decoder's soft weights, under two conditions on the channel (section "Noisy and
+soft-weighted reads": ``read_miss_bound``, ``channel_miss_bound``).
 
 Derivation
 ----------
@@ -100,16 +102,99 @@ codes (``research/deteksi/penyeimbang.py``), still below the bound, which covers
 Coalitions smaller than c. ``proven_miss_probability`` returns the maximum of the bound over
 c' = 1, ..., c, so it covers every coalition of at most c recipients.
 
-Scope. The bound is for hard-decision reads (weights 0 or 1) with the threshold TAPAK
-computes for that read. Soft weights (the decoder's tanh(|LLR|/2)), bit errors, and erasures
-that target positions where the colluders' bits agree are not covered; those cases are still
-only measured by simulation. It also assumes that the coalition learns nothing about p
-beyond its own bits.
+Noisy and soft-weighted reads
+-----------------------------
+The decoder does not see y but a read of it: bits yhat_i = y_i XOR f_i and weights w_i in
+[0, 1] (w_i = tanh(|L_i|/2), 0 for an erased position); scores and Z(p, w) use (yhat, w).
+The proof needs two conditions, and each is used at a named step below.
+
+(C1) The channel acts after the strategy, and its randomness is independent of the code
+     (p, X) and of the coalition's randomness R; the weights w and the flips f are functions
+     of the channel randomness alone (so they do not depend on y either). A symmetric channel
+     satisfies this: for a measurement s_i = (2 y_i - 1) A + n_i with n_i distributed like
+     -n_i, the pair (|L_i|, f_i) is a function of (2 y_i - 1) n_i, whose law does not depend
+     on y_i.
+(C2) Given w, the flips are independent across positions, with known rates
+     e_i = P(f_i = 1 | w) in [0, 1/2]. For a calibrated LLR e_i = (1 - w_i)/2
+     (``calibrated_error_rates``); whether the decoder is calibrated is measured, not assumed.
+
+Since T(z, 1-y, p) = -T(z, y, p), the coalition's total score on the read is
+sum_i w_i (1 - 2 f_i) T(z_i, y_i, p_i): its mean scales by w_i (1 - 2 e_i) per position.
+Step 2 holds with weights, Z(p, w) <= (1 + delta) (sum_i log M(lam0 w_i, p_i) + L) / lam0,
+because TAPAK's Lambda uses M(lam w_i, p_i) (``accuse._WorstCaseMgf``). With
+psi_i(p) = kappa log M(lam0 w_i, p) / lam0 and kappa = c' (1 + delta), step 3 gives
+
+    P(miss | w) <= exp(alpha K0) E[ exp(-alpha sum_i (w_i (1 - 2 f_i) T_i - psi_i(p_i))) | w ].
+
+Condition on (X_C, R, w). By (C1) the code given w is distributed as without a channel, so
+the p_i are independent, p_i depends on X_C only through z_i, and y = f(X_C, R) is fixed. By
+(C1) and (C2) the f_i are independent of p and of each other, with rates e_i. The conditional
+expectation is therefore a product over positions, and the factor of position i is at most
+H_i(z_i), where
+
+    H_i(z) = max over the allowed y of E[ ((1 - e_i) exp(-alpha w_i T(z,y,p))
+                                         + e_i exp(alpha w_i T(z,y,p))) exp(alpha psi_i(p)) | z ].
+
+The columns of X_C are independent of w (C1), so for every alpha > 0 and lam0 in TAPAK's range
+
+    P(miss | w) <= exp(alpha K0) prod_{i: w_i > 0} G(alpha; w_i, e_i),   G = sum_z P(z) H(z)
+
+(``read_miss_bound``). A position with w_i = 0 gives the factor 1 and drops out of Z, as in
+step 5. With w = 1 and e = 0 this is the hard bound (the code agrees to about 1e-12). If every
+position draws (w_i, e_i) independently from one law Q (``ChannelLaw``), averaging the same
+fixed-(alpha, lam0) product over w gives P(miss) <= exp(alpha K0) (E_Q G(alpha; w, e))^m
+(``channel_miss_bound``). The quadrature check of step 4 is repeated per support point.
+Independence across positions is needed for the weights too: if the weights of one read move
+together (a photo is good or bad as a whole), E[prod_i G(w_i)] >= (E G)^m by Jensen, so a
+law pooled over many reads does not bound a single read; ``read_miss_bound`` with that read's
+own weights does. The law form also assumes all m positions are read through Q.
+
+Erasures by the coalition where its bits differ stay covered by the law-averaged bound. With
+A(y) = E[exp(-alpha w T(z,y,p) + alpha psi(p)) | z], the y with E[T | z] <= 0 has
+(1 - e) A(y) + e A(1-y) >= exp(alpha E[psi | z] - alpha w (1 - 2e) E[T | z]) >= 1 by Jensen
+when e <= 1/2 (psi >= 0 as in step 5), so the erasure's factor 1 never exceeds H(z). In
+``read_miss_bound`` the weights must be the channel's; a read whose zero weights include
+the coalition's erasures is not covered.
+
+Where the conditions fail.
+(a) Weights that depend on the code: conditioning on w then changes the law of (z_i, p_i)
+    and the product with the prior law of z is not a bound. The extreme case is an erasure
+    aimed at the positions where all colluders agree (z = 0 or c'): the coalition can see
+    where its copies agree, and erasing there removes the positions that carry the score,
+    which the marking assumption alone does not forbid. Measured by
+    ``research/deteksi/kanal.py`` (part ``sasaran``, default length, N = 20, c = 2 to 5):
+    erasing half of them, the best strategy escapes in at most 1.6 % of trials; erasing 80 %,
+    in 96 to 99.9 %; from 90 % on, every strategy escapes in over 99 %. A bound computed as
+    if the same number of positions had been lost at random is as small as 1e-12 at 80 %.
+(b) Weights that depend on the leaked bit (a channel that reads 1 better than 0): the
+    conditional bound may fail. A law that depends only on y_i still gives a bound when the
+    expectation over (w, f) is taken inside the maximum over y; not implemented.
+(c) Flip rates that depend on the bit, or flips correlated across positions: the factor
+    needs the rate of the bit actually leaked, and correlated flips break the product
+    (given the whole flip pattern, a flipped position acts like the opposite bit; a bound for
+    at most k flips anywhere follows, not implemented).
+(d) Rates that are too optimistic: if the decoder's LLRs are overconfident, the true flip
+    rate is above (1 - w)/2 and a bound with calibrated rates is not valid. On the synthetic
+    photo set the weights above 0.95 (mean 0.998) err 0.33 % of the time against 0.12 %
+    calibrated (``research/deteksi/llr_foto.py``), so ``kanal.py`` also uses measured rates.
+(e) Bias-dependent placement: the lexical and semantic channels take their positions from the
+    bias band 0.3 to 0.7, so their weights depend on p (a few dozen positions). Not modelled.
+(f) TAPAK's image decoder: on photos the background channel uses the bias vector as a pilot
+    to estimate its gain per saturation stratum and to decide whether the pattern is present
+    (``decoder/ch_background.py``), so its weights depend on p and on the leaked bits through
+    a few page-wide numbers. Each is a regression over thousands of cells, so the effect per
+    position is small, but (C1) does not hold exactly. Not modelled.
+
+Scope. The bounds hold for every strategy obeying the marking assumption, for the threshold
+TAPAK computes for the read, under (C1) and (C2). Erasures aimed at positions where the
+colluders agree are not covered and are only measured. The proofs also assume that the
+coalition learns nothing about p beyond its own bits.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -128,6 +213,11 @@ _LAM_RANGE = (1e-7, 60.0)
 _ALPHA_RANGE = (1e-7, 20.0)
 _PANELS = 24
 _ORDER = 24
+# Support points per block in the vectorized channel factor (memory, not accuracy).
+_CHUNK = 128
+# A channel bound is optimized on at most this many groups of support points, then evaluated
+# exactly on every support point at the chosen (alpha, lam0).
+_GROUPS = 32
 
 
 def _check_coalition(coalition: int) -> int:
@@ -259,14 +349,62 @@ class _Integrand:
         choice[0], choice[self.c] = 0, 1
         return float(_logsumexp(best, axis=0)), choice
 
+    def log_mgf_weighted(self, lam: float, w: np.ndarray) -> np.ndarray:
+        """log M(lam w_k, p) per weight (rows) and node (columns): the weighted read's MGF."""
+        lw = lam * np.asarray(w, dtype=np.float64)[:, None]
+        return np.logaddexp(self.log_q[None, :] + lw * self.g_q[None, :], self.log_1mq[None, :] - lw * self.h_q[None, :])
+
+    def log_g_channel(self, alpha: float, lam0: float | None, kappa: float, w: np.ndarray, e: np.ndarray) -> np.ndarray:
+        """log G(alpha; w_k, e_k) per support point: weight w_k > 0 and flip rate e_k.
+
+        The exponent is -alpha w (1 - 2 f) T(z, y, p) + alpha psi(p, w) with
+        psi = kappa log M(lam0 w, p) / lam0 (0 with a fixed threshold, ``lam0=None``); the flip
+        f ~ Bernoulli(e) is averaged inside the maximum over the leaked bit y.
+        """
+        w = np.asarray(w, dtype=np.float64)
+        e = np.asarray(e, dtype=np.float64)
+        out = np.empty(w.size)
+        with np.errstate(divide="ignore"):
+            log_e = np.log(e)
+        log_1me = np.log1p(-e)
+        for s in range(0, w.size, _CHUNK):
+            sl = slice(s, s + _CHUNK)
+            core = np.broadcast_to(self.base, (w[sl].size,) + self.base.shape)
+            if lam0 is not None:
+                core = core + (alpha * kappa / lam0) * self.log_mgf_weighted(lam0, w[sl])[:, None, :]
+            at = (alpha * w[sl])[:, None, None] * self.t1[None, :, :]
+            le, l1 = log_e[sl][:, None, None], log_1me[sl][:, None, None]
+            a1 = _logsumexp(core + np.logaddexp(l1 - at, le + at), axis=2)  # leak 1: T = t1
+            a0 = _logsumexp(core + np.logaddexp(l1 + at, le - at), axis=2)  # leak 0: T = -t1
+            best = np.maximum(a0, a1)
+            best[:, 0], best[:, self.c] = a0[:, 0], a1[:, self.c]  # marking assumption
+            out[sl] = _logsumexp(best, axis=1)
+        return out
+
 
 @lru_cache(maxsize=128)
 def _integrand(coalition: int, cutoff: float, panels: int, order: int) -> _Integrand:
     return _Integrand(coalition, cutoff, panels, order)
 
 
+class _LogBound:
+    """``bound`` and ``log10_bound`` from a dataclass field ``log_bound`` (natural log, may exceed 0)."""
+
+    log_bound: float
+
+    @property
+    def bound(self) -> float:
+        """The bound as a probability, capped at 1."""
+        return 1.0 if self.log_bound >= 0 else math.exp(self.log_bound)
+
+    @property
+    def log10_bound(self) -> float:
+        """log10 of the capped bound (exact even when the bound underflows a float)."""
+        return min(0.0, self.log_bound) / math.log(10.0)
+
+
 @dataclass(frozen=True)
-class MissBound:
+class MissBound(_LogBound):
     """Proven bound on P(no colluder reaches the threshold) for one coalition size.
 
     Attributes:
@@ -293,16 +431,6 @@ class MissBound:
     chernoff_choice: tuple[int, ...]
     quadrature_error: float
 
-    @property
-    def bound(self) -> float:
-        """The bound as a probability, capped at 1."""
-        return 1.0 if self.log_bound >= 0 else math.exp(self.log_bound)
-
-    @property
-    def log10_bound(self) -> float:
-        """log10 of the capped bound (exact even when the bound underflows a float)."""
-        return min(0.0, self.log_bound) / math.log(10.0)
-
 
 def _min_scalar(f, lo: float, hi: float, xatol: float) -> tuple[float, float]:
     from scipy.optimize import minimize_scalar
@@ -323,28 +451,25 @@ def _expected_threshold_lambda(itg: _Integrand, m: int, log_inv: float) -> float
     return math.exp(u)
 
 
-def _optimize(itg: _Integrand, m: int, c: int, log_inv: float, z: float | None) -> tuple[float, float, float | None]:
-    """Return (log bound, alpha, lam0) minimized over alpha (and lam0 unless z is fixed)."""
-    kappa = c * (1.0 + Z_SLACK)
+def _minimize_chernoff(
+    objective: Callable[[float | None], Callable[[float], float]], lam_star: float | None
+) -> tuple[float, float, float | None]:
+    """Minimize a Chernoff log bound over alpha, and over lam0 near ``lam_star``.
+
+    ``objective(lam0)`` returns the function alpha -> log bound for that lam0 (lam0 None: a
+    fixed threshold, no lam0 to choose; pass ``lam_star=None`` then). Returns (log bound,
+    alpha, lam0). Every (alpha, lam0) gives a valid bound, so optimizer error only loosens it.
+    """
     a_lo, a_hi = math.log(_ALPHA_RANGE[0]), math.log(_ALPHA_RANGE[1])
 
     def inner(lam0: float | None) -> tuple[float, float]:
-        if lam0 is None:
-            k0, phi = c * float(z), 0.0  # type: ignore[arg-type]
-        else:
-            k0, phi = kappa * log_inv / lam0, kappa * itg.log_mgf(lam0) / lam0
-
-        def f(u: float) -> float:
-            alpha = math.exp(u)
-            return alpha * k0 + m * itg.log_g(alpha, alpha * phi)[0]
-
-        u, val = _min_scalar(f, a_lo, a_hi, 1e-7)
+        f = objective(lam0)
+        u, val = _min_scalar(lambda u: f(math.exp(u)), a_lo, a_hi, 1e-7)
         return val, math.exp(u)
 
-    if z is not None:
+    if lam_star is None:
         val, alpha = inner(None)
         return val, alpha, None
-    lam_star = _expected_threshold_lambda(itg, m, log_inv)
     lo = max(math.log(_LAM_RANGE[0]), math.log(lam_star) - 1.0)
     hi = min(math.log(_LAM_RANGE[1]), math.log(lam_star) + 1.0)
     # The bound is valid for every lam0 and only second-order sensitive to it near the optimum.
@@ -352,6 +477,21 @@ def _optimize(itg: _Integrand, m: int, c: int, log_inv: float, z: float | None) 
     candidates = [math.exp(u), lam_star]
     best = min((inner(lam) + (lam,) for lam in candidates), key=lambda x: x[0])
     return best[0], best[1], best[2]
+
+
+def _optimize(itg: _Integrand, m: int, c: int, log_inv: float, z: float | None) -> tuple[float, float, float | None]:
+    """Return (log bound, alpha, lam0) minimized over alpha (and lam0 unless z is fixed)."""
+    kappa = c * (1.0 + Z_SLACK)
+
+    def objective(lam0: float | None) -> Callable[[float], float]:
+        if lam0 is None:
+            k0, phi = c * float(z), 0.0  # type: ignore[arg-type]
+        else:
+            k0, phi = kappa * log_inv / lam0, kappa * itg.log_mgf(lam0) / lam0
+        return lambda alpha: alpha * k0 + m * itg.log_g(alpha, alpha * phi)[0]
+
+    lam_star = None if z is not None else _expected_threshold_lambda(itg, m, log_inv)
+    return _minimize_chernoff(objective, lam_star)
 
 
 def miss_bound(
@@ -450,6 +590,27 @@ class LengthRequirement:
     bound_below: float
 
 
+def _bisect_length(meets: Callable[[int], bool], start: int) -> tuple[int, int]:
+    """(lo, hi) with meets(hi) true and meets(lo) false (lo = 0: no code), hi - lo = 1.
+
+    Doubles from ``start`` until ``meets`` holds, then bisects, so the result is consistent as
+    computed even if optimizer noise made the computed bound locally non-monotone.
+    """
+    lo, hi = 0, start
+    while not meets(hi):
+        lo, hi = hi, 2 * hi
+        if hi > 10**8:
+            raise ValueError("target delta tidak tercapai sampai m = 10^8")
+    # Invariant: the bound at lo exceeds delta (lo = 0 means "no code"), the bound at hi meets it.
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if meets(mid):
+            hi = mid
+        else:
+            lo = mid
+    return lo, hi
+
+
 def min_length(c: int, eps: float, n_max: int, delta: float, eps1: float | None = None) -> LengthRequirement:
     """Smallest code length m whose proven miss bound (coalitions of at most c) is <= delta.
 
@@ -467,18 +628,7 @@ def min_length(c: int, eps: float, n_max: int, delta: float, eps1: float | None 
         # Largest coalition first: it has the largest bound, so failures exit after one term.
         return all(miss_bound(params, k, m, None, e1).bound <= delta for k in range(c, 0, -1))
 
-    lo, hi = 0, params.length
-    while not meets(hi):
-        lo, hi = hi, 2 * hi
-        if hi > 10**8:
-            raise ValueError("target delta tidak tercapai sampai m = 10^8")
-    # Invariant: the bound at lo exceeds delta (lo = 0 means "no code"), the bound at hi meets it.
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        if meets(mid):
-            hi = mid
-        else:
-            lo = mid
+    lo, hi = _bisect_length(meets, params.length)
     return LengthRequirement(
         c=c,
         eps=eps,
@@ -488,4 +638,342 @@ def min_length(c: int, eps: float, n_max: int, delta: float, eps1: float | None 
         k_constant=hi / (c * c * math.log(1.0 / e1)),
         bound=proven_miss_probability(params, length=hi, eps1=e1),
         bound_below=1.0 if lo == 0 else proven_miss_probability(params, length=lo, eps1=e1),
+    )
+
+
+# --- noisy and soft-weighted reads ---------------------------------------------------------
+
+
+def calibrated_error_rates(weights: np.ndarray | Sequence[float] | float) -> np.ndarray:
+    """Flip rate (1 - w) / 2 that a calibrated LLR implies for the decoder weight w = tanh(|L| / 2).
+
+    For an exact LLR L, P(decided bit wrong | L) = 1 / (1 + e^|L|), and 1 - 2 / (1 + e^|L|) is
+    tanh(|L| / 2). Whether the decoder's LLRs are calibrated is a measurement, not a given
+    (``research/deteksi/llr_foto.py``).
+    """
+    w = np.asarray(weights, dtype=np.float64)
+    if (w < 0).any() or (w > 1).any():
+        raise ValueError("bobot harus di antara 0 dan 1")
+    return (1.0 - w) / 2.0
+
+
+def _check_rates(e: np.ndarray) -> np.ndarray:
+    if not np.all((e >= 0.0) & (e <= 0.5)):
+        raise ValueError("laju bit salah harus di antara 0 dan 0,5")
+    return e
+
+
+@dataclass(frozen=True)
+class ChannelLaw:
+    """Law of the read at one position, the same for every position and independent across them.
+
+    With probability ``probabilities[k]`` the decoder gives the position the weight
+    ``weights[k]`` (0: erased), and its decided bit is wrong with probability
+    ``error_rates[k]`` given that weight. Conditions (C1) and (C2) of the module docstring
+    apply: the weights and the flips come from channel noise that does not depend on the code,
+    on the coalition's choices or on the leaked bit.
+    """
+
+    weights: tuple[float, ...]
+    error_rates: tuple[float, ...]
+    probabilities: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        w = np.asarray(self.weights, dtype=np.float64).reshape(-1)
+        e = np.asarray(self.error_rates, dtype=np.float64).reshape(-1)
+        q = np.asarray(self.probabilities, dtype=np.float64).reshape(-1)
+        if w.size == 0 or e.shape != w.shape or q.shape != w.shape:
+            raise ValueError("bobot, laju bit salah, dan peluang harus sama panjang dan tidak kosong")
+        if (w < 0).any() or (w > 1).any():
+            raise ValueError("bobot harus di antara 0 dan 1")
+        _check_rates(e)
+        if (q < 0).any() or abs(float(q.sum()) - 1.0) > 1e-9:
+            raise ValueError("peluang harus tidak negatif dan berjumlah 1")
+        object.__setattr__(self, "weights", tuple(float(v) for v in w))
+        object.__setattr__(self, "error_rates", tuple(float(v) for v in e))
+        object.__setattr__(self, "probabilities", tuple(float(v) for v in q / q.sum()))
+
+    @classmethod
+    def binary_symmetric(cls, error_rate: float) -> "ChannelLaw":
+        """Hard decisions (weight 1 everywhere) through a binary symmetric channel."""
+        return cls((1.0,), (float(error_rate),), (1.0,))
+
+    @classmethod
+    def calibrated(cls, weights: Sequence[float], probabilities: Sequence[float]) -> "ChannelLaw":
+        """Soft weights whose flip rate is the calibrated (1 - w) / 2 (``calibrated_error_rates``)."""
+        return cls(tuple(weights), tuple(calibrated_error_rates(np.asarray(weights, dtype=np.float64))),
+                   tuple(probabilities))
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Sequence[float]]) -> "ChannelLaw":
+        """Inverse of :meth:`to_dict` (the ``law`` object of ``research/deteksi/hasil/llr_foto.json``)."""
+        return cls(tuple(d["weights"]), tuple(d["error_rates"]), tuple(d["probabilities"]))
+
+    def to_dict(self) -> dict[str, list[float]]:
+        """Serializable form."""
+        return {"weights": list(self.weights), "error_rates": list(self.error_rates),
+                "probabilities": list(self.probabilities)}
+
+    def with_error_rate(self, error_rate: float) -> "ChannelLaw":
+        """The same weights with one flip rate at every weight (flips independent of the weight)."""
+        return ChannelLaw(self.weights, (float(error_rate),) * len(self.weights), self.probabilities)
+
+    @property
+    def effective_fraction(self) -> float:
+        """(E[w (1 - 2e)])^2 / E[w^2]: roughly what one position is worth next to a hard, error-free one.
+
+        A heuristic for comparing laws (squared mean over second moment of the coalition's
+        per-position signal); the bound does not use it.
+        """
+        w, e, q = (np.asarray(v) for v in (self.weights, self.error_rates, self.probabilities))
+        second = float(np.sum(q * w * w))
+        return 0.0 if second == 0 else float(np.sum(q * w * (1 - 2 * e))) ** 2 / second
+
+
+@dataclass(frozen=True)
+class ChannelMissBound(_LogBound):
+    """Proven bound on P(no colluder reaches the threshold) for a noisy or soft-weighted read.
+
+    Attributes:
+        coalition: number of colluders c'.
+        length: code length m (positions of the read, observed or not).
+        observed: positions with weight > 0 (for a :class:`ChannelLaw`: the expected number).
+        eps1: per-recipient target that sets Z(p, w).
+        z: fixed threshold used instead of Z(p, w), or None.
+        log_bound: natural log of the bound (may exceed 0; see :attr:`bound`).
+        alpha: Chernoff parameter at the optimum (nan when nothing is observed).
+        lam0: lambda at which Z(p, w) is bounded (None with a fixed ``z`` or nothing observed).
+        quadrature_error: refinement difference plus ``FLOAT_SLACK`` per position, already
+            added to ``log_bound``.
+        conditional: True for :func:`read_miss_bound` (given the read's weights), False for
+            :func:`channel_miss_bound` (averaged over the law of the weights).
+    """
+
+    coalition: int
+    length: int
+    observed: float
+    eps1: float
+    z: float | None
+    log_bound: float
+    alpha: float
+    lam0: float | None
+    quadrature_error: float
+    conditional: bool
+
+
+@dataclass(frozen=True)
+class _Support:
+    """Support points (w > 0) of a read with their mass, and how their factors combine.
+
+    Conditional reads: ``mass`` counts positions and the log bound adds sum mass * log G.
+    Laws: ``mass`` is a probability, ``zero`` the probability of weight 0, and the log bound
+    adds m * log(zero + sum mass * G).
+    """
+
+    w: np.ndarray
+    e: np.ndarray
+    mass: np.ndarray
+    zero: float
+    m: int
+    conditional: bool
+
+    def combine(self, log_g: np.ndarray) -> float:
+        if self.conditional:
+            return float(np.sum(self.mass * log_g))
+        terms = np.log(self.mass) + log_g
+        if self.zero > 0:
+            terms = np.append(terms, math.log(self.zero))
+        return self.m * float(_logsumexp(terms, axis=0))
+
+    def position_mass(self) -> np.ndarray:
+        """Expected number of positions per support point."""
+        return self.mass if self.conditional else self.m * self.mass
+
+    def grouped(self, groups: int = _GROUPS) -> "_Support":
+        """At most ``groups`` support points (mass-weighted means), for the optimizer only."""
+        if self.w.size <= groups:
+            return self
+        order = np.lexsort((self.e, self.w))
+        w, e, mass = [], [], []
+        for idx in np.array_split(order, groups):
+            mk = self.mass[idx]
+            w.append(float(np.sum(mk * self.w[idx]) / mk.sum()))
+            e.append(float(np.sum(mk * self.e[idx]) / mk.sum()))
+            mass.append(float(mk.sum()))
+        return _Support(np.array(w), np.array(e), np.array(mass), self.zero, self.m, self.conditional)
+
+
+def _channel_bound(params: TardosParams, sup: _Support, coalition: int | None, eps1: float | None,
+                   z: float | None) -> ChannelMissBound:
+    c = _check_coalition(params.c if coalition is None else coalition)
+    e1 = params.eps1 if eps1 is None else float(eps1)
+    if not 0.0 < e1 < 1.0:
+        raise ValueError("eps1 harus di antara 0 dan 1")
+    if z is not None and not (math.isfinite(z) and z > 0):
+        raise ValueError("ambang z harus positif dan berhingga")
+    zf = None if z is None else float(z)
+    observed = float(np.sum(sup.position_mass()))
+    if sup.w.size == 0:  # nothing observed: Z is infinite and nobody can be caught
+        return ChannelMissBound(c, sup.m, 0.0, e1, zf, 0.0, math.nan, None, 0.0, sup.conditional)
+    log_inv = math.log(1.0 / e1)
+    kappa = c * (1.0 + Z_SLACK)
+    itg = _integrand(c, params.cutoff, _PANELS, _ORDER)
+
+    def k0(lam0: float | None) -> float:
+        return c * zf if lam0 is None else kappa * log_inv / lam0  # type: ignore[operator]
+
+    red = sup.grouped()
+
+    def objective(lam0: float | None) -> Callable[[float], float]:
+        return lambda alpha: alpha * k0(lam0) + red.combine(itg.log_g_channel(alpha, lam0, kappa, red.w, red.e))
+
+    lam_star = None
+    if zf is None:  # TAPAK's lambda for a typical bias vector with these weights
+        mass, wq = red.position_mass(), np.exp(itg.logw)
+
+        def threshold_objective(u: float) -> float:
+            lam = math.exp(u)
+            return (float(np.sum(mass[:, None] * wq[None, :] * itg.log_mgf_weighted(lam, red.w))) + log_inv) / lam
+
+        u, _ = _min_scalar(threshold_objective, math.log(_LAM_RANGE[0]), math.log(_LAM_RANGE[1]), 1e-6)
+        lam_star = math.exp(u)
+    _, alpha, lam0 = _minimize_chernoff(objective, lam_star)
+    # Exact value at the chosen (alpha, lam0) on every support point, then the quadrature check.
+    fine = _integrand(c, params.cutoff, 2 * _PANELS, _ORDER)
+    lg_c = itg.log_g_channel(alpha, lam0, kappa, sup.w, sup.e)
+    lg_f = fine.log_g_channel(alpha, lam0, kappa, sup.w, sup.e)
+    total = sup.combine(lg_c)
+    if sup.conditional:
+        q_err = float(np.sum(sup.mass * np.abs(lg_f - lg_c))) + observed * FLOAT_SLACK
+    else:
+        q_err = abs(sup.combine(lg_f) - total) + sup.m * FLOAT_SLACK
+    return ChannelMissBound(
+        coalition=c, length=sup.m, observed=observed, eps1=e1, z=zf, log_bound=alpha * k0(lam0) + total + q_err,
+        alpha=alpha, lam0=lam0, quadrature_error=q_err, conditional=sup.conditional,
+    )
+
+
+def _read_support(weights: np.ndarray | Sequence[float], error_rates: np.ndarray | Sequence[float] | float) -> _Support:
+    w = np.asarray(weights, dtype=np.float64).reshape(-1)
+    if w.size < 1:
+        raise ValueError("panjang kode minimal 1")
+    if (w < 0).any() or (w > 1).any():
+        raise ValueError("bobot harus di antara 0 dan 1")
+    e = _check_rates(np.broadcast_to(np.asarray(error_rates, dtype=np.float64), w.shape))
+    keep = w > 0
+    pairs, counts = np.unique(np.column_stack([w[keep], e[keep]]), axis=0, return_counts=True)
+    return _Support(pairs[:, 0], pairs[:, 1], counts.astype(np.float64), float(w.size - keep.sum()), int(w.size), True)
+
+
+def _law_support(law: ChannelLaw, length: int) -> _Support:
+    if length < 1:
+        raise ValueError("panjang kode minimal 1")
+    w, e, q = (np.asarray(v, dtype=np.float64) for v in (law.weights, law.error_rates, law.probabilities))
+    keep = (w > 0) & (q > 0)
+    return _Support(w[keep], e[keep], q[keep], float(q[w == 0].sum()), int(length), False)
+
+
+def read_miss_bound(
+    params: TardosParams,
+    weights: np.ndarray | Sequence[float],
+    error_rates: np.ndarray | Sequence[float] | float = 0.0,
+    coalition: int | None = None,
+    eps1: float | None = None,
+    z: float | None = None,
+) -> ChannelMissBound:
+    """Proven bound on P(no member of a c'-coalition reaches Z(p, w) | the channel's weights w).
+
+    Args:
+        params: code parameters (cutoff t and, unless overridden, eps1 and c').
+        weights: the channel's weight for every code position (length m; 0 = erased), as the
+            decoder computes them (``FusedEstimate.weights``).
+        error_rates: probability that the decided bit is wrong given the weights, one per
+            position or one for all (``calibrated_error_rates(weights)`` for calibrated LLRs).
+        coalition: number of colluders c' (default ``params.c``).
+        eps1: per-recipient target that sets Z(p, w) (default ``params.eps1``).
+        z: a fixed threshold instead of Z(p, w).
+
+    Holds for every strategy obeying the marking assumption, under conditions (C1) and (C2)
+    of the module docstring. The weights must be the channel's: where the coalition erased a
+    position the read has weight 0 instead, and a bound computed from such a read is not
+    proven (``channel_miss_bound``, averaged over the law of the channel's weights, covers
+    those erasures).
+    """
+    return _channel_bound(params, _read_support(weights, error_rates), coalition, eps1, z)
+
+
+def channel_miss_bound(
+    params: TardosParams,
+    law: ChannelLaw,
+    coalition: int | None = None,
+    length: int | None = None,
+    eps1: float | None = None,
+    z: float | None = None,
+) -> ChannelMissBound:
+    """Proven bound on P(no member of a c'-coalition reaches Z(p, w)) when every position is
+    read through ``law``, independently of the other positions.
+
+    Args:
+        params: code parameters (cutoff t and, unless overridden, m, eps1 and c').
+        law: per-position law of (weight, flip rate) (:class:`ChannelLaw`).
+        coalition: number of colluders c' (default ``params.c``).
+        length: code length m (default ``params.length``).
+        eps1: per-recipient target that sets Z(p, w) (default ``params.eps1``).
+        z: a fixed threshold instead of Z(p, w).
+
+    The probability is over the code, the coalition's randomness and the channel. Holds for
+    every strategy obeying the marking assumption, including erasures by the coalition where
+    its copies differ, under conditions (C1) and (C2) of the module docstring. The weights
+    must also be independent across positions: a law pooled over reads whose weights move
+    together (good and bad photos) does not bound one such read; use :func:`read_miss_bound`
+    with its own weights.
+    """
+    m = params.length if length is None else int(length)
+    return _channel_bound(params, _law_support(law, m), coalition, eps1, z)
+
+
+def proven_channel_miss_probability(
+    params: TardosParams,
+    law: ChannelLaw,
+    length: int | None = None,
+    eps1: float | None = None,
+    z: float | None = None,
+) -> float:
+    """Maximum of :func:`channel_miss_bound` over c' = 1, ..., c (every coalition of at most c)."""
+    return max(channel_miss_bound(params, law, k, length, eps1, z).bound for k in range(1, params.c + 1))
+
+
+def proven_read_miss_probability(
+    params: TardosParams,
+    weights: np.ndarray | Sequence[float],
+    error_rates: np.ndarray | Sequence[float] | float = 0.0,
+    eps1: float | None = None,
+    z: float | None = None,
+) -> float:
+    """Maximum of :func:`read_miss_bound` over c' = 1, ..., c (every coalition of at most c)."""
+    sup = _read_support(weights, error_rates)
+    return max(_channel_bound(params, sup, k, eps1, z).bound for k in range(1, params.c + 1))
+
+
+def channel_min_length(
+    c: int, eps: float, n_max: int, delta: float, law: ChannelLaw, eps1: float | None = None
+) -> LengthRequirement:
+    """Smallest code length whose proven miss bound through ``law`` (coalitions of at most c) is <= delta.
+
+    Same search as :func:`min_length`, with :func:`channel_miss_bound` in place of
+    :func:`miss_bound`.
+    """
+    if not 0.0 < delta < 1.0:
+        raise ValueError("target delta harus di antara 0 dan 1")
+    params = TardosParams(c=c, eps=eps, n_max=n_max)
+    e1 = params.eps1 if eps1 is None else eps1
+
+    def meets(m: int) -> bool:
+        return all(channel_miss_bound(params, law, k, m, e1).bound <= delta for k in range(c, 0, -1))
+
+    lo, hi = _bisect_length(meets, params.length)
+    return LengthRequirement(
+        c=c, eps=eps, n_max=n_max, delta=delta, length=hi, k_constant=hi / (c * c * math.log(1.0 / e1)),
+        bound=proven_channel_miss_probability(params, law, length=hi, eps1=e1),
+        bound_below=1.0 if lo == 0 else proven_channel_miss_probability(params, law, length=lo, eps1=e1),
     )

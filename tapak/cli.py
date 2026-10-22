@@ -10,6 +10,7 @@
     tapak jangkar mulai | akui | status  external anchor log (opt-in, --log-jangkar)
     tapak registry sign | export-merkle
     tapak simulate                       Tardos collusion simulation
+    tapak deteksi                        proven bound on a coalition escaping, for a read model
     tapak canary-dns | photos | web | demo
 """
 
@@ -21,6 +22,10 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tapak.tardos.detection import ChannelLaw
 
 
 def _settings(args: argparse.Namespace):
@@ -49,7 +54,7 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
             print(f"{r.n:>4} {r.c:>2} {r.eps1:>9.1e} {r.m_skoric:>10} {r.m_tardos:>8} {r.z_chernoff:>11.1f} "
                   f"{r.z_gaussian:>8.1f} {r.expected_top_colluder:>16.1f} {r.miss_bound:>18.1e}")
         print("P(lolos) terbukti: batas atas peluang tidak satu pun anggota koalisi (paling banyak c orang) "
-              "tertangkap, untuk pembacaan penuh dengan bit pasti (tanpa bobot lunak dan tanpa bit salah).")
+              "tertangkap, untuk pembacaan penuh dengan bit pasti. Untuk bit salah dan bobot lunak: tapak deteksi.")
         return 0
     params = TardosParams(c=args.c, eps=args.eps, n_max=args.n, constant=args.constant)
     strategies = args.strategies.split(",") if args.strategies else None
@@ -77,10 +82,14 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
         from tapak.tardos.detection import miss_bound
 
         mb = miss_bound(params, rep.coalition)
-        shown = f"{mb.bound:.1e}" if mb.log10_bound > -300 else f"1e{mb.log10_bound:.0f}"
-        print(f"Batas terbukti peluang koalisi {rep.coalition} orang lolos (pembacaan penuh, bit pasti): {shown}")
+        print(f"Batas terbukti peluang koalisi {rep.coalition} orang lolos (pembacaan penuh, bit pasti): "
+              f"{_format_bound(mb.log10_bound)}")
     else:
-        print("Dengan bit salah atau posisi terhapus, deteksi hanya diukur (batas terbukti untuk pembacaan penuh)")
+        from tapak.tardos.detection import channel_miss_bound
+
+        cb = channel_miss_bound(params, _noise_law(args.ber, args.erasure), rep.coalition)
+        print(f"Batas terbukti peluang koalisi {rep.coalition} orang lolos dengan {_noise_text(args.ber, args.erasure)}: "
+              f"{_format_bound(cb.log10_bound)} (derau tidak bergantung pada kode)")
     print(f"Waktu: {dt:.1f} s")
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +130,87 @@ def _simulate_staged(args: argparse.Namespace, params, strategies: list[str] | N
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
         Path(args.json).write_text(json.dumps(rep.to_dict(), indent=2), encoding="utf-8")
     return 0 if all(r.staged_false_accusation_trials == 0 for r in rep.results) else 1
+
+
+# --- deteksi ------------------------------------------------------------------------------
+
+READ_CONDITIONS = ("Syarat: derau kanal tidak bergantung pada kode, pada pilihan koalisi, maupun pada bit yang "
+                   "dibocorkan, dan setiap posisi dibaca bebas dari posisi lain (bobot dan bit salahnya) dengan "
+                   "laju yang diketahui. Bobot satu foto tidak bebas antarposisi (foto baik atau buruk secara "
+                   "keseluruhan), jadi angka ini bukan batas untuk satu foto tertentu. Penghapusan yang menyasar "
+                   "posisi tempat salinan koalisi sama tidak tercakup. Batas ini tidak mengubah tuduhan.")
+
+
+def _format_bound(log10_bound: float) -> str:
+    """A probability bound for display; very small values as a power of ten."""
+    return f"{10 ** log10_bound:.1e}" if log10_bound > -300 else f"1e{log10_bound:.0f}"
+
+
+def _percent(x: float) -> str:
+    return f"{100 * x:g}".replace(".", ",") + " %"
+
+
+def _noise_law(ber: float, erasure: float) -> ChannelLaw:
+    """Hard read: flips with rate ``ber``, then erasure with rate ``erasure``, independent of the code."""
+    from tapak.tardos.detection import ChannelLaw
+
+    if not 0.0 <= erasure <= 1.0:
+        raise ValueError("laju posisi terhapus harus di antara 0 dan 1")
+    if erasure == 0:
+        return ChannelLaw.binary_symmetric(ber)
+    return ChannelLaw((0.0, 1.0), (0.0, ber), (erasure, 1.0 - erasure))
+
+
+def _noise_text(ber: float, erasure: float) -> str:
+    text = f"bit salah {_percent(ber)}"
+    return text + (f" dan {_percent(erasure)} posisi terhapus acak" if erasure else "")
+
+
+def _cmd_detection(args: argparse.Namespace) -> int:
+    """``tapak deteksi``: proven bound on the probability that a coalition escapes, for a read model."""
+    from tapak.tardos.detection import ChannelLaw, channel_min_length, channel_miss_bound
+    from tapak.tardos.params import TardosParams
+    from tapak.tardos.spending import DEFAULT_STAGE_POLICY, TraceSpending
+
+    params = TardosParams(c=args.c, eps=args.eps, n_max=args.n, constant=args.constant)
+    m = params.length if args.m is None else args.m
+    if args.trace_no is None:
+        eps1, eps_text = params.eps1, "seluruh eps"
+    else:
+        eps1 = TraceSpending.logged(params.eps, args.trace_no, DEFAULT_STAGE_POLICY).stage_eps1(1, params.n_max)
+        eps_text = f"tahap 1 pelacakan ke-{args.trace_no}"
+    if args.calibrated and not args.law:
+        raise ValueError("--kalibrasi hanya berlaku bersama --sebaran")
+    if args.calibrated and args.ber is not None:
+        raise ValueError("--kalibrasi dan --ber tidak dapat dipakai bersama")
+    if args.law and args.erasure:
+        raise ValueError("--erasure tidak berlaku bersama --sebaran (posisi terhapus sudah ada di sebaran, bobot 0)")
+    if args.law:
+        data = json.loads(Path(args.law).read_text(encoding="utf-8"))
+        law = ChannelLaw.from_dict(data.get("law", data))
+        text = f"bobot dan laju bit salah per bobot dari {args.law}"
+        if args.calibrated:
+            law = ChannelLaw.calibrated(law.weights, law.probabilities)
+            text = f"bobot dari {args.law}, laju bit salah (1 - w)/2 (LLR terkalibrasi)"
+        elif args.ber is not None:
+            law = law.with_error_rate(args.ber)
+            text = f"bobot dari {args.law}, bit salah {_percent(args.ber)} di setiap bobot"
+    else:
+        law = _noise_law(args.ber or 0.0, args.erasure)
+        text = _noise_text(args.ber or 0.0, args.erasure) + ", bobot 1"
+    print(f"Batas terbukti peluang tidak satu pun anggota koalisi tertangkap: N={params.n_max}, c={params.c}, "
+          f"eps={params.eps:g}, m={m}, ambang {eps_text} (eps1={eps1:.1e})")
+    print(f"Model baca: {text} (fraksi efektif {law.effective_fraction:.2f})")
+    bounds = [channel_miss_bound(params, law, k, m, eps1) for k in range(1, params.c + 1)]
+    for b in bounds:
+        print(f"  koalisi {b.coalition} orang: {_format_bound(b.log10_bound)}")
+    print(f"Koalisi paling banyak {params.c} orang: {_format_bound(max(b.log10_bound for b in bounds))}")
+    if args.target is not None:
+        req = channel_min_length(params.c, params.eps, params.n_max, args.target, law, eps1)
+        print(f"Panjang kode terpendek dengan batas <= {args.target:g} untuk model ini: m={req.length} "
+              f"(K={req.k_constant:.1f}; bawaan m={params.length})")
+    print(READ_CONDITIONS)
+    return 0
 
 
 # --- keys ---------------------------------------------------------------------------------
@@ -817,6 +907,27 @@ def build_parser() -> argparse.ArgumentParser:
                         f"(bawaan {DEFAULT_STAGE_POLICY})")
     s.add_argument("--json", default=None, help="tulis hasil lengkap ke berkas JSON ini")
     s.set_defaults(func=_cmd_simulate)
+
+    dt = sub.add_parser("deteksi", help="batas terbukti peluang koalisi lolos untuk model baca tertentu")
+    dt.add_argument("--n", type=int, default=20, help="jumlah penerima maksimum")
+    dt.add_argument("--c", type=int, default=3, help="ukuran koalisi rancangan (batas mencakup 1 sampai c)")
+    dt.add_argument("--eps", type=float, default=1e-6, help="peluang tuduhan salah total")
+    dt.add_argument("--constant", choices=["skoric", "tardos"], default="skoric",
+                    help="konstanta panjang kode: skoric (2 pi^2) atau tardos (100)")
+    dt.add_argument("--m", type=int, default=None, help="panjang kode (bawaan: dari N, c, eps, dan konstanta)")
+    dt.add_argument("--ber", type=float, default=None,
+                    help="laju bit salah di setiap posisi (dengan --sebaran: di setiap bobot)")
+    dt.add_argument("--erasure", type=float, default=0.0, help="laju posisi terhapus acak (tanpa --sebaran)")
+    dt.add_argument("--sebaran", dest="law", default=None,
+                    help="berkas JSON sebaran bobot dekoder (weights, error_rates, probabilities), misalnya "
+                         "research/deteksi/hasil/llr_foto.json")
+    dt.add_argument("--kalibrasi", dest="calibrated", action="store_true",
+                    help="dengan --sebaran: laju bit salah (1 - w)/2 seperti LLR terkalibrasi")
+    dt.add_argument("--pelacakan-ke", dest="trace_no", type=int, default=None,
+                    help="pakai ambang tahap 1 pelacakan tercatat ke-K (bawaan: seluruh eps)")
+    dt.add_argument("--target", type=float, default=None,
+                    help="cetak juga panjang kode terpendek dengan batas paling besar nilai ini")
+    dt.set_defaults(func=_cmd_detection)
 
     k = sub.add_parser("keys", help="kelola kunci")
     ksub = k.add_subparsers(dest="keys_cmd", required=True)

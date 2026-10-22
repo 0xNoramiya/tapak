@@ -18,10 +18,10 @@ Two constants are available:
 
 Important: in TAPAK the *false-accusation* guarantee never depends on K or on any
 approximation. The threshold is computed from a rigorous Chernoff bound on the actual bias
-vector (see ``accuse.py``). K only influences the *detection* rate. For hard-decision reads
-``detection.py`` computes a proven, non-asymptotic bound on the probability that a coalition
-of at most c escapes (about 1e-23 for c = 3, N = 20 at K = 2*pi^2); soft weights and channel
-errors are measured by the simulation.
+vector (see ``accuse.py``). K only influences the *detection* rate. ``detection.py`` computes a
+proven, non-asymptotic bound on the probability that a coalition of at most c escapes (about
+1e-23 for c = 3, N = 20 at K = 2*pi^2 on a full hard-decision read), also for soft weights and
+bit errors that do not depend on the code.
 
 The bias cutoff t = 1/(300 c) is Tardos' original choice.
 """

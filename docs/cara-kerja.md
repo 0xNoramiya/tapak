@@ -38,7 +38,7 @@ Setiap dokumen memiliki vektor bias p (distribusi arcsine dengan batas t = 1/(30
 
 Aturan ambang ditetapkan saat penerbitan dan dicatat di registri, bersama ambang Z untuk pembacaan penuh. Untuk setiap bukti, TAPAK menghitung ambang Z setelah dekode, dengan batas Chernoff yang dihitung dari vektor bias dokumen yang sebenarnya dan bobot dekoder. Posisi yang tidak terbaca tidak dihitung, dan setiap posisi memakai bit bocor terburuk. Perhitungan ini tidak melihat kode penerima mana pun (tahap lanjutan [pelacakan bertahap](#pelacakan-bertahap) memakai kode salinan yang sudah dituduh, tetapi tidak pernah kode salinan yang sedang dinilai). Nilainya dicatat dengan cap waktu di hasil dan berita acara, baru kemudian skor dihitung.
 
-Jaminan tuduhan salah karenanya tidak bergantung pada konstanta K maupun pendekatan Gauss. K hanya memengaruhi deteksi. Untuk pembacaan penuh dengan bit pasti, peluang koalisi lolos juga dibatasi secara matematis ([batas deteksi terbukti](#batas-deteksi-terbukti)); untuk bobot lunak dekoder dan kanal berderau, deteksi hanya diukur dengan simulasi.
+Jaminan tuduhan salah karenanya tidak bergantung pada konstanta K maupun pendekatan Gauss. K hanya memengaruhi deteksi. Peluang koalisi lolos juga dibatasi secara matematis, untuk pembacaan penuh dan juga untuk bit salah dan bobot lunak dekoder, selama derau kanal tidak bergantung pada kode ([batas deteksi terbukti](#batas-deteksi-terbukti)). Penghapusan yang sengaja menyasar posisi tempat salinan koalisi sama tidak tercakup dan hanya diukur.
 
 Satu kebocoran dapat dilacak berulang kali, misalnya dengan potongan atau gabungan bukti yang berbeda. Karena itu setiap pelacakan dokumen yang tercatat lebih dulu ditulis di registri dengan nomor urut k per dokumen, sebelum bukti dibaca. Pelacakan ke-k memakai eps_k = eps x 6 / (pi^2 k^2) dan eps1 = eps_k / N, untuk ambang gabungan maupun ambang tiap kanal. Jumlah 1/k^2 untuk semua k adalah pi^2/6, jadi jumlah semua eps_k tepat eps: batas tuduhan salah berlaku untuk semua pelacakan dokumen bersama, selama bukti tiap pelacakan tidak dipilih berdasarkan skor pelacakan sebelumnya ([batasan 13](keamanan.md#batasan)). Peluang tuduhan salah per salinan juga dibagi dengan 6 / (pi^2 k^2). Pelacakan yang tidak tercatat (mode lepas, atau dokumen yang diterbitkan tanpa registri) memakai seluruh eps dan hasilnya menyatakannya. Di dalam satu pelacakan, jatah eps_k dibagi lagi antartahap [pelacakan bertahap](#pelacakan-bertahap).
 
@@ -156,6 +156,8 @@ Uji tambahan (berkas lengkap di [`results/`](results/)):
 | N=100, kode untuk c=3 diserang 5 orang (di luar rancangan), 300 percobaan | 0 | 100 % | 42 sampai 49 % (strategi hapus: 100 %) |
 | sama, [pelacakan bertahap](#pelacakan-bertahap), 1.000 percobaan | 0 | 100 % | 48 sampai 100 % (mayoritas 48 %, 6 strategi lain dan hapus 100 %) |
 
+Untuk kanal berderau di baris kedua, batas terbukti peluang koalisi paling banyak 3 orang lolos adalah 3,4 x 10^-5 (`tapak deteksi --n 100 --ber 0.05 --erasure 0.35`; [bit salah dan bobot lunak](#bit-salah-dan-bobot-lunak)).
+
 Tabel parameter (eps = 10^-6, `tapak simulate --table`):
 
 | N | c | eps1 | m (K=2 pi^2) | m (K=100) | Z Chernoff | Z Gauss | rata-rata skor kolusi per anggota | batas lolos terbukti (K=2 pi^2) |
@@ -170,7 +172,7 @@ Tabel parameter (eps = 10^-6, `tapak simulate --table`):
 Simulasi hanya menunjukkan bahwa koalisi selalu tertangkap dalam percobaan yang dijalankan. `tapak/tardos/detection.py` memberi batas atas peluang sebaliknya, yaitu tidak satu pun anggota koalisi mencapai ambang. Batas ini berlaku untuk setiap strategi yang mematuhi asumsi penandaan, tanpa pendekatan asimtotik atau Gauss.
 
 * **Caranya.** Bila tidak ada anggota yang mencapai Z, jumlah skor koalisi di bawah c x Z. Jumlah itu adalah jumlah per posisi yang hanya bergantung pada banyaknya bit 1 di antara anggota, bit yang dibocorkan, dan bias posisi itu. Koalisi tidak tahu biasnya, jadi faktor Chernoff tiap posisi dapat dimaksimalkan atas pilihan bit bocor secara terpisah. Hasilnya berlaku untuk strategi apa pun, termasuk yang acak atau memakai posisi lain. Ambang Z yang ikut berubah dengan vektor bias dibatasi oleh fungsi Chernoff-nya sendiri. Integral atas sebaran bias dihitung dengan kuadratur Gauss-Legendre dan diperiksa dengan kisi dua kali lebih rapat. Turunan lengkapnya ada di docstring modul.
-* **Cakupan.** Pembacaan penuh dengan bit pasti, juga penghapusan di posisi tempat salinan koalisi berbeda (strategi hapus) dan penghapusan yang tidak bergantung pada kode (batasnya lalu dihitung dengan jumlah posisi yang terbaca). Bobot lunak, bit salah, dan penghapusan yang menyasar posisi tertentu hanya diukur ([batasan 12](keamanan.md#batasan)).
+* **Cakupan.** Pembacaan penuh dengan bit pasti, juga penghapusan di posisi tempat salinan koalisi berbeda (strategi hapus) dan penghapusan yang tidak bergantung pada kode (batasnya lalu dihitung dengan jumlah posisi yang terbaca). Bit salah dan bobot lunak tercakup dengan syarat pada kanal ([di bawah](#bit-salah-dan-bobot-lunak)). Penghapusan yang menyasar posisi tempat salinan koalisi sama hanya diukur ([batasan 12](keamanan.md#batasan)).
 * **Strategi terburuk.** Strategi `worst-case` (terburuk) membocorkan bit yang membuat rata-rata skor koalisi per posisi paling kecil. Dengan sebaran bias TAPAK, rumus tertutupnya menunjukkan bahwa ini selalu bit minoritas. Faktor Chernoff justru terbesar untuk bit mayoritas pada parameter TAPAK, karena ekor bawah skornya lebih berat. Keduanya ikut dalam simulasi, dan batasnya berlaku untuk keduanya.
 
 | c | batas lolos terbukti, K = 2 pi^2 (N = 20 / 100) | K untuk batas 10^-3 (N = 20 / 100) | K untuk batas 10^-6 (N = 20 / 100) |
@@ -192,6 +194,58 @@ Perbandingan dengan simulasi (`research/deteksi/ukur.py`; grid ditetapkan sebelu
 Tidak ada laju terukur yang melampaui batasnya, dan tidak ada tuduhan salah. Batasnya longgar: laju terukur tertinggi 6 sampai 17 kali lebih kecil.
 
 Strategi terburuk hanya terburuk untuk rata-rata skor per posisi, dan kedelapan strategi itu memilih bit dari satu posisi saja. Pemeriksaan ulang (`research/deteksi/penyeimbang.py`, c = 2 sampai 4, N = 20, 2.000 percobaan per sel) memakai koalisi yang melihat semua posisi dan memilih bit agar perkiraan skor anggotanya tetap sama rata. Koalisi ini lolos sampai 4 kali lebih sering daripada strategi terbaik di atas: paling tinggi 22 %, 6 %, dan 0,65 % pada batas 0,9, 0,5, dan 0,1. Itu tetap di bawah batasnya; batasnya 4 sampai 15 kali lebih besar. Batas terbukti berlaku untuk strategi seperti ini juga; simulasi hanya memeriksa contoh yang kami coba. Batas itu mengecil secara eksponensial terhadap m, jadi pada panjang bawaan pun sudah sangat kecil.
+
+#### Bit salah dan bobot lunak
+
+Dekoder tidak melihat kata bocoran y, tetapi bacaannya: bit yang mungkin terbalik dan bobot w_i = tanh(|LLR|/2). Bit yang terbalik membalik tanda skor koalisi di posisi itu, jadi rata-rata skor koalisi menyusut menjadi w_i (1 - 2 e_i) kali semula, dengan e_i peluang bit itu terbalik. Ambang Z(p, w) dibatasi seperti pada pembacaan penuh, dengan fungsi Chernoff berbobot yang memang dipakai TAPAK. Buktinya memerlukan dua syarat:
+
+1. Derau kanal terjadi setelah koalisi memilih bitnya, dan tidak bergantung pada kode, pada pilihan koalisi, maupun pada bit yang dibocorkan. Kanal simetris memenuhinya: |LLR| dan benar-salahnya keputusan hanya bergantung pada derau.
+2. Dengan bobot diketahui, bit yang terbalik saling bebas antarposisi, dengan laju e_i yang diketahui.
+
+Syarat 1 menjamin bahwa, dengan bobot diketahui, kode masih tersebar seperti tanpa kanal, sehingga batas Chernoff tetap terpecah menjadi hasil kali per posisi. Syarat 2 membuat faktor setiap posisi menjadi rata-rata dua kemungkinan (terbalik atau tidak) di dalam maksimum atas bit bocor. Hasilnya batas peluang lolos bila bobot yang terbaca diketahui (`read_miss_bound`) dan bila setiap posisi, bebas dari posisi lain, mengambil bobot dan laju salahnya dari satu sebaran (`channel_miss_bound`, juga di `tapak deteksi`). Batas kedua juga mencakup strategi hapus, tetapi tidak berlaku untuk satu bacaan yang bobotnya bergerak bersama (foto yang baik atau buruk secara keseluruhan); untuk bacaan seperti itu batasnya dihitung dari bobotnya sendiri. Tanpa derau (w = 1, e = 0) hasilnya sama dengan batas pembacaan penuh. Bila syarat 1 gagal, misalnya bobot nol justru jatuh di posisi tempat salinan koalisi sama, sebaran kode di posisi yang terbaca berubah dan batasnya tidak berlaku (tabel terakhir di bawah). Dekoder foto TAPAK sendiri tidak memenuhi syarat 1 secara persis: kanal latar memakai vektor bias sebagai pilot untuk memperkirakan penguatannya per strata dan untuk memutuskan ada tidaknya pola, jadi bobotnya bergantung pada kode lewat beberapa angka bersama untuk satu halaman. Pengaruhnya per posisi kecil, tetapi tidak dimodelkan. Turunan lengkapnya ada di docstring `tapak/tardos/detection.py`.
+
+Sebaran bobot dekoder diukur pada 40 foto layar dan tangkapan layar sintetis dari benchmark (`research/deteksi/llr_foto.py`, angka di `research/deteksi/hasil/llr_foto.json`). Dari posisi yang terbaca, 82 % berbobot di atas 0,95 dan 4 % terhapus. Di bobot menengah laju salahnya beberapa poin persentase di atas atau di bawah laju terkalibrasi (1 - w)/2, tetapi di bobot tertinggi dekoder terlalu yakin: bobot di atas 0,95 (rata-rata 0,998) salah 0,33 %, 2,8 kali perkiraan 0,12 %, dan bobot 0,9 sampai 0,95 salah 5,3 %, 1,5 kali perkiraannya. Karena itu batas dengan laju (1 - w)/2 tidak sah untuk foto ini, dan model "foto" di bawah memakai laju salah terukur per kelompok bobot. Laju itu juga berbeda per foto: jumlah bit salah tiap foto 0,5 sampai 4,3 kali perkiraan terkalibrasinya. Foto dengan lebih dari 100 bit salah terkalibrasi baik (0,85 sampai 1,14 kali), sedangkan foto bersih dan tangkapan layar yang hanya salah beberapa bit cenderung terlalu yakin.
+
+Sebaran ini menggabungkan posisi dari 40 gambar, dan setiap gambar hanya memuat halaman 1 (sekitar 1.990 dari 2.987 posisi). Di dalam satu foto bobot tidak bebas antarposisi: foto baik atau buruk secara keseluruhan (jumlah w^2 per foto 86 sampai 1.986). Jadi kolom "bobot foto" di bawah adalah batas untuk pembacaan semua posisi dengan bobot seperti foto yang diundi bebas per posisi, bukan batas untuk satu foto. Batas satu foto dihitung dari bobotnya sendiri (`read_miss_bound`; `research/deteksi/baca_foto.py`, angka di `research/deteksi/hasil/baca_foto.jsonl`). Dengan laju salah terukur gabungan per kelompok bobot, untuk koalisi paling banyak 3 orang batasnya paling kecil 6 x 10^-9 (tangkapan layar) dan mediannya 2 x 10^-8. Pada 9 dari 40 gambar batasnya di atas 10^-6, dan 5 gambar tidak memberi jaminan (0,85 sampai 1). Sebaran gabungan memberi 1 x 10^-17 untuk kode yang sama.
+
+Batas pada panjang bawaan (K = 2 pi^2, N = 20, seluruh eps, koalisi paling banyak c):
+
+| c | bit pasti | bit salah 2 % | 5 % | 10 % | 20 % | bobot foto, laju terukur | K untuk batas 10^-6: bit salah 5 % / 10 % / 20 % / bobot foto |
+|---|---|---|---|---|---|---|---|
+| 2 | 5 x 10^-17 | 2 x 10^-14 | 7 x 10^-11 | 4 x 10^-6 | 0,40 | 1 x 10^-12 | 16,3 / 20,4 / 35,8 / 15,2 |
+| 3 | 2 x 10^-23 | 5 x 10^-20 | 3 x 10^-15 | 8 x 10^-9 | 0,21 | 1 x 10^-17 | 14,3 / 17,9 / 31,2 / 13,4 |
+| 4 | 5 x 10^-31 | 2 x 10^-26 | 3 x 10^-20 | 1 x 10^-11 | 0,10 | 2 x 10^-23 | 13,0 / 16,3 / 28,6 / 12,2 |
+| 5 | 2 x 10^-38 | 9 x 10^-33 | 5 x 10^-25 | 2 x 10^-14 | 0,05 | 4 x 10^-29 | 12,2 / 15,3 / 26,9 / 11,4 |
+
+Bit pasti memerlukan K 13,3 / 11,7 / 10,6 / 9,9 untuk 10^-6 (tabel sebelumnya). Dengan 10 % bit salah, K bawaan masih cukup untuk 10^-6 kecuali pada c = 2 (perlu 20,4). Dengan 20 % bit salah, kode bawaan tidak memberi jaminan yang berarti (batas 0,05 sampai 0,40). Laju terkalibrasi (1 - w)/2 memberi batas sedikit lebih kecil daripada laju terukur, tetapi tidak sah untuk foto. Untuk N = 100 batasnya sedikit lebih kecil (angka mentah di `research/deteksi/hasil/batas_kanal.jsonl`).
+
+Perbandingan dengan simulasi (`research/deteksi/kanal.py`, bagian `derau`; grid ditetapkan dan dicatat di git sebelum simulasi dijalankan): N = 20, c = 2 sampai 5, 8 strategi, 1.000 percobaan per sel. Panjang kode setiap sel adalah kode terpendek yang batasnya 0,5 atau 0,1 untuk model baca itu, dihitung dari batas saja. Bit salah dan bobot diundi per posisi setelah koalisi memilih bitnya, dan ambang Z(p, w) dihitung dari bobot yang terbaca, seperti di dekoder. "Bobot foto" berarti bobot diundi dari sebaran terukur di atas; bit salahnya diundi bebas dari bobot, kecuali di dua baris terakhir.
+
+| Model baca | K untuk batas 0,5 (c = 2 sampai 5) | Laju lolos tertinggi | K untuk batas 0,1 | Laju lolos tertinggi |
+|---|---|---|---|---|
+| bobot 1, tanpa bit salah | 6,5 sampai 7,7 | 3,9 % | 7,2 sampai 8,8 | 0,4 % |
+| bobot 1, bit salah 2 % | 7,0 sampai 8,2 | 4,6 % | 7,8 sampai 9,5 | 0,5 % |
+| bobot 1, bit salah 5 % | 7,9 sampai 9,2 | 4,1 % | 8,8 sampai 10,7 | 0,4 % |
+| bobot 1, bit salah 10 % | 9,8 sampai 11,4 | 4,9 % | 11,0 sampai 13,2 | 0,7 % |
+| bobot 1, bit salah 20 % | 16,9 sampai 19,2 | 5,9 % | 19,0 sampai 22,6 | 0,5 % |
+| bobot foto, tanpa bit salah | 7,0 sampai 8,3 | 4,6 % | 7,7 sampai 9,5 | 0,8 % |
+| bobot foto, bit salah 2 % | 7,5 sampai 8,9 | 4,4 % | 8,4 sampai 10,2 | 0,5 % |
+| bobot foto, bit salah 5 % | 8,4 sampai 9,9 | 5,3 % | 9,4 sampai 11,5 | 0,5 % |
+| bobot foto, bit salah 10 % | 10,5 sampai 12,3 | 4,9 % | 11,8 sampai 14,2 | 0,5 % |
+| bobot foto, bit salah 20 % | 18,1 sampai 20,6 | 4,9 % | 20,4 sampai 24,3 | 0,6 % |
+| bobot foto, laju (1 - w)/2 | 7,3 sampai 8,7 | 4,5 % | 8,2 sampai 10,0 | 0,4 % |
+| bobot foto, laju terukur (model foto) | 7,4 sampai 8,7 | 4,8 % | 8,2 sampai 10,1 | 0,5 % |
+
+Di 96 sel (768.000 serangan) tidak ada laju lolos yang melampaui batasnya. Laju terukur tertinggi 5,9 % untuk batas 0,5 dan 0,8 % untuk batas 0,1, jadi batasnya 8 sampai 12 kali di atas laju terukur tertinggi. Batasnya makin longgar untuk koalisi besar: 8 sampai 12 kali untuk c = 2, 20 sampai 23 kali untuk c = 3, 33 sampai 45 kali untuk c = 4, dan 71 sampai 100 kali untuk c = 5 (di 9 sel dengan batas 0,1 tidak ada koalisi yang lolos). Strategi yang paling sering lolos berbeda dari sel ke sel. Harga bit salah terlihat di kolom K: dengan 20 % bit salah, kode perlu sekitar 2,5 kali lebih panjang untuk batas yang sama, mendekati faktor 1/(1 - 2e)^2 = 2,8.
+
+Penghapusan yang menyasar posisi tempat salinan koalisi sama (`kanal.py`, bagian `sasaran`; panjang bawaan, N = 20, pembacaan tanpa bit salah, 8 strategi, 1.000 percobaan per sel). Koalisi melihat di mana salinannya sama, dan asumsi penandaan saja tidak melarang menghapus tanda di sana. Setiap posisi itu dihapus dengan peluang r, di atas strategi biasa di posisi yang berbeda:
+
+| r | 0 | 50 % | 80 % | 90 % sampai 100 % |
+|---|---|---|---|---|
+| Laju lolos tertinggi, c = 2 / 3 / 4 / 5 | 0 / 0 / 0 / 0 | 1,6 / 0,5 / 0,3 / 0 % | 99,9 / 96 / 96 / 97 % | 99,4 sampai 100 % untuk setiap strategi |
+| Batas untuk penghapusan acak yang menyisakan jumlah posisi sama (tidak berlaku di sini) | 5 x 10^-17 sampai 2 x 10^-38 | 1 x 10^-5 sampai 2 x 10^-21 | 0,29 sampai 1 x 10^-12 | 1 sampai 4 x 10^-10 |
+
+Posisi tempat salinan koalisi sama membawa hampir seluruh skor koalisi. Bila separuhnya masih terbaca, deteksi tetap hampir pasti; bila sebagian besar terhapus, koalisi lolos, jauh di atas batas yang berlaku untuk penghapusan acak. Penghapusan seperti ini menuntut koalisi menghapus tanda di bagian yang salinannya sama (misalnya meratakan pola latar di sana) tanpa menyentuh bagian yang berbeda. Batas terbukti tidak mencakupnya.
 
 ## Hasil lain
 
