@@ -93,6 +93,7 @@ def test_issue_trace_report_registry(client):
     r = client.post("/lacak", data={"dokumen": doc, "teks": "Teks ini tidak berasal dari dokumen mana pun."})
     assert "Tidak cukup bukti" in r.text and "Nama tidak disebutkan" in r.text
     assert "Ke-2, entri #" in r.text
+    assert "tahap lanjutan hanya berjalan bila tahap 1 menuduh seseorang." in r.text and "tahap-tabel" not in r.text
 
     r = client.get("/registri")
     assert "Utuh" in r.text and "nota_dinas.pdf" in r.text
@@ -325,13 +326,13 @@ def test_download_names_security_headers_and_registry_without_key(client):
     assert "Tanpa kunci" in status and re.search(r"\d+ entri", status) and "Belum ada" not in status
 
 
-def _issue_small():
+def _issue_small(n: int = 4):
     from tapak.config import load_settings
     from tapak.marker.issue import IssueSettings, read_recipients
     from tapak.service import issue_document
 
     s = load_settings()
-    out = issue_document(s, SAMPLE, read_recipients(ROOT / "samples" / "recipients.csv")[:4],
+    out = issue_document(s, SAMPLE, read_recipients(ROOT / "samples" / "recipients.csv")[:n],
                          IssueSettings(workers=1, canary_domain="kanari.tapak.test"), "uji")
     return s, out.manifest
 
@@ -1133,3 +1134,181 @@ def test_lacak_warns_next_to_the_verdict_when_scanned_shift_was_skipped(client, 
     assert f'<p class="notice notice-warn verdict-note"><b>Perhatian:</b> {note}</p>' in verdict
     assert r.text.count(trace.SCAN_SHIFT_SKIPPED) == 1  # not repeated among the notes
     assert not re.search(r'<ul class="notes">\s*</ul>', r.text)  # no empty notes list
+
+
+# --- staged accusation (pelacakan bertahap) in the Lacak result ------------------------------
+
+
+def _compact(text: str) -> str:
+    """Markup or PDF text without tags and whitespace, for comparing numbers between the two."""
+    return "".join(_plain(re.sub(r"<[^>]+>", "", text)).split())
+
+
+def _coalition_composite(s, manifest):
+    """Text of four copies (more than c = 3) spliced together: 70 % from one, 10 % from each of
+    three others. A few coalitions are traced in-process with the budget of trace no. 1 (nothing
+    is logged) until stage 1 names one copy and a later stage names another; one coalition does
+    so with probability about 0,99. Returns the text, the coalition and the expected result."""
+    from tapak.decoder.ch_zerowidth import extract_pdf_text
+    from tapak.decoder.trace import load_context, trace_files
+    from tapak.service import TRACE_STAGE_POLICY, ensure_keys
+    from tapak.tardos.spending import TraceSpending
+
+    folder = s.workspaces / manifest.doc_hash[:16]
+    words = {c.seq: extract_pdf_text((folder / "salinan" / c.file).read_bytes()).split() for c in manifest.copies}
+    n = len(words[1])
+    assert {len(w) for w in words.values()} == {n}  # the same words; only the invisible marks differ
+    keys = ensure_keys(s, create_signing_key=False, create_secret=False)
+    ctx = load_context((folder / "induk.pdf").read_bytes(), manifest, keys.code_secret, folder=folder)
+    spending = TraceSpending.logged(manifest.tardos_params.eps, 1, TRACE_STAGE_POLICY)
+    cuts = [0, round(0.7 * n), round(0.8 * n), round(0.9 * n), n]
+    for coalition in ((1, 2, 3, 4), (3, 4, 5, 6), (5, 6, 1, 2)):
+        text = " ".join(w for k, seq in enumerate(coalition) for w in words[seq][cuts[k]:cuts[k + 1]])
+        a, _ = trace_files([("bocor.txt", text.encode())], ctx, spending)
+        if len(a.accused) == 1 and any(st.accused for st in a.stages):
+            return text, coalition, a
+    pytest.fail("no coalition of four copies gave a later-stage name")
+
+
+def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeypatch):
+    import pymupdf
+
+    import tapak.service as service
+    from tapak.canary_dns.store import record_event
+    from tapak.decoder.ch_zerowidth import extract_pdf_text
+    from tapak.decoder.report import REDACTED, _strip_zeros, format_number, format_probability_html
+    from tapak.web.app import _TRACES, _eps_label
+
+    s, manifest = _issue_small(6)
+    doc = manifest.doc_hash[:16]
+    text, coalition, expected = _coalition_composite(s, manifest)
+    by_seq = {c.seq: c for c in manifest.copies}
+    rid = {seq: c.recipient.recipient_id for seq, c in by_seq.items()}
+    outsider = next(seq for seq in by_seq if seq not in coalition)
+    late = next(c.copy.seq for st in expected.stages for c in st.accused)
+    for c in manifest.copies:  # a canary hit from every copy; only named copies may be numbered
+        record_event(s.canary_db, f"{c.canary_token}.c.kanari.tapak.test", c.canary_token, "A", "198.51.100.7", 5353)
+    # One channel alone also points at every coalition member and at the outsider, so the
+    # per-channel table shows which of them it may number.
+    real = service.trace_evidence
+
+    def traced(*args, **kwargs):
+        out = real(*args, **kwargs)
+        out.attribution.channels[0].accused_seqs = sorted(set(coalition) | {outsider})
+        return out
+
+    monkeypatch.setattr(service, "trace_evidence", traced)
+    # the leaker controls the file name: it names the later-stage copy and the outsider
+    name = f"bocor_salinan{late:03d}_{rid[late]}_salinan{outsider:03d}_{rid[outsider]}.txt"
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": (name, text.encode("utf-8"), "text/plain")})
+    assert r.status_code == 200
+    tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
+    a = _TRACES[tid].attribution
+    t = a.threshold
+    later = [(st, c) for st in a.stages for c in st.accused]
+    assert a.named_seqs == expected.named_seqs and t.trace_no == 1 and t.stage_policy
+    first = a.accused[0]
+    assert len(a.accused) == 1 and later and a.named_seqs <= set(coalition)
+
+    # The verdict: the stage-1 name first, then every later name below it with its stage, its basis,
+    # its stage score against its own threshold (never Z1) and its bound.
+    verdict = r.text[:r.text.index('class="verdict-actions"')]
+    stage1 = verdict.index(f'<span class="who-seq">Salinan #{first.copy.seq}</span>')
+    assert 'id="putusan"' in verdict[:stage1] and stage1 < verdict.index('<div class="lanjut"')
+    block = verdict[verdict.index('<div class="lanjut"'):]
+    assert "Pelacakan bertahap" in block and "tidak dapat dibandingkan langsung dengan skor tahap 1" in block
+    assert "Tahap lanjutan hanya berjalan karena tahap 1 menuduh salinan di atas." in block
+    assert "Ambang Z <b>" not in block and "Kanal sepakat" not in block
+    items = block.split('<div class="who who-lanjut">')[1:]
+    assert len(items) == len(later)
+    for (st, c), item in zip(later, items):
+        assert (f'<span class="stamp stamp-ok">Tahap {st.stage}</span> <span class="who-seq">Salinan #{c.copy.seq}'
+                f'</span> <span class="who-name">{c.copy.nama}</span>') in item
+        assert st.basis_text() in item and set(st.basis) <= a.named_seqs - {c.copy.seq}
+        assert f"Skor tahap {st.stage} <b>{format_number(c.score, 1)}</b>" in item
+        assert f"Ambang Z{st.stage} <b>{format_number(st.threshold.threshold, 1)}</b>" in item
+        assert str(format_probability_html(c.false_accusation_probability, c.log10_false_accusation)) in item
+    # the collusion notice counts the named copies of every stage, not stage 1's alone, and does
+    # not say that a later-stage copy passed the (stage-1) threshold
+    assert "Lebih dari satu salinan dituduh, di tahap 1 dan di tahap lanjutan: pola ini sesuai dengan kolusi" in verdict
+    assert "melewati ambang" not in verdict.lower()
+
+    # File names, the per-channel table and the canary list number the named copies of every stage.
+    kicker = re.search(r'<span class="mono keep-case">(.*?)</span>', r.text).group(1)
+    assert kicker == f"bocor_salinan{late:03d}_{rid[late]}_salinan{REDACTED}_{REDACTED}.txt"
+    assert rid[outsider] not in r.text
+    kanal = r.text[r.text.index('id="kanal-h"'):r.text.index('id="skor-h"')]
+    row = re.search(r"<tr>\s*<td>Teks</td>.*?</tr>", kanal, re.S).group(0)
+    assert all(f"<b>#{seq}</b>" in row for seq in a.named_seqs) and f"#{outsider}" not in row
+    assert f"{len(set(coalition) - a.named_seqs) + 1} salinan lain (nomor tidak dicantumkan)" in row
+    canary = r.text[r.text.index('id="kanari-h"'):r.text.index('id="sah-h"')]
+    assert all(f"Salinan #{seq}</span>" in canary for seq in a.named_seqs)
+    assert all(f"Salinan #{seq}: {by_seq[seq].recipient.nama}" in canary for seq in a.named_seqs)
+    for st, c in later:  # a later-stage name in the canary list comes with its basis
+        item = re.search(rf"<li>Salinan #{c.copy.seq}: .*?</li>", canary).group(0)
+        assert item.endswith(f"; {st.basis_text()}</li>"), item
+    assert canary.count("Salinan lain") == len(by_seq) - len(a.named_seqs)
+
+    # Bukti per kanal: stage 1's part of the budget, then one row per later stage.
+    plain = _plain(kanal)
+    frac1 = _strip_zeros(format_number(100 * t.stage_spent / t.spent, 2))
+    # the trace's share as the berita acara writes it (60,79 %, not 60,8 %)
+    assert f"Pelacakan ini memakai {_strip_zeros(format_number(100 * t.share, 2))} % dari batas" in plain
+    assert (f"tahap 1 memakai {_strip_zeros(format_number(100 * t.stage_share, 2))} % dari batas peluang tuduhan "
+            f"salah {_eps_label(t.eps)} ({frac1} % dari jatah pelacakan ini)") in plain
+    assert "Bobotnya memakai kode salinan yang sudah dituduh, tidak pernah kode salinan yang sedang dinilai." in plain
+    assert "tahap-catatan" not in kanal
+    start = kanal.index('class="tahap-tabel"')
+    rows = [_compact(x) for x in re.findall(r"<tr>\s*<td>.*?</tr>", kanal[start:kanal.index("</table>", start)], re.S)]
+    assert len(rows) == len(a.stages)
+    for st, cells in zip(a.stages, rows):
+        ts = st.threshold
+        z = format_number(ts.threshold, 1) if ts.threshold != float("inf") else "takhingga"
+        frac = _strip_zeros(format_number(100 * ts.stage_spent / t.spent, 2))
+        basis = ",".join(f"#{b}" for b in st.basis)
+        named = ",".join(f"#{c.copy.seq}" for c in st.accused) or "tidakada"
+        assert cells == f"{st.stage}dasar{basis}{format_number(ts.n_observed, 0)}{z}{frac}%{named}", cells
+
+    # Peringkat skor (stage 1): a copy named later shows its name only with its basis, stage score
+    # and Z_s; a screen reader hears each score as the stage-1 score.
+    ranking = r.text[r.text.index('id="skor-h"'):]
+    ranking = ranking[:ranking.index("</section>")]
+    assert "Skor tahap 1." in ranking
+    for st, c in later:
+        assert (f'#{c.copy.seq} \u00b7 {c.copy.nama}</b><span class="sr-only">, di bawah ambang tahap 1,</span> '
+                f'<span class="peringkat-tahap">{st.basis_text()}; skor tahap {format_number(c.score, 1)}, '
+                f"ambang Z{st.stage} {format_number(st.threshold.threshold, 1)}</span>") in ranking
+    assert ranking.count('<span class="sr-only">, skor tahap 1 </span>') == min(len(a.candidates), 6)
+    assert ranking.count("Disembunyikan") == len(by_seq) - len(a.named_seqs)
+
+    # Every number of the later stages is the one the berita acara prints for the same trace.
+    with pymupdf.open(stream=client.get(f"/lacak/{tid}/berita-acara.pdf").content, filetype="pdf") as pdf:
+        report = _compact("".join(page.get_text() for page in pdf))
+    assert f"tahap1memakai{frac1}%darijatahitu" in report
+    for st in a.stages:
+        ts = st.threshold
+        assert f"Posisiyangbitnyatidakdimilikisalinantersebut:{format_number(ts.n_observed, 0)}." in report
+        assert f"({_strip_zeros(format_number(100 * ts.stage_spent / t.spent, 2))}%darijatahpelacakan;" in report
+        if ts.threshold != float("inf"):
+            assert f"AmbangZ{st.stage}={format_number(ts.threshold, 1)}untuk" in report
+    for st, c in later:
+        bound = _compact(str(format_probability_html(c.false_accusation_probability, c.log10_false_accusation)))
+        assert c.copy.nama.replace(" ", "") in report
+        assert f"{format_number(c.score, 1)}{format_number(st.threshold.threshold, 1)}\u2264{bound}" in report
+
+    # One leaker: no later stage names anyone; one quiet line, no table and no later names.
+    monkeypatch.setattr(service, "trace_evidence", real)
+    lone = by_seq[outsider]
+    evidence = extract_pdf_text((s.workspaces / doc / "salinan" / lone.file).read_bytes())
+    r = client.post("/lacak", data={"dokumen": doc, "teks": evidence})
+    tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
+    a = _TRACES[tid].attribution
+    assert [c.copy.seq for c in a.accused] == [lone.seq] and a.stages and not any(st.accused for st in a.stages)
+    assert "tahap-tabel" not in r.text and 'class="lanjut"' not in r.text and "Tahap 2" not in r.text
+    assert "Lebih dari satu salinan" not in r.text
+    assert '<span class="sr-only">, skor </span>' in r.text and "skor tahap 1" not in r.text
+    lines = [_plain(x) for x in re.findall(r'<p class="hint tahap-catatan">(.*?)</p>', r.text, re.S)]
+    share1 = _strip_zeros(format_number(100 * a.threshold.stage_share, 2))
+    assert lines == [f"Pelacakan bertahap: tahap 1 memakai {share1} % dari "
+                     f"batas peluang tuduhan salah {_eps_label(a.threshold.eps)} (90 % dari jatah pelacakan ini); "
+                     "tahap lanjutan tidak menuduh salinan lain."]

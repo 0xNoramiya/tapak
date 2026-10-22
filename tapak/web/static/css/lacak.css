@@ -141,6 +141,22 @@
 .fact i { font-style: normal; font-size: var(--fs-sm); color: var(--ink-muted); }
 .lacak .verdict .verdict-note { max-width: none; }
 
+/* later stages of a staged trace: under the stage-1 names, on a sunken well and a size smaller,
+   so they read as resting on those names (each also states its basis) */
+.lanjut { display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid var(--border); }
+.lanjut-head { display: flex; flex-direction: column; gap: 4px; }
+.lanjut-head > .label { margin: 0; }
+.lacak .verdict .who-lanjut { padding: 18px 20px; border-radius: var(--r-2); background: var(--surface-sunken); gap: 16px 48px; }
+.lacak .verdict .who-lanjut h3 { font-size: inherit; letter-spacing: 0; }
+.who-lanjut h3 > .stamp { margin-bottom: 10px; }
+.who-lanjut .who-seq { font-size: var(--fs-title); line-height: 1.2; letter-spacing: -0.01em; }
+.who-lanjut .who-name { margin-top: 4px; font-size: var(--fs-body); }
+.who-lanjut .who-meta { font-size: var(--fs-sm); }
+.who-dasar { margin-top: 8px; font-size: var(--fs-sm); color: var(--ink-muted); }
+.lacak .verdict .who-lanjut .facts { gap: 16px 24px; }
+.who-lanjut .fact b { font-size: var(--fs-body); }
+.who-lanjut .meter-mark { box-shadow: 0 0 0 2px var(--surface-sunken); }
+
 .verdict-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-top: 20px; border-top: 1px solid var(--border); }
 .verdict-actions .hint { flex: 1 1 18rem; }
 
@@ -152,6 +168,15 @@
 .kanal-n { display: inline-block; min-width: 5ch; text-align: right; }
 /* a few positions of a long code still show as a dot, not a hairline */
 .kanal-catatan { margin: 12px 0 16px; }
+/* the later stages of a staged trace, under the channel table */
+.tahap { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 16px; padding-top: 20px; border-top: 1px solid var(--border); }
+.tahap > .hint { margin: 0; }
+.tahap .table-wrap { margin: 4px 0; }
+.tahap-tabel th { white-space: normal; }
+.tahap-tabel td { vertical-align: baseline; }
+.tahap-no { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tahap-dasar { display: block; font-size: var(--fs-sm); color: var(--ink-muted); }
+.tahap-catatan { margin: 0 0 16px; }
 
 /* ranking: every bar on one scale, so the threshold ticks line up from row to row */
 .peringkat { --mark: 0; display: flex; flex-direction: column; }
@@ -180,6 +205,7 @@
 }
 .peringkat-no { font: 500 var(--fs-label)/1 var(--font-mono); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .peringkat-siapa { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: var(--fs-ui); }
+.peringkat-tahap { font-size: var(--fs-sm); color: var(--ink-muted); }
 .peringkat-skor { font-size: var(--fs-ui); font-weight: 500; }
 .peringkat-baris:not(.is-accused) .peringkat-skor { color: var(--ink-muted); font-weight: 400; }
 .peringkat-bar { grid-column: 2 / -1; position: relative; height: 6px; border-radius: 3px; background: var(--track); }
@@ -224,6 +250,11 @@
   .lacak .verdict .facts { grid-template-columns: minmax(0, 1fr); }
   .who-seq { font-size: var(--fs-h1); }
   .who-name { font-size: var(--fs-h2); margin-top: 6px; }
+  .lacak .verdict .who-lanjut { padding: 14px 16px; }
+  .who-lanjut .who-seq { font-size: var(--fs-title); }
+  .who-lanjut .who-name { font-size: var(--fs-body); margin-top: 4px; }
+  /* the column reads "Posisi" on a phone; a screen reader still hears the full name */
+  .tahap-th-sisa { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .verdict-actions .btn, .lacak-kirim .btn { flex: 1 1 auto; }
   .kanal-tabel td.num .bar { width: 44px; margin-right: 8px; }
   .hasil-kosong { padding: 24px 18px; }
