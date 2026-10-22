@@ -19,6 +19,10 @@ Rules:
   not a confident wrong read: both readers drop a unit or point whose closest variant is too
   far from the text or whose alignment shows dense edits at the phrase (cut, reworded or
   unreadable), and give a low LLR to clustered edits;
+* a slot whose printed words are not wholly inside the evidence image (a photo cropped into
+  the page, a screenshot of part of it) is not read at all (``visible_slots``): a phrase cut
+  off by the image edge is missing from the OCR text, and a missing short form would otherwise
+  give the shorter form a low-confidence wrong read. Only the registration's geometry decides;
 * the OCR settings (page segmentation, resolution, preprocessing) were chosen on development
   seeds only (``research/ocr``) and are fixed in ``DEFAULT_OCR``;
 * data minimization: Tesseract reads the page image from stdin and writes the text to stdout
@@ -59,6 +63,8 @@ OCR_LANGUAGES = ("ind", "eng")  # Indonesian is required, English is added when 
 OCR_TIMEOUT_S = 120
 FLATTEN_SIGMA_IN = 0.25  # smoothing of the paper brightness estimate (inches) for ``flatten``
 OCR_SKIPPED = "varian kalimat dan pilihan kata pada gambar tidak dibaca"
+VISIBLE_MARGIN_PT = 2.0  # the printed words of a slot must lie this far inside the evidence image
+LEX_PAD_EM = 0.6         # em per character of the forms on a row: how far a word choice can move
 
 
 @dataclass(frozen=True)
@@ -181,25 +187,89 @@ def page_slots(ctx: "TraceContext", page: int) -> tuple[list[Slot], list[Slot]]:
     return semantic, lexical
 
 
-def read_page_text(text: str, page: int, ctx: "TraceContext") -> list[SoftBits]:
+def slot_box(ctx: "TraceContext", slot: Slot) -> tuple[float, float, float, float] | None:
+    """Page rectangle (x0, y0, x1, y1 in pt) that holds the printed words of a sentence-variant
+    or word-choice slot in every copy; None when the slot does not belong to this context.
+
+    A sentence variant is drawn into its unit's rows between the unit's left and right edges
+    (``marker/semantic.py``), anywhere in them, so the box is the whole unit. A word choice is
+    drawn where the master phrase stands, and re-justifying its row moves it by less than the
+    widths of the row's forms: the box is the master phrase widened on both sides by
+    ``LEX_PAD_EM`` em per character of the longest form of every point on the row. Geometry
+    only, never a codeword.
+    """
+    pages = ctx.master.layout.pages
+    if not 0 <= slot.page < len(pages):
+        return None
+    rows = pages[slot.page].rows
+    k = slot.ref[0]
+    if slot.channel == CHANNEL_SEMANTIC and ctx.semantic is not None and 0 <= k < len(ctx.semantic.units):
+        unit = ctx.semantic.units[k]
+        boxes = [rows[r].bbox for r in unit.rows if 0 <= r < len(rows)]
+        if unit.page != slot.page or not boxes:
+            return None
+        return (min(unit.left_x, min(b[0] for b in boxes)), min(b[1] for b in boxes),
+                max(unit.right_x, max(b[2] for b in boxes)), max(b[3] for b in boxes))
+    if slot.channel == CHANNEL_LEXICAL and ctx.lexical is not None and 0 <= k < len(ctx.lexical.points):
+        pt = ctx.lexical.points[k]
+        if pt.page != slot.page or not 0 <= pt.row < len(rows):
+            return None
+        row = rows[pt.row]
+        words = row.words[pt.start:pt.end]
+        if not words:
+            return None
+        size = max(g.size for w in words for g in w.glyphs)
+        chars = sum(max(len(f) for f in q.forms) for q in ctx.lexical.carrying() if (q.page, q.row) == (pt.page, pt.row))
+        pad = LEX_PAD_EM * size * max(chars, max(len(f) for f in pt.forms))
+        return (min(w.bbox[0] for w in words) - pad, row.bbox[1], max(w.bbox[2] for w in words) + pad, row.bbox[3])
+    return None
+
+
+def visible_slots(slots: list[Slot], ctx: "TraceContext", reg: "Registration") -> list[Slot]:
+    """The slots whose printed words (``slot_box`` plus ``VISIBLE_MARGIN_PT``) lie wholly
+    inside the evidence image, by the registration's mask of valid pixels.
+
+    A phrase cut off by the image edge is missing from the OCR text; reading its slot would
+    let the shorter form win on the missing characters. Such slots are left unread
+    (erasures). Uses the registration's geometry only, never the text or a codeword.
+    """
+    s = float(reg.dpi) / 72.0
+    h, w = reg.valid.shape
+    out = []
+    for slot in slots:
+        box = slot_box(ctx, slot)
+        if box is None:
+            continue
+        m = VISIBLE_MARGIN_PT
+        x0, y0 = max(0, int(np.floor((box[0] - m) * s))), max(0, int(np.floor((box[1] - m) * s)))
+        x1, y1 = min(w, int(np.ceil((box[2] + m) * s))), min(h, int(np.ceil((box[3] + m) * s)))
+        if x1 > x0 and y1 > y0 and bool(reg.valid[y0:y1, x0:x1].all()):
+            out.append(slot)
+    return out
+
+
+def read_page_text(text: str, page: int, ctx: "TraceContext",
+                   slots: tuple[list[Slot], list[Slot]] | None = None) -> list[SoftBits]:
     """Soft bits of the semantic and word-choice marks of master page ``page`` found in ``text``
     (the OCR text of that page), as ``semantic_ocr`` and ``lexical_ocr``.
 
-    Only the slots printed on that page are read, the word-choice reference holds that page's
-    rows only, and the readers are the ones for pasted text, unchanged. A sub-channel with no
-    slot on the page is left out. ``text`` is not kept anywhere.
+    Only the slots printed on that page are read (or the given subset ``slots`` of them,
+    (semantic, lexical), for instance ``visible_slots``), the word-choice reference holds that
+    page's rows only, and the readers are the ones for pasted text, unchanged. A sub-channel
+    with no slot on the page is left out. ``text`` is not kept anywhere.
     """
     from tapak.decoder.ch_lexical import LexReference, decode_lexical
     from tapak.decoder.ch_semantic import decode_semantic
 
     sem_slots, lex_slots = page_slots(ctx, page)
+    sem_read, lex_read = (sem_slots, lex_slots) if slots is None else slots
     out: list[SoftBits] = []
     if sem_slots and ctx.semantic is not None:
-        sb = decode_semantic(text, ctx.semantic.units, ctx.semantic.sets, sem_slots)
+        sb = decode_semantic(text, ctx.semantic.units, ctx.semantic.sets, sem_read)
         out.append(SoftBits(CHANNEL_SEMANTIC_OCR, sb.positions, sb.llr, sb.meta))
     if lex_slots and ctx.lexical is not None:
         ref = LexReference(ctx.master, ctx.lexical.carrying(), pages={page})
-        sb = decode_lexical(text, ref, ctx.lexical.points, lex_slots)
+        sb = decode_lexical(text, ref, ctx.lexical.points, lex_read)
         out.append(SoftBits(CHANNEL_LEXICAL_OCR, sb.positions, sb.llr, sb.meta))
     return out
 
@@ -209,14 +279,20 @@ def read_visible_text(gray: np.ndarray, reg: "Registration", ctx: "TraceContext"
     """OCR one registered page and read its semantic and word-choice marks.
 
     Returns nothing when the page carries no such slot or Tesseract is not available (the
-    trace notes the latter once). When Tesseract fails on the page, each sub-channel is
+    trace notes the latter once). Only the slots wholly inside the image are read
+    (``visible_slots``); ``slots_outside_image`` counts the others, and a page with none
+    inside is not OCR-read at all. When Tesseract fails on the page, each sub-channel is
     reported empty with ``ocr_failed`` so the page counts as examined and unread. Diagnostics
     hold the readers' counts and ids, ``page``, ``ocr_seconds`` and ``source`` = "ocr".
     """
     sem_slots, lex_slots = page_slots(ctx, reg.page)
     if not (sem_slots or lex_slots) or ocr_unavailable_reason() is not None:
         return []
+    sem_in, lex_in = visible_slots(sem_slots, ctx, reg), visible_slots(lex_slots, ctx, reg)
+    outside = {CHANNEL_SEMANTIC_OCR: len(sem_slots) - len(sem_in), CHANNEL_LEXICAL_OCR: len(lex_slots) - len(lex_in)}
     names = [n for n, slots in ((CHANNEL_SEMANTIC_OCR, sem_slots), (CHANNEL_LEXICAL_OCR, lex_slots)) if slots]
+    if not (sem_in or lex_in):
+        return [SoftBits.empty(n, page=reg.page, source="ocr", slots_outside_image=outside[n]) for n in names]
     p = ctx.master.layout.pages[reg.page]
     image, dpi = page_image(gray, reg, (p.width, p.height), settings)
     t0 = time.perf_counter()
@@ -226,8 +302,8 @@ def read_visible_text(gray: np.ndarray, reg: "Registration", ctx: "TraceContext"
         return [SoftBits.empty(n, page=reg.page, source="ocr", ocr_failed=True) for n in names]
     seconds = round(time.perf_counter() - t0, 2)
     del image
-    out = read_page_text(text, reg.page, ctx)
+    out = read_page_text(text, reg.page, ctx, slots=(sem_in, lex_in))
     del text
     for sb in out:
-        sb.meta.update(page=reg.page, source="ocr", ocr_seconds=seconds)
+        sb.meta.update(page=reg.page, source="ocr", ocr_seconds=seconds, slots_outside_image=outside[sb.channel])
     return out

@@ -28,6 +28,7 @@ from tapak.decoder.image import collect_from_gray, collect_from_image
 from tapak.decoder.ocr import (
     DEFAULT_OCR,
     OCR_SKIPPED,
+    VISIBLE_MARGIN_PT,
     OcrSettings,
     OcrUnavailable,
     ocr_applies,
@@ -38,6 +39,8 @@ from tapak.decoder.ocr import (
     read_page_text,
     read_visible_text,
     recognize,
+    slot_box,
+    visible_slots,
 )
 from tapak.decoder.rectify import Registration
 from tapak.decoder.softbits import SoftBits
@@ -247,6 +250,85 @@ def test_ocr_readers_are_code_blind(visible):
     assert [o.channel for o in a] == [o.channel for o in b]
     for u, v in zip(a, b):
         assert np.array_equal(u.positions, v.positions) and np.array_equal(u.llr, v.llr)
+
+
+def test_slot_box_holds_the_printed_forms_of_every_copy(visible):
+    from tapak.marker.layout import extract_layout
+
+    out, manifest, ctx = visible
+    for c in manifest.copies[:6]:
+        layout = extract_layout((out / c.file).read_bytes())
+        for page in (0, 1):
+            sem, lex = page_slots(ctx, page)
+            for s in sem:
+                box = slot_box(ctx, s)
+                unit = ctx.semantic.units[s.ref[0]]
+                for r in unit.rows:
+                    b = layout.pages[page].rows[r].bbox
+                    assert box[0] - 0.5 <= b[0] and b[2] <= box[2] + 0.5 and box[1] - 2 <= b[1] and b[3] <= box[3] + 2
+            for s in lex:
+                box = slot_box(ctx, s)
+                pt = ctx.lexical.points[s.ref[0]]
+                row = layout.pages[page].rows[pt.row]
+                words = [w.text.lower() for w in row.words]
+                spans = [(i, len(f.split())) for f in pt.forms for i in range(len(words))
+                         if words[i:i + len(f.split())] == f.lower().split() and abs(i - pt.start) <= 1]
+                assert spans, pt.point_id
+                i, n = spans[0]
+                printed = row.words[i:i + n]
+                assert box[0] <= min(w.bbox[0] for w in printed) and max(w.bbox[2] for w in printed) <= box[2]
+    assert slot_box(ctx, dataclasses.replace(page_slots(ctx, 0)[1][0], channel="shift")) is None  # no such box
+
+
+def test_visible_slots_drop_what_the_image_cuts_off(visible):
+    _, _, ctx = visible
+    img = _page_render(visible, 3)
+    reg = _perfect_registration(img, 0)
+    sem, lex = page_slots(ctx, 0)
+    assert visible_slots(sem, ctx, reg) == sem and visible_slots(lex, ctx, reg) == lex
+    s = DPI / 72.0
+    box = slot_box(ctx, lex[0])
+    cut = int(round((box[0] + box[2]) / 2 * s))  # the image ends in the middle of the first point's box
+    reg.valid[:, cut:] = False
+    kept = visible_slots(lex, ctx, reg)
+    assert lex[0] not in kept
+    for slot in lex:
+        assert (slot in kept) == ((slot_box(ctx, slot)[2] + VISIBLE_MARGIN_PT) * s <= cut)
+    fake = dataclasses.replace(ctx, codewords=1 - ctx.codewords)
+    assert visible_slots(lex, fake, reg) == kept  # geometry only
+    reg.valid[:] = False
+    assert visible_slots(sem, ctx, reg) == [] and visible_slots(lex, ctx, reg) == []
+
+
+@needs_ocr
+def test_cropped_page_reads_only_whole_phrases(visible, capsys):
+    from tapak.cli import _print_attribution
+    from tapak.web.app import _subchannel_summary
+
+    _, _, ctx = visible
+    seq = 5
+    x = ctx.codewords[seq - 1]
+    img = _page_render(visible, seq)
+    sem, lex = page_slots(ctx, 0)
+    s = DPI / 72.0
+    box = slot_box(ctx, lex[0])
+    cut = int(round((box[0] + box[2]) / 2 * s))
+    reg = _perfect_registration(img, 0)
+    reg.valid[:, cut:] = False  # a photo cropped into the page through the first point
+    obs = read_visible_text(img.astype(np.float32), reg, ctx)
+    kept = {q for sl in visible_slots(sem, ctx, reg) + visible_slots(lex, ctx, reg) for q in sl.positions}
+    outside = sum(o.meta["slots_outside_image"] for o in obs)
+    assert outside == len(sem) + len(lex) - len(visible_slots(sem, ctx, reg)) - len(visible_slots(lex, ctx, reg)) > 0
+    for sb in obs:
+        assert set(sb.positions.tolist()) <= kept
+        assert np.array_equal((sb.llr > 0).astype(int), x[sb.positions])
+    assert any("tanda di luar gambar, tidak dibaca" in _subchannel_summary(o) for o in obs)
+    _print_attribution(run_trace(obs, ctx), obs)
+    assert "tanda di luar gambar, tidak dibaca" in capsys.readouterr().out
+    reg.valid[:] = False  # nothing of the page in the image: no OCR, every slot outside
+    obs = read_visible_text(img.astype(np.float32), reg, ctx)
+    assert sum(len(o) for o in obs) == 0 and "ocr_seconds" not in obs[0].meta
+    assert sum(o.meta["slots_outside_image"] for o in obs) == len(sem) + len(lex)
 
 
 def test_garbled_or_missing_text_is_an_erasure(visible):

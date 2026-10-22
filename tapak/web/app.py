@@ -320,6 +320,8 @@ def _subchannel_summary(sb) -> str:
         parts.append("halaman tidak dikenali")
     if m.get("pattern_found") is False:
         parts.append("pola tidak terdeteksi")
+    if isinstance(m.get("slots_outside_image"), int) and m["slots_outside_image"]:
+        parts.append(f"{format_number(m['slots_outside_image'], 0)} tanda di luar gambar, tidak dibaca")
     if m.get("ocr_failed"):
         parts.append("OCR gagal membaca halaman")
     elif isinstance(m.get("ocr_seconds"), (int, float)):
