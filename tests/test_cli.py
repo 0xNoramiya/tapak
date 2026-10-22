@@ -120,6 +120,7 @@ def test_cli_deteksi_prints_bounds_for_read_models(tmp_path, capsys):
     assert main(["deteksi", "--c", "2"]) == 0
     out = capsys.readouterr().out
     assert "koalisi 2 orang: 5.5e-17" in out and "Syarat:" in out and "tidak mengubah tuduhan" in out
+    assert "bebas dari posisi lain" in out and "bukan batas untuk satu foto tertentu" in out
     law = tmp_path / "sebaran.json"
     law.write_text(json.dumps({"law": {"weights": [0.0, 0.5, 1.0], "error_rates": [0.0, 0.2, 0.01],
                                        "probabilities": [0.1, 0.2, 0.7]}}), encoding="utf-8")
@@ -132,6 +133,11 @@ def test_cli_deteksi_prints_bounds_for_read_models(tmp_path, capsys):
     assert "laju bit salah harus di antara 0 dan 0,5" in capsys.readouterr().err
     assert main(["deteksi", "--kalibrasi"]) == 2
     assert "--kalibrasi hanya berlaku bersama --sebaran" in capsys.readouterr().err
+    # Options that would be ignored are refused, so the printed model is the one asked for.
+    assert main(["deteksi", "--sebaran", str(law), "--kalibrasi", "--ber", "0.1"]) == 2
+    assert "--kalibrasi dan --ber tidak dapat dipakai bersama" in capsys.readouterr().err
+    assert main(["deteksi", "--sebaran", str(law), "--erasure", "0.2"]) == 2
+    assert "--erasure tidak berlaku bersama --sebaran" in capsys.readouterr().err
 
 
 def test_cli_simulate_table_has_proven_column(capsys):

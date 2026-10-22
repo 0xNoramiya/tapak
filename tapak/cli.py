@@ -132,7 +132,9 @@ def _simulate_staged(args: argparse.Namespace, params, strategies: list[str] | N
 # --- deteksi ------------------------------------------------------------------------------
 
 READ_CONDITIONS = ("Syarat: derau kanal tidak bergantung pada kode, pada pilihan koalisi, maupun pada bit yang "
-                   "dibocorkan, dan bit salah saling bebas dengan laju yang diketahui. Penghapusan yang menyasar "
+                   "dibocorkan, dan setiap posisi dibaca bebas dari posisi lain (bobot dan bit salahnya) dengan "
+                   "laju yang diketahui. Bobot satu foto tidak bebas antarposisi (foto baik atau buruk secara "
+                   "keseluruhan), jadi angka ini bukan batas untuk satu foto tertentu. Penghapusan yang menyasar "
                    "posisi tempat salinan koalisi sama tidak tercakup. Batas ini tidak mengubah tuduhan.")
 
 
@@ -176,6 +178,10 @@ def _cmd_detection(args: argparse.Namespace) -> int:
         eps_text = f"tahap 1 pelacakan ke-{args.trace_no}"
     if args.calibrated and not args.law:
         raise ValueError("--kalibrasi hanya berlaku bersama --sebaran")
+    if args.calibrated and args.ber is not None:
+        raise ValueError("--kalibrasi dan --ber tidak dapat dipakai bersama")
+    if args.law and args.erasure:
+        raise ValueError("--erasure tidak berlaku bersama --sebaran (posisi terhapus sudah ada di sebaran, bobot 0)")
     if args.law:
         data = json.loads(Path(args.law).read_text(encoding="utf-8"))
         law = ChannelLaw.from_dict(data.get("law", data))

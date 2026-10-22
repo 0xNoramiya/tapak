@@ -144,6 +144,10 @@ step 5. With w = 1 and e = 0 this is the hard bound (the code agrees to about 1e
 position draws (w_i, e_i) independently from one law Q (``ChannelLaw``), averaging the same
 fixed-(alpha, lam0) product over w gives P(miss) <= exp(alpha K0) (E_Q G(alpha; w, e))^m
 (``channel_miss_bound``). The quadrature check of step 4 is repeated per support point.
+Independence across positions is needed for the weights too: if the weights of one read move
+together (a photo is good or bad as a whole), E[prod_i G(w_i)] >= (E G)^m by Jensen, so a
+law pooled over many reads does not bound a single read; ``read_miss_bound`` with that read's
+own weights does. The law form also assumes all m positions are read through Q.
 
 Erasures by the coalition where its bits differ stay covered by the law-averaged bound. With
 A(y) = E[exp(-alpha w T(z,y,p) + alpha psi(p)) | z], the y with E[T | z] <= 0 has
@@ -175,6 +179,11 @@ Where the conditions fail.
     calibrated (``research/deteksi/llr_foto.py``), so ``kanal.py`` also uses measured rates.
 (e) Bias-dependent placement: the lexical and semantic channels take their positions from the
     bias band 0.3 to 0.7, so their weights depend on p (a few dozen positions). Not modelled.
+(f) TAPAK's image decoder: on photos the background channel uses the bias vector as a pilot
+    to estimate its gain per saturation stratum and to decide whether the pattern is present
+    (``decoder/ch_background.py``), so its weights depend on p and on the leaked bits through
+    a few page-wide numbers. Each is a regression over thousands of cells, so the effect per
+    position is small, but (C1) does not hold exactly. Not modelled.
 
 Scope. The bounds hold for every strategy obeying the marking assumption, for the threshold
 TAPAK computes for the read, under (C1) and (C2). Erasures aimed at positions where the
@@ -914,7 +923,10 @@ def channel_miss_bound(
 
     The probability is over the code, the coalition's randomness and the channel. Holds for
     every strategy obeying the marking assumption, including erasures by the coalition where
-    its copies differ, under conditions (C1) and (C2) of the module docstring.
+    its copies differ, under conditions (C1) and (C2) of the module docstring. The weights
+    must also be independent across positions: a law pooled over reads whose weights move
+    together (good and bad photos) does not bound one such read; use :func:`read_miss_bound`
+    with its own weights.
     """
     m = params.length if length is None else int(length)
     return _channel_bound(params, _law_support(law, m), coalition, eps1, z)
