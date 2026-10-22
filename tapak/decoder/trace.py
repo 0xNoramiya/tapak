@@ -447,7 +447,6 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
     per_channel = fuse_by_physical_channel(observations, ctx.params.length)
     result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params, spending)
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
-    # Code-blind (bias vector and strengths only); a warning next to the verdict, never a change to it.
     result.erasure = erasure_check(observations, ctx.p)
     if result.erasure.flagged:
         result.notes.append(erasure_note(result.erasure))

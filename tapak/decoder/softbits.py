@@ -25,9 +25,9 @@ class Strengths:
     """Magnitude of every measured unit of a channel, in noise units, by code position.
 
     ``values`` has one row per unit and one column per measure (a 1-D array is one measure);
-    the background decoder reports two (|despread mean| and cell energy). A value never
-    depends on the bit carried (only on how clearly the unit was marked and read), so it never
-    reveals a codeword; 0 means "measured, no mark found".
+    the background decoder reports two (|despread mean| and cell energy). A value is computed
+    without any codeword or bias vector and measures how clearly the unit was marked and read,
+    not which bit it carries; 0 means "measured, no mark found".
     """
 
     positions: np.ndarray

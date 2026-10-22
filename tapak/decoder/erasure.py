@@ -32,8 +32,15 @@ agreeing positions makes Z strongly negative. The warning is raised when Z <= -E
 ERASURE_Z the normal quantile for ERASURE_ALARM_RATE (1e-3, fixed before any measurement)
 times the calibration factor ERASURE_CALIBRATION, the standard deviation of Z on honest
 development evidence (single copies through photo, screenshot, print and PDF;
-``research/sepakat``), rounded up and at least 1. Fewer than ERASURE_MIN_POSITIONS measured
-positions: no check.
+``research/sepakat``), rounded up and at least 1 (measured: 1.00 over 232 evidence, so 1).
+Fewer than ERASURE_MIN_POSITIONS measured positions: no check.
+
+The rate holds on average over the draw of the code. For one document it does not: part of
+the strength pattern is the same in every copy of that document (how well each slot can be
+read, and at near-certain positions the same whitened sign in every copy), so honest Z of one
+document is centred on an offset rather than on 0. Measured offsets per issuance and channel
+ranged from -1.3 to +1.7 (``research/sepakat``), and 1 of 536 honest evidence raised the
+warning.
 
 What it does not do. It never changes a threshold, a score or the verdict and never names
 anyone. It only sees erasures that follow agreement; a coalition that erases at random (or
