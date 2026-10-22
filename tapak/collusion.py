@@ -30,7 +30,13 @@ text PDF. Everything the attack decides is computed from those copies alone:
   within delta / 2 (a label or a tab stop) splits the row; a group whose gaps are explained
   both ways (a piece whose groups all moved the same way, a single group after a tab) stays
   undecided unless a disagreeing group anchors it. Rows are read as under geser-v1, with
-  their own delta.
+  their own delta. Under geser-v2 the coalition then anchors what is left on the document as
+  a whole (``anchored_sign``): groups that share a column edge in the master (the left margin,
+  a list indent, a tab stop, the right margin of justified text) and data rows whose pitches
+  recur (lines of a paragraph, paragraph breaks) take the sign that puts them on the master
+  edges and pitches of the units already known. The same row anchoring would work under
+  geser-v1, whose rows are the same; it is applied under geser-v2 only, so the published
+  geser-v1 measurements of ``research/sepakat`` stay reproducible.
 
 The forged evidence (``forge_copy``) takes one copy's place for every unit: at an agreeing
 unit the mark is neutralized with probability ``erase_fraction``, either erased (``hapus``:
@@ -80,6 +86,9 @@ RULES = ("salin", "acak", "rata")
 CHANNELS = ("latar", "geser")
 NEUTRALIZE = ("hapus", "balik")
 POSITION_TOLERANCE_PT = 0.01  # glyph origins of copies closer than this count as the same place
+ANCHOR_TOLERANCE = 0.25  # geser-v2 anchoring: a master value matches an anchor within this many deltas
+MIN_ANCHORS = 2          # ... and needs at least this many anchors (a column edge or a line pitch)
+ANCHOR_ROUNDS = 3        # anchoring passes; every decision adds anchors for the next pass
 PUBLIC_DELTA_PT = 0.05 * MM_TO_PT  # TAPAK's default shift, used when no disagreeing unit shows it
 PUBLIC_V2_WORD_DELTA_PT = V2_MAX_WORD_SHIFT_MM * MM_TO_PT  # geser-v2 word shift, likewise
 
@@ -96,7 +105,8 @@ class ShiftUnit:
         kind: "kata" (horizontal) or "baris" (vertical).
         positions: the unit's coordinate (points) in every copy, in copy order.
         typographic: the shift of copy 1 estimated from its own gaps (points), rounded to
-            +/- delta, or None when the gaps do not allow it.
+            +/- delta, or None when the gaps do not allow it (under geser-v2 also from the
+            column edges and line pitches of the units already known, ``anchored_sign``).
     """
 
     ref: UnitRef
@@ -337,7 +347,8 @@ def shift_units(layouts: list[DocumentLayout], delta: float | None = None,
     the disagreeing units (TAPAK's default when no unit disagrees) unless given, for words and
     rows alike. Under geser-v2 words and rows each get half the median spread of their own
     disagreeing units (the public 0.025 mm and 0.05 mm when none disagrees), and ``delta``
-    overrides the word delta only.
+    overrides the word delta only; agreeing units the row-wise estimate leaves undecided are
+    then anchored on column edges and line pitches (``anchored_sign``).
     """
     if scheme not in SHIFT_SCHEMES:
         raise ValueError(f"skema geser tidak dikenal: {scheme!r}")
@@ -377,7 +388,10 @@ def shift_units(layouts: list[DocumentLayout], delta: float | None = None,
     for u in units:
         if u.kind == "baris":
             u.typographic = _typography(first, u, row_delta)
-    _v2_typography(first, [u for u in units if u.kind == "kata"], word_delta)
+    word_units = [u for u in units if u.kind == "kata"]
+    _v2_typography(first, word_units, word_delta)
+    _anchor_words(first, word_units, word_delta)
+    _anchor_rows(first, [u for u in units if u.kind == "baris"], row_delta)
     return units, word_delta
 
 
@@ -408,6 +422,129 @@ def _v2_typography(layout: DocumentLayout, units: list[ShiftUnit], delta: float)
                 known.append(1 if u.positions[0] > mid else -1)
         for u, sign in zip(row_units, row_signs(gaps, delta, known)):
             u.typographic = None if sign is None else float(sign * delta)
+
+
+def anchored_sign(readings: list[tuple[float, int, np.ndarray]], delta: float,
+                  tol: float = ANCHOR_TOLERANCE, min_anchors: int = MIN_ANCHORS) -> int | None:
+    """Shift sign (+1 or -1) of one unit from master values it shares with other units, or None.
+
+    Each reading is (value in copy 1, direction, anchors): moving the unit by s * delta changes
+    the value by direction * s * delta, so its master value is value - direction * s * delta,
+    and ``anchors`` are master values of units whose shift is known (the left edges of the
+    groups of one text column, a line pitch). A sign scores one point per reading whose master
+    value lies within ``tol`` * delta of at least ``min_anchors`` anchors; the sign with more
+    points is returned, None on a tie (no anchor, or both signs fit).
+    """
+    if delta <= 0:
+        raise ValueError("delta harus positif")
+    score = {}
+    for sign in (-1, 1):
+        score[sign] = 0
+        for value, direction, anchors in readings:
+            master = value - direction * sign * delta
+            score[sign] += int(np.count_nonzero(np.abs(np.asarray(anchors, dtype=np.float64) - master)
+                                                <= tol * delta) >= min_anchors)
+    if score[1] == score[-1]:
+        return None
+    return 1 if score[1] > score[-1] else -1
+
+
+def _known_shift(u: ShiftUnit) -> float | None:
+    """Copy 1's shift of a unit as the coalition knows it: from the spread of a disagreeing
+    unit, the typographic estimate of an agreeing one (None while undecided)."""
+    if u.agree:
+        return u.typographic
+    mid = 0.5 * (float(u.positions.min()) + float(u.positions.max()))
+    return float(u.positions[0]) - mid
+
+
+def _group_edges(layout: DocumentLayout, ref: UnitRef) -> tuple[float, float]:
+    row = layout.pages[ref[0]].rows[ref[1]]
+    words = _clean_words(row)
+    group = row.groups[ref[2]]
+    return words[group.word_indices[0]][0], words[group.word_indices[-1]][1]
+
+
+def _anchor_words(layout: DocumentLayout, units: list[ShiftUnit], delta: float) -> None:
+    """Decide undecided geser-v2 word groups from the text's columns (``anchored_sign``).
+
+    In the master many groups share a left edge (the left margin, a list indent, the tab stop
+    after a label) or a right edge (the right margin of justified text). The master edges of
+    every group whose shift is known are the anchors; an undecided group whose edges fit them
+    for one sign only gets that sign, and ``row_signs`` carries it through its piece of the row
+    (the groups its gaps tie to it). Repeated, since every decision adds anchors.
+    """
+    by_row: dict[tuple[int, int], list[ShiftUnit]] = {}
+    for u in units:
+        by_row.setdefault((u.ref[0], u.ref[1]), []).append(u)
+    for _ in range(ANCHOR_ROUNDS):
+        lefts, rights = [], []
+        for u in units:
+            shift = _known_shift(u)
+            if shift is not None:
+                left, right = _group_edges(layout, u.ref)
+                lefts.append(left - shift)
+                rights.append(right - shift)
+        anchors = (np.array(lefts), np.array(rights))
+        changed = False
+        for (pi, ri), row_units in by_row.items():
+            if not any(u.agree and u.typographic is None for u in row_units):
+                continue
+            row_units.sort(key=lambda u: u.ref[2])
+            known: list[int | None] = []
+            for u in row_units:
+                shift = _known_shift(u)
+                if shift is not None:
+                    known.append(1 if shift > 0 else -1)
+                    continue
+                left, right = _group_edges(layout, u.ref)
+                known.append(anchored_sign([(left, 1, anchors[0]), (right, 1, anchors[1])], delta))
+            if all(k is None for k, u in zip(known, row_units) if u.agree and u.typographic is None):
+                continue
+            row = layout.pages[pi].rows[ri]
+            words = _clean_words(row)
+            gaps = np.array([words[row.groups[g + 1].word_indices[0]][0] - words[row.groups[g].word_indices[-1]][1]
+                             for g in range(len(row.groups) - 1)])
+            for u, sign in zip(row_units, row_signs(gaps, delta, known)):
+                if u.agree and u.typographic is None and sign is not None:
+                    u.typographic = float(sign * delta)
+                    changed = True
+        if not changed:
+            return
+
+
+def _anchor_rows(layout: DocumentLayout, units: list[ShiftUnit], delta: float) -> None:
+    """Decide undecided data rows from the document's line pitches (``anchored_sign``).
+
+    A data row sits between two rows that do not move, so its pitch above is the master pitch
+    plus its shift and its pitch below the master pitch minus it. The few pitches of a
+    document (lines of a paragraph, paragraph breaks, headings) recur, so the master pitches of
+    the rows whose shift is known are the anchors; a row whose two pitches fit them for one
+    sign only gets that sign. Repeated, since every decision adds anchors.
+    """
+    pitches_of: dict[UnitRef, tuple[float, float]] = {}
+    for u in units:
+        rows = _eligible(layout, u.ref[0])
+        k = next(i for i, r in enumerate(rows) if r.index == u.ref[1])
+        pitches_of[u.ref] = (rows[k].baseline - rows[k - 1].baseline, rows[k + 1].baseline - rows[k].baseline)
+    for _ in range(ANCHOR_ROUNDS):
+        anchors = []
+        for u in units:
+            shift = _known_shift(u)
+            if shift is not None:
+                above, below = pitches_of[u.ref]
+                anchors += [above - shift, below + shift]
+        pitches = np.array(anchors)
+        changed = False
+        for u in units:
+            if u.agree and u.typographic is None:
+                above, below = pitches_of[u.ref]
+                sign = anchored_sign([(above, 1, pitches), (below, -1, pitches)], delta)
+                if sign is not None:
+                    u.typographic = float(sign * delta)
+                    changed = True
+        if not changed:
+            return
 
 
 def _typography(layout: DocumentLayout, unit: ShiftUnit, delta: float) -> float | None:
@@ -606,6 +743,7 @@ __all__ = [
     "ForgeryPlan",
     "ShiftUnit",
     "agreement_posterior",
+    "anchored_sign",
     "attack",
     "coalition_view",
     "copy_backgrounds",

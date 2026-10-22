@@ -64,6 +64,20 @@ total; the mean and spread of honest Z per issuance and channel, and the between
 spread of those means after removing the within-issuance part (as ``balik.summary``);
 (3) false alarms on the benchmark sets per medium; (4) the typography tally.
 
+Review addendum (fixed and committed before running, after the runs above). The coalition of
+``tapak.collusion`` now also anchors, under geser-v2, the agreeing word groups and data rows
+that the row-wise estimate leaves undecided on the column edges and line pitches of the units
+already known (``collusion.anchored_sign``; developed on the honest-only issuances 7805 and
+7806, never on 7801 to 7804). Parts ``serang`` and ``tipografi`` are rerun with it, otherwise
+unchanged (same issuances, coalitions, seeds, configurations and analysis), into
+``geser2_serang_jangkar.jsonl`` and ``geser2_tipografi_jangkar.jsonl``; ``geser2_serang.jsonl``
+and ``geser2_tipografi.jsonl`` keep the results of the row-wise estimate alone (commit e4c38d4).
+Every attack evidence also records, as a diagnostic, the erasure statistic of its shift
+observations alone (``periksa_geser``: what the check would say if the background read
+nothing), so the cause of the blind spot on prints can be separated (noise-only background
+strengths, or the geser-v2 shift strengths themselves). The honest and benchmark parts do not
+involve the coalition and are not rerun.
+
 Usage (from the repository root; at most 3 worker processes, 1 BLAS thread each):
 
     python research/sepakat/geser2.py terbit
@@ -71,6 +85,8 @@ Usage (from the repository root; at most 3 worker processes, 1 BLAS thread each)
     python research/sepakat/geser2.py serang --out research/sepakat/hasil/geser2_serang.jsonl
     python research/sepakat/geser2.py bench --out research/sepakat/hasil/geser2_bench.jsonl
     python research/sepakat/geser2.py tipografi --out research/sepakat/hasil/geser2_tipografi.jsonl
+    python research/sepakat/geser2.py serang --out research/sepakat/hasil/geser2_serang_jangkar.jsonl
+    python research/sepakat/geser2.py tipografi --out research/sepakat/hasil/geser2_tipografi_jangkar.jsonl
     python research/sepakat/geser2.py ringkas research/sepakat/hasil/geser2_*.jsonl
 """
 
@@ -185,6 +201,7 @@ def attack_job(job: tuple) -> list[dict]:
                    "koalisi": members, "serangan": name, "kanal": channel, "rencana": counts}
             row.update(ukur.record(obs, ctx, members, x[0], agree))
             row["periksa"] = balik.check(obs, ctx)
+            row["periksa_geser"] = balik.check([sb for sb in obs if sb.channel == "shift"], ctx)
             row["unit"] = _measured(obs)
             row["detik"] = round(time.perf_counter() - t0, 1)
             rows.append(row)
@@ -392,6 +409,11 @@ def summary(paths: list[str]) -> int:
                   f"{sum(_escaped(r, 'bertahap') for r in rs):3d} / ditandai "
                   f"{sum(r['periksa']['ditandai'] for r in rs):3d} dari {len(rs)}; z median "
                   f"{np.median(zs) if zs else float('nan'):6.2f}; dinetralkan geser {parts[0]}, latar {parts[1]}")
+            only = [r["periksa_geser"] for r in rs if r.get("periksa_geser", {}).get("z") is not None]
+            if only:  # review addendum: the erasure statistic of the shift observations alone
+                print(f"  {'':12s} {'':6s} hanya geser: ditandai {sum(c['ditandai'] for c in only):3d} dari "
+                      f"{len(only)}; z median {np.median([c['z'] for c in only]):6.2f}, "
+                      f"rentang {min(c['z'] for c in only):.2f}..{max(c['z'] for c in only):.2f}")
         plans = [r["rencana"] for r in attack if r["serangan"] == "semua/hapus" and r["kanal"] == "pdf"]
         if plans:
             same = sum(p["unit_sama"] for p in plans)
