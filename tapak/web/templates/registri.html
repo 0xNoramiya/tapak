@@ -93,7 +93,7 @@
         <h2 id="jangkar-h">Log jangkar</h2>
         <p class="lead">Nomor dan hash setiap entri, ditambahkan ke berkas di penyimpanan terpisah. Entri yang dihapus dari ujung registri hanya terlihat dengan log ini, atau dengan jangkar yang tercetak di berita acara.</p>
       </div>
-      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}Hilang{% elif jangkar.configured %}Tidak cocok{% else %}Tidak diatur{% endif %}</span>
+      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}Hilang{% elif jangkar.configured and jangkar.problems == jangkar.storage %}{% if jangkar.unwritable %}Tidak dapat ditulis{% else %}Periksa lokasi{% endif %}{% elif jangkar.configured %}Tidak cocok{% else %}Tidak diatur{% endif %}</span>
       {% elif jangkar.configured %}<span class="stamp stamp-ok">Cocok</span>
       {% else %}<span class="stamp stamp-neutral">Tidak diatur</span>{% endif %}
     </div>
@@ -109,6 +109,10 @@
       <dt>Baris</dt>
       <dd class="tnum">{{ jangkar.lines|num }}, {{ jangkar.signed_lines|num }} bertanda tangan</dd>
       {% endif %}
+      {% if jangkar.rotated %}
+      <dt>Segmen</dt>
+      <dd class="tnum">Lanjutan log {{ jangkar.rotated[2][:8] }} sejak entri #{{ jangkar.rotated[0] }}, {{ jangkar.rotated[1] }}</dd>
+      {% endif %}
       {% if jangkar.restarted %}
       <dt>Dimulai ulang</dt>
       <dd class="tnum">Di entri #{{ jangkar.restarted[0] }}, {{ jangkar.restarted[1] }}; penghapusan sebelum itu tidak terlihat oleh log ini</dd>
@@ -120,7 +124,11 @@
     </dl>
     {% if jangkar.problems %}
     <div class="notice notice-error integritas-catatan" role="alert">
+      {% if jangkar.problems == jangkar.storage %}
+      <p>Pelacakan dan penerbitan ditolak sampai lokasi atau penyimpanan log ini diperbaiki.</p>
+      {% else %}
       <p>Pelacakan dan penerbitan ditolak sampai perbedaan ini diperiksa dengan <span class="mono nowrap">tapak verify</span>.</p>
+      {% endif %}
       <ul class="notes">{% for p in jangkar.problems %}<li>{{ p }}</li>{% endfor %}</ul>
     </div>
     {% endif %}

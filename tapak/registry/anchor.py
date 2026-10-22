@@ -51,6 +51,24 @@ optionally ``sig``:
 ``sig`` is an Ed25519 signature (hex) over :data:`SIGN_CONTEXT` followed by the canonical JSON
 of the line without ``sig``. The protection comes from where the file lives, not from the
 signature: the signature only tells a genuine line from one added by someone without the key.
+
+A ``start`` line written by this version also carries ``media``: the id in the marker file
+(:data:`MEDIA_MARKER`) of the folder the log was started in. Every check requires that marker
+next to the log, and a restart or rotation only creates a log in a folder that already holds
+one (or with an explicit ``--tandai-media``), so a separate storage that is not mounted is not
+silently replaced by the empty mount point folder on the local disk.
+
+Segments. A log is refused above :data:`MAX_LOG_BYTES`. Before that, ``tapak jangkar rotasi``
+continues it in a new file (a segment): its ``start`` line carries ``previous`` (the old log's
+id, its length and SHA-256 at the rotation, the registry head it anchored, the acknowledgements
+in force and how many trace entries they released) and its second line anchors that head again.
+The registry records the rotation (``anchor_log`` event ``rotate``). Entries before the head are
+then covered through the hash chain: the head is required, and the chain below it is checked.
+
+Checks inside one process are incremental: the parsed lines and signature results of the
+log's complete lines are kept with the SHA-256 of those bytes and reused only while the file
+still starts with exactly those bytes; registry rows whose content hash was checked are kept
+by a digest of the whole row. Anything else is a full check, so every result equals a full check.
 """
 
 from __future__ import annotations
@@ -63,8 +81,10 @@ import os
 import secrets
 import sqlite3
 import stat
+import sys
+import threading
 import time
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -90,7 +110,11 @@ ENV_VAR = "TAPAK_ANCHOR_LOG"
 LINE_VERSION = 1
 SIGN_CONTEXT = b"TAPAK-LOG-JANGKAR-1\n"
 MAX_REASON = 300
+# A larger file is refused (never read into memory): about 700,000 signed lines. Rotate first.
 MAX_LOG_BYTES = 256 * 1024 * 1024
+ROTATE_WARN_BYTES = MAX_LOG_BYTES * 3 // 4   # from here every check warns: rotate now
+ROTATE_READ_LIMIT = MAX_LOG_BYTES * 2        # tapak jangkar rotasi may still read an oversized log
+MEDIA_MARKER = ".tapak-jangkar-media"
 LOCK_TIMEOUT_S = 10.0
 _HEX = frozenset("0123456789abcdef")
 _ANCHORED_KEYS = frozenset({"v", "type", "log_id", "seq", "entry_hash", "kind", "created_at"})
@@ -99,6 +123,8 @@ _LINE_KEYS = {
     "entry": _ANCHORED_KEYS,
     "ack": _ANCHORED_KEYS | {"released", "reason"},
 }
+_START_OPTIONAL = frozenset({"media", "previous"})
+_PREVIOUS_KEYS = frozenset({"log_id", "bytes", "sha256", "seq", "entry_hash", "acks", "released_traces"})
 LINE_TYPES = tuple(_LINE_KEYS)
 RECOVERY_HINT = ("Pemulihan: kembalikan registri dari cadangan yang masih memuat entri itu, lalu ulangi. Bila entri itu "
                  "memang tidak dapat dikembalikan, catat pengakuan secara sadar dengan tapak jangkar akui --alasan '...' "
@@ -110,11 +136,13 @@ class AnchorError(RegistryError):
 
 
 class AnchorUnavailable(AnchorError):
-    """The anchor log is missing (``missing``), or cannot be read or written."""
+    """The anchor log is missing (``missing``), larger than the limit (``too_large``), or cannot
+    be read or written."""
 
-    def __init__(self, message: str, missing: bool = False) -> None:
+    def __init__(self, message: str, missing: bool = False, too_large: bool = False) -> None:
         super().__init__(message)
         self.missing = missing
+        self.too_large = too_large
 
 
 class AnchorRefused(AnchorError):
@@ -163,7 +191,30 @@ def clean_reason(reason: str | None, required: bool) -> str | None:
     return text
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
+class Previous:
+    """What the first line of a segment commits to: the log it continues (``tapak jangkar rotasi``).
+
+    ``bytes`` and ``sha256``: length and SHA-256 of the old log at the rotation; ``seq`` and
+    ``entry_hash``: the registry head it anchored then; ``acks``: entry numbers of the
+    acknowledgements in force; ``released_traces``: trace entries they released.
+    """
+
+    log_id: str
+    bytes: int
+    sha256: str
+    seq: int
+    entry_hash: str
+    acks: tuple[int, ...] = ()
+    released_traces: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON form, as written in the ``start`` line."""
+        return {"log_id": self.log_id, "bytes": self.bytes, "sha256": self.sha256, "seq": self.seq,
+                "entry_hash": self.entry_hash, "acks": list(self.acks), "released_traces": self.released_traces}
+
+
+@dataclass(frozen=True, slots=True)
 class AnchorLine:
     """One valid line of the anchor log (``number`` counts the file's lines from 1)."""
 
@@ -178,6 +229,8 @@ class AnchorLine:
     reason: str | None = None
     restart: bool = False
     signature: str | None = None
+    media: str | None = None
+    previous: Previous | None = None
 
     @property
     def anchors(self) -> bool:
@@ -187,17 +240,24 @@ class AnchorLine:
     def body(self) -> dict[str, Any]:
         """The line as an object without ``sig``: what the signature covers."""
         if self.type == "start":
-            return start_body(self.log_id, self.created_at, self.restart, self.reason)
+            return start_body(self.log_id, self.created_at, self.restart, self.reason, self.media, self.previous)
         body = entry_body(self.log_id, self.seq, self.kind, self.created_at, self.entry_hash)
         if self.type == "ack":
             body.update(type="ack", released=[list(p) for p in self.released], reason=self.reason)
         return body
 
 
-def start_body(log_id: str, created_at: str, restart: bool, reason: str | None) -> dict[str, Any]:
-    """The ``start`` line of a new log (without signature)."""
-    return {"v": LINE_VERSION, "type": "start", "log_id": log_id, "created_at": created_at,
-            "restart": bool(restart), "reason": reason}
+def start_body(log_id: str, created_at: str, restart: bool, reason: str | None, media: str | None = None,
+               previous: Previous | None = None) -> dict[str, Any]:
+    """The ``start`` line of a new log (without signature). ``media`` and ``previous`` are left
+    out when None, so lines written before they existed keep their form."""
+    body: dict[str, Any] = {"v": LINE_VERSION, "type": "start", "log_id": log_id, "created_at": created_at,
+                            "restart": bool(restart), "reason": reason}
+    if media is not None:
+        body["media"] = media
+    if previous is not None:
+        body["previous"] = previous.to_dict()
+    return body
 
 
 def entry_body(log_id: str, seq: int, kind: str, created_at: str, entry_hash: str) -> dict[str, Any]:
@@ -240,6 +300,18 @@ def _valid_reason(value: object, required: bool) -> bool:
     return isinstance(value, str) and 0 < len(value) <= MAX_REASON and value == " ".join(value.split())
 
 
+def _parse_previous(obj: object) -> Previous | None:
+    if not isinstance(obj, dict) or set(obj) != _PREVIOUS_KEYS:
+        return None
+    acks, traces = obj["acks"], obj["released_traces"]
+    if not (_is_hex(obj["log_id"], 32) and _is_seq(obj["bytes"]) and _is_hex(obj["sha256"], 64)
+            and _is_seq(obj["seq"]) and _is_hex(obj["entry_hash"], 64) and isinstance(acks, list)
+            and all(_is_seq(a) for a in acks) and acks == sorted(set(acks))
+            and isinstance(traces, int) and not isinstance(traces, bool) and traces >= 0):
+        return None
+    return Previous(obj["log_id"], obj["bytes"], obj["sha256"], obj["seq"], obj["entry_hash"], tuple(acks), traces)
+
+
 def parse_line(text: str, number: int) -> AnchorLine | None:
     """The line ``text`` (without its newline) as an :class:`AnchorLine`, or None if it is not a
     valid line of this format. Never raises."""
@@ -252,18 +324,26 @@ def parse_line(text: str, number: int) -> AnchorLine | None:
     kind_of_line = obj.get("type")
     if not isinstance(kind_of_line, str) or kind_of_line not in _LINE_KEYS:
         return None
-    if set(obj) - {"sig"} != _LINE_KEYS[kind_of_line]:
+    keys = set(obj) - {"sig"}
+    optional = _START_OPTIONAL if kind_of_line == "start" else frozenset()
+    if not _LINE_KEYS[kind_of_line] <= keys <= _LINE_KEYS[kind_of_line] | optional:
         return None
     sig = obj.get("sig")
     if "sig" in obj and not _is_hex(sig, 128):
         return None
     if not _is_hex(obj["log_id"], 32) or not _valid_time(obj["created_at"]):
         return None
+    log_id = sys.intern(obj["log_id"])  # one string per log, not one per line, in a kept parse
     if kind_of_line == "start":
         if not isinstance(obj["restart"], bool) or not _valid_reason(obj["reason"], required=obj["restart"]):
             return None
-        return AnchorLine(number, "start", obj["log_id"], obj["created_at"], restart=obj["restart"],
-                          reason=obj["reason"], signature=sig)
+        if "media" in obj and not _is_hex(obj["media"], 32):
+            return None
+        previous = _parse_previous(obj["previous"]) if "previous" in obj else None
+        if "previous" in obj and (previous is None or obj["restart"]):
+            return None
+        return AnchorLine(number, "start", log_id, obj["created_at"], restart=obj["restart"],
+                          reason=obj["reason"], signature=sig, media=obj.get("media"), previous=previous)
     if not (_is_seq(obj["seq"]) and _is_hex(obj["entry_hash"], 64) and _valid_kind(obj["kind"])):
         return None
     released: tuple[tuple[int, str], ...] = ()
@@ -277,8 +357,9 @@ def parse_line(text: str, number: int) -> AnchorLine | None:
         if list(released) != sorted(set(released)) or not _valid_reason(obj["reason"], required=True):
             return None
         reason = obj["reason"]
-    return AnchorLine(number, kind_of_line, obj["log_id"], obj["created_at"], seq=obj["seq"],
-                      entry_hash=obj["entry_hash"], kind=obj["kind"], released=released, reason=reason, signature=sig)
+    return AnchorLine(number, kind_of_line, log_id, obj["created_at"], seq=obj["seq"],
+                      entry_hash=obj["entry_hash"], kind=sys.intern(obj["kind"]), released=released, reason=reason,
+                      signature=sig)
 
 
 # --- reading and writing the file ---------------------------------------------------------------
@@ -286,24 +367,30 @@ def parse_line(text: str, number: int) -> AnchorLine | None:
 
 @dataclass
 class AnchorFile:
-    """What was read from the anchor log: valid lines, unreadable line numbers, a torn last line."""
+    """What was read from the anchor log: valid lines, unreadable line numbers, a torn last line.
+
+    ``memo``: results kept for the file's complete lines (see :func:`read_anchor_incremental`);
+    None for a plain read.
+    """
 
     path: Path
     lines: list[AnchorLine]
     unreadable: list[int] = field(default_factory=list)
     torn_tail: bool = False
     size: int = 0
+    memo: _Memo | None = None
 
 
-def parse_anchor_bytes(path: str | Path, data: bytes) -> AnchorFile:
+def parse_anchor_bytes(path: str | Path, data: bytes, first_number: int = 1) -> AnchorFile:
     """Parse the bytes of an anchor log. A last line without its newline is a torn write (a crash
-    in the middle of an append) unless it parses as a complete line; it is never an error."""
+    in the middle of an append) unless it parses as a complete line; it is never an error.
+    ``first_number``: the number of the first line (when ``data`` is the tail of a log)."""
     parts = data.split(b"\n")
     lines: list[AnchorLine] = []
     unreadable: list[int] = []
     torn = False
-    for number, raw in enumerate(parts, 1):
-        last = number == len(parts)
+    for number, raw in enumerate(parts, first_number):
+        last = number == len(parts) + first_number - 1
         if last and raw == b"":
             break  # the file ends with a newline
         try:
@@ -349,10 +436,24 @@ def _why(exc: BaseException) -> str:
     return str(exc)
 
 
-def read_anchor_file(path: str | Path) -> AnchorFile:
-    """Read and parse the anchor log under a shared lock. AnchorUnavailable if it is missing
-    (``missing=True``), not a regular file, too large or unreadable."""
+def size_text(n: int) -> str:
+    """'12,3 MiB' or, below 1 MiB, '45,6 KiB' (Indonesian decimal comma)."""
+    value, unit = (n / 1048576, "MiB") if n >= 1048576 else (n / 1024, "KiB")
+    return f"{value:.1f}".replace(".", ",") + " " + unit
+
+
+def _too_large(path: Path, size: int, limit: int) -> AnchorUnavailable:
+    return AnchorUnavailable(
+        f"log jangkar di {path} terlalu besar ({size_text(size)}, batasnya {size_text(limit)}), jadi tidak dibaca. "
+        "Teruskan ke segmen baru dengan tapak jangkar rotasi BERKAS_BARU (lihat docs/operasi.md)", too_large=True)
+
+
+def read_log_bytes(path: str | Path, limit: int | None = None) -> bytes:
+    """The bytes of the anchor log, read under a shared lock. AnchorUnavailable if it is missing
+    (``missing=True``), not a regular file, larger than ``limit`` (default :data:`MAX_LOG_BYTES`;
+    ``too_large=True``) or unreadable."""
     path = Path(path)
+    limit = MAX_LOG_BYTES if limit is None else limit
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)  # a planted FIFO must not block the read
     except FileNotFoundError:
@@ -363,22 +464,112 @@ def read_anchor_file(path: str | Path) -> AnchorFile:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
             raise AnchorUnavailable(f"log jangkar di {path} bukan berkas biasa")
-        if info.st_size > MAX_LOG_BYTES:
-            raise AnchorUnavailable(f"log jangkar di {path} terlalu besar ({info.st_size} byte)")
+        if info.st_size > limit:
+            raise _too_large(path, info.st_size, limit)
         _lock(fd, fcntl.LOCK_SH)
-        chunks = []
+        chunks, total = [], 0
         while True:
             chunk = os.read(fd, 1 << 20)
             if not chunk:
                 break
             chunks.append(chunk)
-            if sum(map(len, chunks)) > MAX_LOG_BYTES:
-                raise AnchorUnavailable(f"log jangkar di {path} terlalu besar")
+            total += len(chunk)
+            if total > limit:
+                raise _too_large(path, total, limit)
     except OSError as exc:
         raise AnchorUnavailable(f"log jangkar di {path} tidak dapat dibaca ({_why(exc)})") from None
     finally:
         os.close(fd)
-    return parse_anchor_bytes(path, b"".join(chunks))
+    return b"".join(chunks)
+
+
+def read_anchor_file(path: str | Path, limit: int | None = None) -> AnchorFile:
+    """Read and parse the whole anchor log (see :func:`read_log_bytes` for the errors)."""
+    return parse_anchor_bytes(path, read_log_bytes(path, limit))
+
+
+# --- incremental checks within one process -------------------------------------------------------
+
+
+@dataclass
+class _Memo:
+    """Results that depend only on bytes already seen, kept between checks of one log.
+
+    ``size`` bytes of the log (its complete lines, up to and including the last newline) had
+    SHA-256 ``digest`` and held ``count`` lines, of which ``lines`` were valid. ``signatures``
+    maps a public key to ``(n, bad)``: the signatures of lines 1..n were checked with that key
+    and ``bad`` are the numbers of the invalid ones. ``rows`` maps an entry number to the
+    digest of a registry row whose payload and hash were found consistent: a pure function of
+    the row, so it holds for any log.
+    """
+
+    size: int
+    digest: bytes
+    count: int
+    lines: list[AnchorLine]
+    unreadable: list[int]
+    signatures: dict[str, tuple[int, frozenset[int]]] = field(default_factory=dict)
+    rows: dict[int, bytes] = field(default_factory=dict)
+
+
+_MEMO_SLOTS = 4
+_MEMOS: OrderedDict[str, _Memo] = OrderedDict()
+_MEMO_LOCK = threading.Lock()
+
+
+def forget_memos() -> None:
+    """Drop every kept result (the next check of every log is a full one)."""
+    with _MEMO_LOCK:
+        _MEMOS.clear()
+
+
+def read_anchor_incremental(path: str | Path, limit: int | None = None) -> AnchorFile:
+    """Like :func:`read_anchor_file`, but reuses the parse of an earlier read in this process.
+
+    The whole file is still read under the shared lock and its complete lines hashed. The
+    earlier parse is reused only when the file still begins with exactly the bytes it covered
+    (same SHA-256), so only the lines appended since are parsed. A shorter file, any changed
+    byte, or a log read for the first time is parsed in full: the result is always the same
+    as :func:`read_anchor_file`. The returned file carries the memo for :func:`compare_anchor`.
+    """
+    path = Path(path)
+    data = read_log_bytes(path, limit)
+    key = os.path.abspath(path)
+    with _MEMO_LOCK:
+        old = _MEMOS.get(key)
+    end = data.rfind(b"\n") + 1
+    view = memoryview(data)
+    hasher = hashlib.sha256()
+    reuse = False
+    if old is not None and old.size <= end:
+        hasher.update(view[:old.size])
+        reuse = hasher.digest() == old.digest
+        if not reuse:
+            hasher = hashlib.sha256()
+    if reuse:
+        assert old is not None
+        tail = parse_anchor_bytes(path, data[old.size:], first_number=old.count + 1)
+        lines, unreadable = old.lines + tail.lines, old.unreadable + tail.unreadable
+        log = AnchorFile(path, lines, unreadable, tail.torn_tail, len(data))
+        hasher.update(view[old.size:end])
+        count = old.count + data.count(b"\n", old.size, end)
+    else:
+        log = parse_anchor_bytes(path, data)
+        hasher.update(view[:end])
+        count = data.count(b"\n", 0, end)
+    complete = log.lines if not log.lines or log.lines[-1].number <= count else log.lines[:-1]
+    memo = _Memo(end, hasher.digest(), count, complete, [n for n in log.unreadable if n <= count])
+    if old is not None:
+        memo.rows = old.rows  # keyed by the rows' own content
+        if reuse:  # the same bytes, so the same lines 1..old.count: their signature results hold
+            memo.signatures = dict(old.signatures)
+    log.memo = memo
+    with _MEMO_LOCK:
+        _MEMOS[key] = memo
+        _MEMOS.move_to_end(key)
+        while len(_MEMOS) > _MEMO_SLOTS:
+            _MEMOS.popitem(last=False)
+    return log
 
 
 def _ends_with_newline(path: Path) -> bool:
@@ -436,8 +627,12 @@ def create_anchor_file(path: str | Path, first_line: str) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+    _sync_folder(path.parent)
+
+
+def _sync_folder(folder: Path) -> None:
     try:
-        dfd = os.open(path.parent, os.O_RDONLY)
+        dfd = os.open(folder, os.O_RDONLY)
     except OSError:
         return
     try:
@@ -446,6 +641,98 @@ def create_anchor_file(path: str | Path, first_line: str) -> None:
         pass  # some file systems cannot sync a directory; the file itself is synced
     finally:
         os.close(dfd)
+
+
+def writable_problem(path: str | Path) -> str | None:
+    """Why the anchor log cannot be appended to (Indonesian), or None. Opens it for appending
+    and closes it again without writing: what every registry write needs before it records
+    an entry."""
+    try:
+        os.close(os.open(path, os.O_WRONLY | os.O_APPEND | os.O_NONBLOCK))
+    except OSError as exc:
+        return f"log jangkar di {path} tidak dapat ditulis ({_why(exc)})"
+    return None
+
+
+# --- the media marker -----------------------------------------------------------------------------
+
+
+def read_media_id(folder: str | Path) -> str | None:
+    """The id in the media marker (:data:`MEDIA_MARKER`) of ``folder``; None if there is none or
+    it is not a marker."""
+    try:
+        fd = os.open(Path(folder) / MEDIA_MARKER, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        obj = json.loads(os.read(fd, 4096).decode("utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    finally:
+        os.close(fd)
+    if not isinstance(obj, dict) or obj.get("type") != "media" or not _is_hex(obj.get("media_id"), 32):
+        return None
+    return obj["media_id"]
+
+
+def create_media_marker(folder: str | Path) -> str:
+    """Write a new media marker in ``folder`` (never over an existing file); return its id."""
+    folder = Path(folder)
+    media_id = secrets.token_hex(16)
+    text = canonical_json({"v": 1, "type": "media", "media_id": media_id, "created_at": utc_now(),
+                           "note": "penanda media log jangkar TAPAK; jangan dihapus atau dipindah tanpa log"})
+    fd = os.open(folder / MEDIA_MARKER, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    try:
+        _write_all(fd, text + b"\n")
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _sync_folder(folder)
+    return media_id
+
+
+def media_for_new_log(folder: str | Path, create: bool) -> str:
+    """The media id for a log about to be created in ``folder``: the marker already there, or,
+    with ``create``, a new one. AnchorError without a marker and without ``create``: the folder
+    may be the empty mount point of a separate storage that is not mounted."""
+    folder = Path(folder)
+    found = read_media_id(folder)
+    if found is not None:
+        return found
+    if (folder / MEDIA_MARKER).exists() or (folder / MEDIA_MARKER).is_symlink():
+        raise AnchorError(f"penanda media {folder / MEDIA_MARKER} tidak dapat dibaca atau rusak. Periksa media itu; "
+                          "pindahkan penandanya (simpan sebagai bukti) hanya bila media ini memang media log jangkar")
+    if not create:
+        raise AnchorError(
+            f"folder {folder} tidak memuat penanda media log jangkar ({MEDIA_MARKER}). Penyimpanan terpisahnya "
+            "mungkin belum dipasang, dan folder ini hanya titik kait kosong di disk lokal: pasang dulu penyimpanannya, "
+            "lalu ulangi. Bila log memang dipindah ke media baru, atau media lama dipakai sebelum ada penanda, "
+            "ulangi dengan --tandai-media")
+    return create_media_marker(folder)
+
+
+def mount_note(log_path: str | Path) -> str | None:
+    """A note (Indonesian) when the log's folder is not a mount point, or None."""
+    folder = Path(log_path).parent
+    try:
+        if os.path.ismount(folder):
+            return None
+    except OSError:
+        return None
+    return (f"folder {folder} bukan titik kait penyimpanan lain (perangkatnya sama dengan folder induknya). Itu wajar "
+            "untuk berkas dengan chattr +a di disk yang sama. Bila log seharusnya berada di penyimpanan terpisah yang "
+            "dipasang di folder ini, penyimpanan itu belum terpasang dan log ini tertulis di disk lokal: periksa dulu")
+
+
+def _media_problem(path: Path, start: AnchorLine | None) -> str | None:
+    """The media marker the log's start line names must sit next to the log."""
+    if start is None or start.media is None or read_media_id(path.parent) == start.media:
+        return None
+    return (f"penanda media log jangkar ({MEDIA_MARKER}, id {start.media[:8]}) tidak ada di samping log di "
+            f"{path.parent} atau berbeda. Penyimpanan terpisahnya mungkin belum dipasang dan berkas ini salinan di disk "
+            "lokal, atau log dipindah tanpa penandanya. Pasang penyimpanannya, atau pindahkan penanda bersama log")
 
 
 def read_registry_rows(registry_path: str | Path) -> list[tuple[Any, ...]]:
@@ -535,10 +822,18 @@ class AnchorStatus:
         restarted: ``(seq, created_at)`` of the registry entry that started this log again
             after an earlier one was lost or moved (``tapak jangkar mulai --ulang``), or None.
             Entries deleted before that point are invisible to this log, so every result says so.
+            Also set for a later segment of such a log.
+        rotated: ``(seq, created_at, previous log id)`` when this log is a segment that
+            continues another one (``tapak jangkar rotasi``), or None.
         releasable: anchored pairs the registry no longer has, or has differently (what an
             acknowledgement would release); ``blocking``: problems no acknowledgement can
             release (a broken chain, a forged or foreign line, a log not recorded).
+        storage: problems with where the log is kept or which file is configured, not with
+            what it says (it cannot be written, its media marker is missing, it was rotated
+            away from); each one says what to do. ``unwritable``: the log can be read but not
+            appended to.
         missing: configured, but the log is missing or cannot be read.
+        size: length of the log file in bytes.
     """
 
     configured: bool = False
@@ -556,11 +851,22 @@ class AnchorStatus:
     released: list[tuple[int, str]] = field(default_factory=list)
     released_traces: int = 0
     restarted: tuple[int, str] | None = None
+    rotated: tuple[int, str, str] | None = None
     releasable: list[tuple[int, str]] = field(default_factory=list)
     blocking: list[str] = field(default_factory=list)
+    storage: list[str] = field(default_factory=list)
+    unwritable: bool = False
     missing: bool = False
+    size: int = 0
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+    def add_storage_problem(self, text: str) -> None:
+        """Record a problem with where the log is kept (it blocks writes like any other)."""
+        self.storage.append(text)
+        self.blocking.append(text)
+        self.problems.append(text)
+        self.lag = 0
 
     @property
     def ok(self) -> bool:
@@ -607,7 +913,7 @@ class AnchorStatus:
 
     def refusal(self) -> str:
         """Why a write or trace is refused (Indonesian), with how to recover deliberately."""
-        if self.missing or not self.configured:
+        if self.missing or not self.configured or (self.problems and self.problems == self.storage):
             return "; ".join(self.problems) or self.describe()
         return (f"log jangkar {self.path} tidak cocok dengan registri: " + "; ".join(self.problems[:4])
                 + ". Entri yang pernah tercatat hilang atau berubah, misalnya entri pelacakan yang dihapus dari ujung "
@@ -622,8 +928,10 @@ class AnchorStatus:
                 "completed": list(self.completed), "recorded": list(self.recorded),
                 "acks": [list(a) for a in self.acks], "released": [list(p) for p in self.released],
                 "released_traces": self.released_traces,
-                "restarted": list(self.restarted) if self.restarted else None, "missing": self.missing,
-                "problems": list(self.problems), "warnings": list(self.warnings)}
+                "restarted": list(self.restarted) if self.restarted else None,
+                "rotated": list(self.rotated) if self.rotated else None, "missing": self.missing, "size": self.size,
+                "storage": list(self.storage), "unwritable": self.unwritable, "problems": list(self.problems),
+                "warnings": list(self.warnings)}
 
 
 def restart_note(seq: int, created_at: str) -> str:
@@ -655,6 +963,9 @@ def unavailable_status(path: str | Path, rows: Sequence[Sequence[Any]], exc: Anc
             "penyimpanannya. Bila log memang hilang, periksa dulu registri dengan tapak verify (dengan jangkar dari "
             "berita acara atau akar Merkle bila ada), lalu mulai log baru secara sadar dengan tapak jangkar mulai "
             "--ulang --alasan '...'; awal yang baru tercatat di registri")
+    elif exc.too_large:
+        st.problems.append(f"{exc}. Sampai saat itu pelacakan dan penulisan registri ditolak; jangan menghapus atau "
+                           "memotong log ini")
     else:
         st.problems.append(f"{exc}; pelacakan dan penulisan registri ditolak selama log jangkar tidak dapat dibaca. "
                            "Perbaiki izin atau penyimpanannya; jangan menghapus atau mengganti log ini")
@@ -662,7 +973,38 @@ def unavailable_status(path: str | Path, rows: Sequence[Sequence[Any]], exc: Anc
     return st
 
 
-def _chain_break(rows: Sequence[Sequence[Any]], upto: int) -> tuple[int, str] | None:
+def _row_key(row: Sequence[Any]) -> bytes | None:
+    """SHA-256 of the six hashed columns of a raw row, the variable ones length-prefixed so that
+    no two different rows share a key; None for a row of another shape (always checked in full)."""
+    seq, kind, payload, prev_hash, created_at, entry_hash = row[:6]
+    if (type(seq) is not int or type(kind) is not str or type(payload) is not str or type(created_at) is not str
+            or type(prev_hash) is not str or type(entry_hash) is not str or len(prev_hash) != 64
+            or len(entry_hash) != 64):
+        return None
+    text = f"{seq}|{len(kind)}|{kind}{len(payload)}|{payload}{len(created_at)}|{created_at}{prev_hash}{entry_hash}"
+    return hashlib.sha256(text.encode("utf-8", "surrogatepass")).digest()
+
+
+def _content_problems(row: Sequence[Any], memo: _Memo | None, seen: dict[int, list[str]] | None = None) -> list[str]:
+    """``entry_content_problems`` of a raw row. A row found consistent is remembered in ``memo``
+    by its key, so the same row is not hashed again in a later check; ``seen`` holds the
+    results of this check by row object."""
+    if seen is not None and id(row) in seen:
+        return seen[id(row)]
+    key = _row_key(row) if memo is not None else None
+    if memo is not None and key is not None and memo.rows.get(row[0]) == key:
+        problems: list[str] = []
+    else:
+        problems = entry_content_problems(*row[:6])
+        if memo is not None and key is not None and not problems:
+            memo.rows[row[0]] = key
+    if seen is not None:
+        seen[id(row)] = problems
+    return problems
+
+
+def _chain_break(rows: Sequence[Sequence[Any]], upto: int, memo: _Memo | None = None,
+                 seen: dict[int, list[str]] | None = None) -> tuple[int, str] | None:
     """First entry up to ``upto`` whose number, link or hash is wrong, with the reason."""
     prev, expected = ZERO_HASH, 1
     for row in rows:
@@ -673,7 +1015,7 @@ def _chain_break(rows: Sequence[Sequence[Any]], upto: int) -> tuple[int, str] | 
             return seq, "nomor urut tidak berurutan"
         if row[3] != prev:
             return seq, "mata rantai terputus"
-        if entry_content_problems(*row[:6]):
+        if _content_problems(row, memo, seen):
             return seq, "isi atau hash entri diubah"
         prev, expected = row[5], expected + 1
     return None
@@ -687,11 +1029,12 @@ def compare_anchor(log: AnchorFile, rows: Sequence[Sequence[Any]], public_key: s
     that still matches the entry's content, and the kind and time the line states, unless an
     acknowledgement line (backed by its ``ack`` entry in the registry) released it. The log
     must start with one ``start`` line whose log id the registry recorded (``starting``: the
-    start command is recording it now) and that no later start replaced. Signed lines must
-    verify with ``public_key`` when it is given. ``check_chain`` also checks the hash links of
-    the anchored part of the registry (``tapak verify`` checks the whole chain itself).
+    start command is recording it now) and that no later start or rotation replaced. Signed
+    lines must verify with ``public_key`` when it is given. ``check_chain`` also checks the hash
+    links of the anchored part of the registry (``tapak verify`` checks the whole chain itself).
+    A log read with :func:`read_anchor_incremental` reuses the results kept in its memo.
     """
-    st = AnchorStatus(configured=True, path=str(log.path))
+    st = AnchorStatus(configured=True, path=str(log.path), size=log.size)
     by_seq: dict[int, Sequence[Any]] = {}
     for row in rows:
         if isinstance(row[0], int):
@@ -704,6 +1047,10 @@ def compare_anchor(log: AnchorFile, rows: Sequence[Sequence[Any]], public_key: s
                            "diabaikan; baris berikutnya ditulis di baris baru")
     if log.unreadable:
         st.warnings.append(f"baris ke-{_numbers(log.unreadable)} log jangkar tidak dapat dibaca dan diabaikan")
+    if log.size >= ROTATE_WARN_BYTES:
+        st.warnings.append(f"log jangkar sudah {size_text(log.size)}; di atas {size_text(MAX_LOG_BYTES)} log tidak dibaca "
+                           "lagi dan semua pelacakan dan penerbitan ditolak. Teruskan sekarang ke segmen baru dengan "
+                           "tapak jangkar rotasi BERKAS_BARU (lihat docs/operasi.md)")
     lines = log.lines
     st.lines = len(lines)
     if not lines:
@@ -721,51 +1068,113 @@ def compare_anchor(log: AnchorFile, rows: Sequence[Sequence[Any]], public_key: s
     foreign = [line.number for line in lines if line.log_id != st.log_id]
     if foreign:
         st.blocking.append(f"baris ke-{_numbers(foreign)} milik log jangkar lain (id berbeda dengan baris awal)")
+    carried: set[tuple[int, str]] = set()
     if start is not None:
-        _check_registration(st, start, events, starting)
-    _check_signatures(st, lines, public_key)
-    excused = _acknowledged(st, lines, by_seq)
-    _check_anchored(st, lines, by_seq, excused, check_chain, rows)
+        carried = _check_registration(st, start, events, starting)
+    _check_signatures(st, lines, public_key, log.memo)
+    excused = _acknowledged(st, lines, by_seq) | carried
+    st.released = sorted(excused)
+    _check_anchored(st, lines, by_seq, excused, check_chain, rows, log.memo)
     st.problems = st.blocking + st.problems
     if not st.problems and st.registry_head > st.anchored_seq:
         st.lag = st.registry_head - st.anchored_seq
     return st
 
 
+_SEGMENT_EVENTS = ("start", "restart", "rotate")
+
+
 def _check_registration(st: AnchorStatus, start: AnchorLine, events: list[tuple[int, dict[str, Any]]],
-                        starting: bool) -> None:
-    """The registry must record the start of this log, and no later start may have replaced it."""
-    starts = [(seq, p) for seq, p in events if p["event"] in ("start", "restart")]
-    mine = [(seq, p) for seq, p in starts if p["log_id"] == start.log_id]
+                        starting: bool) -> set[tuple[int, str]]:
+    """The registry must record the start of this log, and no later start or rotation may have
+    replaced it. A segment (``tapak jangkar rotasi``) must continue the log in use before it,
+    and the acknowledgements it carries over must be in the registry; returns the pairs they
+    released. A restart at the head of this chain of segments is named in ``st.restarted``."""
+    starts = [(seq, p) for seq, p in events if p["event"] in _SEGMENT_EVENTS]
+    mine = [i for i, (_, p) in enumerate(starts) if p["log_id"] == start.log_id]
     if not mine:
         if not starting:
             st.blocking.append(f"log jangkar ini (id {start.log_id[:8]}) belum tercatat di registri: log tidak dimulai "
                                "dengan tapak jangkar mulai, atau mulai terputus. Jalankan tapak jangkar mulai untuk "
                                "menyelesaikannya")
-        return
-    seq, payload = mine[0]
-    if (payload["event"] == "restart") != start.restart or payload["reason_sha256"] != reason_digest(start.reason):
+        return set()
+    index = mine[0]
+    seq, payload = starts[index]
+    mismatch = ((payload["event"] == "restart") != start.restart
+                or (payload["event"] == "rotate") != (start.previous is not None)
+                or payload["reason_sha256"] != reason_digest(start.reason))
+    if mismatch:
         st.blocking.append(f"baris awal log jangkar tidak cocok dengan entri registri #{seq} yang memulainya")
-    if payload["event"] == "restart":
-        st.restarted = (seq, payload["created_at"])
-    later = [s for s, p in starts if s > seq and p["log_id"] != start.log_id]
-    if later:
+    first = index
+    while first > 0 and starts[first][1]["event"] == "rotate":
+        first -= 1
+    if starts[first][1]["event"] == "restart":
+        st.restarted = (starts[first][0], starts[first][1]["created_at"])
+    carried: set[tuple[int, str]] = set()
+    if start.previous is not None and not mismatch:
+        prior = starts[index - 1][1]["log_id"] if index else None
+        if prior != start.previous.log_id:
+            st.blocking.append(f"baris awal segmen log jangkar ini meneruskan log id {start.previous.log_id[:8]}, padahal "
+                               f"registri mencatat log lain sebagai log yang dipakai sebelum entri #{seq}")
+        else:
+            st.rotated = (seq, payload["created_at"], start.previous.log_id)
+            carried = _carried_acks(st, start.previous, events, {p["log_id"] for _, p in starts[first:index]})
+    later = [(s, p) for s, p in starts[index + 1:] if p["log_id"] != start.log_id]
+    if later and later[0][1]["event"] == "rotate":  # a setting to change, not a mismatch
+        moved = (f"log jangkar ini sudah diteruskan ke segmen baru (tapak jangkar rotasi, log id "
+                 f"{later[0][1]['log_id'][:8]}) di entri registri #{later[0][0]}. Arahkan TAPAK_ANCHOR_LOG atau "
+                 "--log-jangkar ke berkas segmen baru itu, dan simpan berkas ini sebagai segmen lama")
+        st.blocking.append(moved)
+        st.storage.append(moved)
+    elif later:
         # Starting a new log is also how someone would hide a deletion from this one: never
         # tell the operator to switch without checking what this log still shows.
-        st.blocking.append(f"log jangkar ini sudah diganti log lain yang dimulai ulang di entri registri #{later[-1]}. "
+        st.blocking.append(f"log jangkar ini sudah diganti log lain yang dimulai ulang di entri registri #{later[0][0]}. "
                            "Arahkan TAPAK_ANCHOR_LOG atau --log-jangkar ke log baru itu hanya bila awal ulang itu "
                            "memang dilakukan operator dengan sengaja, dan periksa dulu masalah lain yang ditunjukkan "
                            "log ini dengan tapak verify")
+    return carried
 
 
-def _check_signatures(st: AnchorStatus, lines: list[AnchorLine], public_key: str | None) -> None:
+def _carried_acks(st: AnchorStatus, previous: Previous, events: list[tuple[int, dict[str, Any]]],
+                  earlier_logs: set[str]) -> set[tuple[int, str]]:
+    """Acknowledgements from the logs a segment continues. Every ``ack`` entry the registry holds
+    for those logs is named (an omitted one cannot vanish from later results), and each one the
+    segment's first line lists must be among them. Adds them to ``st.acks``; returns the pairs
+    they released."""
+    earlier = [(seq, p) for seq, p in events if p["event"] == "ack" and p["log_id"] in earlier_logs]
+    released: set[tuple[int, str]] = set()
+    for seq, payload in earlier:
+        st.acks.append((seq, payload["created_at"]))
+        released.update((pair[0], pair[1]) for pair in payload["released"])
+    unknown = sorted(set(previous.acks) - {seq for seq, _ in earlier})
+    if unknown:
+        st.blocking.append(f"baris awal segmen log jangkar ini menyebut pengakuan di entri {seq_span(unknown)}, tetapi "
+                           "registri tidak mencatat pengakuan itu untuk log sebelumnya")
+    st.released_traces += previous.released_traces
+    return released
+
+
+def _check_signatures(st: AnchorStatus, lines: list[AnchorLine], public_key: str | None,
+                      memo: _Memo | None = None) -> None:
+    checked: int = 0
+    known_bad: frozenset[int] = frozenset()
+    if memo is not None and public_key is not None:
+        checked, known_bad = memo.signatures.get(public_key, (0, frozenset()))
     bad = []
     for line in lines:
         if line.signature is None:
             continue
         st.signed_lines += 1
-        if public_key is not None and not verify_line(line, public_key):
+        if public_key is None:
+            continue
+        if line.number <= checked:
+            if line.number in known_bad:
+                bad.append(line.number)
+        elif not verify_line(line, public_key):
             bad.append(line.number)
+    if memo is not None and public_key is not None:
+        memo.signatures[public_key] = (memo.count, frozenset(n for n in bad if n <= memo.count))
     if bad:
         st.blocking.append(f"tanda tangan baris ke-{_numbers(bad)} log jangkar tidak sah untuk kunci publik registri "
                            "(baris dipalsukan atau diubah)")
@@ -791,16 +1200,17 @@ def _acknowledged(st: AnchorStatus, lines: list[AnchorLine], by_seq: dict[int, S
             continue
         excused.update(line.released)
         st.acks.append((line.seq, line.created_at))
-    st.released = sorted(excused)
-    st.released_traces = len({(line.seq, line.entry_hash) for line in lines
-                              if line.anchors and line.kind == KIND_TRACE and (line.seq, line.entry_hash) in excused})
+    st.released_traces += len({(line.seq, line.entry_hash) for line in lines
+                               if line.anchors and line.kind == KIND_TRACE and (line.seq, line.entry_hash) in excused})
     return excused
 
 
 def _check_anchored(st: AnchorStatus, lines: list[AnchorLine], by_seq: dict[int, Sequence[Any]],
-                    excused: set[tuple[int, str]], check_chain: bool, rows: Sequence[Sequence[Any]]) -> None:
+                    excused: set[tuple[int, str]], check_chain: bool, rows: Sequence[Sequence[Any]],
+                    memo: _Memo | None = None) -> None:
     """Every anchored pair that was not released must be in the registry, unchanged."""
     head = st.registry_head
+    seen: dict[int, list[str]] = {}  # rows are fixed during one check: hash each one once
     missing, replaced, edited, differ = [], [], [], []
     upto = 0
     for line in lines:
@@ -813,7 +1223,7 @@ def _check_anchored(st: AnchorStatus, lines: list[AnchorLine], by_seq: dict[int,
         upto = max(upto, line.seq)
         if row[5] != line.entry_hash:
             replaced.append(line)
-        elif entry_content_problems(*row[:6]):
+        elif _content_problems(row, memo, seen):
             edited.append(line)
         elif row[1] != line.kind or row[4] != line.created_at:
             differ.append(line)
@@ -838,7 +1248,7 @@ def _check_anchored(st: AnchorStatus, lines: list[AnchorLine], by_seq: dict[int,
         st.blocking.append(f"baris log jangkar untuk entri {seq_span([line.seq for line in differ])} menyebut jenis atau "
                            "waktu yang berbeda dari registri (log atau registri disunting)")
     if check_chain and upto:
-        broken = _chain_break(rows, upto)
+        broken = _chain_break(rows, upto, memo, seen)
         flagged = {line.seq for line in replaced + edited}
         if broken is not None and broken[0] not in flagged:
             st.blocking.append(f"rantai registri rusak di entri #{broken[0]} ({broken[1]}), di dalam bagian yang "
@@ -854,26 +1264,33 @@ class AnchorLog:
     Pass it to ``Registry.open(path, anchor=...)``: the registry calls :meth:`prepare` at the
     start of every write transaction and :meth:`record` after each commit. ``signer`` signs a
     line when the entry it names was signed by the same key; ``public_key`` verifies signed
-    lines. ``starting`` is set only by :func:`start_log` while it records a new log's start.
-    ``protected`` lists folders (data, keys) the log should not live in: a log there gets a
-    warning, since whoever edits the registry can most likely edit it too. The latest check
+    lines. ``starting`` is set only by :func:`start_log` and :func:`rotate_log` while they
+    record a new log's start. ``protected`` lists folders (data, keys) the log should not live
+    in: a log there gets a warning, since whoever edits the registry can most likely edit it
+    too. ``limit``: the largest log it reads (default :data:`MAX_LOG_BYTES`). The latest check
     is kept in :attr:`status`.
     """
 
     def __init__(self, path: str | Path, signer: Signer | None = None, public_key: str | None = None,
-                 starting: bool = False, protected: Sequence[str | Path] = ()) -> None:
+                 starting: bool = False, protected: Sequence[str | Path] = (), limit: int | None = None) -> None:
         self.path = Path(path)
         self.signer = signer
         self.public_key = public_key
         self.starting = starting
         self.protected = list(protected)
+        self.limit = limit
         self.status: AnchorStatus | None = None
 
     def read(self) -> AnchorFile:
-        """The log as it is now (AnchorUnavailable if missing or unreadable)."""
-        return read_anchor_file(self.path)
+        """The log as it is now (AnchorUnavailable if missing or unreadable). Incremental within
+        this process (:func:`read_anchor_incremental`)."""
+        return read_anchor_incremental(self.path, self.limit)
 
-    def _finish(self, status: AnchorStatus) -> AnchorStatus:
+    def _finish(self, status: AnchorStatus, log: AnchorFile | None = None) -> AnchorStatus:
+        if log is not None:
+            problem = _media_problem(self.path, next((line for line in log.lines if line.type == "start"), None))
+            if problem:
+                status.add_storage_problem(problem)
         status.warnings += location_warnings(self.path, self.protected)
         return status
 
@@ -884,10 +1301,14 @@ class AnchorLog:
             log = self.read()
         except AnchorUnavailable as exc:
             return self._finish(unavailable_status(self.path, rows, exc))
-        return self._finish(compare_anchor(log, rows, self.public_key, starting=self.starting))
+        return self._finish(compare_anchor(log, rows, self.public_key, starting=self.starting), log)
 
     def inspect_registry_file(self, registry_path: str | Path) -> AnchorStatus:
-        """Read-only check outside the write lock: the log first, then the registry. Never raises."""
+        """Read-only check outside the write lock: the log first, then the registry. Never raises.
+
+        Also probes, like :meth:`prepare`, that the log can be appended to (nothing is written):
+        a log that cannot be written refuses every trace and issuance, so it is a problem here too.
+        """
         error = None
         try:
             log: AnchorFile | None = self.read()
@@ -903,26 +1324,32 @@ class AnchorLog:
         if log is None:
             assert error is not None
             return self._finish(unavailable_status(self.path, rows, error))
-        return self._finish(compare_anchor(log, rows, self.public_key, starting=self.starting))
+        status = self._finish(compare_anchor(log, rows, self.public_key, starting=self.starting), log)
+        problem = writable_problem(self.path)
+        if problem:
+            status.unwritable = True
+            status.add_storage_problem(f"{problem}; pelacakan dan penerbitan ditolak sebelum entri baru dicatat. "
+                                       "Perbaiki izin atau penyimpanannya")
+        return status
 
     def _sign_for(self, signed_by: str | None) -> Signer | None:
         if self.signer is not None and signed_by is not None and signed_by == self.signer.public_key_hex:
             return self.signer
         return None
 
-    def prepare(self, registry: Registry) -> AnchorStatus:
+    def prepare(self, registry: Registry, require_writable: bool = True) -> AnchorStatus:
         """Inside the registry's write transaction: refuse (AnchorRefused) when the log does not
         match the registry or cannot be read, and write the lines of committed entries the log
-        is still missing (a crash between an earlier commit and its lines)."""
+        is still missing (a crash between an earlier commit and its lines). Refuses a log that
+        cannot be appended to unless ``require_writable`` is False (a rotation away from it)."""
         rows = registry.raw_rows()
         status = self.inspect(rows)
         if status.problems:
             raise AnchorRefused(status)
-        try:  # before anything commits: a read-only log must not cost a trace its number
-            os.close(os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_NONBLOCK))
-        except OSError as exc:
-            raise AnchorUnavailable(f"log jangkar di {self.path} tidak dapat ditulis ({_why(exc)}); penulisan registri "
-                                    "ditolak sebelum entri baru dicatat. Perbaiki izin atau penyimpanannya") from None
+        problem = writable_problem(self.path) if require_writable else None
+        if problem:  # before anything commits: a read-only log must not cost a trace its number
+            raise AnchorUnavailable(f"{problem}; penulisan registri ditolak sebelum entri baru dicatat. Perbaiki izin "
+                                    "atau penyimpanannya")
         if status.lag:
             todo = [row for row in rows if isinstance(row[0], int) and row[0] > status.anchored_seq]
             texts = [line_text(entry_body(str(status.log_id), row[0], row[1], row[4], row[5]), self._sign_for(row[7]))
@@ -995,7 +1422,8 @@ def _resume_header(path: Path, rows: Sequence[Sequence[Any]], restart: bool, rea
     if recorded:
         raise AnchorError(f"log jangkar di {path} sudah dimulai dan tercatat di registri (entri #{recorded[0]}); tidak "
                           "perlu dimulai lagi")
-    if header.restart != bool(events) or log.lines[1:] and any(line.type != "entry" for line in log.lines[1:]):
+    if (header.restart != bool(events) or header.previous is not None
+            or log.lines[1:] and any(line.type != "entry" for line in log.lines[1:])):
         raise AnchorError(exists)
     if restart != header.restart:
         raise AnchorError(f"log jangkar di {path} dimulai {'dengan' if header.restart else 'tanpa'} --ulang tetapi "
@@ -1006,9 +1434,15 @@ def _resume_header(path: Path, rows: Sequence[Sequence[Any]], restart: bool, rea
     return header
 
 
+def _require_folder(path: Path) -> None:
+    if not path.parent.is_dir():
+        raise AnchorError(f"folder {path.parent} untuk log jangkar tidak ada. Pasang dulu penyimpanan terpisahnya; TAPAK "
+                          "tidak membuat folder ini, agar log tidak diam-diam tertulis di disk lokal")
+
+
 def start_log(registry_path: str | Path, path: str | Path, signer: Signer | None = None,
               public_key: str | None = None, reason: str | None = None, restart: bool = False,
-              protected: Sequence[str | Path] = ()) -> AnchorStatus:
+              protected: Sequence[str | Path] = (), mark_media: bool = False) -> AnchorStatus:
     """``tapak jangkar mulai``: create the anchor log and record its start in the registry.
 
     The log file is written first (its ``start`` line), then the registry entry of kind
@@ -1016,14 +1450,13 @@ def start_log(registry_path: str | Path, path: str | Path, signer: Signer | None
     entry. A start interrupted between the two is finished by running the same command again.
     Refuses when the parent folder is missing, the registry chain is broken, or the registry
     already uses a log (``restart`` with a ``reason`` starts a new log after a loss, and the
-    restart is recorded); never overwrites an existing log. ``protected``: see
-    :class:`AnchorLog`.
+    restart is recorded); never overwrites an existing log. A first start marks the folder
+    with a media marker if it has none; a restart needs the marker already there (or
+    ``mark_media``), see :func:`media_for_new_log`. ``protected``: see :class:`AnchorLog`.
     """
     path = Path(path)
     reason = clean_reason(reason, required=restart)
-    if not path.parent.is_dir():
-        raise AnchorError(f"folder {path.parent} untuk log jangkar tidak ada. Pasang dulu penyimpanan terpisahnya; TAPAK "
-                          "tidak membuat folder ini, agar log tidak diam-diam tertulis di disk lokal")
+    _require_folder(path)
     rows = read_registry_rows(registry_path)
     events = anchor_events(rows)
     _require_intact(rows, registry_path, public_key)
@@ -1038,8 +1471,9 @@ def start_log(registry_path: str | Path, path: str | Path, signer: Signer | None
                               "lalu mulai log baru secara sadar dengan tapak jangkar mulai --ulang --alasan '...'")
         if restart and not events:
             raise AnchorError("registri belum memakai log jangkar; jalankan tapak jangkar mulai tanpa --ulang")
+        media = media_for_new_log(path.parent, create=mark_media or not restart)
         log_id = secrets.token_hex(16)
-        create_anchor_file(path, line_text(start_body(log_id, utc_now(), restart, reason), signer))
+        create_anchor_file(path, line_text(start_body(log_id, utc_now(), restart, reason, media), signer))
     log = AnchorLog(path, signer=signer, public_key=public_key, starting=True, protected=protected)
     with Registry.open(registry_path, anchor=log) as reg, reg.transaction():
         pending = bool(reg.pending())
@@ -1047,6 +1481,126 @@ def start_log(registry_path: str | Path, path: str | Path, signer: Signer | None
                                 reason_sha256=reason_digest(reason), signer=None if pending else signer)
     assert log.status is not None
     return log.status
+
+
+def rotate_log(registry_path: str | Path, old_path: str | Path, new_path: str | Path, signer: Signer | None = None,
+               public_key: str | None = None, reason: str | None = None, mark_media: bool = False,
+               protected: Sequence[str | Path] = ()) -> AnchorStatus:
+    """``tapak jangkar rotasi``: continue the anchor log in a new segment file.
+
+    All under the registry's write lock: the current log must match the registry (lines it is
+    missing are written first; it need not be writable otherwise, so a full or finalised medium
+    can still be rotated away from). The new file gets a ``start`` line that commits to the old
+    log (:class:`Previous`: its id, the length and SHA-256 of all its bytes, the head it
+    anchors, the acknowledgements in force) and an ``entry`` line that anchors that head again.
+    Then the registry records the rotation (``anchor_log`` event ``rotate``), whose line goes to
+    the new file after the commit. The old file is not written again; keep it. Refuses an
+    existing new file, a folder without a media marker (unless ``mark_media``) and a log that
+    does not match. Returns the new segment's status.
+    """
+    old_path, new_path = Path(old_path), Path(new_path)
+    reason = clean_reason(reason, required=False)
+    _require_folder(new_path)
+    if new_path.exists() or new_path.is_symlink():
+        raise AnchorError(f"berkas {new_path} sudah ada dan tidak ditimpa. Bila itu segmen dari rotasi yang terputus "
+                          "(belum tercatat di registri), pindahkan dulu ke tempat lain (simpan sebagai bukti), lalu "
+                          "jalankan perintah ini lagi")
+    media = media_for_new_log(new_path.parent, create=mark_media)
+    old = AnchorLog(old_path, signer=signer, public_key=public_key, protected=protected, limit=ROTATE_READ_LIMIT)
+    new = AnchorLog(new_path, signer=signer, public_key=public_key, starting=True, protected=protected)
+    with Registry.open(registry_path) as reg, reg.transaction():
+        status = old.prepare(reg, require_writable=False)
+        data = read_log_bytes(old_path, ROTATE_READ_LIMIT)
+        head = reg.raw_rows()[-1]
+        previous = Previous(str(status.log_id), len(data), hashlib.sha256(data).hexdigest(), head[0], head[5],
+                            tuple(sorted({seq for seq, _ in status.acks})), status.released_traces)
+        log_id = secrets.token_hex(16)
+        create_anchor_file(new_path, line_text(start_body(log_id, utc_now(), False, reason, media, previous), signer)
+                           + line_text(entry_body(log_id, head[0], head[1], head[4], head[5]), old._sign_for(head[7])))
+        new.prepare(reg)
+        entry = reg.record_anchor_event(event="rotate", log_id=log_id, reason_sha256=reason_digest(reason),
+                                        signer=None if reg.pending() else signer)
+    new.record([entry])
+    return new.inspect_registry_file(registry_path)
+
+
+def _first_line(data: bytes) -> AnchorLine | None:
+    try:
+        return parse_line(data.split(b"\n", 1)[0].decode("utf-8"), 1)
+    except UnicodeDecodeError:
+        return None
+
+
+def _head_of(path: str | Path) -> AnchorLine | None:
+    """The first line of a log file (read without loading the whole file), or None."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        data = os.read(fd, 1 << 20)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+    return _first_line(data)
+
+
+def segment_chain(older: Sequence[str | Path], current: AnchorFile,
+                  rows: Sequence[Sequence[Any]]) -> tuple[list[str], list[str]]:
+    """Check the chain of log segments (``tapak verify --segmen-lama``); return (problems, warnings).
+
+    ``older`` are the earlier segment files, oldest first. Each one must be followed (by the
+    next one, the last by ``current``) by a segment whose ``start`` line commits to it: the
+    same log id, the same bytes up to the recorded length (SHA-256), and those bytes anchor the
+    recorded head and nothing after it. Every old segment's start must be recorded in the
+    registry ``rows``. Bytes appended to an old segment after its rotation are a warning when
+    they only name entries up to that head (a writer finishing its lines), a problem otherwise.
+    One segment is read at a time.
+    """
+    problems: list[str] = []
+    warnings: list[str] = []
+    recorded = {p["log_id"] for _, p in anchor_events(rows) if p["event"] in _SEGMENT_EVENTS}
+    for index, path in enumerate(Path(p) for p in older):
+        if index + 1 < len(older):
+            successor, head = Path(older[index + 1]), _head_of(older[index + 1])
+        else:
+            successor, head = current.path, next((line for line in current.lines if line.type == "start"), None)
+        try:
+            data = read_log_bytes(path, ROTATE_READ_LIMIT)
+        except AnchorUnavailable as exc:
+            problems.append(f"segmen lama: {exc}")
+            continue
+        own = _first_line(data)
+        prev = head.previous if head is not None and head.type == "start" else None
+        if own is None or own.type != "start" or own.log_id not in recorded:
+            problems.append(f"segmen lama {path} tidak dimulai dengan baris awal yang tercatat di registri")
+            continue
+        if prev is None or prev.log_id != own.log_id:
+            problems.append(f"{successor} tidak meneruskan segmen lama {path} (id {own.log_id[:8]}): baris awalnya "
+                            "menyebut log sebelumnya yang lain, atau tidak menyebutnya; urutkan --segmen-lama dari "
+                            "yang paling lama")
+            continue
+        if len(data) < prev.bytes or hashlib.sha256(data[:prev.bytes]).hexdigest() != prev.sha256:
+            problems.append(f"segmen lama {path} tidak sama dengan isi yang dicatat saat rotasi ({prev.bytes} byte "
+                            f"pertama, SHA-256 {prev.sha256[:16]}): segmen dipotong, disunting, atau diganti")
+            continue
+        within = {(line.seq, line.entry_hash) for line in parse_anchor_bytes(path, data[:prev.bytes]).lines
+                  if line.anchors}
+        if (prev.seq, prev.entry_hash) not in within or any(seq > prev.seq for seq, _ in within):
+            problems.append(f"segmen lama {path} tidak berakhir di entri #{prev.seq} yang dicatat saat rotasi")
+        if len(data) > prev.bytes:
+            later = [line.seq for line in parse_anchor_bytes(path, data[prev.bytes:]).lines
+                     if line.anchors and line.seq > prev.seq]
+            if later:
+                problems.append(f"segmen lama {path} memuat baris untuk entri {seq_span(later)} yang ditulis setelah "
+                                "rotasi; entri itu seharusnya hanya di segmen berikutnya")
+            else:
+                warnings.append(f"segmen lama {path} memuat {len(data) - prev.bytes} byte yang ditulis setelah rotasi, "
+                                "hanya untuk entri sebelum rotasi (proses yang sedang menulis saat itu)")
+    return problems, warnings
 
 
 def plan_acknowledgement(registry_path: str | Path, log: AnchorLog) -> AnchorStatus:

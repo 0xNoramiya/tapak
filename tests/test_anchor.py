@@ -22,6 +22,7 @@ from tapak.marker.issue import IssueSettings, read_recipients
 from tapak.marker.layout import sha256_hex
 from tapak.registry import anchor as anchor_mod
 from tapak.registry.anchor import (
+    MEDIA_MARKER,
     AnchorError,
     AnchorLog,
     AnchorRefused,
@@ -36,14 +37,18 @@ from tapak.registry.anchor import (
     entry_body,
     line_text,
     location_warnings,
+    mount_note,
     parse_anchor_bytes,
     parse_line,
     plan_acknowledgement,
     read_anchor_file,
+    read_anchor_incremental,
+    read_media_id,
     read_registry_rows,
     reason_digest,
     required_by,
     restart_note,
+    rotate_log,
     seq_span,
     start_body,
     start_log,
@@ -67,7 +72,8 @@ DOC = "d" * 64
 EVIDENCE = ["a1" * 32]
 SIGNER = Signer(bytes([7]) * 32)
 PUB = SIGNER.public_key_hex
-LINE_KEYS = {"v", "type", "log_id", "seq", "entry_hash", "kind", "created_at", "sig", "restart", "reason", "released"}
+LINE_KEYS = {"v", "type", "log_id", "seq", "entry_hash", "kind", "created_at", "sig", "restart", "reason", "released",
+             "media", "previous"}
 
 
 def _new_registry(path, signer=SIGNER):
@@ -737,8 +743,9 @@ def test_a_process_without_the_log_is_refused_for_a_registry_that_uses_one(tmp_p
         issue_document(s, other, read_recipients(RECIPIENTS)[:2], IssueSettings(workers=1), "uji")
     assert not (s.workspaces / sha256_hex(other.read_bytes())[:16]).exists()  # refused before any copy
     capsys.readouterr()
-    assert cli.main(["verify"]) == 0
-    assert "tetapi log itu tidak diberikan" in capsys.readouterr().out
+    assert cli.main(["verify"]) == 3  # intact as far as checked, but tail deletion was not checked
+    printed = capsys.readouterr().out
+    assert "tetapi log itu tidak diberikan" in printed and "PENGHAPUSAN DARI UJUNG TIDAK DIPERIKSA" in printed
     assert cli.main(["jangkar", "status"]) == 1 and "TIDAK DIATUR" in capsys.readouterr().out
     # The location can be given for one command: globally, or to verify only.
     assert cli.main(["verify", "--log-jangkar", str(log_path)]) == 0
@@ -796,3 +803,337 @@ def test_web_without_an_anchor_says_how_to_use_one(tmp_path, monkeypatch, issued
     assert "Belum dipakai" in r.text and "tapak --log-jangkar BERKAS jangkar mulai" in r.text
     r = client.post("/lacak", data={"dokumen": doc[:16], "teks": evidence.decode("utf-8")})
     assert "Tidak diatur; entri yang dihapus dari ujung registri hanya terdeteksi dengan log jangkar" in r.text
+
+
+# --- size limit and rotation ---------------------------------------------------------------------------
+
+
+def _sha(data: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(data).hexdigest()
+
+
+def test_the_size_limit_is_announced_and_a_rotation_continues_the_log(anchored, monkeypatch):
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    size = log_path.stat().st_size
+    monkeypatch.setattr(anchor_mod, "ROTATE_WARN_BYTES", size)
+    st = _status(reg_path, log_path)
+    assert st.ok and st.size == size and any("tapak jangkar rotasi BERKAS_BARU" in w for w in st.warnings)
+    # The next trace still passes the check, and its line takes the log over the limit.
+    monkeypatch.setattr(anchor_mod, "MAX_LOG_BYTES", size + 50)
+    second, _ = _trace(reg_path, log_path)
+    st = _status(reg_path, log_path)
+    assert st.missing and "terlalu besar" in st.problems[0] and "tapak jangkar rotasi" in st.problems[0]
+    with pytest.raises(AnchorRefused, match="terlalu besar"):
+        _trace(reg_path, log_path)
+    # The rotation still reads the oversized log, and the new segment repeats nothing but the head.
+    old_id, old_bytes = _lines(log_path)[0]["log_id"], log_path.read_bytes()
+    monkeypatch.setattr(anchor_mod, "MAX_LOG_BYTES", len(old_bytes) - 1)  # the old log stays over the limit
+    new_path = log_path.with_name("jangkar-2.log")
+    status = rotate_log(reg_path, log_path, new_path, SIGNER, PUB, reason="batas ukuran (uji fiktif)")
+    assert status.ok and status.lag == 0 and status.rotated is not None and status.rotated[2] == old_id
+    head, anchor_line, rotate_line = _lines(new_path)
+    assert head["previous"] == {"log_id": old_id, "bytes": len(old_bytes), "sha256": _sha(old_bytes),
+                                "seq": second.seq, "entry_hash": second.entry_hash, "acks": [], "released_traces": 0}
+    assert head["restart"] is False and head["reason"] == "batas ukuran (uji fiktif)" and head["media"]
+    assert (anchor_line["seq"], anchor_line["entry_hash"]) == (second.seq, second.entry_hash)
+    assert rotate_line["kind"] == KIND_ANCHOR and rotate_line["seq"] == status.rotated[0] == second.seq + 1
+    assert log_path.read_bytes() == old_bytes  # the old segment is never written again
+    with Registry.open(reg_path) as reg:
+        event = reg.get(status.rotated[0]).payload
+    assert event["event"] == "rotate" and event["log_id"] == head["log_id"]
+    assert event["reason_sha256"] == reason_digest("batas ukuran (uji fiktif)")
+    monkeypatch.setattr(anchor_mod, "MAX_LOG_BYTES", 256 * 1024 * 1024)
+    old = _status(reg_path, log_path)
+    assert not old.ok and any("sudah diteruskan ke segmen baru" in p and "segmen lama" in p for p in old.problems)
+    entry, st = _trace(reg_path, new_path)
+    assert st.ok and entry.payload["trace_no"] == 3 and st.rotated == status.rotated
+    # A deletion that reaches below the rotation point is still refused: the head is anchored again.
+    _drop_tail(reg_path, 3)
+    st = _status(reg_path, new_path)
+    assert not st.ok and st.releasable[0] == (second.seq, second.entry_hash)
+    assert any("dihapus dari ujung" in p for p in st.problems)
+    with pytest.raises(AnchorRefused):
+        _trace(reg_path, new_path)
+
+
+def test_the_chain_of_segments_is_checkable(anchored, tmp_path, capsys):
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    second = log_path.with_name("jangkar-2.log")
+    rotate_log(reg_path, log_path, second, SIGNER, PUB)
+    _trace(reg_path, second)
+    third = log_path.with_name("jangkar-3.log")
+    rotate_log(reg_path, second, third, SIGNER, PUB)
+    _trace(reg_path, third)
+    rep = verify_registry(reg_path, PUB, anchor_log=third, anchor_segments=[log_path, second])
+    assert rep.ok and rep.segments_checked == 2 and rep.anchor.rotated is not None
+    assert any("segmen lanjutan sejak entri" in line for line in rep.lines())
+    # A late line for an entry before the rotation (a writer finishing) is only a warning.
+    with Registry.open(reg_path) as reg:
+        early = reg.get(2)
+    append_lines(second, [line_text(entry_body(_lines(second)[0]["log_id"], 2, early.kind, early.created_at,
+                                               early.entry_hash), SIGNER)])
+    rep = verify_registry(reg_path, PUB, anchor_log=third, anchor_segments=[log_path, second])
+    assert rep.ok and any("ditulis setelah rotasi" in w for w in rep.warnings)
+    # A shortened or edited old segment, or segments out of order, break the chain.
+    cut = tmp_path / "terpotong.log"
+    cut.write_bytes(log_path.read_bytes()[:-20])
+    rep = verify_registry(reg_path, PUB, anchor_log=third, anchor_segments=[cut, second])
+    assert not rep.ok and any("tidak sama dengan isi yang dicatat saat rotasi" in p for _, p in rep.problems)
+    rep = verify_registry(reg_path, PUB, anchor_log=third, anchor_segments=[second, log_path])
+    assert not rep.ok and any("urutkan --segmen-lama" in p for _, p in rep.problems)
+    from tapak.registry.verify import main as verify_main
+
+    capsys.readouterr()
+    assert verify_main([str(reg_path), "--public-key", PUB, "--log-jangkar", str(third), "--segmen-lama",
+                        str(log_path), "--segmen-lama", str(second)]) == 0
+    assert "Segmen lama      : 2 dicocokkan" in capsys.readouterr().out
+    with pytest.raises(SystemExit):  # an old segment alone means nothing
+        verify_main([str(reg_path), "--public-key", PUB, "--segmen-lama", str(log_path)])
+
+
+def test_a_rotation_keeps_acknowledgements_and_a_restart_visible(anchored, tmp_path):
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    second, _ = _trace(reg_path, log_path)
+    _drop_tail(reg_path)
+    acknowledge(reg_path, _log(log_path), "uji pemulihan fiktif")
+    segment = log_path.with_name("jangkar-2.log")
+    status = rotate_log(reg_path, log_path, segment, SIGNER, PUB)
+    assert status.ok and len(status.acks) == 1 and status.released == [(second.seq, second.entry_hash)]
+    assert status.released_traces == 1 and "1 entri pelacakan di antaranya hilang" in status.describe()
+    assert _lines(segment)[0]["previous"]["acks"] == [status.acks[0][0]]
+    # A segment that claims an acknowledgement the registry does not hold is refused.
+    lines = segment.read_text(encoding="utf-8").splitlines(keepends=True)
+    forged = json.loads(lines[0])
+    forged.pop("sig")
+    forged["previous"]["acks"] = [1]
+    segment.write_text(canonical_json(forged).decode() + "\n" + "".join(lines[1:]), encoding="utf-8")
+    st = _status(reg_path, segment)
+    assert not st.ok and any("menyebut pengakuan di entri #1" in p for p in st.problems)
+    # One that leaves the acknowledgement out cannot hide it: the registry names it anyway.
+    forged["previous"]["acks"] = []
+    segment.write_text(canonical_json(forged).decode() + "\n" + "".join(lines[1:]), encoding="utf-8")
+    st = _status(reg_path, segment)
+    assert st.ok and len(st.acks) == 1 and st.released == [(second.seq, second.entry_hash)]
+    segment.write_text("".join(lines), encoding="utf-8")
+    assert _status(reg_path, segment).ok
+    # A restart stays named in every result after a later rotation.
+    restarted = tmp_path / "terpisah" / "ulang.log"
+    start_log(reg_path, restarted, SIGNER, PUB, reason="pindah lokasi (uji fiktif)", restart=True)
+    third = tmp_path / "terpisah" / "ulang-2.log"
+    status = rotate_log(reg_path, restarted, third, SIGNER, PUB)
+    assert status.ok and status.restarted is not None and restart_note(*status.restarted) in status.describe()
+    assert not status.acks  # the acknowledgement belonged to the log that the restart replaced
+
+
+def test_a_rotation_is_refused_on_a_mismatch_and_works_from_a_finalised_segment(anchored, tmp_path):
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    _drop_tail(reg_path)
+    with pytest.raises(AnchorRefused, match="dihapus dari ujung"):  # a rotation never hides an alarm
+        rotate_log(reg_path, log_path, log_path.with_name("baru.log"), SIGNER, PUB)
+    assert not log_path.with_name("baru.log").exists()
+    reg_path, log_path = tmp_path / "r2.db", tmp_path / "terpisah" / "kedua.log"
+    _new_registry(reg_path)
+    start_log(reg_path, log_path, SIGNER, PUB)
+    log_path.with_name("ada.log").write_text("x\n", encoding="utf-8")
+    with pytest.raises(AnchorError, match="sudah ada dan tidak ditimpa"):
+        rotate_log(reg_path, log_path, log_path.with_name("ada.log"), SIGNER, PUB)
+    other = tmp_path / "media-lain"
+    other.mkdir()
+    with pytest.raises(AnchorError, match="tidak memuat penanda media"):
+        rotate_log(reg_path, log_path, other / "segmen.log", SIGNER, PUB)
+    if hasattr(os, "geteuid") and os.geteuid() != 0:
+        log_path.chmod(0o444)  # a full or finalised medium: nothing is missing, so nothing is written
+    try:
+        status = rotate_log(reg_path, log_path, other / "segmen.log", SIGNER, PUB, mark_media=True)
+    finally:
+        log_path.chmod(0o644)
+    assert status.ok and read_media_id(other) == _lines(other / "segmen.log")[0]["media"]
+
+
+def test_rotation_through_the_cli(tmp_path, monkeypatch, issued_base, capsys):
+    from tapak.service import trace_evidence
+
+    s, doc, evidence, log_path = _deployment(tmp_path, monkeypatch, issued_base)
+    trace_evidence(s, doc, "a.txt", evidence)
+    new_path = log_path.with_name("jangkar-2.log")
+    capsys.readouterr()
+    assert cli.main(["jangkar", "rotasi", str(new_path), "--alasan", "rotasi tahunan (uji fiktif)"]) == 0
+    printed = capsys.readouterr().out
+    assert "diteruskan ke segmen baru" in printed and "Ubah TAPAK_ANCHOR_LOG" in printed
+    assert "bukan titik kait" in printed  # tmp_path is not a separate mount
+    assert cli.main(["jangkar", "status"]) == 1 and "sudah diteruskan ke segmen baru" in capsys.readouterr().out
+    with pytest.raises(TraceError) as refused:  # a process left on the old segment: a setting to change
+        trace_evidence(s, doc, "a.txt", evidence)
+    assert "sudah diteruskan ke segmen baru" in str(refused.value) and "tapak jangkar akui" not in str(refused.value)
+    monkeypatch.setenv("TAPAK_ANCHOR_LOG", str(new_path))
+    assert cli.main(["jangkar", "status"]) == 0
+    printed = capsys.readouterr().out
+    assert "Segmen     : lanjutan log id" in printed and "Ukuran     :" in printed and "Dapat ditulis: ya" in printed
+    from tapak.config import load_settings
+
+    s = load_settings()
+    outcome = trace_evidence(s, doc, "a.txt", evidence)
+    assert outcome.anchor.ok and outcome.attribution.threshold.trace_no == 2
+    assert cli.main(["verify", "--segmen-lama", str(log_path)]) == 0
+    assert "Segmen lama      : 1 dicocokkan" in capsys.readouterr().out
+    from fastapi.testclient import TestClient
+
+    from tapak.web.app import app
+
+    page = TestClient(app, base_url="http://127.0.0.1").get("/registri").text
+    assert "<dt>Segmen</dt>" in page and "Lanjutan log" in page
+
+
+# --- incremental checks ------------------------------------------------------------------------------
+
+
+def _same_as_full(reg_path, log_path):
+    """The incremental check of ``log_path`` and a full one, against the same registry rows."""
+    rows = read_registry_rows(reg_path)
+    fast = compare_anchor(read_anchor_incremental(log_path), rows, PUB)
+    full = compare_anchor(read_anchor_file(log_path), rows, PUB)
+    assert fast.to_dict() == full.to_dict()
+    return fast
+
+
+def test_the_incremental_check_equals_a_full_check(anchored, monkeypatch):
+    reg_path, log_path = anchored
+    assert _same_as_full(reg_path, log_path).ok
+    for _ in range(3):
+        _trace(reg_path, log_path)
+    assert _same_as_full(reg_path, log_path).ok
+    # Only the lines appended since the last check are parsed and verified.
+    parsed, verified = [], []
+    real_parse, real_verify = anchor_mod.parse_line, anchor_mod.verify_line
+    monkeypatch.setattr(anchor_mod, "parse_line", lambda text, n: parsed.append(n) or real_parse(text, n))
+    monkeypatch.setattr(anchor_mod, "verify_line",
+                        lambda line, key: verified.append(line.number) or real_verify(line, key))
+    compare_anchor(read_anchor_incremental(log_path), read_registry_rows(reg_path), PUB)
+    assert parsed == [] and verified == []
+    entry, _ = _trace(reg_path, log_path)
+    parsed.clear()
+    verified.clear()
+    st = compare_anchor(read_anchor_incremental(log_path), read_registry_rows(reg_path), PUB)
+    count = len(_lines(log_path))
+    assert st.ok and st.anchored_seq == entry.seq and parsed == [count] and verified == [count]
+    monkeypatch.undo()
+    # A torn line, then the line that closes it.
+    with open(log_path, "ab") as fh:
+        fh.write(b'{"created_at":"2026-10-')
+    assert any("terpotong" in w for w in _same_as_full(reg_path, log_path).warnings)
+    _trace(reg_path, log_path)
+    assert any("tidak dapat dibaca" in w for w in _same_as_full(reg_path, log_path).warnings)
+    # An early line rewritten in place, same length and same last line: still an alarm.
+    data = log_path.read_bytes()
+    lines = data.split(b"\n")
+    target = json.loads(lines[1])
+    flipped = target["entry_hash"][:-1] + ("0" if target["entry_hash"][-1] != "0" else "1")
+    lines[1] = lines[1].replace(target["entry_hash"].encode(), flipped.encode())
+    log_path.write_bytes(b"\n".join(lines))
+    assert log_path.stat().st_size == len(data)
+    st = _same_as_full(reg_path, log_path)
+    assert not st.ok and any("diganti entri lain" in p for p in st.problems)
+    assert any("tanda tangan baris ke-2" in p for p in st.problems)
+    log_path.write_bytes(data)
+    assert _same_as_full(reg_path, log_path).ok
+    # An older, shorter copy of the log still looks like a crash lag: the documented gap.
+    log_path.write_bytes(data[:data.rfind(b"\n", 0, len(data) - 1) + 1])
+    st = _same_as_full(reg_path, log_path)
+    assert st.ok and st.lag == 1
+    log_path.write_bytes(data)
+    # A registry row edited in place keeps its hash: the kept row results do not hide it.
+    _same_as_full(reg_path, log_path)
+    first = read_registry_rows(reg_path)[2]
+    payload = dict(json.loads(first[2]), evidence_sha256=["b2" * 32])
+    _edit(reg_path, ("UPDATE entries SET payload = ? WHERE seq = ?", (canonical_json(payload).decode(), first[0])))
+    st = _same_as_full(reg_path, log_path)
+    assert not st.ok and any(f"isi entri #{first[0]} diubah" in p for p in st.problems)
+
+
+# --- writability, media marker, verify without the log -------------------------------------------------
+
+
+@pytest.mark.skipif(not hasattr(os, "geteuid") or os.geteuid() == 0, reason="root ignores file modes")
+def test_status_reports_a_log_that_cannot_be_written(tmp_path, monkeypatch, issued_base, capsys):
+    from fastapi.testclient import TestClient
+
+    from tapak.service import anchor_status, trace_evidence
+    from tapak.web.app import app
+
+    s, doc, evidence, log_path = _deployment(tmp_path, monkeypatch, issued_base)
+    log_path.chmod(0o444)
+    try:
+        capsys.readouterr()
+        assert cli.main(["jangkar", "status"]) == 1
+        printed = capsys.readouterr().out
+        assert "Dapat ditulis: tidak" in printed and "tidak dapat ditulis (tidak ada izin)" in printed
+        st = anchor_status(s)
+        assert st.unwritable and st.problems == st.storage and "tidak cocok dengan registri" not in st.refusal()
+        with pytest.raises(TraceError, match="tidak dapat ditulis"):
+            trace_evidence(s, doc, "a.txt", evidence)
+        page = TestClient(app, base_url="http://127.0.0.1").get("/registri").text
+        assert "Tidak dapat ditulis" in page and "penyimpanan log ini diperbaiki" in page
+        # A third party with a read-only copy of the log can still verify.
+        assert verify_registry(s.registry_path, s.public_key_path.read_text().strip(), anchor_log=log_path).ok
+    finally:
+        log_path.chmod(0o644)
+    assert cli.main(["jangkar", "status"]) == 0 and "Dapat ditulis: ya" in capsys.readouterr().out
+
+
+def test_the_media_marker_must_sit_next_to_the_log(anchored, tmp_path):
+    reg_path, log_path = anchored
+    marker = log_path.parent / MEDIA_MARKER
+    assert _lines(log_path)[0]["media"] == read_media_id(log_path.parent) == json.loads(marker.read_text())["media_id"]
+    # The log copied to a folder without the marker, as on the local disk under a mount point.
+    local = tmp_path / "disk-lokal"
+    local.mkdir()
+    shutil.copy2(log_path, local / "jangkar.log")
+    st = _status(reg_path, local / "jangkar.log")
+    assert not st.ok and st.problems == st.storage and "penanda media" in st.problems[0]
+    with pytest.raises(AnchorRefused, match="penanda media"):
+        _trace(reg_path, local / "jangkar.log")
+    # A restart into a folder without a marker is refused unless the medium is marked on purpose.
+    log_path.unlink()
+    with pytest.raises(AnchorError, match="belum dipasang"):
+        start_log(reg_path, local / "baru.log", SIGNER, PUB, reason="media hilang (uji fiktif)", restart=True)
+    assert not (local / "baru.log").exists() and not (local / MEDIA_MARKER).exists()
+    status = start_log(reg_path, local / "baru.log", SIGNER, PUB, reason="media hilang (uji fiktif)", restart=True,
+                       mark_media=True)
+    assert status.ok and _lines(local / "baru.log")[0]["media"] == read_media_id(local)
+    # A damaged marker is never replaced silently.
+    (local / MEDIA_MARKER).write_text("rusak", encoding="utf-8")
+    assert not _status(reg_path, local / "baru.log").ok
+    with pytest.raises(AnchorError, match="rusak"):
+        rotate_log(reg_path, local / "baru.log", local / "baru-2.log", SIGNER, PUB, mark_media=True)
+    # Logs started before the marker existed carry no media id and need none.
+    old_start = parse_line(line_text(start_body("ab" * 16, "2026-10-22T08:00:00.000+00:00", False, None))[:-1], 1)
+    assert old_start.media is None and anchor_mod._media_problem(tmp_path / "x.log", old_start) is None
+    assert "bukan titik kait" in mount_note(local / "baru.log") and mount_note("/jangkar.log") is None
+
+
+def test_verify_without_the_log_says_tail_deletion_was_not_checked(anchored, tmp_path, capsys):
+    from tapak.registry.verify import EXIT_TAIL_UNCHECKED
+    from tapak.registry.verify import main as verify_main
+
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    rep = verify_registry(reg_path, PUB)
+    assert rep.ok and rep.tail_unchecked and rep.exit_code() == EXIT_TAIL_UNCHECKED == 3
+    assert rep.to_dict()["tail_unchecked"] and "PENGHAPUSAN DARI UJUNG TIDAK DIPERIKSA" in rep.verdict()
+    capsys.readouterr()
+    assert verify_main([str(reg_path), "--public-key", PUB]) == 3
+    printed = capsys.readouterr().out
+    assert "PENGHAPUSAN DARI UJUNG TIDAK DIPERIKSA" in printed and "hanya berlaku untuk entri yang masih ada" in printed
+    assert "Catatan: tanpa --jangkar" not in printed
+    _drop_tail(reg_path)  # the deleted trace is invisible without the log: still 3, never 0
+    assert verify_main([str(reg_path), "--public-key", PUB]) == 3
+    assert verify_main([str(reg_path), "--public-key", PUB, "--log-jangkar", str(log_path)]) == 1
+    plain = tmp_path / "tanpa-log.db"
+    _new_registry(plain)
+    assert verify_main([str(plain), "--public-key", PUB]) == 0  # no anchor log recorded: nothing missing

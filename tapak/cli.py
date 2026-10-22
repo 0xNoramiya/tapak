@@ -7,7 +7,7 @@
     tapak trace EVIDENCE --doc <doc>     (or --master/--manifest for a loose issuance)
     tapak docs                           list issued documents
     tapak verify                         verify the registry with the public key only
-    tapak jangkar mulai | akui | status  external anchor log (opt-in, --log-jangkar)
+    tapak jangkar mulai | rotasi | akui | status   external anchor log (opt-in, --log-jangkar)
     tapak registry sign | export-merkle
     tapak simulate                       Tardos collusion simulation
     tapak canary-dns | photos | web | demo
@@ -650,6 +650,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     anchor_log = args.verify_anchor_log or s.anchor_log
     if anchor_log:
         argv += ["--log-jangkar", str(anchor_log)]
+    for segment in args.segmen_lama:
+        argv += ["--segmen-lama", segment]
     return verify_main(argv)
 
 
@@ -673,6 +675,14 @@ def _print_anchor_status(status) -> None:
         print(f"MASALAH: {p}")
 
 
+def _print_mount_note(path: Path) -> None:
+    from tapak.registry.anchor import mount_note
+
+    note = mount_note(path)
+    if note:
+        print(f"Catatan: {note}.")
+
+
 def _cmd_anchor_start(args: argparse.Namespace) -> int:
     from tapak.registry.anchor import start_log
     from tapak.service import registry_keys
@@ -681,7 +691,8 @@ def _cmd_anchor_start(args: argparse.Namespace) -> int:
     path = _anchor_path(s)
     signer, public = registry_keys(s)
     status = start_log(s.registry_path, path, signer, public,  # type: ignore[arg-type]
-                       reason=args.alasan, restart=args.ulang, protected=[s.data_dir, s.key_dir])
+                       reason=args.alasan, restart=args.ulang, protected=[s.data_dir, s.key_dir],
+                       mark_media=args.tandai_media)
     print(f"Log jangkar {'dimulai ulang' if args.ulang else 'dimulai'} di {path} (id {status.log_id}).")
     print(f"Entri registri #{status.anchored_seq} mencatat awal log ini; {len(status.completed)} entri yang sudah ada "
           "ikut dicatat di log.")
@@ -690,8 +701,32 @@ def _cmd_anchor_start(args: argparse.Namespace) -> int:
           "harus memakai lokasi log yang sama.")
     if signer is None:
         print("Kunci tanda tangan registri tidak ada di sini: baris log jangkar ditulis tanpa tanda tangan.")
+    _print_mount_note(path)
     _print_anchor_status(status)
     return 0
+
+
+def _cmd_anchor_rotate(args: argparse.Namespace) -> int:
+    from tapak.registry.anchor import size_text, rotate_log
+    from tapak.service import registry_keys
+
+    s = _settings(args)
+    old = _anchor_path(s)
+    new = Path(args.berkas)
+    if new.resolve() == s.registry_path.resolve():
+        raise ValueError("log jangkar tidak boleh berkas registri itu sendiri; pilih berkas di penyimpanan terpisah")
+    signer, public = registry_keys(s)
+    status = rotate_log(s.registry_path, old, new, signer, public,  # type: ignore[arg-type]
+                        reason=args.alasan, mark_media=args.tandai_media, protected=[s.data_dir, s.key_dir])
+    where = f" di entri registri #{status.rotated[0]}" if status.rotated else ""
+    print(f"Log jangkar diteruskan ke segmen baru {new} (id {status.log_id}){where}.")
+    print(f"Segmen lama {old} ({size_text(old.stat().st_size)}) tidak ditulis lagi. Simpan sebagai bukti dan jangan "
+          "dihapus; tapak verify --segmen-lama memeriksa rantai segmennya.")
+    print("Ubah TAPAK_ANCHOR_LOG atau --log-jangkar di semua proses TAPAK yang menulis registri ini (CLI dan web) ke "
+          f"{new}. Proses yang masih memakai segmen lama menolak pelacakan dan penerbitan.")
+    _print_mount_note(new)
+    _print_anchor_status(status)
+    return 0 if status.ok else 1
 
 
 def _cmd_anchor_ack(args: argparse.Namespace) -> int:
@@ -726,8 +761,15 @@ def _cmd_anchor_status(args: argparse.Namespace) -> int:
     print(f"Registri   : {s.registry_path}")
     print(f"Log jangkar: {status.path or '(tidak diatur)'}")
     print(f"Keadaan    : {status.describe()}")
-    if status.configured:
+    if status.configured and not status.missing:
+        from tapak.registry.anchor import MAX_LOG_BYTES, size_text
+
         print(f"Baris      : {status.lines} ({status.signed_lines} bertanda tangan), id log {status.log_id or '-'}")
+        print(f"Ukuran     : {size_text(status.size)} dari batas {size_text(MAX_LOG_BYTES)}")
+        print(f"Dapat ditulis: {'tidak' if status.unwritable else 'ya'}")
+        if status.rotated:
+            print(f"Segmen     : lanjutan log id {status.rotated[2][:8]} sejak entri #{status.rotated[0]} "
+                  f"({status.rotated[1]})")
     _print_anchor_status(status)
     if not status.configured:
         return 1 if status.required_by is not None else 0
@@ -935,6 +977,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="ujung rantai yang dicatat sebelumnya; entri yang hilang sesudahnya terdeteksi")
     v.add_argument("--log-jangkar", dest="verify_anchor_log", default=None, metavar="BERKAS",
                    help="log jangkar eksternal yang dicocokkan (bawaan: lokasi yang diatur, bila ada)")
+    v.add_argument("--segmen-lama", action="append", default=[], metavar="BERKAS",
+                   help="segmen log jangkar sebelum rotasi, dari yang paling lama; rantai segmennya ikut diperiksa")
     v.set_defaults(func=_cmd_verify)
 
     jg = sub.add_parser("jangkar", help="log jangkar eksternal: mengungkap entri yang dihapus dari ujung registri")
@@ -945,7 +989,17 @@ def build_parser() -> argparse.ArgumentParser:
                     help="mulai log baru karena log yang lama hilang (perlu --alasan; tercatat di registri)")
     jm.add_argument("--alasan", default=None, metavar="TEKS",
                     help="alasan singkat, tanpa isi dokumen dan tanpa nama penerima (wajib dengan --ulang)")
+    jm.add_argument("--tandai-media", action="store_true",
+                    help="dengan --ulang: tandai folder log sebagai media log jangkar (media baru atau belum bertanda)")
     jm.set_defaults(func=_cmd_anchor_start)
+    jr = jgsub.add_parser("rotasi", help="teruskan log jangkar ke segmen baru sebelum batas ukurannya (tercatat di "
+                                         "registri)")
+    jr.add_argument("berkas", metavar="BERKAS_BARU", help="berkas segmen baru (belum ada) di penyimpanan terpisah")
+    jr.add_argument("--alasan", default=None, metavar="TEKS",
+                    help="alasan singkat (opsional), tanpa isi dokumen dan tanpa nama penerima")
+    jr.add_argument("--tandai-media", action="store_true",
+                    help="tandai folder segmen baru sebagai media log jangkar (media baru atau belum bertanda)")
+    jr.set_defaults(func=_cmd_anchor_rotate)
     ja = jgsub.add_parser("akui",
                           help="akui entri yang dicatat log jangkar tetapi tidak dapat dikembalikan ke registri")
     ja.add_argument("--alasan", required=True, metavar="TEKS",

@@ -37,8 +37,8 @@ trace number k spends eps * 6 / (pi^2 k^2) of the document's false-accusation bu
 ``tapak.tardos.spending``; a trace that runs the staged accusation also records its stage
 policy and the eps of every stage, ``stage_policy`` and ``stage_eps``) and ``anchor_log``
 (the external anchor log of ``tapak.registry.anchor`` was started, started again after a
-loss, or an alarm was acknowledged: event, log id, released ``[seq, entry_hash]`` pairs and
-the SHA-256 of the operator's reason). Other kinds, such as the canary log's
+loss, continued in a new segment file, or an alarm was acknowledged: event, log id,
+released ``[seq, entry_hash]`` pairs and the SHA-256 of the operator's reason). Other kinds, such as the canary log's
 ``canary_anchor``, are accepted as any JSON object.
 
 A registry opened with an anchor log (``Registry.open(path, anchor=...)``) checks the log
@@ -98,10 +98,11 @@ COPY_FIELDS = frozenset({
     "semantic_variant_ids", "issued_at", "issuer", "canary_token", "file_sha256",
 })
 TRACE_FIELDS = frozenset({"doc_hash", "trace_no", "evidence_sha256", "eps_share", "eps", "created_at"})
-# Events of the external anchor log: started, started again after the log was lost, and an
-# alarm acknowledged by the operator (the released pairs are the anchored entries gone).
+# Events of the external anchor log: started, started again after the log was lost, continued
+# in a new segment file (rotation), and an alarm acknowledged by the operator (the released
+# pairs are the anchored entries gone).
 ANCHOR_FIELDS = frozenset({"event", "log_id", "released", "reason_sha256", "created_at"})
-ANCHOR_EVENTS = ("start", "restart", "ack")
+ANCHOR_EVENTS = ("start", "restart", "rotate", "ack")
 KIND_FIELDS: dict[str, frozenset[str]] = {
     KIND_DOCUMENT: DOCUMENT_FIELDS, KIND_COPY: COPY_FIELDS, KIND_TRACE: TRACE_FIELDS,
     KIND_ANCHOR: ANCHOR_FIELDS,
@@ -293,8 +294,8 @@ def anchor_payload_problems(payload: object) -> list[str]:
     ``event`` is one of :data:`ANCHOR_EVENTS`, ``log_id`` 32 lowercase hex, ``released`` a
     sorted list of distinct ``[seq, entry_hash]`` pairs that is non-empty exactly for an
     acknowledgement (``ack``), ``reason_sha256`` the SHA-256 of the operator's reason
-    (required for ``restart`` and ``ack``, optional for ``start``) and ``created_at`` a
-    timestamp. Never raises, whatever the payload holds.
+    (required for ``restart`` and ``ack``, optional for ``start`` and ``rotate``) and
+    ``created_at`` a timestamp. Never raises, whatever the payload holds.
     """
     if not isinstance(payload, dict):
         return ["isi entri log jangkar bukan objek JSON"]
@@ -955,8 +956,9 @@ class Registry:
         """Log an event of the external anchor log (``tapak.registry.anchor``); return the entry.
 
         ``event`` is ``start`` (a log was started), ``restart`` (a new log replaces a lost
-        one) or ``ack`` (the operator acknowledged anchored entries that the registry no
-        longer has; ``released`` lists them as ``(seq, entry_hash)``). ``reason_sha256`` is
+        one), ``rotate`` (the log continues in a new segment file) or ``ack`` (the operator
+        acknowledged anchored entries that the registry no longer has; ``released`` lists them
+        as ``(seq, entry_hash)``). ``reason_sha256`` is
         the SHA-256 of the operator's reason: the reason itself stays in the anchor log.
         """
         pairs = [[int(seq), str(h)] for seq, h in sorted({(int(s), str(h)) for s, h in released})]
