@@ -18,7 +18,9 @@ the person editing the registry cannot write:
 * A missing or unreadable log, while configured, is refused as well: deleting the log must
   not switch the check off. Recovery is always explicit and recorded in both the registry
   and the log: ``tapak jangkar mulai --ulang`` starts a new log after a loss and
-  ``tapak jangkar akui`` acknowledges anchored entries that cannot be restored.
+  ``tapak jangkar akui`` acknowledges anchored entries that cannot be restored. Every later
+  result (trace, berita acara, ``tapak verify``, web) names the acknowledgement or restart,
+  since either can also hide a deletion made just before it.
 * The registry records that a log is in use (an ``anchor_log`` entry), so a TAPAK process
   without the log configured refuses to write to such a registry instead of silently
   skipping the check.
@@ -530,6 +532,9 @@ class AnchorStatus:
         acks: ``(seq, created_at)`` of the acknowledgement lines in force; ``released`` the
             pairs they released, ``released_traces`` how many of those the log names as
             ``trace`` entries (their trace numbers can be handed out again).
+        restarted: ``(seq, created_at)`` of the registry entry that started this log again
+            after an earlier one was lost or moved (``tapak jangkar mulai --ulang``), or None.
+            Entries deleted before that point are invisible to this log, so every result says so.
         releasable: anchored pairs the registry no longer has, or has differently (what an
             acknowledgement would release); ``blocking``: problems no acknowledgement can
             release (a broken chain, a forged or foreign line, a log not recorded).
@@ -550,6 +555,7 @@ class AnchorStatus:
     acks: list[tuple[int, str]] = field(default_factory=list)
     released: list[tuple[int, str]] = field(default_factory=list)
     released_traces: int = 0
+    restarted: tuple[int, str] | None = None
     releasable: list[tuple[int, str]] = field(default_factory=list)
     blocking: list[str] = field(default_factory=list)
     missing: bool = False
@@ -589,6 +595,8 @@ class AnchorStatus:
             parts.append(f"{self.released_traces} entri pelacakan di antaranya hilang dari registri, jadi nomor dan jatah "
                          "eps pelacakan itu dapat terpakai lagi dan batas tuduhan salah gabungan untuk dokumennya tidak "
                          "lagi terjamin")
+        if self.restarted:
+            parts.append(restart_note(*self.restarted))
         if self.warnings:
             parts.append("peringatan: " + "; ".join(self.warnings[:2]))
         return "; ".join(parts)
@@ -613,8 +621,16 @@ class AnchorStatus:
                 "anchored_seq": self.anchored_seq, "registry_head": self.registry_head, "lag": self.lag,
                 "completed": list(self.completed), "recorded": list(self.recorded),
                 "acks": [list(a) for a in self.acks], "released": [list(p) for p in self.released],
-                "released_traces": self.released_traces, "missing": self.missing, "problems": list(self.problems),
-                "warnings": list(self.warnings)}
+                "released_traces": self.released_traces,
+                "restarted": list(self.restarted) if self.restarted else None, "missing": self.missing,
+                "problems": list(self.problems), "warnings": list(self.warnings)}
+
+
+def restart_note(seq: int, created_at: str) -> str:
+    """Indonesian clause for a log that was started again (``tapak jangkar mulai --ulang``)."""
+    return (f"log ini dimulai ulang di entri #{seq} ({created_at}) setelah log sebelumnya hilang atau dipindah; "
+            "entri yang dihapus dari ujung registri sebelum itu tidak terlihat oleh log ini (periksa dengan log lama "
+            "atau jangkar berita acara, tapak verify --jangkar)")
 
 
 def unconfigured_status(rows: Sequence[Sequence[Any]]) -> AnchorStatus:
@@ -730,10 +746,16 @@ def _check_registration(st: AnchorStatus, start: AnchorLine, events: list[tuple[
     seq, payload = mine[0]
     if (payload["event"] == "restart") != start.restart or payload["reason_sha256"] != reason_digest(start.reason):
         st.blocking.append(f"baris awal log jangkar tidak cocok dengan entri registri #{seq} yang memulainya")
+    if payload["event"] == "restart":
+        st.restarted = (seq, payload["created_at"])
     later = [s for s, p in starts if s > seq and p["log_id"] != start.log_id]
     if later:
-        st.blocking.append(f"log jangkar ini sudah diganti log lain yang dimulai di entri registri #{later[-1]}; "
-                           "arahkan TAPAK_ANCHOR_LOG atau --log-jangkar ke log yang baru")
+        # Starting a new log is also how someone would hide a deletion from this one: never
+        # tell the operator to switch without checking what this log still shows.
+        st.blocking.append(f"log jangkar ini sudah diganti log lain yang dimulai ulang di entri registri #{later[-1]}. "
+                           "Arahkan TAPAK_ANCHOR_LOG atau --log-jangkar ke log baru itu hanya bila awal ulang itu "
+                           "memang dilakukan operator dengan sengaja, dan periksa dulu masalah lain yang ditunjukkan "
+                           "log ini dengan tapak verify")
 
 
 def _check_signatures(st: AnchorStatus, lines: list[AnchorLine], public_key: str | None) -> None:
@@ -896,6 +918,11 @@ class AnchorLog:
         status = self.inspect(rows)
         if status.problems:
             raise AnchorRefused(status)
+        try:  # before anything commits: a read-only log must not cost a trace its number
+            os.close(os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_NONBLOCK))
+        except OSError as exc:
+            raise AnchorUnavailable(f"log jangkar di {self.path} tidak dapat ditulis ({_why(exc)}); penulisan registri "
+                                    "ditolak sebelum entri baru dicatat. Perbaiki izin atau penyimpanannya") from None
         if status.lag:
             todo = [row for row in rows if isinstance(row[0], int) and row[0] > status.anchored_seq]
             texts = [line_text(entry_body(str(status.log_id), row[0], row[1], row[4], row[5]), self._sign_for(row[7]))

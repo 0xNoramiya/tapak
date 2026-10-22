@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import errno
 import json
+import os
 import shutil
 import sqlite3
 import threading
@@ -25,6 +26,7 @@ from tapak.registry.anchor import (
     AnchorLog,
     AnchorRefused,
     AnchorStatus,
+    AnchorUnavailable,
     AnchorWriteError,
     acknowledge,
     append_lines,
@@ -41,6 +43,7 @@ from tapak.registry.anchor import (
     read_registry_rows,
     reason_digest,
     required_by,
+    restart_note,
     seq_span,
     start_body,
     start_log,
@@ -255,6 +258,24 @@ def test_crash_between_commit_and_line_is_completed_on_the_next_write(anchored, 
     assert status.completed == [lost.seq] and status.recorded == [following.seq]
     assert following.payload["trace_no"] == 2
     assert [line.get("seq") for line in _lines(log_path)][-2:] == [lost.seq, following.seq]
+
+
+@pytest.mark.skipif(not hasattr(os, "geteuid") or os.geteuid() == 0, reason="root ignores file modes")
+def test_a_read_only_log_is_refused_before_the_trace_takes_a_number(anchored):
+    reg_path, log_path = anchored
+    with Registry.open(reg_path) as reg:
+        head = reg.head().seq
+    log_path.chmod(0o444)
+    try:
+        with pytest.raises(AnchorUnavailable, match="tidak dapat ditulis") as refused:
+            _trace(reg_path, log_path)
+        assert "ditolak sebelum entri baru dicatat" in str(refused.value)
+        with Registry.open(reg_path) as reg:
+            assert reg.head().seq == head and not reg.traces(DOC)  # nothing committed, no number used
+    finally:
+        log_path.chmod(0o644)
+    entry, status = _trace(reg_path, log_path)
+    assert status.ok and entry.payload["trace_no"] == 1
 
 
 def test_a_line_ahead_of_the_registry_is_always_an_alarm(anchored):
@@ -501,6 +522,33 @@ def test_acknowledgement_releases_only_what_is_gone_and_is_recorded(anchored, mo
         plan_acknowledgement(reg_path, _log(log_path))
 
 
+def test_a_restart_after_a_tail_deletion_is_named_in_every_result(anchored, tmp_path):
+    """Delete the newest trace, then start a new log elsewhere: the new log matches, but every
+    result names the restart, and the old log still refuses without telling anyone to switch."""
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    _drop_tail(reg_path)
+    new_path = tmp_path / "terpisah" / "baru.log"
+    start_log(reg_path, new_path, SIGNER, PUB, reason="pindah lokasi (uji fiktif)", restart=True)
+    entry, status = _trace(reg_path, new_path)
+    assert entry.payload["trace_no"] == 1 and status.ok  # the number comes back: visible below
+    with Registry.open(reg_path) as reg:
+        restart_entry = [e for e in reg.entries(KIND_ANCHOR) if e.payload["event"] == "restart"][0]
+    assert status.restarted == (restart_entry.seq, restart_entry.created_at)
+    assert status.to_dict()["restarted"] == [restart_entry.seq, restart_entry.created_at]
+    note = restart_note(*status.restarted)
+    assert note in status.describe() and f"dimulai ulang di entri #{restart_entry.seq}" in note
+    assert "tidak terlihat oleh log ini" in note
+    rep = verify_registry(reg_path, PUB, anchor_log=new_path)
+    assert rep.ok and f"log jangkar: {note}" in rep.warnings
+    assert any(f"dimulai ulang di entri #{restart_entry.seq}" in line for line in rep.lines())
+    old = _status(reg_path, log_path)
+    assert not old.ok and old.restarted is None
+    replaced = next(p for p in old.problems if "sudah diganti log lain" in p)
+    assert "dengan sengaja" in replaced and "tapak verify" in replaced
+    assert any("tidak ada lagi di registri" in p or "diganti entri lain" in p for p in old.problems)
+
+
 def test_a_forged_acknowledgement_line_releases_nothing(anchored):
     reg_path, log_path = anchored
     entry, _ = _trace(reg_path, log_path)
@@ -654,6 +702,20 @@ def test_a_lost_log_is_refused_until_restarted_on_purpose(tmp_path, monkeypatch,
     assert outcome.anchor.ok and outcome.attribution.threshold.trace_no == 2
     with Registry.open(s.registry_path) as reg:
         assert [e.payload["event"] for e in reg.entries(KIND_ANCHOR)] == ["start", "restart"]
+        restart_seq = reg.entries(KIND_ANCHOR)[-1].seq
+    # The restart stays visible: trace line, berita acara and tapak verify name it.
+    assert f"log ini dimulai ulang di entri #{restart_seq}" in outcome.anchor_line()
+    from tapak.service import write_report
+
+    assert f"logInidimulaiulangdientri#{restart_seq}".lower() in _report_text(write_report(outcome)).lower()
+    capsys.readouterr()
+    assert cli.main(["verify"]) == 0 and f"dimulai ulang di entri #{restart_seq}" in capsys.readouterr().out
+    from fastapi.testclient import TestClient
+
+    from tapak.web.app import app
+
+    page = TestClient(app, base_url="http://127.0.0.1").get("/registri").text
+    assert "<dt>Dimulai ulang</dt>" in page and f"Di entri #{restart_seq}," in page
     # The old log, put back in place of the new one, is recognised as replaced.
     monkeypatch.setenv("TAPAK_ANCHOR_LOG", str(old))
     assert cli.main(["jangkar", "status"]) == 1 and "sudah diganti log lain" in capsys.readouterr().out

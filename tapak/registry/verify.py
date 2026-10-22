@@ -62,6 +62,7 @@ from tapak.registry.anchor import (
     compare_anchor,
     read_anchor_file,
     required_by,
+    restart_note,
     unavailable_status,
 )
 from tapak.registry.chain import (
@@ -184,7 +185,8 @@ class VerifyReport:
                 f" sampai entri #{self.anchor.anchored_seq}" if self.anchor.ok and self.anchor.anchored_seq else "")
             out.append(f"  Log jangkar      : {self.anchor.path}")
             out.append(f"                     {self.anchor.lines} baris ({self.anchor.signed_lines} bertanda tangan), "
-                       f"{state}" + (f", {len(self.anchor.acks)} pengakuan pemulihan" if self.anchor.acks else ""))
+                       f"{state}" + (f", {len(self.anchor.acks)} pengakuan pemulihan" if self.anchor.acks else "")
+                       + (f", dimulai ulang di entri #{self.anchor.restarted[0]}" if self.anchor.restarted else ""))
         out.extend(f"Peringatan: {w}" for w in self.warnings)
         if self.problems:
             out.append(f"Masalah ({len(self.problems)}):")
@@ -306,6 +308,8 @@ def _check_anchor_log(report: VerifyReport, rows: list[tuple[Any, ...]], anchor_
     if status.ok and status.lag:
         report.warnings.append(f"log jangkar: {status.lag} entri terakhir belum tercatat di log jangkar dan belum "
                                "terlindungi dari penghapusan; TAPAK melengkapinya pada penulisan berikutnya")
+    if status.ok and status.restarted:
+        report.warnings.append(f"log jangkar: {restart_note(*status.restarted)}")
     if status.ok and status.acks:
         report.warnings.append(f"log jangkar: {len(status.acks)} pengakuan pemulihan melepas {len(status.released)} entri "
                                f"yang tidak ada lagi di registri (terakhir entri #{status.acks[-1][0]}, "

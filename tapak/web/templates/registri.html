@@ -109,6 +109,10 @@
       <dt>Baris</dt>
       <dd class="tnum">{{ jangkar.lines|num }}, {{ jangkar.signed_lines|num }} bertanda tangan</dd>
       {% endif %}
+      {% if jangkar.restarted %}
+      <dt>Dimulai ulang</dt>
+      <dd class="tnum">Di entri #{{ jangkar.restarted[0] }}, {{ jangkar.restarted[1] }}; penghapusan sebelum itu tidak terlihat oleh log ini</dd>
+      {% endif %}
       {% if jangkar.acks %}
       <dt>Pengakuan</dt>
       <dd class="tnum">{{ jangkar.acks|length|num }} pengakuan pemulihan, {{ jangkar.released|length|num }} entri dilepas{% if jangkar.released_traces %} ({{ jangkar.released_traces|num }} pelacakan){% endif %}</dd>
