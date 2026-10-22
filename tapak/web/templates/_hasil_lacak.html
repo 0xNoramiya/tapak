@@ -97,7 +97,7 @@
             {% set shown = ch.accused_seqs|select("in", accused_seqs)|list %}
             {% set hidden = ch.accused_seqs|length - shown|length %}
             <tr>
-              <td>{% if ch.channel == "geser" and shift_scan %}Geser kata dan baris <span class="kanal-sub">({{ shift_scan }})</span>{% else %}{{ channel_name(ch.channel) }}{% endif %}</td>
+              <td>{{ channel_name(ch.channel) }}</td>
               <td class="num"><span class="bar{% if not shown %} bar-muted{% endif %}" style="--value: {{ [ch.n_observed / code_len, 1]|min|round(5) }}" aria-hidden="true"></span><span class="kanal-n">{{ ch.n_observed|num }}</span></td>
               <td class="num hide-sm">{{ ch.threshold|num(1) if ch.threshold != inf else "-" }}</td>
               <td>{% for s in shown %}<b>#{{ s }}</b>{% if not loop.last %}, {% endif %}{% endfor %}{% if hidden %}{% if shown %}, {% endif %}<span class="muted">{{ hidden }} salinan lain (nomor tidak dicantumkan)</span>{% endif %}{% if not ch.accused_seqs %}<span class="muted">tidak ada</span>{% endif %}</td>
@@ -108,7 +108,7 @@
           </tbody>
         </table>
       </div>
-      {% if a.channels %}<p class="hint kanal-catatan">Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.</p>{% endif %}
+      {% if a.channels or shift_scan %}<p class="hint kanal-catatan" id="kanal-catatan">{% if a.channels %}Bilah menunjukkan bagian dari {{ code_len|num }} posisi kode yang terbaca lewat kanal itu.{% endif %}{% if shift_scan %} {{ shift_scan }}{% endif %}</p>{% endif %}
       {% if o.observations %}
       <details class="more">
         <summary>Rincian sub-kanal</summary>
@@ -212,12 +212,16 @@
           <button type="button" class="copy-btn" data-copy-target="#sha-bukti" aria-label="Salin SHA-256 bukti">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
         </div>
       </div>
-      {% if a.notes or r.problems %}
+      {# notes shown as warnings next to the verdict are not repeated here #}
+      {% set other_notes = a.notes|reject("in", peringatan_terlihat(a.notes))|list %}
+      {% if other_notes or r.problems %}
       <div class="lacak-catatan">
         <span class="label">Catatan</span>
+        {% if other_notes %}
         <ul class="notes">
-          {% for n in a.notes if n not in peringatan_terlihat(a.notes) %}<li>{{ redact(n) }}</li>{% endfor %}
+          {% for n in other_notes %}<li>{{ redact(n) }}</li>{% endfor %}
         </ul>
+        {% endif %}
         {% if r.problems %}
         <div class="notice notice-warn"><ul class="notes">{% for p in r.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
         {% endif %}

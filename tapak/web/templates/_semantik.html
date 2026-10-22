@@ -174,7 +174,7 @@
         <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
         <span class="htmx-indicator">Menerbitkan…</span>
       </button>
-      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.{% if st.scan %} Halaman pindaian ditandai di piksel gambar, jadi lebih lama: sekitar 30 detik untuk 20 salinan dokumen 2 halaman pindaian 300&nbsp;dpi.{% endif %}</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.{% if st.scan %} Halaman pindaian ditandai di piksel gambar, jadi lebih lama (contoh: 20 salinan dokumen 2 halaman pindaian 300&nbsp;dpi sekitar 30 detik).{% endif %}</span></div>
     </form>
   </div>
   {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}

@@ -83,7 +83,10 @@
         </ul>
         <ul class="notes">
           {% for line in st.plan.scan_lines %}<li>{{ line }}.</li>{% endfor %}
-          <li>Gambar halaman salinan disimpan tanpa kompresi lossy; salinan sekitar 4 kali ukuran induk (contoh 300&nbsp;dpi: sekitar 2,9&nbsp;MB per halaman).</li>
+          <li>Pelacakan membaca ulang kotak kata ini dengan Tesseract. Bila hasilnya berbeda dari saat penerbitan (misalnya karena versi Tesseract lain), kanal geser halaman pindaian dilewati dan hanya pola latarnya yang dibaca. Simpan versi Tesseract ini bersama instalasi TAPAK.</li>
+          {# measured examples, not an estimate for this document: the real sizes are shown after issuance #}
+          <li id="pindaian-ukuran">Ukuran: gambar halaman salinan disimpan tanpa kompresi yang menurunkan mutu, jadi salinan bisa jauh lebih besar dari induk hasil pindai JPEG (contoh 300&nbsp;dpi: sekitar 2,9&nbsp;MB per halaman salinan, induk 0,7&nbsp;MB per halaman). Ukuran sebenarnya ditampilkan setelah terbit.</li>
+          <li id="pindaian-waktu">Waktu: {{ st.recipients|length|num }} salinan &times; {{ st.plan.scan_pages|num }} halaman pindaian ditandai di piksel gambar, jadi penerbitan lebih lama dari dokumen teks (contoh: 20 salinan &times; 2 halaman 300&nbsp;dpi sekitar 30 detik). Melacak satu PDF salinan 2 halaman memerlukan sekitar 40 detik.</li>
         </ul>
       </div>
       {% endif %}

@@ -41,7 +41,7 @@
           {% for line in scan.lines %}<li>{{ line }}.</li>{% endfor %}
           {% if scan.gate %}<li>{{ scan.gate }}</li>{% endif %}
         </ul>
-        <p class="small tnum" id="ukuran-salinan">Ukuran salinan: rata-rata {{ scan.mean_mb|num(1) }}&nbsp;MB, terbesar {{ scan.max_mb|num(1) }}&nbsp;MB (dokumen induk {{ scan.master_mb|num(1) }}&nbsp;MB). Gambar halaman pindaian disimpan tanpa kompresi lossy.</p>
+        <p class="small tnum" id="ukuran-salinan">Ukuran salinan: rata-rata {{ scan.mean_mb|num(1) }}&nbsp;MB, terbesar {{ scan.max_mb|num(1) }}&nbsp;MB (dokumen induk {{ scan.master_mb|num(1) }}&nbsp;MB). Gambar halaman pindaian disimpan tanpa kompresi yang menurunkan mutu.</p>
       </div>
       {% endif %}
     </div>

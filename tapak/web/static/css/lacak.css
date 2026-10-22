@@ -70,7 +70,8 @@
 .lacak-sibuk .busy-bar { flex-basis: 160px; }
 .lacak-sibuk > span:not(.busy-bar) { flex: 1 1 18rem; min-width: 0; }
 .lacak:has(.lacak-form.htmx-request) .lacak-sibuk { display: flex; }
-/* the selected document has scanned pages: tracing reads their word boxes again (seconds per page) */
+/* the selected document has scanned pages: tracing reads their word boxes again and reads those
+   pages of the evidence as images, so it takes longer */
 .sibuk-pindaian { display: none; }
 .lacak:has(#dokumen option[data-pindaian]:checked) .sibuk-pindaian { display: inline; }
 
@@ -149,9 +150,6 @@
 .kanal-tabel td { vertical-align: middle; }
 .kanal-tabel td.num .bar { margin-right: 12px; }
 .kanal-n { display: inline-block; min-width: 5ch; text-align: right; }
-/* "(termasuk halaman pindaian)" on its own line under the shift channel's name; the column is
-   narrow beside the result's side card, and a minimum width would make the table scroll */
-.kanal-sub { display: block; color: var(--ink-muted); font-size: var(--fs-sm); }
 /* a few positions of a long code still show as a dot, not a hairline */
 .kanal-catatan { margin: 12px 0 16px; }
 

@@ -941,7 +941,12 @@ def test_scanned_master_is_accepted_and_the_plan_shows_page_modes(client, scans)
             "latar; karakter tak terlihat, huruf kembar, varian semantik, dan pilihan kata tidak berlaku di sana") in text
     assert f"hanya hash daftar kotaknya yang dicatat ({record['boxes_sha256'][:16]}...)" in text
     assert "Lapisan teks OCR tak terlihat di halaman 1 tidak disalin ke salinan" in text
-    assert "salinan sekitar 4 kali ukuran induk (contoh 300 dpi: sekitar 2,9 MB per halaman)" in text
+    # tracing needs the same word boxes; size and time are measured examples, never a promise for this file
+    assert "kanal geser halaman pindaian dilewati dan hanya pola latarnya yang dibaca" in text
+    assert "salinan bisa jauh lebih besar dari induk hasil pindai JPEG (contoh 300 dpi: sekitar 2,9 MB per halaman salinan" in text
+    assert "Ukuran sebenarnya ditampilkan setelah terbit." in text and "4 kali" not in text
+    assert "Waktu: 4 salinan \u00d7 1 halaman pindaian ditandai di piksel gambar" in text
+    assert "dirender sama" not in text and "berselisih paling banyak 24 tingkat abu-abu" in SCAN_GATE_LINES[True]
     # the gate: pixel-identical scanned page only (the gray-level sentence is about text pages)
     assert f'id="gerbang-pindaian">{SCAN_GATE_LINES[True]}</span>' in page and "selisih maksimum" not in text
     # channels: shift and background in the page image; no text channel has slots on a scan
@@ -972,6 +977,18 @@ def test_mixed_master_shows_text_and_scanned_pages(client, scans):
     master = _staging_master(_STAGING[sid])
     assert any(w.id[0] == 1 for w in master.shift_layout.words())
     assert not any(w.id[0] == 1 for w in master.layout.words())
+
+
+def test_a_page_without_text_is_not_called_a_text_page(client, scans):
+    import pymupdf
+
+    with pymupdf.open(stream=scans["pindaian"], filetype="pdf") as doc:
+        doc.new_page()  # a blank page after the scan: on the text path, but with no word to mark
+        pdf = doc.tobytes()
+    _, page = _analyse_scan(client, pdf, "nota_kosong.pdf")
+    assert "<span>Halaman 1: pindaian, 200 dpi</span>" in page
+    assert "<span>Halaman 2: tanpa teks, tidak ada kata untuk ditandai</span>" in page
+    assert "<span>Halaman 2: teks</span>" not in page
 
 
 def test_low_resolution_scan_and_unmarkable_pdf_are_refused_in_the_document_field(client, scans):
@@ -1046,7 +1063,7 @@ def test_all_scanned_master_marks_the_text_review_not_applicable(client, scans):
     assert r.status_code == 400 and "Pilihan kata tidak berlaku: semua halaman dokumen ini hasil pindai." in r.text
 
 
-def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(client, scans):
+def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(client, scans, monkeypatch):
     import json
 
     from tapak.config import load_settings
@@ -1067,7 +1084,7 @@ def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(c
     assert payloads[-1]["scan"]["boxes_sha256"] == record["boxes_sha256"]
     # the result: page modes, the scan gate and the copy sizes measured on the files
     text = _plain(r.text)
-    assert "Mode halaman: 0 halaman teks, 1 halaman pindaian (halaman 1; 200 dpi)." in text
+    assert "Mode halaman: 1 halaman pindaian (halaman 1; 200 dpi)." in text and "0 halaman teks" not in text
     assert SCAN_GATE_LINES[True] in text
     sizes = [(folder / "salinan" / c.file).stat().st_size / 1e6 for c in manifest.copies]
     biggest = f"{max(sizes):.1f}".replace(".", ",")
@@ -1077,12 +1094,24 @@ def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(c
     # Lacak: the document is marked as having scanned pages (busy line), and a copy is read
     form = client.get(f"/lacak?dokumen={doc}").text
     assert re.search(rf'<option value="{doc}" selected data-pratinjau="[^"]*" data-pindaian>', form)
-    assert "membaca ulang kotak kata halaman pindaian (beberapa detik per halaman)" in form
+    assert "Dokumen ini memuat halaman pindaian: kotak katanya dibaca ulang dengan Tesseract" in form
     copy = client.get(f"/dokumen/{doc}/salinan/2")
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
     assert r.status_code == 200 and "Salinan #2" in r.text
-    assert 'Geser kata dan baris <span class="kanal-sub">(termasuk halaman pindaian)</span>' in r.text
+    # the channel keeps its usual name; a sentence under the table says the scanned pages were covered
+    assert re.search(r"<tr>\s*<td>Geser</td>", r.text)
+    note = re.search(r'<p class="hint kanal-catatan" id="kanal-catatan">(.*?)</p>', r.text, re.S).group(1)
+    assert "Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan cocok" in note
     assert "dipetakan ke halaman 1 (halaman pindaian, korelasi" in _plain(r.text)
+    # word boxes that could not be found again (simulated): the sentence under the table says so
+    import tapak.decoder.trace as trace
+
+    skipped = f"{trace.SCAN_SHIFT_SKIPPED}: kotak kata tidak dapat dibaca ulang (simulasi)"
+    monkeypatch.setattr(trace, "attach_recorded_scans", lambda master, manifest: skipped)
+    r = client.post("/lacak", data={"dokumen": doc, "teks": "Teks ini tidak berasal dari dokumen mana pun."})
+    assert r.status_code == 200 and f"<b>Perhatian:</b> {skipped}</p>" in r.text
+    note = re.search(r'<p class="hint kanal-catatan" id="kanal-catatan">(.*?)</p>', r.text, re.S).group(1)
+    assert "Kanal geser tidak membaca halaman pindaian (lihat peringatan di atas); pola latar halaman itu tetap dibaca." in note
 
 
 def test_lacak_warns_next_to_the_verdict_when_scanned_shift_was_skipped(client, monkeypatch):
@@ -1103,3 +1132,4 @@ def test_lacak_warns_next_to_the_verdict_when_scanned_shift_was_skipped(client, 
     verdict = r.text[:r.text.index('class="verdict-actions"')]
     assert f'<p class="notice notice-warn verdict-note"><b>Perhatian:</b> {note}</p>' in verdict
     assert r.text.count(trace.SCAN_SHIFT_SKIPPED) == 1  # not repeated among the notes
+    assert not re.search(r'<ul class="notes">\s*</ul>', r.text)  # no empty notes list

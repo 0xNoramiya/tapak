@@ -327,7 +327,9 @@ def test_scan_issuance_record_and_no_ocr_text_in_copies(scan_issued):
         assert ocr_text_in(data, [0]) == 0  # the master's invisible OCR words never reach a copy
         assert detect_scans(pymupdf.open(stream=data, filetype="pdf"))[0].dpi == pytest.approx(200, abs=1)
     lines = plan_lines(manifest.scan, 1)
-    assert "1 halaman pindaian" in lines[0] and "tidak berlaku" in lines[1]
+    assert lines[0] == "Mode halaman: 1 halaman pindaian (halaman 1; 200 dpi)" and "tidak berlaku" in lines[1]
+    assert plan_lines({**manifest.scan, "pages": [1], "dpi": [200]}, 2)[0] == (
+        "Mode halaman: 1 halaman teks, 1 halaman pindaian (halaman 2; 200 dpi)")
     assert any("OCR tak terlihat" in line for line in lines)
     assert plan_lines(None, 2) == ["Mode halaman: 2 halaman teks"]
 
@@ -431,7 +433,7 @@ def test_cli_and_registry_with_scanned_master(tmp_path, scan_one, capsys, monkey
     assert run("keys", "init") == 0
     assert run("issue", str(src), str(csv), "--workers", "1") == 0
     out = capsys.readouterr().out
-    assert "Mode halaman: 0 halaman teks, 1 halaman pindaian" in out
+    assert "Mode halaman: 1 halaman pindaian (halaman 1; 200 dpi)" in out and "0 halaman teks" not in out
     assert "identik piksel demi piksel" in out and "Ukuran salinan" in out
     db = tmp_path / "data" / "registry.db"
     with sqlite3.connect(db) as con:

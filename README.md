@@ -72,7 +72,7 @@ Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](
   <img alt="Halaman Lacak untuk foto sintetis salinan #13: skor, ambang, batas peluang tuduhan salah, dan bukti per kanal" src="docs/img/ui-lacak-light.png" width="100%">
 </picture>
 
-Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Putusannya hanya datang dari pola latar, jadi tidak berlaku untuk foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF dan daftar penerima, menawarkan profil pola latar layar atau cetak, meminta peninjauan setiap varian, lalu menghasilkan ZIP salinan.
+Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Putusannya hanya datang dari pola latar, jadi tidak berlaku untuk foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar layar atau cetak, meminta peninjauan setiap varian, lalu menghasilkan ZIP salinan.
 
 ## Mulai cepat
 

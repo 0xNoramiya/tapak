@@ -17,6 +17,7 @@ import secrets
 import shutil
 import threading
 import zipfile
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ from tapak.marker.background import PRINT_BACKGROUND_WARNING, background_profile
 from tapak.marker.issue import IssueSettings, Recipient, SemanticSelection, read_recipients
 from tapak.marker.lexical import LexicalSelection, LexPoint
 from tapak.marker.master import MasterDocument
+from tapak.marker.raster import GATE_MAX_DIFF as RASTER_GATE_MAX_DIFF
 
 HERE = Path(__file__).resolve().parent
 MAX_UPLOAD = 40 * 1024 * 1024
@@ -58,12 +60,13 @@ ISSUE_STEPS = ("Dokumen", "Rencana", "Tinjau teks", "Terbitkan")
 NOTHING_TO_MARK = ("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap halaman "
                    "pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")
 # What the visual gate found on scanned pages (GateResult.scan_identical, raster.scan_gate):
-# the unmarked copy holds the master page image sample for sample and renders like it.
+# the unmarked copy holds the master page image sample for sample, and its rendered page stays
+# within the text-page gate's limits of the master's (not "renders the same": that is not tested).
 SCAN_GATE_LINES = {
-    True: "Halaman pindaian: salinan tanpa tanda identik piksel demi piksel dengan gambar induk dan dirender "
-          "sama dengan halaman induk.",
-    False: "Halaman pindaian: salinan tanpa tanda tidak identik dengan gambar induk atau dirender berbeda dari "
-           "halaman induk; penerbitan ditolak.",
+    True: "Halaman pindaian: gambar halaman salinan tanpa tanda identik piksel demi piksel dengan gambar induk, "
+          f"dan render halamannya berselisih paling banyak {RASTER_GATE_MAX_DIFF} tingkat abu-abu dari halaman induk.",
+    False: "Halaman pindaian: gambar halaman salinan tanpa tanda tidak identik dengan gambar induk, atau render "
+           "halamannya melewati batas gerbang visual; penerbitan ditolak.",
 }
 # Busy line of the analysis step: Tesseract reads every scanned page once there.
 SCAN_READ_BUSY = "Membaca kotak kata halaman pindaian dengan Tesseract (beberapa detik per halaman)."
@@ -809,14 +812,21 @@ def _plan_summary(master, s: IssueSettings, n: int, scan: dict | None = None) ->
                               "scan_pages": 0, "all_scanned": False}
     if scan:
         dpi = {int(k): int(d) for k, d in zip(scan["pages"], scan["dpi"])}
-        modes = page_modes(master)
+        words_on = Counter(w.id[0] for w in master.layout.words())
+
+        def mode_line(k: int, mode: str) -> str:
+            # A page on the text path without a single word (a blank page, or an image page not
+            # recognised as a scan) is not called a text page: it has no word to mark.
+            if mode == "pindaian":
+                return f"Halaman {k + 1}: pindaian, {dpi[k]} dpi"
+            return f"Halaman {k + 1}: " + ("teks" if words_on[k] else "tanpa teks, tidak ada kata untuk ditandai")
+
         out.update(
             scan_pages=len(dpi), text_pages=pages - len(dpi), all_scanned=len(dpi) == pages,
             scan_dpi=" dan ".join(str(d) for d in sorted(set(dpi.values()))),
             scan_words=sum(1 for w in master.shift_layout.words() if w.id[0] in master.scans),
             scan_nums=", ".join(str(k + 1) for k in sorted(dpi)),
-            modes=[(mode, f"Halaman {k + 1}: " + (f"pindaian, {dpi[k]} dpi" if mode == "pindaian" else "teks"))
-                   for k, mode in enumerate(modes)],
+            modes=[(mode, mode_line(k, mode)) for k, mode in enumerate(page_modes(master))],
             # the first line (page counts) is what the stat tile and the page list show
             scan_lines=plan_lines(scan, pages)[1:])
     return out
@@ -1437,12 +1447,17 @@ async def lacak_run(
     a = outcome.attribution
     # As in the berita acara: file names and notes never identify a copy that is not accused.
     redact = make_redactor((c.copy for c in a.candidates if not c.accused), {c.copy.seq for c in a.accused})
-    # A document with scanned pages: say whether the shift row includes them (it does not when
-    # the word boxes drifted from issuance and that part of the channel was refused).
+    # A document with scanned pages: a sentence under the channel table says whether the shift
+    # channel covered them (it does not when their word boxes could not be found again as at
+    # issuance; the note with the reason stands next to the verdict).
     shift_scan = None
     if getattr(getattr(outcome.ctx, "manifest", None), "scan", None):
-        skipped = any(str(n).startswith(SCAN_SHIFT_SKIPPED) for n in a.notes)
-        shift_scan = "tanpa halaman pindaian" if skipped else "termasuk halaman pindaian"
+        if any(str(n).startswith(SCAN_SHIFT_SKIPPED) for n in a.notes):
+            shift_scan = ("Kanal geser tidak membaca halaman pindaian (lihat peringatan di atas); pola latar halaman "
+                          "itu tetap dibaca.")
+        elif any(ch.channel == "geser" for ch in a.channels):
+            shift_scan = ("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
+                          "cocok dengan catatan penerbitan.")
     return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid,
                  identified=a.verdict == VERDICT_IDENTIFIED, redact=redact,
                  eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan)
