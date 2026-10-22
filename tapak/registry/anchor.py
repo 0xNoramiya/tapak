@@ -64,6 +64,10 @@ id, its length and SHA-256 at the rotation, the registry head it anchored, the a
 in force and how many trace entries they released) and its second line anchors that head again.
 The registry records the rotation (``anchor_log`` event ``rotate``). Entries before the head are
 then covered through the hash chain: the head is required, and the chain below it is checked.
+A segment that does not anchor its head, or whose rotation is not recorded right after it, is
+refused. Whoever can write the registry and create files on the log's medium can still forge a
+rotation after a deletion; only the earlier segment exposes that (:func:`segment_chain`), so
+every result names the rotation and the old log asks for that check before the switch.
 
 Checks inside one process are incremental: the parsed lines and signature results of the
 log's complete lines are kept with the SHA-256 of those bytes and reused only while the file
@@ -824,7 +828,9 @@ class AnchorStatus:
             Entries deleted before that point are invisible to this log, so every result says so.
             Also set for a later segment of such a log.
         rotated: ``(seq, created_at, previous log id)`` when this log is a segment that
-            continues another one (``tapak jangkar rotasi``), or None.
+            continues another one (``tapak jangkar rotasi``), or None. Named in every result:
+            only the earlier segment proves the rotation was made at the true head
+            (:func:`segment_chain`).
         releasable: anchored pairs the registry no longer has, or has differently (what an
             acknowledgement would release); ``blocking``: problems no acknowledgement can
             release (a broken chain, a forged or foreign line, a log not recorded).
@@ -903,6 +909,10 @@ class AnchorStatus:
                          "lagi terjamin")
         if self.restarted:
             parts.append(restart_note(*self.restarted))
+        if self.rotated:
+            # Like a restart, a forged rotation could hide a deletion made before it: name it.
+            parts.append(f"log ini segmen lanjutan sejak entri #{self.rotated[0]} (tapak jangkar rotasi); rotasi itu "
+                         "terbukti sah hanya dengan segmen lamanya (tapak verify --segmen-lama)")
         if self.warnings:
             parts.append("peringatan: " + "; ".join(self.warnings[:2]))
         return "; ".join(parts)
@@ -1071,6 +1081,11 @@ def compare_anchor(log: AnchorFile, rows: Sequence[Sequence[Any]], public_key: s
     carried: set[tuple[int, str]] = set()
     if start is not None:
         carried = _check_registration(st, start, events, starting)
+        head = start.previous
+        if head is not None and not any(line.anchors and (line.seq, line.entry_hash) == (head.seq, head.entry_hash)
+                                        for line in lines):
+            st.blocking.append(f"segmen log jangkar ini tidak menjangkarkan ujung registri #{head.seq} yang diikat baris "
+                               "awalnya, jadi entri sebelum rotasi tidak terlindungi (segmen disunting atau dipalsukan)")
     _check_signatures(st, lines, public_key, log.memo)
     excused = _acknowledged(st, lines, by_seq) | carried
     st.released = sorted(excused)
@@ -1113,7 +1128,12 @@ def _check_registration(st: AnchorStatus, start: AnchorLine, events: list[tuple[
     carried: set[tuple[int, str]] = set()
     if start.previous is not None and not mismatch:
         prior = starts[index - 1][1]["log_id"] if index else None
-        if prior != start.previous.log_id:
+        if seq != start.previous.seq + 1:
+            # tapak jangkar rotasi records the rotation right after the head it commits to.
+            st.blocking.append(f"baris awal segmen log jangkar ini mengikat ujung registri #{start.previous.seq}, padahal "
+                               f"rotasinya tercatat di entri #{seq}; rotasi selalu tercatat tepat sesudah ujung yang "
+                               "diikatnya (segmen atau registri disunting)")
+        elif prior != start.previous.log_id:
             st.blocking.append(f"baris awal segmen log jangkar ini meneruskan log id {start.previous.log_id[:8]}, padahal "
                                f"registri mencatat log lain sebagai log yang dipakai sebelum entri #{seq}")
         else:
@@ -1121,9 +1141,12 @@ def _check_registration(st: AnchorStatus, start: AnchorLine, events: list[tuple[
             carried = _carried_acks(st, start.previous, events, {p["log_id"] for _, p in starts[first:index]})
     later = [(s, p) for s, p in starts[index + 1:] if p["log_id"] != start.log_id]
     if later and later[0][1]["event"] == "rotate":  # a setting to change, not a mismatch
+        # Whoever can write the registry and create files on the log's medium can also forge a
+        # rotation that hides a deletion: the switch is made only after the chain is checked.
         moved = (f"log jangkar ini sudah diteruskan ke segmen baru (tapak jangkar rotasi, log id "
-                 f"{later[0][1]['log_id'][:8]}) di entri registri #{later[0][0]}. Arahkan TAPAK_ANCHOR_LOG atau "
-                 "--log-jangkar ke berkas segmen baru itu, dan simpan berkas ini sebagai segmen lama")
+                 f"{later[0][1]['log_id'][:8]}) di entri registri #{later[0][0]}. Periksa dulu rantai segmennya dengan "
+                 f"tapak verify --log-jangkar BERKAS_SEGMEN_BARU --segmen-lama {st.path}; bila lulus, arahkan "
+                 "TAPAK_ANCHOR_LOG atau --log-jangkar ke segmen baru itu dan simpan berkas ini sebagai segmen lama")
         st.blocking.append(moved)
         st.storage.append(moved)
     elif later:
@@ -1548,17 +1571,22 @@ def _head_of(path: str | Path) -> AnchorLine | None:
     return _first_line(data)
 
 
-def segment_chain(older: Sequence[str | Path], current: AnchorFile,
-                  rows: Sequence[Sequence[Any]]) -> tuple[list[str], list[str]]:
+def segment_chain(older: Sequence[str | Path], current: AnchorFile, rows: Sequence[Sequence[Any]],
+                  public_key: str | None = None) -> tuple[list[str], list[str]]:
     """Check the chain of log segments (``tapak verify --segmen-lama``); return (problems, warnings).
 
     ``older`` are the earlier segment files, oldest first. Each one must be followed (by the
     next one, the last by ``current``) by a segment whose ``start`` line commits to it: the
     same log id, the same bytes up to the recorded length (SHA-256), and those bytes anchor the
     recorded head and nothing after it. Every old segment's start must be recorded in the
-    registry ``rows``. Bytes appended to an old segment after its rotation are a warning when
-    they only name entries up to that head (a writer finishing its lines), a problem otherwise.
-    One segment is read at a time.
+    registry ``rows``. Those bytes must also have matched the registry at the rotation, as
+    ``tapak jangkar rotasi`` requires: while the registry still holds the recorded head, its
+    entries up to the head are the ones of that moment (the hash chain pins them), so the
+    segment is compared with them like a configured log (``public_key`` checks its signed
+    lines; the hash links are left to ``verify_registry``, the only caller, which walks the
+    whole chain). This is what exposes a forged rotation made after a deletion. Bytes appended to an
+    old segment after its rotation are a warning when they only name entries up to that head
+    (a writer finishing its lines), a problem otherwise. One segment is read at a time.
     """
     problems: list[str] = []
     warnings: list[str] = []
@@ -1587,10 +1615,19 @@ def segment_chain(older: Sequence[str | Path], current: AnchorFile,
             problems.append(f"segmen lama {path} tidak sama dengan isi yang dicatat saat rotasi ({prev.bytes} byte "
                             f"pertama, SHA-256 {prev.sha256[:16]}): segmen dipotong, disunting, atau diganti")
             continue
-        within = {(line.seq, line.entry_hash) for line in parse_anchor_bytes(path, data[:prev.bytes]).lines
-                  if line.anchors}
+        sealed = parse_anchor_bytes(path, data[:prev.bytes])
+        within = {(line.seq, line.entry_hash) for line in sealed.lines if line.anchors}
         if (prev.seq, prev.entry_hash) not in within or any(seq > prev.seq for seq, _ in within):
             problems.append(f"segmen lama {path} tidak berakhir di entri #{prev.seq} yang dicatat saat rotasi")
+        pinned = [row for row in rows if isinstance(row[0], int) and row[0] <= prev.seq]
+        if pinned and (pinned[-1][0], pinned[-1][5]) == (prev.seq, prev.entry_hash):
+            sealed.size = 0  # an archived segment: its size is no longer a limit to warn about
+            then = compare_anchor(sealed, pinned, public_key, check_chain=False)  # verify_registry walks the chain
+            problems.extend(f"segmen lama {path} tidak cocok dengan registri saat rotasi: {p}" for p in then.problems)
+            warnings.extend(f"segmen lama {path}: {w}" for w in then.warnings)
+        else:  # the head itself is gone: the segment after it reports that (missing or acknowledged)
+            warnings.append(f"segmen lama {path} tidak dapat dicocokkan dengan registri, karena entri #{prev.seq} yang "
+                            "diikat saat rotasi tidak ada lagi di registri")
         if len(data) > prev.bytes:
             later = [line.seq for line in parse_anchor_bytes(path, data[prev.bytes:]).lines
                      if line.anchors and line.seq > prev.seq]

@@ -341,10 +341,14 @@ def _check_anchor_log(report: VerifyReport, rows: list[tuple[Any, ...]], anchor_
     report.problems.extend((0, f"log jangkar: {text}") for text in status.problems)
     report.warnings.extend(f"log jangkar: {text}" for text in status.warnings)
     if segments and anchor_file is not None:
-        found, notes = segment_chain(segments, anchor_file, rows)
+        found, notes = segment_chain(segments, anchor_file, rows, report.public_key)
         report.segments_checked = len(segments)
         report.problems.extend((0, f"log jangkar: {text}") for text in found)
         report.warnings.extend(f"log jangkar: {text}" for text in notes)
+    elif status.rotated:
+        report.warnings.append(f"log jangkar: log ini segmen lanjutan sejak entri #{status.rotated[0]}; tanpa "
+                               "--segmen-lama, rotasi itu tidak diperiksa, padahal rotasi yang dipalsukan dapat "
+                               "menyembunyikan entri yang dihapus sebelum titik rotasi")
     if status.ok and status.lag:
         report.warnings.append(f"log jangkar: {status.lag} entri terakhir belum tercatat di log jangkar dan belum "
                                "terlindungi dari penghapusan; TAPAK melengkapinya pada penulisan berikutnya")

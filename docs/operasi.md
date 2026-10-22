@@ -64,7 +64,7 @@ tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub
 tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub --log-jangkar tapak.log   # dengan log jangkar
 ```
 
-Kode keluar: 0 utuh, 1 ada masalah, 3 utuh sejauh yang diperiksa tetapi registri memakai log jangkar yang tidak diberikan. Kode 3 berarti entri yang dihapus dari ujung rantai belum diperiksa; minta log jangkarnya (dan segmen lamanya, `--segmen-lama`, bila log pernah dirotasi).
+Kode keluar: 0 utuh, 1 ada masalah, 3 utuh sejauh yang diperiksa tetapi registri memakai log jangkar yang tidak diberikan. Kode 3 berarti entri yang dihapus dari ujung rantai belum diperiksa; minta log jangkarnya. Bila log pernah dirotasi, minta juga segmen lamanya (`--segmen-lama`); tanpa itu hasilnya tetap 0 dengan peringatan bahwa rotasi tidak diperiksa.
 
 ## Log jangkar eksternal (opsional)
 
@@ -101,7 +101,7 @@ export TAPAK_ANCHOR_LOG=/mnt/jangkar/tapak-2026.log            # di semua proses
 tapak verify --segmen-lama /mnt/jangkar/tapak.log               # rantai segmen tetap dapat diperiksa
 ```
 
-Rotasi hanya berjalan bila log lama cocok dengan registri. Segmen baru dimulai dengan baris yang mengikat log lama (id, panjang, SHA-256, ujung registri yang dijangkarkannya, pengakuan yang berlaku) dan baris yang menjangkarkan ujung itu lagi; registri mencatatnya (entri `rotate`). Simpan segmen lama (boleh dijadikan hanya-baca); proses yang masih memakainya ditolak dengan pesan yang menunjuk ke segmen baru. Rotasi juga cara pindah lokasi tanpa awal ulang, dan masih dapat membaca log sampai 512 MiB. Jangan menunggu sampai batas: `mulai --ulang` menulis satu baris per entri registri, jadi pada registri sebesar itu log barunya langsung melewati batas. Batasnya tidak dinaikkan karena pemeriksaan pertama setiap proses tetap membaca seluruh segmen.
+Rotasi hanya berjalan bila log lama cocok dengan registri. Segmen baru dimulai dengan baris yang mengikat log lama (id, panjang, SHA-256, ujung registri yang dijangkarkannya, pengakuan yang berlaku) dan baris yang menjangkarkan ujung itu lagi; registri mencatatnya (entri `rotate`). Simpan segmen lama (boleh dijadikan hanya-baca). Proses yang masih memakainya ditolak dan diminta menjalankan `tapak verify --log-jangkar SEGMEN_BARU --segmen-lama SEGMEN_LAMA` sebelum pindah, karena hanya segmen lama yang membuktikan bahwa rotasi tidak dipalsukan untuk menyembunyikan penghapusan. Setiap hasil sesudahnya menyebut rotasi itu. Rotasi juga cara pindah lokasi tanpa awal ulang, dan masih dapat membaca log sampai 512 MiB. Jangan menunggu sampai batas: `mulai --ulang` menulis satu baris per entri registri, jadi pada registri sebesar itu log barunya langsung melewati batas. Batasnya tidak dinaikkan karena pemeriksaan pertama setiap proses tetap membaca seluruh segmen.
 
 **Kecepatan.** Dalam satu proses, pemeriksaan berikutnya hanya mengurai dan memverifikasi baris baru dan tidak menghitung ulang hash entri registri yang tidak berubah; hasil lama hanya dipakai bila byte log yang sudah diperiksa masih sama (SHA-256). Pada log 100.000 baris (35 MiB) satu penulisan turun dari sekitar 26 menjadi sekitar 1,5 detik di `tapak web` (mesin bersama yang sibuk, `scripts/bench_jangkar.py`). Perintah CLI tetap memeriksa penuh sekali, sekitar 26 detik pada ukuran itu.
 

@@ -895,6 +895,76 @@ def test_the_chain_of_segments_is_checkable(anchored, tmp_path, capsys):
         verify_main([str(reg_path), "--public-key", PUB, "--segmen-lama", str(log_path)])
 
 
+def _forge_rotation(reg_path, old_log, new_log, head, head_line=True):
+    """What someone with the TAPAK account (registry, key, files on the log medium) could write by
+    hand: a rotate entry and a segment committing to the old log as it is now and to ``head``."""
+    old_id, log_id = _lines(old_log)[0]["log_id"], "f" * 32
+    with Registry.open(reg_path) as reg:
+        rot = reg.record_anchor_event(event="rotate", log_id=log_id, reason_sha256=None, signer=SIGNER)
+    data = old_log.read_bytes()
+    prev = anchor_mod.Previous(old_id, len(data), _sha(data), head.seq, head.entry_hash)
+    text = line_text(start_body(log_id, rot.created_at, False, None, read_media_id(new_log.parent), prev), SIGNER)
+    if head_line:
+        text += line_text(entry_body(log_id, head.seq, head.kind, head.created_at, head.entry_hash), SIGNER)
+    new_log.write_text(text + line_text(entry_body(log_id, rot.seq, rot.kind, rot.created_at, rot.entry_hash), SIGNER),
+                       encoding="utf-8")
+    return rot
+
+
+def test_a_forged_rotation_is_named_and_exposed_by_the_old_segment(anchored):
+    reg_path, log_path = anchored
+    first, _ = _trace(reg_path, log_path)
+    victim, _ = _trace(reg_path, log_path)
+    _drop_tail(reg_path)  # the newest trace is gone, then a rotation is forged at the shorter head
+    segment = log_path.with_name("palsu.log")
+    rot = _forge_rotation(reg_path, log_path, segment, first)
+    old = _status(reg_path, log_path)  # a process still on the old log: the deletion, and check before switching
+    assert not old.ok and any("diganti entri lain" in p for p in old.problems)
+    assert any(f"--segmen-lama {log_path}" in p for p in old.problems)
+    # The forged segment alone looks like a genuine one, so every result names the rotation.
+    st = _status(reg_path, segment)
+    assert st.ok and st.rotated[0] == rot.seq and "tapak verify --segmen-lama" in st.describe()
+    rep = verify_registry(reg_path, PUB, anchor_log=segment)
+    assert rep.ok and any("tanpa --segmen-lama, rotasi itu tidak diperiksa" in w for w in rep.warnings)
+    rep = verify_registry(reg_path, PUB, anchor_log=segment, anchor_segments=[log_path])
+    assert not rep.ok and any(f"entri #{victim.seq} (1 pelacakan) yang tidak ada lagi" in p for _, p in rep.problems)
+
+
+def test_a_forged_rotation_over_a_replacement_entry_is_exposed_by_the_old_segment(anchored):
+    reg_path, log_path = anchored
+    _trace(reg_path, log_path)
+    victim, _ = _trace(reg_path, log_path)
+    _drop_tail(reg_path)
+    with Registry.open(reg_path) as reg:  # a harmless looking entry takes the deleted trace's number
+        dummy = reg.append("canary_anchor", {"events_seq": 1, "events_hash": "0" * 64}, signer=SIGNER)
+    assert dummy.seq == victim.seq
+    append_lines(log_path, [line_text(entry_body(_lines(log_path)[0]["log_id"], dummy.seq, dummy.kind,
+                                                 dummy.created_at, dummy.entry_hash), SIGNER)])
+    segment = log_path.with_name("palsu.log")
+    _forge_rotation(reg_path, log_path, segment, dummy)
+    assert _status(reg_path, segment).ok  # the old log ends at the head, so only its content tells
+    rep = verify_registry(reg_path, PUB, anchor_log=segment, anchor_segments=[log_path])
+    assert not rep.ok and any("tidak cocok dengan registri saat rotasi" in p and "diganti entri lain" in p
+                              for _, p in rep.problems)
+
+
+@pytest.mark.parametrize("forgery", ["head-too-old", "no-head-line"])
+def test_a_segment_must_anchor_the_head_right_before_its_rotation(anchored, forgery):
+    reg_path, log_path = anchored
+    first, _ = _trace(reg_path, log_path)
+    _trace(reg_path, log_path)
+    _drop_tail(reg_path)
+    with Registry.open(reg_path) as reg:
+        head = reg.get(1) if forgery == "head-too-old" else first
+    segment = log_path.with_name("palsu.log")
+    _forge_rotation(reg_path, log_path, segment, head, head_line=forgery != "no-head-line")
+    st = _status(reg_path, segment)
+    expected = "tepat sesudah ujung yang diikatnya" if forgery == "head-too-old" else "tidak menjangkarkan ujung"
+    assert not st.ok and any(expected in p for p in st.blocking)
+    with pytest.raises(AnchorRefused, match=expected):
+        _trace(reg_path, segment)
+
+
 def test_a_rotation_keeps_acknowledgements_and_a_restart_visible(anchored, tmp_path):
     reg_path, log_path = anchored
     _trace(reg_path, log_path)
