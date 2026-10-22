@@ -16,8 +16,14 @@ levels with pn_c over the cells of each position, which estimates s_b. Averaging
 two copies together cancels exactly the positions where the copies differ (they read as
 erased), which is the marking-assumption behaviour Tardos codes are built for.
 
-Limitation (honest): printers render levels above about 250 as plain paper, so this channel
-is meant for screens, screenshots and photos of screens; printed copies rely on channel 1.
+Two profiles. The default (``SCREEN_BACKGROUND``, "layar") is meant for screens,
+screenshots and photos of screens. The printer model assumes office printers render levels
+above about 250 as plain paper (no manufacturer figure; not measured on a real printer), so
+on a printed copy the default pattern vanishes and only channel 1 remains. The opt-in print
+profile (``PRINT_BACKGROUND``, "cetak") keeps every cell below that assumed cutoff
+(242 +/- 5, levels 237 to 247) and survives a simulated office print with the same decoder,
+at a price: the page looks light gray and its texture may be noticed
+(``PRINT_BACKGROUND_WARNING``).
 """
 
 from __future__ import annotations
@@ -52,6 +58,38 @@ class BackgroundSettings:
             raise ValueError("dasar +/- amplitudo harus tetap di antara 0 dan 255")
         if self.cells_per_bit < 1 or self.cell_mm <= 0:
             raise ValueError("pengaturan sel tidak sah")
+
+
+SCREEN_BACKGROUND = BackgroundSettings()
+"""Default profile "layar": invisible on screen and on paper; its levels (251 to 255) lie above
+the assumed printer highlight cutoff, so a (simulated) print drops it."""
+
+PRINT_BACKGROUND = BackgroundSettings(base=242.0, amplitude=5.0)
+"""Opt-in profile "cetak": levels 237 to 247, below the assumed highlight cutoff of office
+printers (about 250, not measured), so the pattern survives a simulated print. The page
+prints as a light gray (dL* about -3.4 against paper on the simulated laser) with a texture
+near the visibility threshold."""
+
+BACKGROUND_PROFILES: dict[str, BackgroundSettings] = {"layar": SCREEN_BACKGROUND, "cetak": PRINT_BACKGROUND}
+
+PRINT_BACKGROUND_WARNING = (
+    "Latar profil cetak: halaman akan tampak abu-abu muda, baik di layar maupun di kertas, dan "
+    "tekstur polanya mungkin terlihat bila diperhatikan. Pakai profil ini hanya bila salinan "
+    "akan dicetak dan Anda menerima tampilan itu."
+)
+
+
+def background_profile(name: str) -> BackgroundSettings:
+    """Settings of a named background profile: "layar" (default) or "cetak"."""
+    try:
+        return BACKGROUND_PROFILES[name]
+    except KeyError:
+        raise ValueError(f"profil latar tidak dikenal: {name!r}; pilih 'layar' atau 'cetak'") from None
+
+
+def profile_name(settings: BackgroundSettings) -> str | None:
+    """The profile name of these settings, or None for custom settings."""
+    return next((k for k, v in BACKGROUND_PROFILES.items() if v == settings), None)
 
 
 @dataclass(frozen=True)
@@ -190,13 +228,19 @@ def png_bytes(img: np.ndarray) -> bytes:
 
 
 __all__ = [
+    "BACKGROUND_PROFILES",
+    "PRINT_BACKGROUND",
+    "PRINT_BACKGROUND_WARNING",
+    "SCREEN_BACKGROUND",
     "BackgroundSettings",
     "PageGrid",
     "background_hook",
+    "background_profile",
     "build_background_slots",
     "cell_levels",
     "expected_page_image",
     "page_grids",
     "pattern_image",
     "png_bytes",
+    "profile_name",
 ]

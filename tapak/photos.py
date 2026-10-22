@@ -7,9 +7,12 @@ pages of issued PDF copies into the kind of images that reach an investigator:
   the page plane from a view angle up to ``max_angle_deg``; the scene gets uneven light,
   lens and motion blur, sensor noise, phone sharpening and a tone curve (bright paper may
   clip to white), then the user crops the outer margin and WhatsApp downscales the long
-  side and recompresses it (JPEG twice). The print step itself is not modeled: the page keeps
-  the rendered gray levels, including the +/-2 background pattern that real printers drop
-  (see the limitations in docs/keamanan.md).
+  side and recompresses it (JPEG twice). By itself the photo keeps the rendered gray levels,
+  including the +/-2 background pattern, so it behaves like a photo of a screen.
+* ``cetak`` (optional): the page is printed first (``print_page``: highlight dropout,
+  halftoning, banding, laser spot and toner, paper skew and scale, optical dot gain, paper
+  texture) and the sheet is then photographed as above. Real printers drop the +/-2
+  background pattern; this kind reproduces that (see the limitations in docs/keamanan.md).
 * ``screenshot``: a screen capture of a PDF viewer (96 to 150 dpi, optional gray viewer
   chrome) forwarded twice on WhatsApp. No perspective.
 
@@ -37,6 +40,7 @@ import math
 import re
 import sys
 from dataclasses import asdict, dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -47,14 +51,15 @@ from tapak.marker.render import render_pages
 
 KIND_PHOTO = "photo"
 KIND_SCREENSHOT = "screenshot"
-_KIND_SEED = {KIND_PHOTO: 1, KIND_SCREENSHOT: 2}
+KIND_PRINT = "cetak"  # phone photo of a printed page (print_page, then photo)
+_KIND_SEED = {KIND_PHOTO: 1, KIND_SCREENSHOT: 2, KIND_PRINT: 3}
 INK_REFLECTANCE = 0.06  # printed black toner reflects a few percent of the light
 PAPER_GRAY = 245        # page gray levels at or above this count as blank paper (pattern: 251 to 255)
 MIN_LONG_SIDE = 64      # smallest accepted output long side (px)
 DPI_RANGE = (72, 1200)  # accepted render resolutions of make_photo_set
 
 # Output names written by make_photo_set (and removed again before a new run).
-_OUTPUT_NAME = re.compile(r"(photo_s\d+_p\d+_a[0-9.e+-]+_\d+|screenshot_s\d+_p\d+_\d+)\.jpg")
+_OUTPUT_NAME = re.compile(r"((photo|cetak)_s\d+_p\d+_a[0-9.e+-]+_\d+|screenshot_s\d+_p\d+_\d+)\.jpg")
 
 
 class ManifestNotFoundError(FileNotFoundError):
@@ -162,8 +167,10 @@ def _quality(rng: np.random.Generator, bounds: tuple[int, int]) -> int:
 
 
 def _check_page(page_img: np.ndarray) -> None:
-    if not isinstance(page_img, np.ndarray) or page_img.ndim != 2 or page_img.dtype != np.uint8:
-        raise ValueError("gambar halaman harus berupa array grayscale uint8 dua dimensi")
+    # float32 pages come from print_page (paper texture would be lost in uint8 rounding).
+    if (not isinstance(page_img, np.ndarray) or page_img.ndim != 2
+            or page_img.dtype not in (np.uint8, np.float32)):
+        raise ValueError("gambar halaman harus berupa array grayscale dua dimensi (uint8 atau float32)")
     if min(page_img.shape) < 16:
         raise ValueError("gambar halaman terlalu kecil")
 
@@ -531,6 +538,298 @@ def photo(page_img: np.ndarray, rng: np.random.Generator,
 
 
 # ---------------------------------------------------------------------------------------
+# Print (optional step before the photo)
+
+
+@dataclass(frozen=True)
+class PrintParams:
+    """Settings of a simulated office print of a page. A (low, high) pair is drawn uniformly.
+
+    The model follows the electrophotographic (laser) chain, in the printer's device grid:
+
+    1. **Rasterize.** Text is scan-converted to the device grid without anti-aliasing
+       (``snap_text``), as a printer's RIP does; tints (the background) are halftoned.
+    2. **Highlight dropout.** Gray levels at or above ``white_cutoff`` (about 2 % toner
+       coverage) print as plain paper: the smallest dot the engine develops reliably is
+       larger than such a tint asks for. The default 250 is an assumption (no
+       manufacturer figure was found and no printer was measured).
+    3. **Halftone.** Remaining tints are screened: a clustered-dot (AM) screen at
+       ``screen_lpi`` and ``screen_angle_deg`` (600-dpi office lasers use roughly 85 to
+       106 lpi), or a dispersed 8 x 8 ordered dither (``screen="dispersed"``), a stand-in
+       for the stochastic screens of inkjets. Pulse-width modulation lets a dot grow by a
+       fraction of a device pixel (``pwm_width``), so tone steps are finer than whole pixels.
+    4. **Banding.** The photoconductor drum and gears do not turn at a perfectly constant
+       speed, so scan lines land slightly off (``drum_jitter_um`` at the drum period,
+       ``gear_jitter_um`` at a gear period) and tint density fluctuates periodically along
+       the paper path (``band_density``).
+    5. **Spot and toner.** The exposure is blurred by the laser spot and toner scatter
+       (``spot_sigma_um``, a Gaussian sigma; a 600-dpi spot is about one to one and a half
+       pixels wide), toner noise is added and the latent image develops where it exceeds
+       ``develop_threshold``: edges grow a few micrometres (mechanical dot gain) and become
+       slightly ragged (the noise acts where development is partial, so blank paper stays
+       clean and stray toner is not modeled).
+    6. **Paper placement.** The sheet is fed slightly skewed, offset and scaled
+       (``skew_deg``, ``offset_mm``, ``scale_error``; ``fit_scale`` models a driver's
+       "fit to printable area").
+    7. **Optics.** Light enters the paper through the toner, scatters sideways inside the
+       paper (``paper_scatter_um``) and leaves through the toner again (Yule-Nielsen
+       optical dot gain, Ruckdeschel-Hauser model). Solid toner reflects
+       ``toner_reflectance`` of what paper reflects. The paper itself has fiber texture
+       (``paper_fine`` at ``paper_fine_um``) and formation cloudiness (``paper_coarse`` at
+       ``paper_coarse_mm``), as relative reflectance variations.
+
+    The printed sheet is returned at ``out_dpi`` and then photographed by ``photo``.
+    """
+
+    device_dpi: int = 600
+    out_dpi: int = 300
+    white_cutoff: float = 250.0
+    screen: str = "am"
+    screen_lpi: float = 106.0
+    screen_angle_deg: float = 45.0
+    pwm_width: float = 1.0 / 32.0
+    snap_text: bool = True
+    band_density: tuple[float, float] = (0.0, 0.04)
+    band_period_mm: tuple[float, float] = (1.0, 4.0)
+    drum_jitter_um: tuple[float, float] = (0.0, 25.0)
+    drum_period_mm: tuple[float, float] = (75.0, 95.0)
+    gear_jitter_um: tuple[float, float] = (0.0, 4.0)
+    gear_period_mm: tuple[float, float] = (0.8, 3.0)
+    spot_sigma_um: tuple[float, float] = (14.0, 20.0)
+    develop_threshold: tuple[float, float] = (0.30, 0.40)
+    develop_softness: float = 0.03
+    toner_noise: tuple[float, float] = (0.10, 0.20)
+    scale_error: float = 0.002
+    skew_deg: float = 0.25
+    offset_mm: float = 1.0
+    fit_scale: float = 1.0
+    toner_reflectance: tuple[float, float] = (0.04, 0.07)
+    paper_scatter_um: tuple[float, float] = (30.0, 60.0)
+    paper_fine: tuple[float, float] = (0.005, 0.012)
+    paper_fine_um: float = 40.0
+    paper_coarse: tuple[float, float] = (0.003, 0.008)
+    paper_coarse_mm: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.screen not in ("am", "dispersed"):
+            raise ValueError("raster harus 'am' atau 'dispersed'")
+        if not 150 <= self.device_dpi <= 2400 or not 50 <= self.out_dpi <= self.device_dpi:
+            raise ValueError("resolusi printer atau keluaran tidak sah")
+        if not 0.0 < self.fit_scale <= 1.0:
+            raise ValueError("skala cetak harus di antara 0 dan 1")
+
+
+INKJET = PrintParams(screen="dispersed", spot_sigma_um=(18.0, 28.0), develop_threshold=(0.25, 0.35),
+                     toner_noise=(0.10, 0.20), paper_scatter_um=(40.0, 80.0), toner_reflectance=(0.06, 0.10),
+                     drum_jitter_um=(0.0, 10.0), gear_jitter_um=(0.0, 3.0))
+"""An inkjet-like preset: dispersed screen, wider ink spread and scatter, lighter black."""
+
+
+def print_layers(pdf_bytes: bytes, page: int, device_dpi: int) -> tuple[np.ndarray, np.ndarray]:
+    """The two things a printer treats differently, at ``device_dpi``: text coverage in [0, 1]
+    (float32) and the gray level of everything else (uint8, the background tints).
+
+    The page is rendered once as is and once with its text removed; with black text drawn
+    over the background, coverage = 1 - full / background.
+    """
+    import pymupdf
+
+    from tapak.marker.render import strip_text
+
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        pix = doc[page].get_pixmap(dpi=device_dpi, colorspace=pymupdf.csGRAY, alpha=False)
+        full = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        doc.select([page])
+        strip_text(doc)
+        pix = doc[0].get_pixmap(dpi=device_dpi, colorspace=pymupdf.csGRAY, alpha=False)
+        background = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).copy()
+    coverage = 1.0 - full.astype(np.float32) / np.maximum(background.astype(np.float32), 1.0)
+    return np.clip(coverage, 0.0, 1.0), background
+
+
+@lru_cache(maxsize=1)
+def _screen_threshold(shape: tuple[int, int], params: PrintParams) -> np.ndarray:
+    """Halftone threshold per device pixel, uniformly distributed in (0, 1): a pixel takes
+    toner where the tint coverage exceeds it. Cached (one page size and screen at a time);
+    callers must not modify the array."""
+    h, w = shape
+    if params.screen == "dispersed":
+        bayer = np.array([[0]], dtype=np.float32)
+        for _ in range(3):  # 8 x 8 Bayer matrix
+            bayer = np.block([[4 * bayer, 4 * bayer + 2], [4 * bayer + 3, 4 * bayer + 1]])
+        tile = (bayer + 0.5) / bayer.size
+        return np.tile(tile, (h // 8 + 1, w // 8 + 1))[:h, :w].astype(np.float32)
+    period = params.device_dpi / params.screen_lpi
+    a = math.radians(params.screen_angle_deg)
+
+    def spot(u: np.ndarray, v: np.ndarray) -> np.ndarray:  # round dot that grows into a checkerboard
+        return 0.5 - 0.25 * (np.cos(2 * np.pi * u) + np.cos(2 * np.pi * v))
+
+    # Equalize: the share of a screen cell with spot < s must equal s, so coverage maps to toner area.
+    g = (np.arange(256, dtype=np.float64) + 0.5) / 256
+    ref = np.sort(spot(g[:, None], g[None, :]).ravel())
+    bins = 4096  # spot values lie in [0, 1]; a lookup table of their equalized rank
+    lut = (np.searchsorted(ref, (np.arange(bins) + 0.5) / bins) / ref.size).astype(np.float32)
+    out = np.empty((h, w), dtype=np.float32)
+    xs = np.arange(w, dtype=np.float32)[None, :]
+    ca, sa, per = np.float32(math.cos(a)), np.float32(math.sin(a)), np.float32(period)
+    for y0 in range(0, h, 512):  # in strips, to keep memory low on a 600-dpi page
+        ys = np.arange(y0, min(h, y0 + 512), dtype=np.float32)[:, None]
+        s = spot((xs * ca + ys * sa) / per, (ys * ca - xs * sa) / per)
+        out[y0:y0 + len(ys)] = lut[np.clip((s * bins).astype(np.int32), 0, bins - 1)]
+    return out
+
+
+def _gaussian_noise(rng: np.random.Generator, shape: tuple[int, int], sigma_px: float) -> np.ndarray:
+    """Unit-variance noise with a Gaussian correlation of ``sigma_px``."""
+    n = rng.standard_normal(shape, dtype=np.float32)
+    if sigma_px <= 0.3:
+        return n
+    n = cv2.GaussianBlur(n, (0, 0), sigma_px)
+    return n / np.float32(max(float(n[::7, ::7].std()), 1e-6))
+
+
+def print_page(text_coverage: np.ndarray, background: np.ndarray, rng: np.random.Generator,
+               params: PrintParams | None = None) -> tuple[np.ndarray, dict[str, object]]:
+    """Simulate printing one page given as ``print_layers`` (both at ``params.device_dpi``).
+
+    Returns the printed sheet as a float32 gray image at ``params.out_dpi`` (255 is the mean
+    paper white, 0 the nominal solid toner, as ``photo`` expects) and meta: ``print_affine``
+    (2x3, device pixels of the page to device pixels of the sheet), ``to_sheet`` (3x3, page
+    pixels at out_dpi to sheet pixels at out_dpi, ignoring the small banding jitter),
+    ``sheet_size`` [width, height], and ``params`` (every value drawn).
+    """
+    params = params or PrintParams()
+    if text_coverage.shape != background.shape:
+        raise ValueError("lapisan teks dan latar harus berukuran sama")
+    h, w = text_coverage.shape
+    um_px = params.device_dpi / 25400.0  # device pixels per micrometre
+    drawn: dict[str, object] = {}
+
+    # 1-3. Exposure in the device grid: binary text, screened tints after highlight dropout.
+    exposure = (text_coverage >= 0.5).astype(np.float32) if params.snap_text else text_coverage.astype(np.float32)
+    tint = (255.0 - background.astype(np.float32)) / 255.0
+    tint[background >= params.white_cutoff] = 0.0
+    band = _uniform(rng, params.band_density)
+    band_period = _uniform(rng, params.band_period_mm)
+    band_phase = _uniform(rng, (0.0, 2 * math.pi))
+    drawn.update(band_density=band, band_period_mm=band_period)
+    if tint.any():
+        y_mm = np.arange(h, dtype=np.float32) / np.float32(params.device_dpi / 25.4)
+        tint *= (1.0 + band * np.sin(2 * np.pi * y_mm / band_period + band_phase)).astype(np.float32)[:, None]
+        thr = _screen_threshold((h, w), params)
+        dots = np.clip((tint - thr) / np.float32(params.pwm_width) + 0.5, 0.0, 1.0)
+        dots[tint <= 0] = 0.0
+        exposure = np.maximum(exposure, dots)
+        del thr, dots
+    del tint
+
+    # 4. Banding jitter: scan line y lands at y + d(y) on the drum (process direction = page y).
+    drum_amp = _uniform(rng, params.drum_jitter_um)
+    drum_period = _uniform(rng, params.drum_period_mm)
+    gear_amp = _uniform(rng, params.gear_jitter_um)
+    gear_period = _uniform(rng, params.gear_period_mm)
+    phases = rng.uniform(0.0, 2 * math.pi, 2)
+    drawn.update(drum_jitter_um=drum_amp, drum_period_mm=drum_period, gear_jitter_um=gear_amp,
+                 gear_period_mm=gear_period)
+    if drum_amp > 0 or gear_amp > 0:
+        y = np.arange(h, dtype=np.float64)
+        y_mm = y / (params.device_dpi / 25.4)
+        d = um_px * (drum_amp * np.sin(2 * np.pi * y_mm / drum_period + phases[0])
+                     + gear_amp * np.sin(2 * np.pi * y_mm / gear_period + phases[1]))
+        src = np.clip(y - d, 0, h - 1)  # output row y shows the exposure of drum row y - d
+        i0 = np.floor(src).astype(np.int64)
+        i1 = np.minimum(i0 + 1, h - 1)
+        f = (src - i0).astype(np.float32)[:, None]
+        exposure = exposure[i0] * (1.0 - f) + exposure[i1] * f
+
+    # 5. Laser spot and toner scatter, toner noise, development.
+    spot_um = _uniform(rng, params.spot_sigma_um)
+    thresh = _uniform(rng, params.develop_threshold)
+    noise = _uniform(rng, params.toner_noise)
+    drawn.update(spot_sigma_um=spot_um, develop_threshold=thresh, toner_noise=noise)
+    latent = cv2.GaussianBlur(exposure, (0, 0), spot_um * um_px)
+    del exposure
+    # Toner noise acts where development is partial (edges, halftone dots): ragged edges and
+    # grainy dots, while blank paper and solid areas stay clean.
+    grain = rng.standard_normal(latent.shape, dtype=np.float32)
+    grain *= np.float32(4.0 * noise) * latent * (1.0 - latent)
+    latent += grain
+    del grain
+    toner = cv2.exp((np.float32(thresh) - latent) * np.float32(1.0 / params.develop_softness))
+    toner = 1.0 / (1.0 + toner)
+    del latent
+
+    # 6. Paper placement: skew, offset and scale about the page centre.
+    skew = _uniform(rng, (-params.skew_deg, params.skew_deg))
+    sx = params.fit_scale * (1.0 + _uniform(rng, (-params.scale_error, params.scale_error)))
+    sy = params.fit_scale * (1.0 + _uniform(rng, (-params.scale_error, params.scale_error)))
+    ox = _uniform(rng, (-params.offset_mm, params.offset_mm)) * params.device_dpi / 25.4
+    oy = _uniform(rng, (-params.offset_mm, params.offset_mm)) * params.device_dpi / 25.4
+    drawn.update(skew_deg=skew, scale_x=sx, scale_y=sy, offset_mm=[ox * 25.4 / params.device_dpi,
+                                                                   oy * 25.4 / params.device_dpi])
+    c, s = math.cos(math.radians(skew)), math.sin(math.radians(skew))
+    cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+    lin = np.array([[sx * c, -sx * s], [sy * s, sy * c]])
+    affine = np.hstack([lin, (np.array([cx + ox, cy + oy]) - lin @ np.array([cx, cy]))[:, None]])
+    toner = cv2.warpAffine(toner, affine, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,
+                           borderValue=0)
+
+    # 7. Optics: two passes through the toner with lateral scatter in the paper, paper texture.
+    r_solid = _uniform(rng, params.toner_reflectance)
+    scatter = _uniform(rng, params.paper_scatter_um)
+    fine = _uniform(rng, params.paper_fine)
+    coarse = _uniform(rng, params.paper_coarse)
+    drawn.update(toner_reflectance=r_solid, paper_scatter_um=scatter, paper_fine=fine, paper_coarse=coarse)
+    trans = 1.0 - np.float32(1.0 - math.sqrt(r_solid)) * toner
+    del toner
+    sheet = trans * cv2.GaussianBlur(trans, (0, 0), scatter * um_px)
+    del trans
+    paper = 1.0 + np.float32(fine) * _gaussian_noise(rng, (h, w), 0.5 * params.paper_fine_um * um_px)
+    step = params.paper_coarse_mm * params.device_dpi / 25.4
+    cloud = rng.standard_normal((int(h / step) + 3, int(w / step) + 3), dtype=np.float32)
+    cloud = cv2.resize(cloud, (int(round(cloud.shape[1] * step)), int(round(cloud.shape[0] * step))),
+                       interpolation=cv2.INTER_CUBIC)[:h, :w]
+    paper += np.float32(coarse) * cloud / np.float32(max(float(cloud.std()), 1e-6))
+    sheet *= paper
+    del paper, cloud
+
+    # Resample to out_dpi; 255 = mean paper, 0 = nominal solid toner (INK_REFLECTANCE in the photo).
+    out_w = max(1, int(round(w * params.out_dpi / params.device_dpi)))
+    out_h = max(1, int(round(h * params.out_dpi / params.device_dpi)))
+    sheet = cv2.resize(sheet, (out_w, out_h), interpolation=cv2.INTER_AREA)
+    r0 = 0.055
+    out = (sheet - np.float32(r0)) * np.float32(255.0 / (1.0 - r0))
+    down = _resize_matrix(out_w / w, out_h / h)
+    to_sheet = down @ np.vstack([affine, [0.0, 0.0, 1.0]]) @ np.linalg.inv(down)
+    meta = {"print_affine": _to_list(affine), "to_sheet": _to_list(to_sheet), "sheet_size": [out_w, out_h],
+            "settings": _settings(params), "params": drawn}
+    return out.astype(np.float32), meta
+
+
+def printed_photo_jpeg(pdf_bytes: bytes, page: int, rng: np.random.Generator,
+                       print_params: PrintParams | None = None,
+                       photo_params: PhotoParams | None = None) -> tuple[bytes, dict[str, object]]:
+    """Print page ``page`` of a PDF (``print_page``) and photograph the sheet (``photo_jpeg``).
+
+    ``meta`` is the photo meta with ``homography`` mapping page pixels at
+    ``print_params.out_dpi`` (the unprinted page) to output pixels, plus ``print`` (the
+    print meta). The homography ignores the banding jitter (a few micrometres).
+    """
+    print_params = print_params or PrintParams()
+    text, background = print_layers(pdf_bytes, page, print_params.device_dpi)
+    sheet, pmeta = print_page(text, background, rng, print_params)
+    del text, background
+    data, meta = photo_jpeg(sheet, rng, photo_params)
+    h = np.asarray(meta["homography"]) @ np.asarray(pmeta["to_sheet"])
+    meta["homography"] = _to_list(h / h[2, 2])
+    meta["kind"] = KIND_PRINT
+    meta["print"] = pmeta
+    return data, meta
+
+
+# ---------------------------------------------------------------------------------------
 # Screenshot
 
 
@@ -706,6 +1005,7 @@ def make_photo_set(
     screenshots: bool = True,
     photo_params: PhotoParams | None = None,
     screenshot_params: ScreenshotParams | None = None,
+    print_params: PrintParams | None = None,
 ) -> list[dict[str, object]]:
     """Write synthetic photos and screenshots of issued copies plus ``truth.json``.
 
@@ -715,7 +1015,9 @@ def make_photo_set(
     ``screenshot_s013_p1_0.jpg``. Pages are numbered from 1. Both kinds are limited to
     ``long_side`` pixels like WhatsApp. ``photo_params`` and ``screenshot_params`` are
     templates; the angle, ``long_side`` and render dpi are set per file. Repeated seqs
-    and angles are produced once.
+    and angles are produced once. With ``print_params`` every photo is taken of a printed
+    page (``printed_photo_jpeg``) and named ``cetak_s013_p1_a30_0.jpg``; its homography maps
+    page pixels at ``print_params.out_dpi`` (the item's ``render_dpi``).
 
     All inputs and every selected copy PDF are checked before anything is written. Then
     images left in ``out_dir`` by an earlier run (see ``stale_outputs``) and the old
@@ -755,16 +1057,24 @@ def make_photo_set(
         copy = by_seq[seq]
         renders = render_pages(pdfs[seq], dpi, None if all_pages else [0])
         for page_no, page_img in enumerate(renders, start=1):
-            jobs = [(KIND_PHOTO, a, i) for a in unique_angles.values() for i in range(per_copy)]
+            photo_kind = KIND_PRINT if print_params is not None else KIND_PHOTO
+            jobs = [(photo_kind, a, i) for a in unique_angles.values() for i in range(per_copy)]
             if screenshots:
                 jobs += [(KIND_SCREENSHOT, 0.0, i) for i in range(per_copy)]
             for kind, angle, index in jobs:
                 rng = _file_rng(seed, seq, page_no, kind, angle, index)
+                item_dpi = dpi
                 if kind == KIND_PHOTO:
                     params = replace(base_photo, angle_deg=angle, long_side=long_side)
                     data, meta = photo_jpeg(page_img, rng, params)
                     name = f"photo_s{seq:03d}_p{page_no}_a{angle:g}_{index}.jpg"
                     angle_field: float | None = angle
+                elif kind == KIND_PRINT:
+                    params = replace(base_photo, angle_deg=angle, long_side=long_side)
+                    data, meta = printed_photo_jpeg(pdfs[seq], page_no - 1, rng, print_params, params)
+                    name = f"cetak_s{seq:03d}_p{page_no}_a{angle:g}_{index}.jpg"
+                    angle_field = angle
+                    item_dpi = print_params.out_dpi  # type: ignore[union-attr]
                 else:
                     sparams = replace(base_shot, render_dpi=float(dpi), long_side=long_side)
                     data, meta = screenshot_jpeg(page_img, rng, sparams)
@@ -772,7 +1082,7 @@ def make_photo_set(
                     angle_field = None
                 (out_dir / name).write_bytes(data)
                 item: dict[str, object] = {"file": name, "seq": seq, "copy_id": copy.copy_id, "page": page_no,
-                                           "kind": kind, "angle": angle_field, "render_dpi": dpi}
+                                           "kind": kind, "angle": angle_field, "render_dpi": item_dpi}
                 item.update({k: v for k, v in meta.items() if k != "kind"})
                 items.append(item)
 
@@ -826,6 +1136,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--all-pages", action="store_true", help="semua halaman, bukan hanya halaman 1")
     ap.add_argument("--crop-into-page", action="store_true", help="potong sebagian halaman (uji ketahanan)")
     ap.add_argument("--no-screenshots", action="store_true", help="tanpa tangkapan layar")
+    ap.add_argument("--cetak", choices=["laser", "inkjet"], default=None,
+                    help="foto halaman yang dicetak dulu (model printer laser atau inkjet), bukan foto layar")
     args = ap.parse_args(argv)
 
     photo_params = PhotoParams(crop_into_page=args.crop_into_page)
@@ -835,7 +1147,8 @@ def main(argv: list[str] | None = None) -> int:
         items = make_photo_set(args.issued, args.out, seqs=args.seqs, per_copy=args.per_copy,
                                angles=tuple(args.angles), seed=args.seed, dpi=args.dpi,
                                long_side=args.long_side, all_pages=args.all_pages,
-                               screenshots=not args.no_screenshots, photo_params=photo_params)
+                               screenshots=not args.no_screenshots, photo_params=photo_params,
+                               print_params={"laser": PrintParams(), "inkjet": INKJET}.get(args.cetak or ""))
     except ManifestNotFoundError as exc:
         print(f"Galat: {exc}. Terbitkan salinan dulu dengan 'tapak issue'.", file=sys.stderr)
         return 2
@@ -850,7 +1163,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if n_old:
         print(f"{n_old} gambar lama dari proses sebelumnya dihapus agar folder sesuai truth.json.")
-    n_photo = sum(1 for it in items if it["kind"] == KIND_PHOTO)
+    n_photo = sum(1 for it in items if it["kind"] in (KIND_PHOTO, KIND_PRINT))
     n_shot = len(items) - n_photo
     n_copies = len({it["seq"] for it in items})
     print(f"Selesai: {n_photo} foto dan {n_shot} tangkapan layar dari {n_copies} salinan ditulis ke {args.out}")

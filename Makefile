@@ -2,8 +2,9 @@
 PY ?= .venv/bin/python
 TAPAK ?= .venv/bin/tapak
 PHOTO_DATA ?= out/photos
+ISSUED_COPIES = "$$(ls -d $(PHOTO_DATA)/data/dokumen/*/salinan | head -1)"
 
-.PHONY: setup samples test test-fast simulate table photos bench demo web verify docker figures clean
+.PHONY: setup samples test test-fast simulate table photos photos-cetak photos-issued bench demo web verify docker figures clean
 
 setup:            ## create the virtualenv and install TAPAK (needs network once)
 	uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
@@ -23,11 +24,19 @@ simulate:         ## Tardos collusion simulation (acceptance numbers)
 table:            ## code length / threshold table
 	$(TAPAK) simulate --table
 
-photos:           ## synthetic photo and screenshot degradation set in samples/photos
-	@test -d $(PHOTO_DATA)/data/dokumen || $(TAPAK) --data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys \
-		issue samples/nota_dinas.pdf samples/recipients.csv --no-registry --canary-domain ""
-	$(PY) -m tapak.photos --issued "$$(ls -d $(PHOTO_DATA)/data/dokumen/*/salinan | head -1)" \
+photos-issued:    ## the issuance behind both photo sets (20 copies, no registry), made once; a new one drops both sets
+	@test -d $(PHOTO_DATA)/data/dokumen || { rm -rf samples/photos samples/photos-cetak && \
+		$(TAPAK) --data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys \
+		issue samples/nota_dinas.pdf samples/recipients.csv --no-registry --canary-domain ""; }
+
+photos: photos-issued  ## synthetic photo and screenshot degradation set in samples/photos
+	$(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
 		--out samples/photos --seqs 13,7,1,20 --per-copy 2 --seed 2026
+
+photos-cetak: photos-issued  ## phone photos of printed copies (simulated laser), pages 1 and 2, in samples/photos-cetak
+	$(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
+		--out samples/photos-cetak --seqs 13,7,1,20 --angles 10,30 --per-copy 1 --all-pages \
+		--no-screenshots --cetak laser --seed 2026
 
 demo:             ## the 90-second scenario, non-interactive
 	$(TAPAK) demo --workdir out/demo
@@ -47,7 +56,7 @@ figures:          ## README figures in docs/img (needs: uv pip install -e ".[fig
 	$(PY) docs/figures/fig_hasil.py
 
 clean:
-	rm -rf out samples/photos .pytest_cache
+	rm -rf out samples/photos samples/photos-cetak .pytest_cache
 
-bench:            ## trace every image of the synthetic photo set (run make photos first)
+bench:            ## trace every image of the photo sets (make photos, optionally make photos-cetak); prints are reported separately
 	$(PY) -m tapak.benchmark --json docs/results/bench_photos.json

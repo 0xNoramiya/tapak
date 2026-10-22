@@ -352,6 +352,42 @@ def match_offset(tmpl: np.ndarray, win: np.ndarray, m: int) -> tuple[float, floa
     return fx - m, fy - m, float(peak)
 
 
+# Gaussian blur applied to template and evidence before matching (measure_image); OpenCV's
+# kernel for sigma 0.7 on float images reaches 3 px from its centre.
+MATCH_BLUR_SIGMA = 0.7
+TEMPLATE_MARGIN_PX = 8  # beyond each group window: more than the blur reaches
+
+
+def template_boxes(master: MasterDocument, page: int, dpi: float, pad_px: int = 3,
+                   margin_px: int = TEMPLATE_MARGIN_PX) -> tuple[tuple[int, int, int, int], ...]:
+    """Output pixel rectangles (x0, y0, x1, y1) of ``page`` at ``dpi`` that hold every template
+    pixel :func:`measure_image` reads: per text row the union of its group windows (padded by
+    ``pad_px`` as in measure_image) plus ``margin_px`` for the blur, with rectangles that touch
+    merged. A master template that is exact inside these rectangles gives the same displacements
+    as one exact everywhere (``render_page_exact(..., boxes=...)``)."""
+    s = dpi / 72.0
+    m = pad_px + margin_px
+    rects = []
+    for row in master.layout.pages[page].rows:
+        if not row.groups:
+            continue
+        x0 = min(g.bbox[0] for g in row.groups)
+        y0 = min(g.bbox[1] for g in row.groups)
+        x1 = max(g.bbox[2] for g in row.groups)
+        y1 = max(g.bbox[3] for g in row.groups)
+        rects.append([int(np.floor(x0 * s)) - m, int(np.floor(y0 * s)) - m,
+                      int(np.ceil(x1 * s)) + m, int(np.ceil(y1 * s)) + m])
+    rects.sort(key=lambda r: r[1])
+    merged: list[list[int]] = []
+    for r in rects:
+        if merged and r[1] <= merged[-1][3]:
+            last = merged[-1]
+            last[:] = [min(last[0], r[0]), last[1], max(last[2], r[2]), max(last[3], r[3])]
+        else:
+            merged.append(r)
+    return tuple((max(r[0], 0), max(r[1], 0), r[2], r[3]) for r in merged)
+
+
 def measure_image(
     rectified: np.ndarray,
     valid: np.ndarray,
@@ -368,13 +404,14 @@ def measure_image(
     For each group the template is the master render around the group's box and the search
     window is the same box in the evidence, enlarged by ``search_px``; see
     :func:`match_offset`. Matches with a weak correlation peak are discarded. All words of a
-    group get the group's displacement (in points).
+    group get the group's displacement (in points). Only the master render inside
+    :func:`template_boxes` (same ``pad_px``) is read.
     """
     s = dpi / 72.0
     disp: Displacements = {}
     h, w = rectified.shape
-    tmpl_all = cv2.GaussianBlur(master_render.astype(np.float32), (0, 0), 0.7)
-    img_all = cv2.GaussianBlur(rectified.astype(np.float32), (0, 0), 0.7)
+    tmpl_all = cv2.GaussianBlur(master_render.astype(np.float32), (0, 0), MATCH_BLUR_SIGMA)
+    img_all = cv2.GaussianBlur(rectified.astype(np.float32), (0, 0), MATCH_BLUR_SIGMA)
     for row in master.layout.pages[page].rows:
         for g in row.groups:
             x0, y0, x1, y1 = g.bbox

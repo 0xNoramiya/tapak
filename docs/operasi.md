@@ -13,6 +13,7 @@ make demo           # skenario lengkap tanpa interaksi
 make test           # seluruh pengujian
 make simulate       # angka simulasi Tardos
 make photos bench   # kumpulan foto sintetis lalu uji regresi dekoder
+make photos-cetak   # foto kertas cetak (printer disimulasikan); make bench melaporkannya terpisah
 make web            # antarmuka web di http://127.0.0.1:8000
 make figures        # grafik README dibuat ulang dari kode dan data (perlu: uv pip install -e ".[figures]")
 ```
@@ -24,6 +25,7 @@ Setelah `make setup`, semuanya berjalan luring. Tangkapan layar antarmuka di REA
 ```bash
 tapak keys init                                  # rahasia kode + kunci tanda tangan registri
 tapak issue samples/nota_dinas.pdf samples/recipients.csv --canary-domain kanari.satuan.mil
+tapak issue dok.pdf penerima.csv --latar cetak   # pola latar yang bertahan saat dicetak (lihat di bawah)
 tapak docs                                       # daftar dokumen terbitan
 tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
 tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu kebocoran, digabung
@@ -43,6 +45,10 @@ tapak simulate --table
 tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
 tapak kanari-izin                                # tulis ulang daftar izin token dari semua penerbitan
 ```
+
+`--latar` memilih profil pola latar. `layar` (bawaan) tidak terlihat, tetapi hilang saat dokumen dicetak. `cetak` bertahan pada kertas cetak (diuji dengan printer simulasi), tetapi seluruh halaman tampak abu-abu muda dan teksturnya mungkin terlihat, sehingga TAPAK mencetak peringatan. Pakai `cetak` hanya untuk dokumen yang memang akan dicetak dan bila tampilan itu diterima ([cara kerja](cara-kerja.md#salinan-yang-dicetak)).
+
+Pelacakan foto atau pindaian pertama untuk setiap halaman dan resolusi analisis merender templat induk tepat untuk kanal geser, sekitar 5 sampai 7 detik CPU per halaman penuh teks. `tapak web` menyimpannya di memori untuk pelacakan berikutnya, sedangkan setiap perintah `tapak trace` merendernya lagi.
 
 Port 53 harus bebas di komputer pendengar. Di banyak distro Linux, `systemd-resolved` sudah memakai 127.0.0.53:53. Ikat pendengar ke alamat publik, atau jalankan di port lain lalu teruskan port 53 ke sana seperti di Docker.
 
@@ -175,9 +181,37 @@ Variabel lingkungan:
 - kode Tardos dan dekoder, dengan uji untuk setiap fungsi publik;
 - penanda, kanal 3 lewat MuPDF dan poppler, ketidakterlihatan pada 600 dpi;
 - foto dan tangkapan layar, kolusi, jalur "tidak cukup bukti";
+- simulator printer, profil latar cetak, dan templat induk tepat;
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - DOCX, berita acara, antarmuka web end-to-end;
 - aturan kebersihan repositori (sumber Python hanya ASCII, tanpa tanda pisah panjang).
 
 Suite ini tidak memerlukan GPU, model LLM, atau jaringan. Uji foto ditandai `slow`, dan `make test-fast` melewatinya.
+
+## Mengukur salinan yang dicetak
+
+Angka salinan cetak di [cara kerja](cara-kerja.md#salinan-yang-dicetak) dan [batasan 3](keamanan.md#batasan) dapat dibuat ulang dengan `scripts/cetak/` (hasil di `out/cetak`, atau `CETAK_OUT`):
+
+```bash
+export PYTHONPATH=.
+M=".venv/bin/python -m scripts.cetak.measure"
+$M trials --profile layar --long 1600,4000                         # 20 salinan, 2 halaman
+$M trials --profile layar --long 1600,4000 --template supersampled # templat lama, foto yang sama
+$M trials --profile cetak --long 1600,4000
+$M composites --profile cetak --coalitions 16 --long 1600
+$M trials --profile cetak --printer inkjet --seqs 1-10 --pages 0 --long 1600
+$M report --json docs/results/cetak_summary.json                   # tabel per profil, printer, resolusi
+# profil cetak pada cetakan, foto, dan koalisi baru (tidak ikut memilih profil)
+export CETAK_OUT=out/cetak-r1 CETAK_ISSUED_CETAK=out/cetak/issued-cetak
+$M trials --profile cetak --long 1600,4000 --reps 1
+$M composites --profile cetak --coalitions 16 --long 1600 --reps 1
+$M trials --profile cetak --printer inkjet --seqs 1-10 --pages 0 --long 1600 --reps 1
+$M report --json docs/results/cetak_summary_r1.json
+unset CETAK_OUT CETAK_ISSUED_CETAK
+.venv/bin/python -m scripts.cetak.visibility        # rona abu-abu dan tekstur (S-CIELAB)
+.venv/bin/python -m scripts.cetak.calibrate         # kalibrasi model printer
+.venv/bin/python -m scripts.cetak.needbits          # posisi terbaca yang diperlukan per jejak
+```
+
+Setiap profil diterbitkan sekali untuk 100 penerima fiktif. Id salinan diundi saat penerbitan, jadi penerbitan baru memberi kode lain dan angka yang sedikit berbeda; `CETAK_ISSUED_LAYAR` atau `CETAK_ISSUED_CETAK` memakai ulang folder penerbitan yang ada. Tabel profil bawaan memakai penerbitan dari riset sebelumnya, yang id salinannya tidak ada di repositori. Hasil di `docs/results/cetak_*` diukur sebelum kanal latar memakai strata kejenuhan dan uji pilot; perintah di atas kini memakai dekoder sekarang, jadi angka profil cetak dapat berbeda. Satu foto cetak memerlukan sekitar 20 sampai 60 detik (1600 px) atau 1 sampai 2 menit (4000 px) per proses di mesin uji yang dipakai bersama; `--workers` mengatur jumlah proses (bawaan 3).

@@ -14,6 +14,8 @@ Homographies here map *page pixel coordinates* at the analysis dpi to *image coo
 
 from __future__ import annotations
 
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -96,6 +98,162 @@ def _render(pdf_bytes: bytes, page: int, dpi: float, supersample: int) -> np.nda
 
 
 _render_cached = lru_cache(maxsize=16)(_render)
+
+
+# MuPDF caches small glyphs as bitmaps and draws a cached glyph at a whole device pixel
+# vertically (a quarter pixel horizontally). Even with 4x supersampling (400 to 1200 dpi for
+# the analysis resolutions) every text row of ``render_page`` lands up to half a supersampled
+# pixel (10 to 30 um) off its true position, differently per row and word, and the same for
+# every copy and photo. Glyphs larger than about 256 px per em are drawn as outlines without
+# snapping; at 3200 dpi a 7 pt glyph is 311 px per em.
+EXACT_MIN_DPI = 3200.0
+EXACT_BAND_PT = 40.0  # band height: about 50 MB per band at 3300 dpi
+# Byte budget of the exact-template cache. Entries keep only the rendered band parts (the text
+# rows the shift decoder reads: 45 to 70 % of a sample page), so about 14 text pages at 300 dpi
+# or 30 at 200 dpi stay cached; an 8-entry LRU missed every page of a 9-page scan traced again.
+EXACT_CACHE_BYTES = 320_000_000
+
+Box = tuple[int, int, int, int]
+
+
+def render_page_exact(pdf_bytes: bytes, page: int, dpi: float, min_dpi: float = EXACT_MIN_DPI,
+                      cache: bool = True, boxes: tuple[Box, ...] | None = None) -> np.ndarray:
+    """Render a page at ``dpi`` without glyph snapping: draw it at an integer multiple of ``dpi``
+    of at least ``min_dpi``, in horizontal bands, and average each block of k x k pixels.
+
+    Output pixel (row, col) covers exactly the page points [col, col + 1) x [row, row + 1)
+    times 72 / dpi, the frame in which the decoders read positions. ``boxes`` (output pixel
+    rectangles (x0, y0, x1, y1), end exclusive) limits the work to the bands that meet a box,
+    each clipped to the columns of its boxes: every pixel inside a box is exactly that of the
+    whole-page render, and pixels that were not rendered are paper (255). The rendering is
+    cached per document, page, dpi and boxes within ``EXACT_CACHE_BYTES`` (the analysis dpi
+    varies per photo); ``cache=False`` renders afresh.
+    """
+    key = (pdf_bytes, page, float(dpi), float(min_dpi), boxes)
+    entry = _EXACT_CACHE.get(key) if cache else None
+    if entry is None:
+        entry = _exact_blocks(pdf_bytes, page, float(dpi), float(min_dpi), boxes)
+        if cache:
+            _EXACT_CACHE.put(key, entry)
+    (h, w), blocks = entry
+    out = np.empty((h, w), dtype=np.float32) if boxes is None else np.full((h, w), 255.0, dtype=np.float32)
+    for y0, x0, block in blocks:
+        out[y0:y0 + block.shape[0], x0:x0 + block.shape[1]] = block
+    return out
+
+
+_Entry = tuple[tuple[int, int], list[tuple[int, int, np.ndarray]]]
+
+
+def _band_columns(boxes: tuple[Box, ...] | None, y0: int, y1: int, w: int) -> list[tuple[int, int]]:
+    """Merged column ranges of the boxes that meet output rows [y0, y1) (all columns without boxes)."""
+    if boxes is None:
+        return [(0, w)]
+    spans = sorted((max(b[0], 0), min(b[2], w)) for b in boxes if b[1] < y1 and b[3] > y0 and b[2] > b[0])
+    merged: list[tuple[int, int]] = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        elif b > a:
+            merged.append((a, b))
+    return merged
+
+
+def _exact_blocks(pdf_bytes: bytes, page: int, dpi: float, min_dpi: float, boxes: tuple[Box, ...] | None) -> _Entry:
+    """The page size at ``dpi`` and the exact render of each band (or band part), as
+    (row, column, block).
+
+    The bands always follow the whole-page grid (every ``EXACT_BAND_PT`` from the top) with the
+    same vertical clip: MuPDF draws the rows near a vertical clip edge slightly differently (up
+    to about one gray level after averaging), so only the grid used for every measurement
+    reproduces it. Clipping columns changed no pixel away from the clip edge in our checks
+    (tests/test_exact_template.py compares them), and the quarter-pixel widening keeps the
+    edge itself out of the output.
+    """
+    k = max(1, int(np.ceil(min_dpi / dpi - 1e-9)))
+    blocks: list[tuple[int, int, np.ndarray]] = []
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        p = doc[page]
+        w = int(round(p.rect.width * dpi / 72.0))
+        h = int(round(p.rect.height * dpi / 72.0))
+        mat = pymupdf.Matrix(dpi * k / 72.0, dpi * k / 72.0)
+        band = max(1, int(EXACT_BAND_PT * dpi / 72.0))
+        ox = int(round(p.rect.x0 * dpi * k / 72.0))
+        oy = int(round(p.rect.y0 * dpi * k / 72.0))
+        content = p.get_displaylist()  # interpreted once, rasterized per band
+        for y0 in range(0, h, band):
+            y1 = min(h, y0 + band)
+            for x0, x1 in _band_columns(boxes, y0, y1, w):
+                # Device rows y0*k .. y1*k and columns x0*k .. x1*k of the full-page raster;
+                # the clip is widened by a quarter pixel so rounding never drops a row or
+                # column, and the pixmap origin says where its first row and column lie.
+                full_width = x0 == 0 and x1 == w
+                clip = pymupdf.Rect(p.rect.x0 if full_width else p.rect.x0 + (x0 - 0.25) * 72.0 / dpi,
+                                    p.rect.y0 + (y0 - 0.25) * 72.0 / dpi,
+                                    p.rect.x1 if full_width else p.rect.x0 + (x1 + 0.25) * 72.0 / dpi,
+                                    p.rect.y0 + (y1 + 0.25) * 72.0 / dpi)
+                pix = content.get_pixmap(matrix=mat, clip=clip, colorspace=pymupdf.csGRAY, alpha=False)
+                hi = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+                rows, cols = (y1 - y0) * k, (x1 - x0) * k
+                r0, c0 = y0 * k - (pix.y - oy), x0 * k - (pix.x - ox)
+                if r0 >= 0 and c0 >= 0 and r0 + rows <= hi.shape[0] and c0 + cols <= hi.shape[1]:
+                    buf = hi[r0:r0 + rows, c0:c0 + cols]  # a view: no copy of the raster
+                else:  # the page raster ends inside the band: paper beyond it
+                    buf = np.full((rows, cols), 255, dtype=np.uint8)
+                    rs, re_ = max(r0, 0), min(r0 + rows, hi.shape[0])
+                    cs, ce = max(c0, 0), min(c0 + cols, hi.shape[1])
+                    if re_ > rs and ce > cs:
+                        buf[rs - r0:re_ - r0, cs - c0:ce - c0] = hi[rs:re_, cs:ce]
+                # Exact integer block sums (rows first: about three times faster than one
+                # reduction over both axes, with the same result).
+                sums = buf.reshape(y1 - y0, k, cols).sum(axis=1, dtype=np.uint32)
+                sums = sums.reshape(y1 - y0, x1 - x0, k).sum(axis=2, dtype=np.uint32)
+                blocks.append((y0, x0, sums.astype(np.float32) / np.float32(k * k)))
+                del pix, hi, buf
+    return (h, w), blocks
+
+
+class _ByteBudgetCache:
+    """Least recently used cache bounded by the total bytes of its entries (thread safe)."""
+
+    def __init__(self, max_bytes: int) -> None:
+        self.max_bytes = max_bytes
+        self.hits = self.misses = self.bytes = 0
+        self._items: OrderedDict[tuple, _Entry] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _size(entry: _Entry) -> int:
+        return sum(b.nbytes for _, _, b in entry[1])
+
+    def get(self, key: tuple) -> _Entry | None:
+        with self._lock:
+            entry = self._items.get(key)
+            if entry is None:
+                self.misses += 1
+                return None
+            self._items.move_to_end(key)
+            self.hits += 1
+            return entry
+
+    def put(self, key: tuple, entry: _Entry) -> None:
+        size = self._size(entry)
+        if size > self.max_bytes:
+            return
+        with self._lock:
+            if key in self._items:
+                return
+            self._items[key] = entry
+            self.bytes += size
+            while self.bytes > self.max_bytes:
+                _, old = self._items.popitem(last=False)
+                self.bytes -= self._size(old)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+
+_EXACT_CACHE = _ByteBudgetCache(EXACT_CACHE_BYTES)
 
 
 def flatten_illumination(gray: np.ndarray, sigma: float) -> np.ndarray:
