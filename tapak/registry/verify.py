@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import Any
 
 from tapak.registry.anchor import (
+    UNAVAILABLE_LABELS,
     AnchorStatus,
     AnchorUnavailable,
     compare_anchor,
@@ -214,10 +215,13 @@ class VerifyReport:
             state = ("cocok" if self.anchor.ok else "TIDAK COCOK") + (
                 f" sampai entri #{self.anchor.anchored_seq}" if self.anchor.ok and self.anchor.anchored_seq else "")
             out.append(f"  Log jangkar      : {self.anchor.path}")
-            out.append(f"                     {self.anchor.lines} baris ({self.anchor.signed_lines} bertanda tangan), "
-                       f"{state}" + (f", {len(self.anchor.acks)} pengakuan pemulihan" if self.anchor.acks else "")
-                       + (f", dimulai ulang di entri #{self.anchor.restarted[0]}" if self.anchor.restarted else "")
-                       + (f", segmen lanjutan sejak entri #{self.anchor.rotated[0]}" if self.anchor.rotated else ""))
+            if self.anchor.unavailable:  # not read: the reason, not an empty log that does not match
+                out.append(f"                     {UNAVAILABLE_LABELS[self.anchor.unavailable]}")
+            else:
+                out.append(f"                     {self.anchor.lines} baris ({self.anchor.signed_lines} bertanda tangan), "
+                           f"{state}" + (f", {len(self.anchor.acks)} pengakuan pemulihan" if self.anchor.acks else "")
+                           + (f", dimulai ulang di entri #{self.anchor.restarted[0]}" if self.anchor.restarted else "")
+                           + (f", segmen lanjutan sejak entri #{self.anchor.rotated[0]}" if self.anchor.rotated else ""))
         if self.segments_checked is not None:
             out.append(f"  Segmen lama      : {self.segments_checked} dicocokkan dengan rantai segmen")
         out.extend(f"Peringatan: {w}" for w in self.warnings)

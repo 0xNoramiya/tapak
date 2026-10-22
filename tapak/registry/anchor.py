@@ -119,6 +119,9 @@ MAX_LOG_BYTES = 256 * 1024 * 1024
 ROTATE_WARN_BYTES = MAX_LOG_BYTES * 3 // 4   # from here every check warns: rotate now
 ROTATE_READ_LIMIT = MAX_LOG_BYTES * 2        # tapak jangkar rotasi may still read an oversized log
 MEDIA_MARKER = ".tapak-jangkar-media"
+# Why a configured log could not be read (AnchorStatus.unavailable), as the CLI states it.
+UNAVAILABLE_LABELS = {"not_started": "BELUM DIMULAI", "missing": "HILANG", "too_large": "TERLALU BESAR",
+                      "unreadable": "TIDAK TERBACA"}
 LOCK_TIMEOUT_S = 10.0
 _HEX = frozenset("0123456789abcdef")
 _ANCHORED_KEYS = frozenset({"v", "type", "log_id", "seq", "entry_hash", "kind", "created_at"})
@@ -140,13 +143,14 @@ class AnchorError(RegistryError):
 
 
 class AnchorUnavailable(AnchorError):
-    """The anchor log is missing (``missing``), larger than the limit (``too_large``), or cannot
-    be read or written."""
+    """The anchor log is missing (``missing``), larger than the limit (``too_large``, with its
+    ``size`` in bytes), or cannot be read or written."""
 
-    def __init__(self, message: str, missing: bool = False, too_large: bool = False) -> None:
+    def __init__(self, message: str, missing: bool = False, too_large: bool = False, size: int = 0) -> None:
         super().__init__(message)
         self.missing = missing
         self.too_large = too_large
+        self.size = size
 
 
 class AnchorRefused(AnchorError):
@@ -449,7 +453,8 @@ def size_text(n: int) -> str:
 def _too_large(path: Path, size: int, limit: int) -> AnchorUnavailable:
     return AnchorUnavailable(
         f"log jangkar di {path} terlalu besar ({size_text(size)}, batasnya {size_text(limit)}), jadi tidak dibaca. "
-        "Teruskan ke segmen baru dengan tapak jangkar rotasi BERKAS_BARU (lihat docs/operasi.md)", too_large=True)
+        "Teruskan ke segmen baru dengan tapak jangkar rotasi BERKAS_BARU (lihat docs/operasi.md)", too_large=True,
+        size=size)
 
 
 def read_log_bytes(path: str | Path, limit: int | None = None) -> bytes:
@@ -838,7 +843,10 @@ class AnchorStatus:
             what it says (it cannot be written, its media marker is missing, it was rotated
             away from); each one says what to do. ``unwritable``: the log can be read but not
             appended to.
-        missing: configured, but the log is missing or cannot be read.
+        missing: configured, but the log is missing or cannot be read; ``unavailable`` says
+            why: "not_started" (no log at that location and the registry does not use one
+            yet), "missing" (the registry uses a log and it is not there), "too_large" (over
+            :data:`MAX_LOG_BYTES`; rotate it) or "unreadable".
         size: length of the log file in bytes.
     """
 
@@ -863,6 +871,7 @@ class AnchorStatus:
     storage: list[str] = field(default_factory=list)
     unwritable: bool = False
     missing: bool = False
+    unavailable: str | None = None
     size: int = 0
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -890,7 +899,8 @@ class AnchorStatus:
                     "(tapak verify --jangkar)")
         if self.problems:
             more = f"; dan {len(self.problems) - 3} masalah lain" if len(self.problems) > 3 else ""
-            return "TIDAK COCOK dengan registri: " + "; ".join(self.problems[:3]) + more
+            head = UNAVAILABLE_LABELS.get(self.unavailable or "", "TIDAK COCOK dengan registri")
+            return f"{head}: " + "; ".join(self.problems[:3]) + more
         parts = [f"cocok dengan registri sampai entri #{self.anchored_seq}" if self.anchored_seq
                  else "cocok dengan registri (belum ada entri yang dijangkarkan)"]
         if self.lag:
@@ -939,7 +949,8 @@ class AnchorStatus:
                 "acks": [list(a) for a in self.acks], "released": [list(p) for p in self.released],
                 "released_traces": self.released_traces,
                 "restarted": list(self.restarted) if self.restarted else None,
-                "rotated": list(self.rotated) if self.rotated else None, "missing": self.missing, "size": self.size,
+                "rotated": list(self.rotated) if self.rotated else None, "missing": self.missing,
+                "unavailable": self.unavailable, "size": self.size,
                 "storage": list(self.storage), "unwritable": self.unwritable, "problems": list(self.problems),
                 "warnings": list(self.warnings)}
 
@@ -963,9 +974,11 @@ def unavailable_status(path: str | Path, rows: Sequence[Sequence[Any]], exc: Anc
     st = AnchorStatus(configured=True, path=str(path), missing=True, required_by=required_by(rows),
                       registry_head=rows[-1][0] if rows and isinstance(rows[-1][0], int) else 0)
     if exc.missing and st.required_by is None:
+        st.unavailable = "not_started"
         st.problems.append(f"log jangkar belum dimulai di {path}: jalankan tapak jangkar mulai (lokasi ini diatur "
                            "lewat TAPAK_ANCHOR_LOG atau --log-jangkar)")
     elif exc.missing:
+        st.unavailable = "missing"
         st.problems.append(
             f"log jangkar tidak ditemukan di {path}, padahal registri memakai log jangkar sejak entri #{st.required_by}. "
             "Penyimpanannya mungkin belum dipasang, atau log itu dihapus (orang yang menghapus entri dari ujung "
@@ -974,9 +987,11 @@ def unavailable_status(path: str | Path, rows: Sequence[Sequence[Any]], exc: Anc
             "berita acara atau akar Merkle bila ada), lalu mulai log baru secara sadar dengan tapak jangkar mulai "
             "--ulang --alasan '...'; awal yang baru tercatat di registri")
     elif exc.too_large:
+        st.unavailable, st.size = "too_large", exc.size
         st.problems.append(f"{exc}. Sampai saat itu pelacakan dan penulisan registri ditolak; jangan menghapus atau "
                            "memotong log ini")
     else:
+        st.unavailable = "unreadable"
         st.problems.append(f"{exc}; pelacakan dan penulisan registri ditolak selama log jangkar tidak dapat dibaca. "
                            "Perbaiki izin atau penyimpanannya; jangan menghapus atau mengganti log ini")
     st.blocking = list(st.problems)

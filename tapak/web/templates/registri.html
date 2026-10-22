@@ -93,7 +93,9 @@
         <h2 id="jangkar-h">Log jangkar</h2>
         <p class="lead">Nomor dan hash setiap entri, ditambahkan ke berkas di penyimpanan terpisah. Entri yang dihapus dari ujung registri hanya terlihat dengan log ini, atau dengan jangkar yang tercetak di berita acara.</p>
       </div>
-      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}Hilang{% elif jangkar.configured and jangkar.problems == jangkar.storage %}{% if jangkar.unwritable %}Tidak dapat ditulis{% else %}Periksa lokasi{% endif %}{% elif jangkar.configured %}Tidak cocok{% else %}Tidak diatur{% endif %}</span>
+      {# unavailable: why a configured log could not be read (AnchorStatus.unavailable) #}
+      {% set tak_terbaca = {"not_started": "Belum dimulai", "missing": "Hilang", "too_large": "Terlalu besar", "unreadable": "Tidak terbaca"} %}
+      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}{{ tak_terbaca.get(jangkar.unavailable, "Tidak terbaca") }}{% elif jangkar.configured and jangkar.problems == jangkar.storage %}{% if jangkar.unwritable %}Tidak dapat ditulis{% else %}Periksa lokasi{% endif %}{% elif jangkar.configured %}Tidak cocok{% else %}Tidak diatur{% endif %}</span>
       {% elif jangkar.configured %}<span class="stamp stamp-ok">Cocok</span>
       {% else %}<span class="stamp stamp-neutral">Tidak diatur</span>{% endif %}
     </div>
@@ -124,7 +126,13 @@
     </dl>
     {% if jangkar.problems %}
     <div class="notice notice-error integritas-catatan" role="alert">
-      {% if jangkar.problems == jangkar.storage %}
+      {% if jangkar.unavailable == "too_large" %}
+      <p>Pelacakan dan penerbitan ditolak sampai log ini diteruskan ke segmen baru dengan <span class="mono nowrap">tapak jangkar rotasi BERKAS_BARU</span>. Jangan menghapus atau memotong log ini.</p>
+      {% elif jangkar.unavailable == "not_started" %}
+      <p>Pelacakan dan penerbitan ditolak sampai log dimulai dengan <span class="mono nowrap">tapak jangkar mulai</span>.</p>
+      {% elif jangkar.missing %}
+      <p>Pelacakan dan penerbitan ditolak sampai log ini dapat dibaca lagi di lokasinya.</p>
+      {% elif jangkar.problems == jangkar.storage %}
       <p>Pelacakan dan penerbitan ditolak sampai lokasi atau penyimpanan log ini diperbaiki.</p>
       {% else %}
       <p>Pelacakan dan penerbitan ditolak sampai perbedaan ini diperiksa dengan <span class="mono nowrap">tapak verify</span>.</p>

@@ -9,6 +9,11 @@
 # The Debian release is pinned (trixie: Tesseract 5.5.0): scanned masters must be traced with
 # the same Tesseract that found their word boxes at issuance, and a rebuild on a newer release
 # would bring another version (docs/operasi.md, Docker).
+# Python libraries come from requirements.lock: exactly the versions of the tested virtualenv
+# (scripts/kunci_versi.py), wheels only, nothing resolved at build time; pip check fails the
+# build if the lock misses a dependency. Refresh it with make kunci-versi.
+# TAPAK_WORKERS (docker-compose.yml) caps the worker processes: os.cpu_count() in a container
+# counts every CPU of the host.
 FROM python:3.12-slim-trixie
 
 RUN apt-get update \
@@ -19,10 +24,13 @@ RUN apt-get update \
  && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin tapak
 
 WORKDIR /app
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --no-deps --only-binary :all: -r requirements.lock
 COPY pyproject.toml README.md ./
 COPY tapak ./tapak
 COPY samples ./samples
-RUN pip install --no-cache-dir . && mkdir -p /data /keys && chown tapak:tapak /data /keys
+RUN pip install --no-cache-dir --no-deps . && pip check && mkdir -p /data /keys && chown tapak:tapak /data /keys
 
 ENV TAPAK_DATA=/data \
     TAPAK_KEY_DIR=/keys \

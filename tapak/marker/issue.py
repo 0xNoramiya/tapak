@@ -14,7 +14,8 @@ semantic and lexical positions come from the retype band (``plan.RETYPE_BAND``).
 selection, plan, manifest and copies are exactly those of a document issued before the
 channel existed.
 
-Copies are rendered in parallel worker processes.
+Copies are rendered in parallel worker processes (:func:`issue_workers`: at most 8, the
+available CPUs and ``TAPAK_WORKERS``), one issuance at a time per process.
 """
 
 from __future__ import annotations
@@ -22,9 +23,9 @@ from __future__ import annotations
 import csv
 import json
 import multiprocessing as mp
-import os
 import re
 import secrets
+import threading
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
@@ -33,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from tapak.config import pool_size
 from tapak.marker.background import (
     BackgroundSettings,
     PageGrid,
@@ -102,7 +104,7 @@ class IssueSettings:
     background: BackgroundSettings = field(default_factory=BackgroundSettings)
     channels: tuple[str, ...] = ("shift", "zw", "homoglyph", "background", "canary", "semantic")
     canary_domain: str | None = None  # the canary channel is used only when a domain is set
-    workers: int | None = None
+    workers: int | None = None        # default: issue_workers (CPUs, at most 8 and TAPAK_WORKERS)
     excluded_rows: tuple[RowId, ...] = ()
 
 
@@ -384,6 +386,10 @@ def marks_for_codeword(
 
 # Worker process state (set by the initializer, one master per process).
 _W: dict[str, object] = {}
+# One issuance renders at a time in this process. The web server issues for several sessions
+# at once (one thread each): copies rendered here share _W, and the pools together would run
+# more worker processes than TAPAK_WORKERS.
+_RENDER_TURN = threading.Lock()
 
 
 def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
@@ -438,6 +444,18 @@ def _main_importable() -> bool:
     return bool(main_file) and Path(main_file).exists()
 
 
+def issue_workers(copies: int, requested: int | None = None) -> int:
+    """Worker processes :func:`issue` starts for ``copies`` copies (1: rendered in this process).
+
+    ``requested`` is ``IssueSettings.workers``; ``config.pool_size`` caps it (and the automatic
+    choice) with ``TAPAK_WORKERS`` and raises ValueError when that is not a positive integer.
+    """
+    workers = pool_size(copies, requested)
+    if not _main_importable():
+        return 1  # interactive session or stdin script: child processes cannot re-import it
+    return workers
+
+
 def _canary_enabled(settings: IssueSettings) -> bool:
     return "canary" in settings.channels and bool(settings.canary_domain)
 
@@ -488,6 +506,7 @@ def issue(
     """
     t0 = time.perf_counter()
     settings = settings or IssueSettings()
+    workers = issue_workers(len(recipients), settings.workers)  # TAPAK_WORKERS checked before any work
     if lexical is not None:
         require_lexical_reviewed(lexical)
         if CHANNEL_LEXICAL not in settings.channels:
@@ -550,27 +569,25 @@ def issue(
         copy_ids.append(copy_id)
         jobs.append((seq, copy_id, str(out_dir / f"{stem}__salinan{seq:03d}_{rec.recipient_id}.pdf")))
 
-    workers = settings.workers or min(len(jobs), os.cpu_count() or 1, 8)
-    if not _main_importable():
-        workers = 1  # interactive session or stdin script: child processes cannot re-import it
     results: dict[int, tuple[str, str, str | None, list[str]]] = {}
-    if workers <= 1:
-        _worker_init(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)
-        for job in jobs:
-            seq, digest, fhash, token, vids = _render_one(job)
-            results[seq] = (digest, fhash, token, vids)
-    else:
-        # forkserver: workers fork from a clean single-threaded server, never from this
-        # (possibly multi-threaded) process; spawn where forkserver is unavailable.
-        if "forkserver" in mp.get_all_start_methods():
-            ctx = mp.get_context("forkserver")
-            ctx.set_forkserver_preload(["tapak.marker.issue"])
-        else:
-            ctx = mp.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx, initializer=_worker_init,
-                                 initargs=(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)) as pool:
-            for seq, digest, fhash, token, vids in pool.map(_render_one, jobs):
+    with _RENDER_TURN:
+        if workers <= 1:
+            _worker_init(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)
+            for job in jobs:
+                seq, digest, fhash, token, vids = _render_one(job)
                 results[seq] = (digest, fhash, token, vids)
+        else:
+            # forkserver: workers fork from a clean single-threaded server, never from this
+            # (possibly multi-threaded) process; spawn where forkserver is unavailable.
+            if "forkserver" in mp.get_all_start_methods():
+                ctx = mp.get_context("forkserver")
+                ctx.set_forkserver_preload(["tapak.marker.issue"])
+            else:
+                ctx = mp.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=workers, mp_context=ctx, initializer=_worker_init,
+                                     initargs=(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)) as pool:
+                for seq, digest, fhash, token, vids in pool.map(_render_one, jobs):
+                    results[seq] = (digest, fhash, token, vids)
 
     channels_used = [c for c in settings.channels if plan.channel(c)]
     if _canary_enabled(settings):

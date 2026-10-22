@@ -16,7 +16,7 @@ BENIH_RISET = 2026
 ONE_THREAD = OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_THREAD_LIMIT=1
 ISSUED_COPIES = "$$(ls -d $(PHOTO_DATA)/data/dokumen/*/salinan | head -1)"
 
-.PHONY: setup samples samples-pindaian test test-fast simulate table photos photos-cetak photos-ponsel photos-layar photos-issued bench bench-check demo web verify docker docker-cek figures clean
+.PHONY: setup samples samples-pindaian test test-fast simulate table photos photos-cetak photos-ponsel photos-layar photos-issued bench bench-check demo web verify docker docker-cek kunci-versi figures clean
 
 setup:            ## create the virtualenv and install TAPAK (needs network once)
 	uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
@@ -81,6 +81,9 @@ docker:           ## build and start app + canary-dns
 
 docker-cek:       ## image end to end on its own tag, project and free ports (8797, 15353); removes only what it made
 	$(PY) scripts/cek_docker.py
+
+kunci-versi:      ## pin the image's Python libraries (requirements.lock) to the versions in .venv; run after the tests pass
+	$(PY) scripts/kunci_versi.py
 
 figures:          ## README figures in docs/img (needs: uv pip install -e ".[figures]")
 	$(PY) docs/figures/fig_alur.py
