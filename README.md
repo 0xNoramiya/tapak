@@ -50,12 +50,12 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/benchmark-dark.svg">
-  <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 0 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
+  <img alt="Uji sintetis: foto layar 39 dari 40 benar; foto kertas cetak dari printer simulasi 0 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 31 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
 Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa dan satu halaman tidak cukup. Dua halaman menyebut salinan yang benar pada 8 dari 8 pasangan, tetapi skornya hanya 1,02 sampai 1,19 kali ambang, dan dengan 100 penerima hanya 5 sampai 8 dari 20 (lihat [batasan](#batasan)).
 
-Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,7 &times; 10<sup>-21</sup>.
+Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,2 &times; 10<sup>-21</sup>. Dengan ISP ponsel simulasi foto yang sama benar 32 dari 32, dan foto salinan di monitor simulasi 31 dari 32.
 
 Uji lainnya:
 
@@ -104,7 +104,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 - Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi satu halaman tidak cukup untuk menyebut nama, dan dua halaman cukup pada 5 sampai 8 dari 20 salinan, tanpa ketahanan kolusi. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
 - Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti". Dalam simulasi, satu pembocor baru dapat disebut dari sekitar 1.300 kata isi, tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan.
 - Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
-- Semua foto dan cetakan uji sintetis, dan kamera ponsel serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
+- Semua foto dan cetakan uji sintetis, dan kamera ponsel, monitor, serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
 
 Kami memilih menjawab "tidak cukup bukti" daripada menebak. Daftar lengkapnya, dengan angka, ada di [keamanan](docs/keamanan.md#batasan).
 

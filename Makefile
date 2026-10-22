@@ -9,8 +9,8 @@ PHOTO_SET_LAYAR ?= samples/photos-layar
 BENCH_JSON ?= docs/results/bench_photos.json
 BENCH_CHECK = out/bench-check
 # Research seed of the benchmark issuance: the code secret and the copy ids are derived from
-# it (tapak issue --benih-riset), so make photos, photos-cetak and bench reproduce
-# docs/results/bench_photos.json byte for byte. The seed is public: research only.
+# it (tapak issue --benih-riset), so make photos, photos-cetak, photos-ponsel, photos-layar and
+# bench reproduce docs/results/bench_photos.json byte for byte. The seed is public: research only.
 BENIH_RISET = 2026
 # Single-threaded math and OCR for the benchmark: results do not depend on thread scheduling.
 ONE_THREAD = OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_THREAD_LIMIT=1
