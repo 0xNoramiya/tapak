@@ -28,7 +28,9 @@ from tapak.marker.raster import (
     boxes_digest,
     change_bounds,
     check_scan_change,
+    decode_scan_image,
     detect_scans,
+    gate_render_dpi,
     group_rows,
     mark_scan_image,
     ocr_text_in,
@@ -184,6 +186,36 @@ def test_zero_mark_copy_is_pixel_identical(scan_one):
     write_scan_image(doc, detect_scans(doc)[0], changed)  # saving renumbered the image object
     assert scan_gate(master, render_copy(master, CopyMarks())) is True
     assert scan_gate(master, doc.tobytes()) is False
+
+
+def test_scan_gate_also_compares_the_rendered_page(scan_one):
+    """Equal samples are not enough: a copy that shows something else over the scan fails."""
+    master = load_master(scan_one)
+    copy = render_copy(master, CopyMarks())
+    assert gate_render_dpi(master.scans[0]) > master.scans[0].dpi / 2
+    doc = pymupdf.open(stream=copy, filetype="pdf")
+    doc[0].draw_rect(pymupdf.Rect(100, 100, 180, 140), color=None, fill=(1, 1, 1))  # 0.6 % of the page
+    covered = doc.tobytes()
+    found = detect_scans(pymupdf.open(stream=covered, filetype="pdf"))[0]
+    with pymupdf.open(stream=covered, filetype="pdf") as d:
+        assert np.array_equal(decode_scan_image(d, found), scan_image(master, 0))  # same samples
+    assert scan_gate(master, copy) is True
+    assert scan_gate(master, covered) is False
+
+
+def test_image_entries_a_copy_cannot_keep_are_refused(scan_one):
+    """A colour-key mask (or optional content) on the page image would be dropped from the
+    copies and change how the page shows: such a scan is refused, not marked."""
+    for key, value, word in (("Mask", "[230 255]", "masker warna"), ("OC", None, "konten opsional")):
+        doc = pymupdf.open(stream=scan_one, filetype="pdf")
+        xref = detect_scans(doc)[0].xref
+        if value is None:
+            value = f"{doc.add_ocg('lapisan')} 0 R"
+        doc.xref_set_key(xref, key, value)
+        master = load_master(doc.tobytes())
+        assert master.scans[0].problem and word in master.scans[0].problem, key
+        with pytest.raises(ValueError, match="halaman 1"):
+            require_markable(master)
 
 
 def test_color_scan_gate_and_marks(scan_one):
@@ -348,6 +380,26 @@ def test_box_drift_refuses_the_scan_shift_channel(scan_issued, monkeypatch):
     edited = IssueManifest.from_json(manifest.to_json())
     edited.scan = dict(edited.scan, pages=[0, 1])
     assert SCAN_SHIFT_SKIPPED in attach_recorded_scans(load_master(master_pdf), edited)
+
+
+def test_tesseract_timeout_skips_the_scan_shift_channel_with_a_note(scan_issued, monkeypatch):
+    import subprocess
+    from collections import OrderedDict
+
+    from tapak.marker import raster
+
+    _, manifest, master_pdf = scan_issued
+    raster.ocr_engine()  # known before Tesseract starts hanging
+    monkeypatch.setattr(raster, "_OCR_CACHE", OrderedDict())
+
+    def hang(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(raster.subprocess, "run", hang)
+    master = load_master(master_pdf)
+    note = attach_recorded_scans(master, manifest)
+    assert note and note.startswith(SCAN_SHIFT_SKIPPED) and "tidak selesai" in note
+    assert master.scan_layout is None
 
 
 def test_scan_record_holds_no_words_or_boxes(scan_issued, sample_pdf):

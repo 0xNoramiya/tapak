@@ -220,8 +220,9 @@ def visual_gate(master: MasterDocument, dpi: int = 100, max_allowed: int = 24,
     in gray levels at ``dpi``: a few anti-aliasing differences are tolerated, a changed
     font or a missing element is not. Scanned pages are held to a stricter, exact rule (the
     raster analogue): the unmarked copy must decode to the master page image itself
-    (``raster.scan_gate``). Their renders are not compared, because a viewer may decode a JPEG
-    master at reduced size while the lossless copy is decoded in full.
+    (``raster.scan_gate``). Their renders are compared there, at more than half the scan
+    resolution, not here: at ``dpi`` a renderer may decode a JPEG master at reduced size while
+    the lossless copy is decoded in full.
     """
     original = render_pages(master.pdf_bytes, dpi)
     copy = render_copy(master, CopyMarks())

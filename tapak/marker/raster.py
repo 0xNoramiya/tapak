@@ -22,9 +22,9 @@ itself, with the same plan, code positions, keys and channel code as a text page
 * copies (:func:`write_scan_pages`): the marked image replaces the master image object as
   lossless Flate, with the same size and placement. Any invisible OCR text of the master is
   removed with all other text, because it would carry the master's words unmarked;
-* gates: an unmarked copy must decode to exactly the master page image (:func:`scan_gate`),
-  and every marked page may differ from the master only around the moved ink and, on paper, by
-  the pattern amplitude (:func:`check_scan_change`).
+* gates: an unmarked copy must decode to exactly the master page image and render like the
+  master page (:func:`scan_gate`), and every marked page may differ from the master only
+  around the moved ink and, on paper, by the pattern amplitude (:func:`check_scan_change`).
 
 The minimum resolution is MIN_SCAN_DPI (200 dpi): see :func:`require_markable`.
 """
@@ -37,6 +37,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import zlib
 from collections import Counter, OrderedDict
 from dataclasses import dataclass, replace
@@ -131,6 +132,18 @@ def _cover(rect: Any, page: pymupdf.Page) -> float:
     return 0.0 if r.is_empty or area <= 0 else (r.width * r.height) / area
 
 
+# Image dictionary entries a copy does not keep (write_scan_image writes a plain image) and
+# that change how the image shows: a colour-key or stencil mask, and optional content.
+_DROPPED_IMAGE_KEYS = (("Mask", "masker warna"), ("SMask", "masker transparansi"), ("OC", "konten opsional"))
+
+
+def _image_dict_problem(doc: pymupdf.Document, xref: int) -> str | None:
+    for key, what in _DROPPED_IMAGE_KEYS:
+        if doc.xref_get_key(xref, key)[0] != "null":
+            return f"gambar halaman pindaian memakai {what} (/{key}); halaman seperti ini belum didukung"
+    return None
+
+
 def _scan_page(page: pymupdf.Page) -> ScanPage | None:
     visible, hidden = _text_chars(page)
     if visible:
@@ -152,6 +165,8 @@ def _scan_page(page: pymupdf.Page) -> ScanPage | None:
         problem = "gambar halaman pindaian memiliki masker transparansi; halaman seperti ini belum didukung"
     elif int(img.get("xref") or 0) <= 0:
         problem = "gambar halaman pindaian tersisip langsung di isi halaman; halaman seperti ini belum didukung"
+    else:
+        problem = _image_dict_problem(page.parent, int(img["xref"]))
     x0, y0, x1, y1 = (float(v) for v in img["bbox"])
     return ScanPage(page.number, int(img.get("xref") or 0), int(img["width"]), int(img["height"]),
                     (x0, y0, x1, y1), hidden > 0, problem)
@@ -246,10 +261,13 @@ def ocr_engine() -> str:
     if exe is None:
         raise OcrUnavailable("Tesseract tidak terpasang; halaman pindaian memerlukan tesseract-ocr dan "
                              "tesseract-ocr-ind")
-    out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=60)
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=60)
+        langs = subprocess.run([exe, "--list-langs"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise OcrUnavailable(f"Tesseract tidak dapat dijalankan ({type(exc).__name__})") from exc
     first = ((out.stdout or "") + (out.stderr or "")).strip().splitlines()
     version = first[0].strip() if first else "tesseract"
-    langs = subprocess.run([exe, "--list-langs"], capture_output=True, text=True, timeout=60)
     text = (langs.stdout or "") + (langs.stderr or "")
     if OCR_LANG not in text.split():
         raise OcrUnavailable(f"data bahasa Tesseract '{OCR_LANG}' tidak terpasang (paket tesseract-ocr-ind)")
@@ -264,6 +282,7 @@ def ocr_engine() -> str:
 
 _OCR_CACHE: "OrderedDict[str, list[tuple[int, int, int, int, int, int, int, int]]]" = OrderedDict()
 _OCR_CACHE_SIZE = 16
+_OCR_LOCK = threading.Lock()  # the web service traces in a thread pool
 
 
 def ocr_words(gray: np.ndarray, dpi: float) -> list[tuple[int, int, int, int, int, int, int, int]]:
@@ -279,23 +298,28 @@ def ocr_words(gray: np.ndarray, dpi: float) -> list[tuple[int, int, int, int, in
     engine = ocr_engine()
     img8 = np.ascontiguousarray(gray, dtype=np.uint8)
     key = hashlib.sha256(img8.tobytes() + repr((img8.shape, int(round(dpi)), engine)).encode()).hexdigest()
-    hit = _OCR_CACHE.get(key)
-    if hit is not None:
-        _OCR_CACHE.move_to_end(key)
-        return list(hit)
+    with _OCR_LOCK:
+        hit = _OCR_CACHE.get(key)
+        if hit is not None:
+            _OCR_CACHE.move_to_end(key)
+            return list(hit)
     ok, png = cv2.imencode(".png", img8, [cv2.IMWRITE_PNG_COMPRESSION, 1])
     if not ok:
         raise RuntimeError("pengodean gambar untuk Tesseract gagal")
     env = dict(os.environ, OMP_THREAD_LIMIT="1")
     cmd = [shutil.which("tesseract") or "tesseract", "stdin", "stdout", "-l", OCR_LANG, *OCR_ARGS,
            "--dpi", str(int(round(dpi))), "tsv"]
-    run = subprocess.run(cmd, input=png.tobytes(), capture_output=True, env=env, timeout=OCR_TIMEOUT_S)
+    try:
+        run = subprocess.run(cmd, input=png.tobytes(), capture_output=True, env=env, timeout=OCR_TIMEOUT_S)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"Tesseract tidak selesai membaca halaman pindaian dalam {OCR_TIMEOUT_S} detik") from exc
     if run.returncode != 0:
         raise RuntimeError("Tesseract gagal membaca halaman pindaian")
     words = parse_tsv(run.stdout.decode("utf-8", errors="replace"))
-    _OCR_CACHE[key] = words
-    while len(_OCR_CACHE) > _OCR_CACHE_SIZE:
-        _OCR_CACHE.popitem(last=False)
+    with _OCR_LOCK:
+        _OCR_CACHE[key] = words
+        while len(_OCR_CACHE) > _OCR_CACHE_SIZE:
+            _OCR_CACHE.popitem(last=False)
     return list(words)
 
 
@@ -618,9 +642,29 @@ def write_scan_pages(doc: pymupdf.Document, master: "MasterDocument", group_dx: 
     return out
 
 
+GATE_RENDER_FACTOR = 0.6
+GATE_MAX_DIFF = 24        # the text-page visual gate's limits, in gray levels
+GATE_MEAN_DIFF = 0.05
+
+
+def gate_render_dpi(scan: ScanPage) -> int:
+    """Resolution at which :func:`scan_gate` compares the rendered pages: above half the scan
+    resolution, so the renderer decodes a JPEG master in full rather than at reduced size."""
+    return max(72, int(np.ceil(GATE_RENDER_FACTOR * scan.dpi)))
+
+
 def scan_gate(master: "MasterDocument", copy_pdf: bytes) -> bool:
     """True when every scanned page of an unmarked copy holds exactly the master page image
-    (same samples, same size, same placement)."""
+    (same samples, same size, same placement) and also renders like the master page.
+
+    The samples alone do not show everything: an image dictionary entry the copy does not
+    keep (a colour-key mask, say) or other content on the page could change what a reader sees
+    while the samples stay equal. So each scanned page of both files is also rendered at
+    :func:`gate_render_dpi` and held to the text-page visual gate's limits (in practice the two
+    renders are identical).
+    """
+    from tapak.marker.render import render_pages
+
     with pymupdf.open(stream=copy_pdf, filetype="pdf") as doc:
         if len(doc) != len(master.layout.pages):
             return False
@@ -632,6 +676,14 @@ def scan_gate(master: "MasterDocument", copy_pdf: bytes) -> bool:
                 return False
             if not np.array_equal(decode_scan_image(doc, found), scan_image(master, k)):
                 return False
+    for k, scan in master.scans.items():
+        dpi = gate_render_dpi(scan)
+        a, b = render_pages(master.pdf_bytes, dpi, [k])[0], render_pages(copy_pdf, dpi, [k])[0]
+        if a.shape != b.shape:
+            return False
+        d = np.abs(a.astype(np.int16) - b.astype(np.int16))
+        if int(d.max()) > GATE_MAX_DIFF or float(d.mean()) > GATE_MEAN_DIFF:
+            return False
     return True
 
 

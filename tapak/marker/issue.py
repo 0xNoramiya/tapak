@@ -507,7 +507,7 @@ def issue(
     if not gate.passed:
         if gate.scan_identical is False:
             raise RuntimeError("gerbang visual gagal: salinan tanpa tanda dari halaman pindaian tidak identik piksel "
-                               "demi piksel dengan gambar halaman dokumen induk")
+                               "demi piksel dengan gambar halaman dokumen induk, atau tampilan halamannya berbeda")
         raise RuntimeError(
             "gerbang visual gagal: render ulang tanpa tanda berbeda dari dokumen asli "
             f"(selisih maks {gate.max_diff}, rata-rata {gate.mean_diff:.3f})"
