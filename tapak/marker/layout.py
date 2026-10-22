@@ -231,12 +231,12 @@ def _rows_from_glyphs(glyphs: list[Glyph], page_index: int) -> list[Row]:
         words = [Word(id=(page_index, r_idx, i), glyphs=gs) for i, gs in enumerate(words_glyphs)]
         baseline = sum(g.y for g in cluster) / len(cluster)
         row = Row(page=page_index, index=r_idx, baseline=baseline, words=words)
-        row.groups = _make_groups(row)
+        row.groups = make_groups(row)
         rows.append(row)
     return rows
 
 
-def _make_groups(row: Row) -> list[Group]:
+def make_groups(row: Row) -> list[Group]:
     """Merge consecutive words until each group is at least MIN_GROUP_WIDTH wide."""
     groups: list[list[int]] = []
     for i, w in enumerate(row.words):

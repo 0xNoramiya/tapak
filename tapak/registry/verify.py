@@ -22,7 +22,9 @@ checks:
    and its number continues that document's count (1, 2, 3, ...): a duplicate or skipped
    number means the trace log was not written by TAPAK;
 10. a ``document`` entry with lexical fields (word-choice channel) has all of them, with
-    valid digests, a known position rule and position lists only.
+    valid digests, a known position rule and position lists only;
+11. a ``document`` entry with scanned pages (field ``scan``) holds page numbers, resolutions,
+    an OCR engine description and a digest only.
 
 What a hash chain cannot show by itself is entries deleted from the *end*: a shorter
 chain is still a valid chain. That needs a value kept outside the file: a recorded
@@ -53,9 +55,11 @@ from tapak.registry.chain import (
     KIND_LABELS,
     KIND_TRACE,
     LEXICAL_DOCUMENT_FIELDS,
+    SCAN_DOCUMENT_FIELD,
     ZERO_HASH,
     entry_content_problems,
     lexical_document_problems,
+    scan_document_problems,
     parse_time,
     trace_payload_problems,
     trigger_problems,
@@ -313,6 +317,9 @@ def verify_registry(
                 doc_eps.setdefault(payload["doc_hash"], _document_eps(payload))
             if isinstance(payload, dict) and set(payload) & LEXICAL_DOCUMENT_FIELDS:
                 problems.extend((seq, f"entri dokumen: {text}") for text in lexical_document_problems(payload))
+            if isinstance(payload, dict) and SCAN_DOCUMENT_FIELD in payload:
+                problems.extend((seq, f"entri dokumen: {text}")
+                                for text in scan_document_problems(payload[SCAN_DOCUMENT_FIELD]))
         elif kind == KIND_TRACE and isinstance(seq, int):
             _check_trace(row, doc_eps, report.traces, problems)
         report.entries += 1

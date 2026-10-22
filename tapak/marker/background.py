@@ -35,6 +35,24 @@ from tapak.marker.plan import CHANNEL_BACKGROUND, EmbeddingPlan, Slot, assign_po
 from tapak.tardos.code import uniform_stream
 
 PT_PER_MM = 72.0 / 25.4
+WHITE_INK_LEVEL = 235.0  # ink threshold on white paper (a rendered text PDF)
+INK_MARGIN = 20.0        # on darker paper (a scan), ink is anything this far below the paper level
+
+
+def paper_threshold(gray: np.ndarray) -> float:
+    """Gray level below which a pixel counts as ink rather than paper.
+
+    The paper level is the median of the page (most of a text page is paper): 255 on a
+    rendered text PDF, which gives exactly WHITE_INK_LEVEL, and lower on a scan with a paper
+    tone. The marker puts the pattern only on pixels at or above this level and the decoder
+    masks the pixels below it, so both sides agree on what paper is. The median is taken on a
+    regular subsample (every 4th pixel per axis), so it is fast and deterministic.
+    """
+    g = np.asarray(gray)
+    if g.ndim == 3:
+        g = g.mean(axis=2)
+    level = float(np.median(g[::4, ::4])) if g.size else 255.0
+    return min(WHITE_INK_LEVEL, level - INK_MARGIN)
 
 
 @dataclass(frozen=True)
@@ -197,6 +215,7 @@ __all__ = [
     "cell_levels",
     "expected_page_image",
     "page_grids",
+    "paper_threshold",
     "pattern_image",
     "png_bytes",
 ]

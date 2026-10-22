@@ -75,14 +75,18 @@ def data_groups(row: Row) -> list[int]:
 
 
 def shift_slot_refs(
-    layout: DocumentLayout, excluded: set[RowId]
+    layout: DocumentLayout, excluded: set[RowId], late_pages: frozenset[int] | set[int] = frozenset()
 ) -> list[tuple[int, tuple[int, ...], int]]:
     """(page, ref, n_bits) for every data unit, in reading order.
 
-    Word slots have ref (row, group); row slots have ref (row,). One bit each.
+    Word slots have ref (row, group); row slots have ref (row,). One bit each. Pages in
+    ``late_pages`` (scanned pages, whose rows come from OCR word boxes) follow all other
+    pages, so the code positions of text pages never depend on the boxes; without them the
+    order is the original reading order.
     """
     refs: list[tuple[int, tuple[int, ...], int]] = []
-    for page in layout.pages:
+    order = [p for p in layout.pages if p.index not in late_pages] + [p for p in layout.pages if p.index in late_pages]
+    for page in order:
         rows = eligible_rows(layout, page.index, excluded)
         for row in rows:
             for g in data_groups(row):
@@ -93,10 +97,11 @@ def shift_slot_refs(
 
 
 def build_shift_slots(
-    layout: DocumentLayout, m: int, key: bytes, excluded: set[RowId] | None = None
+    layout: DocumentLayout, m: int, key: bytes, excluded: set[RowId] | None = None,
+    late_pages: frozenset[int] | set[int] = frozenset(),
 ) -> list[Slot]:
-    """Slots of channel 1 with their code positions."""
-    return assign_positions(CHANNEL_SHIFT, shift_slot_refs(layout, excluded or set()), m, key)
+    """Slots of channel 1 with their code positions (``late_pages``: see shift_slot_refs)."""
+    return assign_positions(CHANNEL_SHIFT, shift_slot_refs(layout, excluded or set(), late_pages), m, key)
 
 
 def carried_sign(bit: int, whiten: int) -> int:

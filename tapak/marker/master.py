@@ -22,6 +22,7 @@ from fontTools.ttLib import TTFont
 
 from tapak.fonts import BUNDLED, font_path
 from tapak.marker.layout import DocumentLayout, extract_layout, font_key
+from tapak.marker.raster import ScanPage, detect_scans
 
 # Latin letter -> Cyrillic look-alike (lowercase only are used for embedding).
 HOMOGLYPHS: dict[str, str] = {
@@ -87,17 +88,33 @@ class ResolvedFont:
 
 @dataclass
 class MasterDocument:
-    """Master PDF plus derived layout and fonts."""
+    """Master PDF plus derived layout and fonts.
+
+    ``layout`` is the text layer that copies redraw; a scanned page (``scans``, see
+    ``raster.py``) has no rows there, so an invisible OCR layer is never redrawn or marked as
+    text. ``scan_layout`` adds the word boxes found on scanned pages, once attached
+    (``raster.attach_scan_layout``); ``shift_layout`` is what the shift channel plans and
+    decodes on.
+    """
 
     pdf_bytes: bytes
     layout: DocumentLayout
     fonts: dict[str, ResolvedFont] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    scans: dict[int, ScanPage] = field(default_factory=dict)
+    scan_layout: DocumentLayout | None = None
+    scan_images: dict[int, object] = field(default_factory=dict, repr=False)
 
     @property
     def doc_hash(self) -> str:
         """SHA-256 of the master PDF bytes."""
         return self.layout.doc_hash
+
+    @property
+    def shift_layout(self) -> DocumentLayout:
+        """Rows of the shift channel: the text layer plus, when attached, the word boxes of
+        scanned pages (the text layer itself for a document without scanned pages)."""
+        return self.scan_layout if self.scan_layout is not None else self.layout
 
 
 def _embedded_programs(doc: pymupdf.Document) -> dict[str, bytes]:
@@ -117,15 +134,22 @@ def _embedded_programs(doc: pymupdf.Document) -> dict[str, bytes]:
 
 
 def load_master(pdf_bytes: bytes) -> MasterDocument:
-    """Parse a master PDF and resolve a drawable font for every font it uses."""
+    """Parse a master PDF and resolve a drawable font for every font it uses.
+
+    Scanned pages are detected here (``raster.detect_scans``) and keep no text rows: their
+    marks are made in the page image, and any invisible OCR text on them is left out.
+    """
     layout = extract_layout(pdf_bytes)
-    master = MasterDocument(pdf_bytes=pdf_bytes, layout=layout)
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        embedded = _embedded_programs(doc)
+        scans = detect_scans(doc)
+    for k in scans:
+        layout.pages[k].rows = []
+    master = MasterDocument(pdf_bytes=pdf_bytes, layout=layout, scans=scans)
     chars_by_font: dict[str, set[str]] = {}
     for w in layout.words():
         for g in w.glyphs:
             chars_by_font.setdefault(g.font, set()).add(g.char)
-    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
-        embedded = _embedded_programs(doc)
     for key, chars in chars_by_font.items():
         bundled_name = _BUNDLED_KEYS.get(key) or _ALIASES.get(key)
         if bundled_name:

@@ -3,13 +3,16 @@ PY ?= .venv/bin/python
 TAPAK ?= .venv/bin/tapak
 PHOTO_DATA ?= out/photos
 
-.PHONY: setup samples test test-fast simulate table photos bench demo web verify docker figures clean
+.PHONY: setup samples samples-pindaian test test-fast simulate table photos bench demo web verify docker figures clean
 
 setup:            ## create the virtualenv and install TAPAK (needs network once)
 	uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
 
 samples:          ## regenerate the synthetic sample documents and recipient list
 	$(PY) -m tapak.samplegen
+
+samples-pindaian: ## fictional scanned variants of nota_dinas.pdf in samples/generated (not committed)
+	$(PY) -m tapak.samplegen --pindaian
 
 test:             ## full test suite (no GPU, no LLM model, no network)
 	$(PY) -m pytest -q

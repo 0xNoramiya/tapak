@@ -1,0 +1,46 @@
+{
+  "n": 20,
+  "c": 3,
+  "eps": 1e-06,
+  "secret": "sha256('TAPAK-riset-pindaian-v1')",
+  "copy_id_seed": 20261022,
+  "scan": {
+    "dpi": 300,
+    "seed": 2026
+  },
+  "screenshot_seed": 31,
+  "photo_seed": 32,
+  "print_seed": 33,
+  "coalition_seed": 34,
+  "photo_angles": [
+    0,
+    10,
+    20,
+    30
+  ],
+  "print_copies": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "print_angle": 15,
+  "coalitions": 5,
+  "composite_dpi": 150,
+  "composite_jpeg": [
+    75,
+    65
+  ],
+  "resolution_dpis": [
+    150,
+    200,
+    300
+  ],
+  "resolution_copies": 6,
+  "resolution_angle": 15,
+  "resolution_seed": 35,
+  "render_dpi": 200,
+  "spending": "tidak dicatat (seluruh eps), seperti make bench"
+}

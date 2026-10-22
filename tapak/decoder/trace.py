@@ -120,6 +120,39 @@ def _usable_lexical(lexical: LexicalSelection | None, manifest: IssueManifest, d
     return lexical
 
 
+SCAN_SHIFT_SKIPPED = "kanal geser halaman pindaian dilewati"
+
+
+def attach_recorded_scans(master: MasterDocument, manifest: IssueManifest) -> str | None:
+    """Give the scanned pages of the master their word boxes, as at issuance.
+
+    The decoder needs the same rows the issuer planned on. They are found again with the same
+    deterministic Tesseract call on the master page images and accepted only when their digest
+    equals the one recorded at issuance (``manifest.scan``). Otherwise (another Tesseract
+    version, missing language data, a different page set) the shift channel of the scanned
+    pages is left out and a note says why: TAPAK does not guess where the words were. The
+    background pattern does not depend on the boxes and is still read. Returns that note, or
+    None when the boxes are attached or the document has no scanned pages.
+    """
+    record = manifest.scan
+    if not record:
+        return None
+    from tapak.marker.raster import OcrUnavailable, attach_scan_layout, boxes_digest, ocr_engine, scan_boxes
+
+    if sorted(master.scans) != sorted(int(k) for k in record.get("pages", [])):  # type: ignore[union-attr]
+        return f"{SCAN_SHIFT_SKIPPED}: halaman pindaian dokumen induk tidak sama dengan catatan penerbitan"
+    try:
+        boxes = scan_boxes(master)
+    except (OcrUnavailable, RuntimeError, OSError) as exc:
+        return f"{SCAN_SHIFT_SKIPPED}: kotak kata tidak dapat dibaca ulang ({exc})"
+    if boxes_digest(master, boxes) != record.get("boxes_sha256"):
+        return (f"{SCAN_SHIFT_SKIPPED}: kotak kata hasil Tesseract berbeda dari saat penerbitan (sekarang "
+                f"{ocr_engine()}, saat penerbitan {record.get('ocr_engine')}); TAPAK tidak menebak letak kata, "
+                "pola latar tetap dibaca")
+    attach_scan_layout(master, boxes)
+    return None
+
+
 def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
                  semantic: SemanticSelection | None = None, folder: Path | None = None,
                  lexical: LexicalSelection | None = None) -> TraceContext:
@@ -130,7 +163,8 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
     manifest. Without them the semantic channel is skipped (with a warning). The lexical
     channel likewise needs ``lexical`` or ``folder/leksikal.json`` with the recorded digest;
     on a mismatch it is skipped with a warning, and every other channel is still read with
-    the exclusions recorded in the manifest.
+    the exclusions recorded in the manifest. Scanned pages get their word boxes back through
+    :func:`attach_recorded_scans` (a warning, and no shift channel there, when they drifted).
     """
     try:
         master = load_master(master_pdf)
@@ -142,6 +176,9 @@ def load_context(master_pdf: bytes, manifest: IssueManifest, secret: bytes,
     excluded = {tuple(r) for r in manifest.excluded_rows}
     background = manifest.background_settings
     warnings: list[str] = []
+    scan_note = attach_recorded_scans(master, manifest)
+    if scan_note:
+        warnings.append(scan_note)
     if semantic is None:
         semantic = load_semantic(folder)
     if manifest.semantic_digest:
@@ -332,8 +369,9 @@ def collect_rasterized_pages(pdf_bytes: bytes, ctx: TraceContext, name: str,
             continue
         misses = 0
         obs += found
+        kind = "halaman pindaian, " if reg["page"] in ctx.master.scans else ""
         notes.append(f"{name} halaman {page.index + 1}: dibaca sebagai gambar ({why}), dipetakan ke halaman "
-                     f"{reg['page'] + 1} (korelasi {_num(reg['correlation'], 3)})")
+                     f"{reg['page'] + 1} ({kind}korelasi {_num(reg['correlation'], 3)})")
     return obs, notes
 
 

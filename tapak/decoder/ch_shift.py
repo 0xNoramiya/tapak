@@ -94,9 +94,10 @@ def signed_measurements(
 ) -> tuple[list[int], list[float], list[str]]:
     """(positions, s values, unit kind) for every readable shift slot.
 
-    s is the relative offset multiplied by the whitening sign, so s > 0 means bit 1.
+    s is the relative offset multiplied by the whitening sign, so s > 0 means bit 1. Rows are
+    those of ``master.shift_layout``: the text layer, plus the word boxes of scanned pages.
     """
-    layout = master.layout
+    layout = master.shift_layout
     excluded = excluded or set()
     eligible = {p.index: eligible_rows(layout, p.index, excluded) for p in layout.pages}
     row_rank = {(p, r.index): k for p, rows in eligible.items() for k, r in enumerate(rows)}
@@ -368,14 +369,15 @@ def measure_image(
     For each group the template is the master render around the group's box and the search
     window is the same box in the evidence, enlarged by ``search_px``; see
     :func:`match_offset`. Matches with a weak correlation peak are discarded. All words of a
-    group get the group's displacement (in points).
+    group get the group's displacement (in points). On a scanned page the groups come from its
+    word boxes (``master.shift_layout``) and the template is the master page image itself.
     """
     s = dpi / 72.0
     disp: Displacements = {}
     h, w = rectified.shape
     tmpl_all = cv2.GaussianBlur(master_render.astype(np.float32), (0, 0), 0.7)
     img_all = cv2.GaussianBlur(rectified.astype(np.float32), (0, 0), 0.7)
-    for row in master.layout.pages[page].rows:
+    for row in master.shift_layout.pages[page].rows:
         for g in row.groups:
             x0, y0, x1, y1 = g.bbox
             X0, Y0 = int(np.floor(x0 * s)) - pad_px, int(np.floor(y0 * s)) - pad_px

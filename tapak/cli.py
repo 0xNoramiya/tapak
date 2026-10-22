@@ -147,8 +147,22 @@ def _cmd_issue(args: argparse.Namespace) -> int:
     if is_docx:
         print("Gerbang visual: tidak berlaku untuk DOCX (Word yang menata ulang dokumen)")
     else:
-        print(f"Gerbang visual: {'lulus' if m.gate.get('passed') else 'GAGAL'} (selisih maks {m.gate.get('max_diff')})")
+        from tapak.marker.raster import plan_lines
+
+        for line in plan_lines(m.scan, _page_count(out.folder / "induk.pdf")):
+            print(line)
+        scan_gate = ""
+        if m.gate.get("scan_identical") is not None:
+            scan_gate = ("; salinan tanpa tanda dari halaman pindaian identik piksel demi piksel dengan dokumen induk"
+                         if m.gate["scan_identical"] else "; halaman pindaian TIDAK identik")
+        print(f"Gerbang visual: {'lulus' if m.gate.get('passed') else 'GAGAL'} (selisih maks {m.gate.get('max_diff')})"
+              + scan_gate)
     print(f"{len(m.copies)} salinan ditulis ke {out.folder / 'salinan'} dalam {m.elapsed_s:.2f} s")
+    if m.scan:
+        sizes = [(out.folder / "salinan" / c.file).stat().st_size / 1e6 for c in m.copies]
+        master_mb = (out.folder / "induk.pdf").stat().st_size / 1e6
+        print(f"Ukuran salinan: rata-rata {_mb(sum(sizes) / len(sizes))} MB, terbesar {_mb(max(sizes))} MB (dokumen "
+              f"induk {_mb(master_mb)} MB); gambar halaman pindaian disimpan tanpa kompresi lossy")
     if not args.no_registry:
         state = ("ditandatangani" if out.signed else
                  "BELUM ditandatangani (kunci tanda tangan tidak ada di sini; pemegang kunci menjalankan: "
@@ -164,6 +178,17 @@ def _cmd_issue(args: argparse.Namespace) -> int:
             shutil.copy2(out.folder / "salinan" / c.file, Path(args.out) / c.file)
         print(f"Salinan juga disalin ke {args.out}")
     return 0
+
+
+def _page_count(pdf: Path) -> int:
+    import pymupdf
+
+    with pymupdf.open(pdf) as doc:
+        return doc.page_count
+
+
+def _mb(value: float) -> str:
+    return f"{value:.1f}".replace(".", ",")
 
 
 # --- semantic --------------------------------------------------------------------------------
