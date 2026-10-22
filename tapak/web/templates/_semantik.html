@@ -8,7 +8,7 @@
 {# The progress header and the plan tile sit outside #semantik; they follow the review state. #}
 {% set cur = 3 if (st.units and (not st.sets or pending.n)) or lex_pending else 4 %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan" hx-swap-oob="true">
-  {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
+  {% for label in langkah_terbit %}
   <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
   {% endfor %}
 </ol>

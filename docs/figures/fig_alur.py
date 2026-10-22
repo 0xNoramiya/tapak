@@ -2,7 +2,8 @@
 
 Every picture and number comes from a real run of ``tapak demo`` into
 ``out/figures-work/alur/demo``: the sample nota dinas, the issued copies, the synthetic
-phone photo of copy #13, the trace verdict and the berita acara PDF. The demo draws a fresh
+phone photo of copy #13, the trace verdict (the photo traced again in a copy of the demo's
+data, ``out/figures-work/alur/lacak``) and the berita acara PDF. The demo draws a fresh
 code secret and random copy ids on each run; both are seeded here so the codewords, and so
 every number in the figure, come out the same each time (only the dates printed inside the
 berita acara thumbnail change).
@@ -81,7 +82,15 @@ def run_scenario() -> dict:
     if status != 0:
         raise SystemExit(f"tapak demo gagal; lihat {WORK / 'demo.log'}")
 
-    settings = Settings(data_dir=DEMO / "data", key_dir=DEMO / "keys")
+    # The figure's trace runs on a copy of the demo's data: every logged trace spends a smaller
+    # share of eps, so the demo folder keeps only the demo's own trace and shoot_ui.py, which
+    # traces the same photo in another copy, logs the same trace number and shows the same
+    # threshold and bound as this figure.
+    traced = WORK / "lacak"
+    if traced.exists():
+        shutil.rmtree(traced)
+    shutil.copytree(DEMO / "data", traced / "data")
+    settings = Settings(data_dir=traced / "data", key_dir=DEMO / "keys")
     doc_hash = list_workspaces(settings)[0].doc_hash
     manifest, _, folder = load_workspace(settings, doc_hash)
     photo = (DEMO / "foto_bocor.jpg").read_bytes()

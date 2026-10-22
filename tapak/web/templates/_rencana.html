@@ -4,7 +4,7 @@
 {% set lex_pending = st.lexical.pending()|length if st.lexical is not none else 0 %}
 {% set cur = 3 if (st.units and (not st.sets or rv.pending)) or lex_pending else 4 %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
-  {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
+  {% for label in langkah_terbit %}
   <li class="stepper-item{% if loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
   {% endfor %}
 </ol>
@@ -33,17 +33,22 @@
           <caption class="sr-only">Kapasitas kanal penandaan</caption>
           <thead><tr><th scope="col">Kanal</th><th scope="col" class="num hide-sm">Slot</th><th scope="col" class="cov-head">Cakupan kode</th></tr></thead>
           <tbody>
-            {% set survives = {"shift": "cetak, foto, tangkapan layar", "background": "layar, tangkapan layar, foto layar",
+            {% set cetak = st.latar == "cetak" %}
+            {% set survives = {"shift": "cetak, foto, tangkapan layar",
+                               "background": ("cetak dalam uji printer simulasi, " if cetak else "") ~ "layar, tangkapan layar, foto layar",
                                "zw": "salin-tempel, berkas diteruskan", "homoglyph": "salin-tempel, teks dinormalkan sebagian"} %}
             {% set order = ["shift", "background", "zw", "homoglyph"] %}
             {% set length = st.plan.params.length or 1 %}
             {% for ch in order|select("in", st.plan.summary)|list + st.plan.summary.keys()|reject("in", order)|list %}
             {% set info = st.plan.summary[ch] %}
-            <tr>
-              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}</span>{% endif %}</th>
+            <tr{% if ch == "background" and cetak %} class="has-note"{% endif %}>
+              <th scope="row"><span class="ch-name">{{ channel_name(ch) }}{% if ch == "background" %} <span class="ch-profil">profil {{ st.latar }}</span>{% endif %}</span>{% if survives.get(ch) %}<span class="ch-note">Bertahan: {{ survives[ch] }}</span>{% endif %}</th>
               <td class="num hide-sm">{{ info.slots|num }}</td>
               <td><span class="cov"><span class="bar" style="--value: {{ [info.positions / length, 1]|min|round(3) }}"></span><span class="cov-num">{{ info.positions|num }}</span></span></td>
             </tr>
+            {% if ch == "background" and cetak %}
+            <tr class="ch-peringatan"><td colspan="3"><p class="notice notice-warn" id="latar-peringatan">{{ peringatan_cetak }}</p></td></tr>
+            {% endif %}
             {% endfor %}
             {% if st.settings.canary_domain %}
             <tr>
@@ -55,6 +60,7 @@
           </tbody>
         </table>
       </div>
+      {% if cetak and "background" not in st.plan.summary %}<p class="notice notice-warn" id="latar-peringatan">{{ peringatan_cetak }}</p>{% endif %}
       <p class="hint">Bilah menunjukkan bagian dari {{ st.plan.params.length|num }} posisi kode yang dibawa kanal itu. Bilah penuh berarti kanal itu sendiri dapat membawa seluruh kode.</p>
     </div>
   </div>

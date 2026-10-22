@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -134,14 +134,23 @@ def issue_document(
     semantic: "SemanticSelection | None" = None,
     doc_name: str | None = None,
     lexical: LexicalSelection | None = None,
+    latar: str | None = None,
 ) -> IssueOutcome:
     """Issue copies of a PDF or DOCX into a new workspace and record them in the registry.
 
     ``doc_name`` is the original file name when ``doc_path`` is a temporary upload. A
     ``lexical`` selection (reviewed word-choice points) opts a PDF into the lexical channel;
-    it is stored as ``leksikal.json`` next to the master, never in the registry.
+    it is stored as ``leksikal.json`` next to the master, never in the registry. ``latar``
+    picks the background profile by name ("layar", the default pattern, or "cetak", which
+    survives printing but makes the page light gray); None keeps
+    ``issue_settings.background``. With the print profile the outcome carries
+    ``PRINT_BACKGROUND_WARNING``.
     """
+    from tapak.marker.background import PRINT_BACKGROUND, PRINT_BACKGROUND_WARNING, background_profile
     from tapak.registry.chain import Registry, registry_from_manifest
+
+    if latar is not None:
+        issue_settings = replace(issue_settings, background=background_profile(latar))
 
     # Never create a signing key implicitly: without it rows are recorded unsigned and the
     # key holder (a higher echelon) signs them later with `tapak registry sign`.
@@ -197,6 +206,8 @@ def issue_document(
     finally:
         lock.close()
     outcome = IssueOutcome(manifest, folder, entries, keys.signer is not None)
+    if manifest.background_settings == PRINT_BACKGROUND:
+        outcome.warnings.append(PRINT_BACKGROUND_WARNING)
     if any(c.canary_token for c in manifest.copies):
         try:
             publish_canary_allowlist(settings)

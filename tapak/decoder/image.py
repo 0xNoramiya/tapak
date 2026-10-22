@@ -1,4 +1,12 @@
-"""Decode a photo or screenshot of a copy: registration, then channels 1 and 2."""
+"""Decode a photo or screenshot of a copy: registration, then channels 1 and 2.
+
+Registration and the background decoder use the supersampled master render
+(``render_page``); the shift decoder matches word groups against the exact master template
+(``render_page_exact``), which has no glyph snapping, so the template itself adds no per-group
+offset of its own (10 to 30 um with the supersampled render). Only the text rows the shift
+decoder reads are rendered exactly (``template_boxes``), which gives the same displacements
+for about half to two thirds of the cost of a whole page.
+"""
 
 from __future__ import annotations
 
@@ -7,8 +15,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from tapak.decoder.ch_background import decode_background
-from tapak.decoder.ch_shift import decode_displacements, measure_image
-from tapak.decoder.rectify import load_gray, register, render_page
+from tapak.decoder.ch_shift import decode_displacements, measure_image, template_boxes
+from tapak.decoder.rectify import load_gray, register, render_page, render_page_exact
 from tapak.decoder.softbits import SoftBits
 from tapak.marker.background import page_grids
 from tapak.marker.plan import CHANNEL_BACKGROUND, CHANNEL_SHIFT
@@ -35,7 +43,10 @@ def collect_from_gray(gray: np.ndarray, ctx: "TraceContext") -> list[SoftBits]:
                 "method": reg.method, "effective_dpi": round(reg.effective_dpi, 1)}
     out: list[SoftBits] = []
     if ctx.plan.channel(CHANNEL_SHIFT):
-        disp = measure_image(reg.rectified, reg.valid, master_render, ctx.master, reg.page, reg.dpi)
+        template = render_page_exact(ctx.master.pdf_bytes, reg.page, reg.dpi,
+                                     boxes=template_boxes(ctx.master, reg.page, reg.dpi))
+        disp = measure_image(reg.rectified, reg.valid, template, ctx.master, reg.page, reg.dpi)
+        del template
         sb = decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded)
         sb.meta.update(reg_meta)
         out.append(sb)

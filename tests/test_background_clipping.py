@@ -17,9 +17,9 @@ import pytest
 
 from tapak.decoder import ch_background as bg
 from tapak.decoder.accuse import VERDICT_IDENTIFIED, VERDICT_INSUFFICIENT
-from tapak.decoder.ch_shift import decode_displacements, measure_image
+from tapak.decoder.ch_shift import decode_displacements, measure_image, template_boxes
 from tapak.decoder.image import collect_from_image
-from tapak.decoder.rectify import load_gray, register, render_page
+from tapak.decoder.rectify import load_gray, register, render_page, render_page_exact
 from tapak.decoder.softbits import SoftBits
 from tapak.decoder.trace import TraceContext, load_context, run_trace
 from tapak.marker.background import BackgroundSettings, PageGrid, page_grids
@@ -73,12 +73,17 @@ def _background(obs: list[SoftBits]) -> SoftBits:
 
 
 def _old_and_new(data: bytes, ctx) -> tuple[list[SoftBits], list[SoftBits]]:
-    """Shift bits plus the background decoded without (old) and with (new) the bias vector."""
+    """Shift bits plus the background decoded without (old) and with (new) the bias vector.
+
+    As in collect_from_gray, the shift decoder matches against the exact master template and
+    the background decoder uses the supersampled master render."""
     sizes = [(p.width, p.height) for p in ctx.master.layout.pages]
     reg = register(load_gray(data), ctx.master.pdf_bytes, sizes)
     assert reg is not None
     master = render_page(ctx.master.pdf_bytes, reg.page, reg.dpi)
-    disp = measure_image(reg.rectified, reg.valid, master, ctx.master, reg.page, reg.dpi)
+    template = render_page_exact(ctx.master.pdf_bytes, reg.page, reg.dpi,
+                                 boxes=template_boxes(ctx.master, reg.page, reg.dpi))
+    disp = measure_image(reg.rectified, reg.valid, template, ctx.master, reg.page, reg.dpi)
     shift = decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded)
     grid = page_grids(sizes, ctx.key, ctx.background)[reg.page]
     slots = ctx.plan.channel(CHANNEL_BACKGROUND)

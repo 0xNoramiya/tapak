@@ -39,6 +39,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from tapak.config import Settings, load_settings
 from tapak.decoder.accuse import VERDICT_IDENTIFIED
 from tapak.decoder.report import format_datetime, format_number, format_probability_html, software_version
+from tapak.marker.background import PRINT_BACKGROUND_WARNING, background_profile
 from tapak.marker.issue import IssueSettings, Recipient, SemanticSelection, read_recipients
 from tapak.marker.lexical import LexicalSelection, LexPoint
 from tapak.marker.master import MasterDocument
@@ -52,6 +53,8 @@ CHANNEL_NAMES = {
     "geser": "Geser", "latar": "Latar", "teks": "Teks", "semantik": "Semantik", "leksikal": "Leksikal",
 }
 EPS_CHOICES = [("1e-4", "1 dari 10.000"), ("1e-6", "1 dari 1.000.000"), ("1e-8", "1 dari 100.000.000")]
+# Progress header of Terbitkan. Step 3 covers both text reviews (safe sentences and word choice).
+ISSUE_STEPS = ("Dokumen", "Rencana", "Tinjau teks", "Terbitkan")
 
 
 @dataclass
@@ -64,6 +67,8 @@ class Staging:
     recipients: list[Recipient]
     settings: IssueSettings
     issuer: str
+    # Background profile chosen in step 1 ("layar" or "cetak"); st.settings.background holds its pattern.
+    latar: str = "layar"
     units: list = field(default_factory=list)
     candidates: list = field(default_factory=list)
     sets: dict = field(default_factory=dict)
@@ -170,6 +175,8 @@ templates.env.filters["prob"] = lambda p, log10=None: format_probability_html(fl
 templates.env.filters["waktu"] = lambda v: format_datetime(str(v))
 templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
 templates.env.globals["inf"] = float("inf")
+templates.env.globals["langkah_terbit"] = ISSUE_STEPS
+templates.env.globals["peringatan_cetak"] = PRINT_BACKGROUND_WARNING
 
 
 def _visible_marks_caveats(notes: list[str]) -> list[str]:
@@ -605,6 +612,7 @@ async def terbitkan_analisis(
     eps: str = Form("1e-6"),
     penerbit: str = Form(""),
     kanari: str = Form(""),
+    latar: str = Form("layar"),
 ) -> HTMLResponse:
     """Validate inputs, analyse the master, show the embedding plan and safe sentences."""
     from tapak.marker.master import load_master
@@ -612,7 +620,7 @@ async def terbitkan_analisis(
     from tapak.marker.semantic import scan_candidates
 
     errors: dict[str, str] = {}
-    values = {"c": c, "eps": eps, "penerbit": penerbit, "kanari": kanari}
+    values = {"c": c, "eps": eps, "penerbit": penerbit, "kanari": kanari, "latar": latar}
     pdf = await _read_field(dokumen, errors, "dokumen", "PDF ini terlalu besar (maksimum 40 MB).")
     csv_bytes = await _read_field(penerima, errors, "penerima", "CSV ini terlalu besar (maksimum 40 MB).")
     if not pdf and "dokumen" not in errors:
@@ -644,6 +652,13 @@ async def terbitkan_analisis(
         errors["c"] = "Ukuran koalisi harus bilangan bulat antara 1 dan 10."
     if eps not in {e for e, _ in EPS_CHOICES}:
         errors["eps"] = "Pilih salah satu tingkat peluang tuduhan salah."
+    try:
+        # No profile name is longer than 5 characters: a crafted long value stays unknown and
+        # its echo in the message stays short.
+        background = background_profile(latar[:32])
+    except ValueError as exc:
+        message = str(exc)
+        errors["latar"] = message[:1].upper() + message[1:] + "."
     master = None
     if pdf and "dokumen" not in errors:
         try:
@@ -674,8 +689,8 @@ async def terbitkan_analisis(
     folder.mkdir(parents=True, exist_ok=True)
     name = Path(dokumen.filename or "dokumen.pdf").name  # type: ignore[union-attr]
     (folder / "induk.pdf").write_bytes(pdf)
-    issue_settings = IssueSettings(c=c, eps=float(eps), canary_domain=kanari.strip() or None)
-    st = Staging(sid, folder, name, recipients, issue_settings, penerbit.strip() or "operator")
+    issue_settings = IssueSettings(c=c, eps=float(eps), canary_domain=kanari.strip() or None, background=background)
+    st = Staging(sid, folder, name, recipients, issue_settings, penerbit.strip() or "operator", latar=latar)
     st.candidates = scan_candidates(master)
     st.units = [u for u, reasons in st.candidates if not reasons]
     st.plan = await run_in_threadpool(_plan_summary, master, issue_settings, len(recipients))
@@ -1160,7 +1175,7 @@ def _issue(request: Request, st: Staging, sets: dict, lexical: LexicalSelection 
         lexical = None
     try:
         out = issue_document(settings(), st.folder / "induk.pdf", st.recipients, st.settings, st.issuer,
-                             semantic=sel, doc_name=st.doc_name, lexical=lexical)
+                             semantic=sel, doc_name=st.doc_name, lexical=lexical, latar=st.latar)
     except IssuanceBlocked as exc:
         return _review_error(request, st, str(exc))
     except WorkspaceBusy as exc:

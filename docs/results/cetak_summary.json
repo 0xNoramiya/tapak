@@ -1,0 +1,922 @@
+{
+ "cetak/exact/inkjet/L1600": {
+  "p1 shift": {
+   "traces": 10,
+   "with_bits": 10,
+   "read_mean": 102.1,
+   "ber": 0.05386875612144956,
+   "bits": 1021,
+   "ber_median": 0.034365086994136304,
+   "ber_max": 0.17647058823529413
+  },
+  "p1 background": {
+   "traces": 10,
+   "with_bits": 10,
+   "read_mean": 1942.0,
+   "ber": 0.007878475798146241,
+   "bits": 19420,
+   "ber_median": 0.0,
+   "ber_max": 0.055612770339855816
+  },
+  "p1 background found": 10,
+  "1 page shift": {
+   "n": 10,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.2775401687666166
+   ],
+   "insufficient": 10,
+   "wrong": 0,
+   "top_is_true": 10,
+   "ratio_median": 0.5610481838927064,
+   "ratio_min": 0.4027439083345223,
+   "ratio_max": 0.7098450019467397,
+   "innocent_max": 0.34069399395286787,
+   "positions_median": 102.5
+  },
+  "1 page background": {
+   "n": 10,
+   "named": 10,
+   "wilson": [
+    0.7224598312333834,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 10,
+   "ratio_median": 4.330896392768908,
+   "ratio_min": 3.7598648936660677,
+   "ratio_max": 4.437728762567733,
+   "innocent_max": 0.42263254737887007,
+   "positions_median": 1942.0
+  },
+  "1 page shift+background": {
+   "n": 10,
+   "named": 10,
+   "wilson": [
+    0.7224598312333834,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 10,
+   "ratio_median": 4.361828468446472,
+   "ratio_min": 3.7515231763490866,
+   "ratio_max": 4.466430353773074,
+   "innocent_max": 0.4143713885902483,
+   "positions_median": 1981.5
+  }
+ },
+ "cetak/exact/laser/L1600": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 101.8,
+   "ber": 0.05353634577603143,
+   "bits": 2036,
+   "ber_median": 0.04387968779744908,
+   "ber_max": 0.11
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1942.0,
+   "ber": 0.01696704428424305,
+   "bits": 38840,
+   "ber_median": 0.005149330587023687,
+   "ber_max": 0.2106076210092688
+  },
+  "p1 background found": 20,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.05,
+   "ber": 0.04237824161922834,
+   "bits": 1581,
+   "ber_median": 0.03125,
+   "ber_max": 0.15384615384615385
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1942.0,
+   "ber": 0.01791967044284243,
+   "bits": 38840,
+   "ber_median": 0.0038619979402677654,
+   "ber_max": 0.2286302780638517
+  },
+  "p2 background found": 20,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.5677412231391052,
+   "ratio_min": 0.32927570798774036,
+   "ratio_max": 0.7454170440383372,
+   "innocent_max": 0.40627438181072084,
+   "positions_median": 89.0
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 3,
+   "wilson": [
+    0.05236779195949584,
+    0.36042329588695743
+   ],
+   "insufficient": 17,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.8731830033047375,
+   "ratio_min": 0.7034779370283747,
+   "ratio_max": 1.1296049068934797,
+   "innocent_max": 0.47782207950532224,
+   "positions_median": 180.5
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.212900191908762,
+   "ratio_min": 2.546254945941708,
+   "ratio_max": 4.434940411960589,
+   "innocent_max": 0.532396941979564,
+   "positions_median": 1936.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.649865815302272,
+   "ratio_min": 4.751422176010077,
+   "ratio_max": 5.7673836000762435,
+   "innocent_max": 0.643326981245433,
+   "positions_median": 3261.0
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.25474495652699,
+   "ratio_min": 2.59041670409221,
+   "ratio_max": 4.465289440430133,
+   "innocent_max": 0.5266229263310664,
+   "positions_median": 1968.5
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.650822875168172,
+   "ratio_min": 4.804679427850446,
+   "ratio_max": 5.77746687864851,
+   "innocent_max": 0.6501838654958808,
+   "positions_median": 3262.5
+  }
+ },
+ "cetak/exact/laser/L4000": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 103.0,
+   "ber": 0.0,
+   "bits": 2060,
+   "ber_median": 0.0,
+   "ber_max": 0.0
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1940.45,
+   "ber": 0.03146177433069649,
+   "bits": 38809,
+   "ber_median": 0.0036045314109165805,
+   "ber_max": 0.26776519052523173
+  },
+  "p1 background found": 20,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.8,
+   "ber": 0.0,
+   "bits": 1596,
+   "ber_median": 0.0,
+   "ber_max": 0.0
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 1941.95,
+   "ber": 0.014161023713277892,
+   "bits": 38839,
+   "ber_median": 0.0028321318228630276,
+   "ber_max": 0.13285272914521112
+  },
+  "p2 background found": 20,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.6183252768551247,
+   "ratio_min": 0.483448653122414,
+   "ratio_max": 0.7643193283707006,
+   "innocent_max": 0.4065719345796993,
+   "positions_median": 91.5
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 8,
+   "wilson": [
+    0.21880396741419272,
+    0.613422057684794
+   ],
+   "insufficient": 12,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9694628236908283,
+   "ratio_min": 0.7854361149487946,
+   "ratio_max": 1.1297658200568852,
+   "innocent_max": 0.41673816053778595,
+   "positions_median": 183.0
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.205960245905061,
+   "ratio_min": 2.265695538047989,
+   "ratio_max": 4.449249828313107,
+   "innocent_max": 0.5378163802834175,
+   "positions_median": 1937.5
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.60255374217769,
+   "ratio_min": 4.629536337530731,
+   "ratio_max": 5.758526906996316,
+   "innocent_max": 0.583659646136173,
+   "positions_median": 3266.5
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 40,
+   "wilson": [
+    0.9123754607496077,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 4.251770419003502,
+   "ratio_min": 2.450058006724791,
+   "ratio_max": 4.481085477255441,
+   "innocent_max": 0.5285176436487042,
+   "positions_median": 1971.0
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 20,
+   "wilson": [
+    0.8388698745050667,
+    1.0
+   ],
+   "insufficient": 0,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 5.602689146192933,
+   "ratio_min": 4.716859946740632,
+   "ratio_max": 5.759559156915058,
+   "innocent_max": 0.5755960941691305,
+   "positions_median": 3267.0
+  }
+ },
+ "layar/exact/laser/L1600": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 102.35,
+   "ber": 0.04787493893502687,
+   "bits": 2047,
+   "ber_median": 0.029411764705882353,
+   "ber_max": 0.13725490196078433
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p1 background found": 0,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.15,
+   "ber": 0.033480732785849655,
+   "bits": 1583,
+   "ber_median": 0.0125,
+   "ber_max": 0.18421052631578946
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p2 background found": 0,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.5869788297531229,
+   "ratio_min": 0.44331388897528134,
+   "ratio_max": 0.7924965227169681,
+   "innocent_max": 0.40151114902845275,
+   "positions_median": 88.5
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 5,
+   "wilson": [
+    0.11186005278940309,
+    0.4687050099580636
+   ],
+   "insufficient": 15,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9297047037713891,
+   "ratio_min": 0.7952062474017704,
+   "ratio_max": 1.0836667254985324,
+   "innocent_max": 0.2966257332128642,
+   "positions_median": 180.5
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 2,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.16113012549493322
+   ],
+   "insufficient": 20,
+   "wrong": 0,
+   "top_is_true": 1,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.5869788297531229,
+   "ratio_min": 0.44331388897528134,
+   "ratio_max": 0.7924965227169681,
+   "innocent_max": 0.40151114902845275,
+   "positions_median": 88.5
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 5,
+   "wilson": [
+    0.11186005278940309,
+    0.4687050099580636
+   ],
+   "insufficient": 15,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9297047037713891,
+   "ratio_min": 0.7952062474017704,
+   "ratio_max": 1.0836667254985324,
+   "innocent_max": 0.2966257332128642,
+   "positions_median": 180.5
+  }
+ },
+ "layar/exact/laser/L4000": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 103.0,
+   "ber": 0.0,
+   "bits": 2060,
+   "ber_median": 0.0,
+   "ber_max": 0.0
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p1 background found": 0,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.8,
+   "ber": 0.0,
+   "bits": 1596,
+   "ber_median": 0.0,
+   "ber_max": 0.0
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p2 background found": 0,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.6244250175074197,
+   "ratio_min": 0.48836551050454835,
+   "ratio_max": 0.8466051291155978,
+   "innocent_max": 0.31217050525192347,
+   "positions_median": 91.5
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 8,
+   "wilson": [
+    0.21880396741419272,
+    0.613422057684794
+   ],
+   "insufficient": 12,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.994271760845836,
+   "ratio_min": 0.8583706891751426,
+   "ratio_max": 1.1927306617550795,
+   "innocent_max": 0.30200970396923854,
+   "positions_median": 183.0
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 2,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.16113012549493322
+   ],
+   "insufficient": 20,
+   "wrong": 0,
+   "top_is_true": 1,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.6244250175074197,
+   "ratio_min": 0.48836551050454835,
+   "ratio_max": 0.8466051291155978,
+   "innocent_max": 0.31217050525192347,
+   "positions_median": 91.5
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 8,
+   "wilson": [
+    0.21880396741419272,
+    0.613422057684794
+   ],
+   "insufficient": 12,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.994271760845836,
+   "ratio_min": 0.8583706891751426,
+   "ratio_max": 1.1927306617550795,
+   "innocent_max": 0.30200970396923854,
+   "positions_median": 183.0
+  }
+ },
+ "layar/supersampled/laser/L1600": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 102.55,
+   "ber": 0.046318868844466114,
+   "bits": 2051,
+   "ber_median": 0.03412335808109651,
+   "ber_max": 0.1262135922330097
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p1 background found": 0,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.5,
+   "ber": 0.031446540880503145,
+   "bits": 1590,
+   "ber_median": 0.012579113924050634,
+   "ber_max": 0.11392405063291139
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p2 background found": 0,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.5994425601633337,
+   "ratio_min": 0.4363554971741363,
+   "ratio_max": 0.7898999750072025,
+   "innocent_max": 0.4052467124273243,
+   "positions_median": 88.0
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 4,
+   "wilson": [
+    0.0806563532712,
+    0.41602172202575993
+   ],
+   "insufficient": 16,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9390260021209096,
+   "ratio_min": 0.7673222750756402,
+   "ratio_max": 1.1195971236096058,
+   "innocent_max": 0.32814251032830727,
+   "positions_median": 181.5
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 2,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.16113012549493322
+   ],
+   "insufficient": 20,
+   "wrong": 0,
+   "top_is_true": 1,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.5994425601633337,
+   "ratio_min": 0.4363554971741363,
+   "ratio_max": 0.7898999750072025,
+   "innocent_max": 0.4052467124273243,
+   "positions_median": 88.0
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 4,
+   "wilson": [
+    0.0806563532712,
+    0.41602172202575993
+   ],
+   "insufficient": 16,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9390260021209096,
+   "ratio_min": 0.7673222750756402,
+   "ratio_max": 1.1195971236096058,
+   "innocent_max": 0.32814251032830727,
+   "positions_median": 181.5
+  }
+ },
+ "layar/supersampled/laser/L4000": {
+  "p1 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 103.0,
+   "ber": 0.0004854368932038835,
+   "bits": 2060,
+   "ber_median": 0.0,
+   "ber_max": 0.009708737864077669
+  },
+  "p1 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p1 background found": 0,
+  "p2 shift": {
+   "traces": 20,
+   "with_bits": 20,
+   "read_mean": 79.75,
+   "ber": 0.0018808777429467085,
+   "bits": 1595,
+   "ber_median": 0.0,
+   "ber_max": 0.0125
+  },
+  "p2 background": {
+   "traces": 20,
+   "with_bits": 0,
+   "read_mean": 0.0,
+   "ber": null,
+   "bits": 0,
+   "ber_median": null,
+   "ber_max": null
+  },
+  "p2 background found": 0,
+  "1 page shift": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.6236690391786819,
+   "ratio_min": 0.48836551050454835,
+   "ratio_max": 0.8417242066266346,
+   "innocent_max": 0.3121688294068259,
+   "positions_median": 91.0
+  },
+  "2 pages shift": {
+   "n": 20,
+   "named": 8,
+   "wilson": [
+    0.21880396741419272,
+    0.613422057684794
+   ],
+   "insufficient": 12,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9947419272528308,
+   "ratio_min": 0.8584329386615326,
+   "ratio_max": 1.1983853943595981,
+   "innocent_max": 0.30206384540459946,
+   "positions_median": 183.0
+  },
+  "1 page background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 2,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "2 pages background": {
+   "n": 20,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.16113012549493322
+   ],
+   "insufficient": 20,
+   "wrong": 0,
+   "top_is_true": 1,
+   "ratio_median": 0.0,
+   "ratio_min": 0.0,
+   "ratio_max": 0.0,
+   "innocent_max": 0.0,
+   "positions_median": 0.0
+  },
+  "1 page shift+background": {
+   "n": 40,
+   "named": 0,
+   "wilson": [
+    0.0,
+    0.08762453925039232
+   ],
+   "insufficient": 40,
+   "wrong": 0,
+   "top_is_true": 40,
+   "ratio_median": 0.6236690391786819,
+   "ratio_min": 0.48836551050454835,
+   "ratio_max": 0.8417242066266346,
+   "innocent_max": 0.3121688294068259,
+   "positions_median": 91.0
+  },
+  "2 pages shift+background": {
+   "n": 20,
+   "named": 8,
+   "wilson": [
+    0.21880396741419272,
+    0.613422057684794
+   ],
+   "insufficient": 12,
+   "wrong": 0,
+   "top_is_true": 20,
+   "ratio_median": 0.9947419272528308,
+   "ratio_min": 0.8584329386615326,
+   "ratio_max": 1.1983853943595981,
+   "innocent_max": 0.30206384540459946,
+   "positions_median": 183.0
+  }
+ },
+ "composite cetak/exact/laser/L1600": {
+  "1 page background": {
+   "n": 32,
+   "innocents_named": 0,
+   "at_least_one": 32,
+   "all_three": 27,
+   "member_ratio_median": 1.4134964688879257,
+   "innocent_max": 0.4962066377925761
+  },
+  "2 pages background": {
+   "n": 16,
+   "innocents_named": 0,
+   "at_least_one": 16,
+   "all_three": 15,
+   "member_ratio_median": 2.022053539007156,
+   "innocent_max": 0.5009573538530536
+  },
+  "1 page shift+background": {
+   "n": 32,
+   "innocents_named": 0,
+   "at_least_one": 32,
+   "all_three": 27,
+   "member_ratio_median": 1.4532139367190233,
+   "innocent_max": 0.48692526627325966
+  },
+  "2 pages shift+background": {
+   "n": 16,
+   "innocents_named": 0,
+   "at_least_one": 16,
+   "all_three": 15,
+   "member_ratio_median": 2.00711450887111,
+   "innocent_max": 0.48550198929899546
+  },
+  "background found": 32
+ }
+}

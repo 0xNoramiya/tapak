@@ -1,28 +1,33 @@
-"""Benchmark figure: outcome per image of the synthetic photo set, and its false-accusation bound.
+"""Benchmark figure: outcome per image of the synthetic photo sets, and its false-accusation bound.
 
 Reads ``docs/results/bench_photos.json`` (written by ``make bench``). Left: one row per
-group, one cell per image, colored by outcome. Right: the per-image upper bound on the
-false-accusation probability (log scale) for the correct answers, against the policy
-``eps`` of ``TardosParams``.
+group, one cell per trace, colored by outcome, in two sections that are never counted
+together: photos of the page as on screen and screenshots, then photos of printed pages
+(simulated printer; single pages, and pages 1 and 2 traced together). Right: the per-trace
+upper bound on the false-accusation probability (log scale) for the correct answers, against
+the policy ``eps`` of ``TardosParams``.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from collections import Counter
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyBboxPatch
+from matplotlib.transforms import blended_transform_factory
 
 import style
 from tapak.tardos.params import TardosParams
 
 RESULTS = style.ROOT / "docs" / "results" / "bench_photos.json"
 OUTCOMES = ("benar", "tidak cukup bukti", "salah")
+SECTIONS = {"layar": "Foto layar dan tangkapan layar (halaman 1)",
+            "cetak": "Foto kertas cetak, printer disimulasikan (halaman 1 dan 2)"}
 # Three type sizes: title (same as the skor figure above it), primary labels, secondary text.
 TITLE, PRIMARY, SECONDARY = 13, 12, 11
+ROW_IN = 0.312  # height of one row in inches
 
 
 def _pow10(e: int) -> str:
@@ -31,9 +36,15 @@ def _pow10(e: int) -> str:
 
 
 def _group(row: dict) -> tuple:
+    """(section, sort key, label) of a benchmark row."""
+    angle = row.get("angle") or 0
     if row["kind"] == "photo":
-        return (0, row["angle"]), f"Foto {row['angle']:g}\u00b0"
-    return (1, 0), "Tangkapan layar"
+        return "layar", (0, angle), f"Foto {angle:g}\u00b0"
+    if row["kind"] == "cetak":
+        if row.get("pages", 1) == 2:
+            return "cetak", (1, 0), "Dua halaman"
+        return "cetak", (0, angle), f"Cetak {angle:g}\u00b0"
+    return "layar", (1, 0), "Tangkapan layar"
 
 
 def _outcome(row: dict) -> str:
@@ -41,38 +52,63 @@ def _outcome(row: dict) -> str:
     return row["outcome"] if row["outcome"] in OUTCOMES[:2] else "salah"
 
 
-def load() -> tuple[list[str], list[list[dict]]]:
-    """Rows of bench_photos.json grouped by kind and angle, photos first."""
+def load() -> list[tuple[str, list[tuple[str, list[dict]]]]]:
+    """Rows of bench_photos.json as sections (screen, then print) of groups (kind and angle)."""
     groups: dict[tuple, tuple[str, list]] = {}
     for r in json.loads(RESULTS.read_text(encoding="utf-8"))["rows"]:
-        key, label = _group(r)
-        groups.setdefault(key, (label, []))[1].append(r)
-    ordered = [groups[k] for k in sorted(groups)]
-    return [g[0] for g in ordered], [g[1] for g in ordered]
+        section, key, label = _group(r)
+        groups.setdefault((list(SECTIONS).index(section), key), (label, []))[1].append(r)
+    out: list[tuple[str, list[tuple[str, list[dict]]]]] = []
+    for (si, _), group in sorted(groups.items()):
+        name = list(SECTIONS)[si]
+        if not out or out[-1][0] != name:
+            out.append((name, []))
+        out[-1][1].append(group)
+    return out
 
 
-def _draw(t: style.Theme, labels: list[str], groups: list[list[dict]], eps: float) -> plt.Figure:
-    rows = [r for g in groups for r in g]
+def _draw(t: style.Theme, sections: list, eps: float) -> plt.Figure:
+    # Layout rows: a header row per section (only when there is more than one), then its groups;
+    # a little extra space separates the sections.
+    slots: list[tuple[str, object, float]] = []
+    y = 0.0
+    for k, (name, groups) in enumerate(sections):
+        if len(sections) > 1:
+            y += 0.35 if k else 0.0
+            slots.append(("header", name, y))
+            y += 1.0
+        for g in groups:
+            slots.append(("group", g, y))
+            y += 1.0
+    groups = [g for kind, g, _ in slots if kind == "group"]
+    rows = [r for _, g in groups for r in g]
+    screen = [r for name, gs in sections if name == "layar" for _, g in gs for r in g]
     total = Counter(_outcome(r) for r in rows)
-    n_rows, n_cells = len(groups), max(len(g) for g in groups)
+    n_rows, n_cells = y, max(len(g) for _, g in groups)
     color = {"benar": t.accent, "tidak cukup bukti": t.warn, "salah": t.danger}
-    fig = plt.figure(figsize=(8.8, 3.0))
+    # Fixed heights in inches: title block, rows, legend and axis below.
+    head_in, foot_in = 0.99, 0.45
+    fig_h = head_in + n_rows * ROW_IN + foot_in
+    fig = plt.figure(figsize=(8.8, fig_h))
     renderer = fig.canvas.get_renderer()
-    top, bottom, x_right = 0.67, 0.15, 0.58
+    top, bottom, x_right = 1 - head_in / fig_h, foot_in / fig_h, 0.58
     left = fig.add_axes((0.17, bottom, 0.33, top - bottom))
     right = fig.add_axes((x_right, bottom, 0.985 - x_right, top - bottom), sharey=left)
     left.set_ylim(n_rows - 0.5, -0.5)
 
-    fig.text(0.0, 0.93, f"Uji sintetis: {total['benar']} dari {len(rows)} benar, "
-             f"{total['tidak cukup bukti']} tidak cukup bukti, "
-             f"{total['salah']} salah", color=t.text, fontsize=TITLE, fontweight="semibold", va="baseline")
-    pages = sorted({int(re.search(r"_p(\d+)", r["file"]).group(1)) for r in rows})
-    fig.text(0.0, 0.775, f"Putusan per gambar ({len({r['expected'] for r in rows})} salinan, halaman "
-             f"{', '.join(map(str, pages))})", color=t.muted, fontsize=SECONDARY, va="baseline")
-    fig.text(x_right, 0.775, "Batas atas peluang tuduhan salah", color=t.muted, fontsize=SECONDARY,
+    wrong = total["salah"]
+    title = "tidak ada tuduhan salah" if wrong == 0 else f"{wrong} tuduhan salah"
+    if screen:
+        ok = sum(_outcome(r) == "benar" for r in screen)
+        title += f"; foto layar {ok} dari {len(screen)} benar"
+    fig.text(0.0, 1 - 0.21 / fig_h, f"Uji sintetis: {title}", color=t.text, fontsize=TITLE,
+             fontweight="semibold", va="baseline")
+    fig.text(0.0, 1 - 0.675 / fig_h, f"Putusan per pelacakan ({len({r['expected'] for r in rows})} salinan)",
+             color=t.muted, fontsize=SECONDARY, va="baseline")
+    fig.text(x_right, 1 - 0.675 / fig_h, "Batas atas peluang tuduhan salah", color=t.muted, fontsize=SECONDARY,
              va="baseline")
 
-    # Left: one rounded cell per image, sorted benar, tidak cukup bukti, salah.
+    # Left: one rounded cell per trace, sorted benar, tidak cukup bukti, salah.
     span = n_cells + 1.2
     left.set_xlim(0, span)
     left.axis("off")
@@ -80,7 +116,13 @@ def _draw(t: style.Theme, labels: list[str], groups: list[list[dict]], eps: floa
     box = left.get_window_extent()
     aspect = (n_rows / box.height) / (span / box.width)
     names = []
-    for y, (label, g) in enumerate(zip(labels, groups)):
+    fig_x = blended_transform_factory(fig.transFigure, left.transData)
+    for kind, item, y in slots:
+        if kind == "header":
+            fig.text(0.0, y + 0.22, SECTIONS[item], color=t.muted, fontsize=SECONDARY, va="baseline",
+                     transform=fig_x)
+            continue
+        label, g = item
         names.append(left.text(-0.3, y, label, color=t.text, fontsize=PRIMARY, va="center", ha="right"))
         outs = sorted((_outcome(r) for r in g), key=OUTCOMES.index)
         for x, o in enumerate(outs):
@@ -94,10 +136,12 @@ def _draw(t: style.Theme, labels: list[str], groups: list[list[dict]], eps: floa
     pos = left.get_position()
     left.set_position((pos.x0 - x_ink, pos.y0, pos.width, pos.height))
 
-    # Right: per-image bound for the correct answers, with the policy eps.
+    # Right: per-trace bound for the correct answers, with the policy eps.
     rng = np.random.default_rng(2026)
-    for y, g in enumerate(groups):
-        fa = np.array([r["log10_fa"] for r in g if _outcome(r) == "benar"])
+    for kind, item, y in slots:
+        if kind != "group":
+            continue
+        fa = np.array([r["log10_fa"] for r in item[1] if _outcome(r) == "benar"])
         right.scatter(fa, y + rng.uniform(-0.16, 0.16, fa.size), s=38, color=t.accent, alpha=0.7,
                       linewidths=0, zorder=3)
     log_eps = float(np.log10(eps))
@@ -115,7 +159,7 @@ def _draw(t: style.Theme, labels: list[str], groups: list[list[dict]], eps: floa
     tick = right.get_xticklabels()[0].get_window_extent(renderer)
     y_mid = (tick.y0 + tick.y1) / 2 / fig.bbox.height
     x0 = fig.transFigure.inverted().transform(left.transData.transform((x_pad, 0)))[0]
-    sw, sh = 0.013, 0.045
+    sw, sh = 0.013, 0.135 / fig_h
     for o in OUTCOMES:
         fig.patches.append(FancyBboxPatch((x0, y_mid - sh / 2), sw, sh, boxstyle="round,pad=0,rounding_size=0.003",
                                           transform=fig.transFigure, facecolor=color[o], linewidth=0))
@@ -127,14 +171,14 @@ def _draw(t: style.Theme, labels: list[str], groups: list[list[dict]], eps: floa
 
 def benchmark() -> None:
     """Render docs/img/benchmark-{light,dark}.svg from the benchmark results."""
-    labels, groups = load()
+    sections = load()
     eps = TardosParams().eps
     # Mathtext is laid out at save time, so the context covers drawing and saving.
     math = {"mathtext.fontset": "custom", "mathtext.default": "regular",
             "mathtext.rm": style.SANS, "mathtext.cal": style.SANS}
     for t in style.THEMES:
         with plt.rc_context(math):
-            style.save(_draw(t, labels, groups, eps), "benchmark", t)
+            style.save(_draw(t, sections, eps), "benchmark", t)
 
 
 if __name__ == "__main__":
