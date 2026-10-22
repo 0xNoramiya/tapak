@@ -41,6 +41,11 @@
      .field-error          message with a drawn "!" icon (keep inside the err-/-err slots)
      input, select, textarea: styled bare (16 px, 44 px tall); aria-invalid="true" turns them red
      .check-row            <label class="check-row"><input type=checkbox><span>..</span></label>
+     fieldset.field        a group of radios: legend.field-label + optional .hint + .choices
+     .choices > .choice    option cards side by side (stacked when narrow):
+       <label class="choice"><input type="radio" ..><span class="choice-body">
+         <span class="choice-title">..</span><span class="choice-desc" id=..>..</span></span></label>
+       the checked card is tinted olive; give the radio aria-describedby="<desc id> <err slot>"
      .dropzone             <label class="dropzone" data-dropzone> around the real input:
        <input type="file" id=.. name=..>  (stays focusable; covers the zone; keep its aria wiring)
        <span class="dropzone-icon" aria-hidden="true">{{ ikon("file-up") }}</span>
@@ -722,6 +727,33 @@ input[type="file"]::file-selector-button {
 .check-row[aria-disabled="true"] { cursor: default; }
 form > .check-row + .check-row { margin-top: -14px; }
 .check-row[aria-disabled="true"]:hover { background: transparent; }
+
+/* radio groups: a fieldset laid out like any .field; the legend is not a flex item, so it
+   carries the gap below it */
+fieldset.field { margin: 0; padding: 0; border: 0; }
+fieldset.field > legend { padding: 0; margin-bottom: 6px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin-top: 2px; }
+.choice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.choice:hover { background: var(--surface-sunken); }
+.choice:has(> input:checked) { border-color: var(--accent-line); background: color-mix(in oklch, var(--accent-soft) 35%, var(--surface)); }
+.choice:has(> input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.choice:has(> input[aria-invalid="true"]) { border-color: var(--danger-line); }
+.choice > input { margin-top: 2px; flex: none; }
+.choice > input:focus-visible { outline: none; }
+.choice-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.choice-title { font-weight: 500; }
+.choice-desc { font-size: var(--fs-sm); color: var(--ink-muted); }
 
 /* drop zone: a label around the real file input; the input covers the zone (invisible but
    focusable), so click, keyboard and native drop all work without script */

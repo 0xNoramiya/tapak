@@ -1,6 +1,6 @@
 {% from "_ikon.html" import ikon %}
 <ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
-  {% for label in ("Dokumen", "Rencana", "Kalimat aman", "Terbitkan") %}
+  {% for label in langkah_terbit %}
   <li class="stepper-item"{% if loop.first %} aria-current="step"{% endif %}><span class="stepper-num">{{ loop.index }}</span> <span class="stepper-label">{{ label }}</span></li>
   {% endfor %}
 </ol>
@@ -43,6 +43,33 @@
              placeholder="contoh: Kasi Ops Brigif 9905" aria-describedby="hint-penerbit">
       <span class="hint" id="hint-penerbit">Tercatat di registri sebagai pihak yang menerbitkan.</span>
     </div>
+    {# The print-profile warning is in the markup (no script); CSS hides it while "Cetak" is not
+       chosen, and a browser without :has() shows it always. #}
+    {% set latar = values.latar if values.latar is defined else "layar" %}
+    <fieldset class="field latar" aria-describedby="hint-latar">
+      <legend class="field-label">Pola latar</legend>
+      <span class="hint" id="hint-latar">Lapisan kode di bawah teks halaman. Pilih menurut cara salinan akan dibagikan.</span>
+      <div class="choices">
+        <label class="choice">
+          <input type="radio" name="latar" value="layar" {% if latar == "layar" %}checked{% endif %}
+                 aria-describedby="latar-layar-ket err-latar" {% if errors.latar %}aria-invalid="true"{% endif %}>
+          <span class="choice-body">
+            <span class="choice-title">Layar <span class="field-optional">(bawaan)</span></span>
+            <span class="choice-desc" id="latar-layar-ket">Tidak terlihat, tetapi hilang bila salinan dicetak.</span>
+          </span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="latar" value="cetak" {% if latar == "cetak" %}checked{% endif %}
+                 aria-describedby="latar-cetak-ket latar-peringatan err-latar" {% if errors.latar %}aria-invalid="true"{% endif %}>
+          <span class="choice-body">
+            <span class="choice-title">Cetak</span>
+            <span class="choice-desc" id="latar-cetak-ket">Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda.</span>
+          </span>
+        </label>
+      </div>
+      <p class="notice notice-warn latar-peringatan" id="latar-peringatan">{{ peringatan_cetak }}</p>
+      <span id="err-latar">{% if errors.latar %}<span class="field-error">{{ errors.latar }}</span>{% endif %}</span>
+    </fieldset>
     <details class="more" id="more-params" {% if errors.c or errors.eps %}open{% endif %}>
       <summary>Parameter kode dan kanari</summary>
       <div class="param-grid">

@@ -758,3 +758,117 @@ def test_word_choice_sample_shows_the_most_different_pair_first(client):
         assert sample.index("Baris yang berbeda") < sample.index(f"<summary>{len(pv['same'])} baris sama di kedua contoh</summary>")
     again = client.post(f"/terbitkan/{sid}/leksikal/{sel.points[0].point_id}/disetujui")
     assert again.text[again.text.index('id="lx-contoh-h"'):] == sample  # stable between clicks
+
+
+# --- background profile (layar by default, cetak opt-in) and the progress header -------------
+
+
+def _files() -> dict:
+    return {"dokumen": ("nota_dinas.pdf", SAMPLE.read_bytes(), "application/pdf"),
+            "penerima": ("recipients.csv", (ROOT / "samples" / "recipients.csv").read_bytes(), "text/csv")}
+
+
+def _radio(html: str, value: str) -> str:
+    return re.search(rf'<input type="radio" name="latar" value="{value}"[^>]*>', html).group(0)
+
+
+def _choice(html: str, value: str) -> str:
+    """The whole option card (label) of one background profile."""
+    return re.search(rf'<label class="choice">\s*<input type="radio" name="latar" value="{value}".*?</label>',
+                     html, re.S).group(0)
+
+
+def test_background_profile_defaults_to_layar(client):
+    from tapak.config import load_settings
+    from tapak.marker.background import PRINT_BACKGROUND_WARNING, SCREEN_BACKGROUND, profile_name
+    from tapak.marker.issue import IssueManifest
+
+    page = client.get("/terbitkan").text
+    assert "<legend" in page and ">Pola latar</legend>" in page
+    assert " checked" in _radio(page, "layar") and " checked" not in _radio(page, "cetak")
+    layar, cetak = _plain(_choice(page, "layar")), _plain(_choice(page, "cetak"))
+    assert "Layar" in layar and "(bawaan)" in layar and "Tidak terlihat, tetapi hilang bila salinan dicetak." in layar
+    assert "Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda." in cetak
+    # the print profile is never called invisible
+    invisible = re.compile(r"\b(tidak|tak) terlihat", re.I)
+    assert not invisible.search(cetak) and not invisible.search(PRINT_BACKGROUND_WARNING)
+    # The warning is plain markup (shown by CSS while "Cetak" is checked) and describes that option.
+    assert f'id="latar-peringatan">{PRINT_BACKGROUND_WARNING}</p>' in page
+    assert 'aria-describedby="latar-cetak-ket latar-peringatan err-latar"' in _radio(page, "cetak")
+    assert 'aria-describedby="latar-layar-ket err-latar"' in _radio(page, "layar")
+
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6"})  # no choice sent
+    assert r.status_code == 200 and 'class="ch-profil">profil layar</span>' in r.text
+    assert PRINT_BACKGROUND_WARNING not in r.text and "uji printer simulasi" not in r.text
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text and "notice-warn" not in r.text
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    manifest = IssueManifest.from_json((load_settings().workspaces / doc / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.background_settings == SCREEN_BACKGROUND and profile_name(manifest.background_settings) == "layar"
+
+
+def test_print_profile_warns_in_form_plan_and_result(client):
+    from tapak.config import load_settings
+    from tapak.marker.background import PRINT_BACKGROUND, PRINT_BACKGROUND_WARNING, profile_name
+    from tapak.marker.issue import IssueManifest
+
+    # A step-1 error re-renders the form (no htmx) with the choice kept and its warning shown.
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "0", "eps": "1e-6", "latar": "cetak"})
+    assert "<form" in r.text and "antara 1 dan 10" in r.text
+    assert " checked" in _radio(r.text, "cetak") and " checked" not in _radio(r.text, "layar")
+    assert f'id="latar-peringatan">{PRINT_BACKGROUND_WARNING}</p>' in r.text
+
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6", "latar": "cetak"})
+    assert r.status_code == 200 and "Rencana penandaan" in r.text
+    # The plan names the profile at the background channel, with the warning in the row below it.
+    row = re.search(r'<tr class="has-note">.*?</tr>\s*<tr class="ch-peringatan">.*?</tr>', r.text, re.S).group(0)
+    assert 'class="ch-profil">profil cetak</span>' in row and PRINT_BACKGROUND_WARNING in row
+    assert "Pola latar" in row and "Bertahan: cetak dalam uji printer simulasi, layar" in row
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
+    # The outcome's warnings are listed before the downloads.
+    assert f'<p class="notice notice-warn" role="alert">{PRINT_BACKGROUND_WARNING}</p>' in r.text
+    assert r.text.index(PRINT_BACKGROUND_WARNING) < r.text.index('class="issued-actions"')
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    manifest = IssueManifest.from_json((load_settings().workspaces / doc / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.background_settings == PRINT_BACKGROUND and profile_name(manifest.background_settings) == "cetak"
+
+
+def test_unknown_background_profile_is_a_field_error(client):
+    from tapak.web.app import _STAGING
+
+    before = set(_STAGING)
+    hx = {"HX-Request": "true"}
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6", "latar": "kertas"}, headers=hx)
+    assert r.status_code == 200 and r.headers.get("HX-Reswap") == "none" and "<form" not in r.text
+    assert ('id="err-latar" hx-swap-oob="innerHTML"><span class="field-error" role="alert">'
+            "Profil latar tidak dikenal: 'kertas'; pilih 'layar' atau 'cetak'.</span>") in _plain(r.text)
+    assert re.search(r'id="err-dokumen" hx-swap-oob="innerHTML"></span>', r.text)
+    # Without htmx the form comes back: the message next to the group, neither option checked.
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6", "latar": "x" * 5000})
+    assert "<form" in r.text and "Profil latar tidak dikenal" in r.text and "x" * 33 not in r.text
+    for value in ("layar", "cetak"):
+        assert " checked" not in _radio(r.text, value) and 'aria-invalid="true"' in _radio(r.text, value)
+    assert set(_STAGING) == before  # nothing staged
+
+
+def test_stepper_step_three_covers_both_text_reviews(client):
+    from tapak.web.app import ISSUE_STEPS, _STAGING
+
+    assert ISSUE_STEPS == ("Dokumen", "Rencana", "Tinjau teks", "Terbitkan")
+    templates_dir = ROOT / "tapak" / "web" / "templates"
+    for name in ("_langkah1.html", "_rencana.html", "_semantik.html", "_hasil_terbit.html"):
+        src = (templates_dir / name).read_text(encoding="utf-8")
+        assert "{% for label in langkah_terbit %}" in src and '"Kalimat aman"' not in src
+    labels = lambda html: re.findall(r'<span class="stepper-label">([^<]*)', html)  # noqa: E731
+    assert labels(client.get("/terbitkan").text) == list(ISSUE_STEPS)
+    sid, page = _analyse(client)
+    current = '<li class="stepper-item" aria-current="step"><span class="stepper-num">3</span> <span class="stepper-label">Tinjau teks</span>'
+    assert current in page
+    # Only word-choice points pending (no sentence variants generated): step 3 is still the current one.
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    assert _STAGING[sid].lexical.pending() and not _STAGING[sid].sets
+    stepper = re.search(r'<ol class="stepper alur-stepper" id="stepper"[^>]*hx-swap-oob="true">.*?</ol>', r.text, re.S).group(0)
+    assert current in stepper and labels(stepper) == list(ISSUE_STEPS)
