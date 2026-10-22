@@ -223,6 +223,7 @@ def test_missing_unreadable_or_unstarted_log_is_refused(anchored, tmp_path):
     st = _status(reg_path, log_path)
     assert st.missing and not st.ok and "tidak ditemukan" in st.problems[0] and "--ulang --alasan" in st.problems[0]
     assert st.unavailable == "missing" and st.describe().startswith("HILANG: log jangkar tidak ditemukan")
+    assert any(line.strip() == "HILANG" for line in verify_registry(reg_path, PUB, anchor_log=log_path).lines())
     with pytest.raises(AnchorRefused, match="tidak ditemukan"):
         _trace(reg_path, log_path)
     assert not log_path.exists()  # a write never recreates a missing log
@@ -831,6 +832,8 @@ def test_the_size_limit_is_announced_and_a_rotation_continues_the_log(anchored, 
     assert st.missing and "terlalu besar" in st.problems[0] and "tapak jangkar rotasi" in st.problems[0]
     assert st.unavailable == "too_large" and st.size == log_path.stat().st_size
     assert st.describe().startswith("TERLALU BESAR: ") and st.to_dict()["unavailable"] == "too_large"
+    lines = verify_registry(reg_path, PUB, anchor_log=log_path).lines()
+    assert any(line.strip() == "TERLALU BESAR" for line in lines) and not any("TIDAK COCOK" in line for line in lines)
     with pytest.raises(AnchorRefused, match="terlalu besar"):
         _trace(reg_path, log_path)
     # The rotation still reads the oversized log, and the new segment repeats nothing but the head.

@@ -15,7 +15,7 @@ selection, plan, manifest and copies are exactly those of a document issued befo
 channel existed.
 
 Copies are rendered in parallel worker processes (:func:`issue_workers`: at most 8, the
-available CPUs and ``TAPAK_WORKERS``).
+available CPUs and ``TAPAK_WORKERS``), one issuance at a time per process.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ import json
 import multiprocessing as mp
 import re
 import secrets
+import threading
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
@@ -385,6 +386,10 @@ def marks_for_codeword(
 
 # Worker process state (set by the initializer, one master per process).
 _W: dict[str, object] = {}
+# One issuance renders at a time in this process. The web server issues for several sessions
+# at once (one thread each): copies rendered here share _W, and the pools together would run
+# more worker processes than TAPAK_WORKERS.
+_RENDER_TURN = threading.Lock()
 
 
 def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
@@ -565,23 +570,24 @@ def issue(
         jobs.append((seq, copy_id, str(out_dir / f"{stem}__salinan{seq:03d}_{rec.recipient_id}.pdf")))
 
     results: dict[int, tuple[str, str, str | None, list[str]]] = {}
-    if workers <= 1:
-        _worker_init(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)
-        for job in jobs:
-            seq, digest, fhash, token, vids = _render_one(job)
-            results[seq] = (digest, fhash, token, vids)
-    else:
-        # forkserver: workers fork from a clean single-threaded server, never from this
-        # (possibly multi-threaded) process; spawn where forkserver is unavailable.
-        if "forkserver" in mp.get_all_start_methods():
-            ctx = mp.get_context("forkserver")
-            ctx.set_forkserver_preload(["tapak.marker.issue"])
-        else:
-            ctx = mp.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx, initializer=_worker_init,
-                                 initargs=(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)) as pool:
-            for seq, digest, fhash, token, vids in pool.map(_render_one, jobs):
+    with _RENDER_TURN:
+        if workers <= 1:
+            _worker_init(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)
+            for job in jobs:
+                seq, digest, fhash, token, vids = _render_one(job)
                 results[seq] = (digest, fhash, token, vids)
+        else:
+            # forkserver: workers fork from a clean single-threaded server, never from this
+            # (possibly multi-threaded) process; spawn where forkserver is unavailable.
+            if "forkserver" in mp.get_all_start_methods():
+                ctx = mp.get_context("forkserver")
+                ctx.set_forkserver_preload(["tapak.marker.issue"])
+            else:
+                ctx = mp.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=workers, mp_context=ctx, initializer=_worker_init,
+                                     initargs=(pdf_bytes, secret, settings, semantic, lexical, scan_boxes)) as pool:
+                for seq, digest, fhash, token, vids in pool.map(_render_one, jobs):
+                    results[seq] = (digest, fhash, token, vids)
 
     channels_used = [c for c in settings.channels if plan.channel(c)]
     if _canary_enabled(settings):

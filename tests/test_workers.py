@@ -6,6 +6,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import threading
+from pathlib import Path
 
 import pytest
 
@@ -105,6 +107,76 @@ def test_issue_starts_no_more_processes_than_the_cap(cpus16, fake_pool, monkeypa
     issue(SAMPLE, recipients, tmp_path / "c", SECRET, IssueSettings())
     assert fake_pool.sizes == [2, 2, 5]  # without the cap: the CPUs, at most the copies
     assert issue_workers(5, 1) == 1
+
+
+class CountingPool(FakePool):
+    """FakePool that records the most worker processes of all pools running at once."""
+
+    running = most = 0
+    guard = threading.Lock()
+
+    def __init__(self, max_workers, mp_context=None, initializer=None, initargs=()):
+        self.size = max_workers
+        super().__init__(max_workers, mp_context, initializer, initargs)
+
+    def __enter__(self):
+        with CountingPool.guard:
+            CountingPool.running += self.size
+            CountingPool.most = max(CountingPool.most, CountingPool.running)
+        return self
+
+    def __exit__(self, *exc):
+        with CountingPool.guard:
+            CountingPool.running -= self.size
+        return False
+
+
+@pytest.mark.parametrize("cap", ["1", "2"])
+def test_concurrent_issuances_in_one_process_never_mix_or_exceed_the_cap(cpus16, monkeypatch, tmp_path, cap):
+    """The web server issues for several sessions at once (one thread each). Their rendering
+    takes turns: one process never runs more than TAPAK_WORKERS workers, and copies rendered in
+    the process itself (TAPAK_WORKERS=1) never use the document of another issuance."""
+    CountingPool.running = CountingPool.most = 0
+    monkeypatch.setattr(issue_mod, "ProcessPoolExecutor", CountingPool)
+    monkeypatch.setattr(issue_mod, "_main_importable", lambda: True)
+    monkeypatch.setenv("TAPAK_WORKERS", cap)
+    both_ready = threading.Event()
+    inits, seen = [], []
+    real_init, real_render = issue_mod._worker_init, issue_mod._render_one
+
+    def init(*args, **kwargs):
+        real_init(*args, **kwargs)
+        inits.append(1)
+        if len(inits) >= 2:
+            both_ready.set()
+
+    def render(job):
+        both_ready.wait(3)  # without turns, the other issuance replaces the state here
+        seen.append((Path(job[2]).parent.name, issue_mod._W["master"].doc_hash))
+        return real_render(job)
+
+    monkeypatch.setattr(issue_mod, "_worker_init", init)
+    monkeypatch.setattr(issue_mod, "_render_one", render)
+    recipients = read_recipients(RECIPIENTS)[:3]
+    docs = {"a": SAMPLE, "b": ROOT / "samples" / "surat_telegram.pdf"}
+    results, errors = {}, []
+
+    def run(name):
+        try:
+            results[name] = issue(docs[name], recipients, tmp_path / name, SECRET, IssueSettings())
+        except BaseException as exc:  # noqa: BLE001 - reported below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=run, args=(name,)) for name in docs]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors
+    expected = {name: results[name].doc_hash for name in docs}
+    assert len(seen) == 6 and all(doc == expected[name] for name, doc in seen), seen
+    if cap == "2":
+        assert CountingPool.most == 2
 
 
 def test_issue_refuses_a_bad_cap_before_any_work(monkeypatch, tmp_path):

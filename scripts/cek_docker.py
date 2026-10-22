@@ -19,7 +19,8 @@ Checks, on fictional samples only:
    verifies with --segmen-lama and traces with the new one.
 2. docker-compose.yml with docker-compose.jangkar.yml: every web page and static file, a
    scanned master analysed and issued through Terbitkan (its worker processes sampled: never
-   more than TAPAK_WORKERS), the four pieces of evidence traced through Lacak.
+   more than TAPAK_WORKERS), two sessions issued at once (rendered in turn, still never more
+   than TAPAK_WORKERS), the four pieces of evidence traced through Lacak.
 3. Canary listener: an issued token is answered and logged; a made-up token is answered but
    never logged; other names in the zone get NXDOMAIN and names outside it REFUSED.
 4. Offline: the CLI containers have no network; the sockets of both compose containers are
@@ -366,6 +367,51 @@ def check_anchor_media_and_rotation(d: Docker, cek: Cek, evidence: dict) -> None
         "segmen baru menyebut penanda media dan segmen lamanya")
 
 
+def check_concurrent_web_issuance(d: Docker, cek: Cek, base: str, app_id: str) -> None:
+    """Two web sessions issue at once (a text and a scanned master, 8 recipients each): the
+    server renders them in turn, so the container never runs more than TAPAK_WORKERS workers."""
+    from tapak.samplegen import scanned_sample
+
+    w, cap = d.work, d.args.pekerja
+    surat = (ROOT / "samples" / "surat_telegram.pdf").read_bytes()
+    roster = "".join((w / "sampel" / "recipients.csv").read_text(encoding="utf-8").splitlines(keepends=True)[:9])
+    masters = {"teks": ("surat_telegram.pdf", surat),
+               "pindaian": ("surat_pindaian_ocr.pdf", scanned_sample(surat, ocr_layer=True))}
+    sids = {}
+    for kind, (name, data) in masters.items():
+        status, html = post_form(base + "/terbitkan/analisis", {"c": "3", "eps": "1e-6"},
+                                 [("dokumen", name, data), ("penerima", "penerima8.csv", roster.encode())])
+        sid = re.search(r"/terbitkan/([0-9a-f]{16})/terbitkan", html)
+        if status != 200 or sid is None:
+            cek(False, "web Terbitkan: dua sesi sekaligus", f"analisis {name}: HTTP {status}")
+            return
+        sids[kind] = sid.group(1)
+    results: dict[str, tuple[int, str]] = {}
+
+    def publish(kind: str) -> None:
+        status, body, _ = http(base + f"/terbitkan/{sids[kind]}/terbitkan", b"")
+        results[kind] = (status, body.decode("utf-8", errors="replace"))
+
+    procs = ProcWatch(app_id)
+    procs.start()
+    t0 = time.perf_counter()
+    threads = [threading.Thread(target=publish, args=(kind,)) for kind in sids]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    seconds = time.perf_counter() - t0
+    procs.stop.set()
+    procs.join()
+    keys = {kind: re.search(r"/dokumen/([0-9a-f]{16})/salinan\.zip", html) for kind, (_, html) in results.items()}
+    ok = all(status == 200 and "8 salinan siap dibagikan" in html for status, html in results.values())
+    ok = ok and all(keys.values()) and len({k.group(1) for k in keys.values() if k}) == 2
+    cek(ok and 1 <= procs.most <= cap and procs.samples >= 5,
+        "web Terbitkan: dua sesi sekaligus (teks dan hasil pindai, 8 salinan) bergiliran",
+        f"{seconds:.0f} s, paling banyak {procs.most} proses kerja sekaligus (TAPAK_WORKERS={cap}, "
+        f"{procs.samples} sampel)" + ("" if ok else f"; HTTP {[r[0] for r in results.values()]}"))
+
+
 # --- the check --------------------------------------------------------------------------------
 
 
@@ -504,6 +550,8 @@ def run_check(args: argparse.Namespace, d: Docker, cek: Cek) -> None:
             "web Terbitkan: 20 salinan induk hasil pindai",
             f"{seconds:.0f} s, paling banyak {procs.most} proses kerja sekaligus (TAPAK_WORKERS={args.pekerja}, "
             f"{os.cpu_count()} CPU host, {procs.samples} sampel){peak}")
+
+    check_concurrent_web_issuance(d, cek, base, app_id)
 
     for label, (key, _, host_path, seq) in evidence.items():
         t0 = time.perf_counter()
