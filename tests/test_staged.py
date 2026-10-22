@@ -190,6 +190,33 @@ def test_innocent_stage_two_rate_stays_under_a_measurable_bound():
     assert exceed / evaluations <= 1e-2
 
 
+def test_coalition_cannot_frame_an_innocent_through_stage_two():
+    """A coalition that sacrifices one member at stage 1 and forges the rarer symbol everywhere
+    else (breaking the marking assumption) puts every stage-2 weight on positions where an
+    innocent's score has the worst-case law. It still cannot reach an innocent's codeword: the
+    rate of innocents named at each stage, stage-1 false accusations included, stays under
+    that stage's eps1."""
+    params = TardosParams(c=3, eps=1e-2, n_max=60)
+    stage_e1 = [2e-2, 1e-2]
+    rng = np.random.default_rng(23)
+    named = [0, 0]
+    innocents = 0
+    for _ in range(300):
+        p, x = random_code(params, 60, rng, length=500)
+        members = rng.choice(60, size=3, replace=False)
+        y = x[members[0]].copy()
+        tail = np.arange(len(p)) >= 300
+        y[tail] = (p[tail] < 0.5).astype(np.uint8)  # the rarer symbol, unexplained wherever members[0] differs
+        innocent = np.ones(60, dtype=bool)
+        innocent[members] = False
+        innocents += int(innocent.sum())
+        for st in staged_accuse(x, y, p, stage_e1, np.ones(len(p))):
+            named[st.stage - 1] += int(np.count_nonzero(innocent[st.accused]))
+    assert innocents == 300 * 57
+    for k in range(2):
+        assert named[k] / innocents <= stage_e1[k]
+
+
 # --- simulation ----------------------------------------------------------------------------------
 
 
@@ -302,6 +329,9 @@ def test_berita_acara_shows_stages_with_their_basis(ctx, issued):
     assert "Skor tahap 2" in html and "Pelacakan bertahap." in html and "Tahap 3" in html
     assert "Tidak ada salinan lain yang skornya mencapai ambang tahap 3" in html
     assert "--pelacakan-ke 2 --bertahap bertahap-v1" in html
+    # The budget statements name the stage's part of eps, not the trace's whole share.
+    assert "jatah eps tahap 1 dibagi n_max" in html and "jatah eps pelacakan dibagi n_max" not in html
+    assert "dipakai tahap yang menuduh salinan tersebut (bagian dari jatah pelacakan ini)" in html
     assert rerun_command(info, None, 2, DEFAULT_STAGE_POLICY).endswith("--pelacakan-ke 2 --bertahap bertahap-v1")
     # Nobody else is named: identities of other copies stay out of the report.
     others = [r for r in ctx.refs if r.seq not in (seq_a, seq_b)]
@@ -354,7 +384,7 @@ def test_trace_entries_with_and_without_the_stage_policy_verify(tmp_path):
 
     signer = Signer(bytes([7]) * 32)
     with _registry(tmp_path / "r.db") as reg:
-        old =reg.record_trace(doc_hash=DOC, evidence_sha256=EVIDENCE, eps=1e-6)
+        old = reg.record_trace(doc_hash=DOC, evidence_sha256=EVIDENCE, eps=1e-6)
         new = reg.record_trace(doc_hash=DOC, evidence_sha256=EVIDENCE, eps=1e-6, stage_policy=DEFAULT_STAGE_POLICY)
     assert set(old.payload) == TRACE_FIELDS and set(new.payload) == TRACE_FIELDS | STAGE_TRACE_FIELDS
     assert new.kind == KIND_TRACE and new.payload["stage_policy"] == DEFAULT_STAGE_POLICY
@@ -366,7 +396,7 @@ def test_trace_entries_with_and_without_the_stage_policy_verify(tmp_path):
     assert trace_payload_problems(good) == []
     for change in ({"stage_policy": "tidak-ada"}, {"stage_eps": good["stage_eps"][:3]},
                    {"stage_eps": [good["eps_share"]] + [0.0] * 3}, {"stage_eps": "semua"},
-                   {"stage_eps": [float("nan")] * 4}):
+                   {"stage_eps": [float("nan")] * 4}, {"stage_policy": None, "stage_eps": [good["eps_share"]]}):
         assert trace_payload_problems({**good, **change}), change
     lone = {k: v for k, v in good.items() if k != "stage_eps"}
     assert any("bersama" in t for t in trace_payload_problems(lone))

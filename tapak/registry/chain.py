@@ -256,6 +256,8 @@ def _stage_problems(payload: dict[str, Any], share: float) -> list[str]:
         return []
     if present != STAGE_TRACE_FIELDS:
         return ["stage_policy dan stage_eps entri pelacakan harus hadir bersama"]
+    if not isinstance(payload["stage_policy"], str):  # None would mean a single stage: not a staged entry
+        return ["stage_policy entri pelacakan bukan kebijakan tahap yang dikenal"]
     try:
         expected = split_stage_eps(share, payload["stage_policy"])
     except ValueError:

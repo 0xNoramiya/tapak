@@ -467,7 +467,7 @@ def canary_alerts(settings: Settings, manifest: IssueManifest) -> list[dict[str,
 
 # Added to the result of every trace that the registry does not log.
 UNLOGGED_TRACE_NOTE = ("pelacakan ini tidak dicatat di registri, jadi pelacakan berulang atas dokumen ini tidak "
-                       "diperhitungkan: ambang memakai seluruh eps dan batas peluang tuduhan salah hanya berlaku "
+                       "diperhitungkan: pelacakan ini memakai seluruh eps dan batas peluang tuduhan salah hanya berlaku "
                        "untuk pelacakan ini saja")
 UNSIGNED_TRACE_NOTE = ("entri pelacakan ini dicatat di registri tanpa tanda tangan; pemegang kunci "
                        "menandatanganinya dengan tapak registry sign")

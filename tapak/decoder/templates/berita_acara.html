@@ -115,7 +115,8 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
   pendekatan distribusi normal yang dipakai.</li>
   <li><strong>Pelacakan berulang.</strong> Setiap pelacakan dokumen yang tercatat di registri lebih
   dulu dicatat di registri dengan nomor urut k, sebelum bukti dibaca. Pelacakan ke-k hanya memakai
-  jatah eps &times; 6 / (&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max.
+  jatah eps &times; 6 / (&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max{% if staged %}
+  (pada pelacakan bertahap: jatah tahap yang bersangkutan dibagi n_max){% endif %}.
   Jumlah 6 / (&pi;&sup2; k&sup2;) untuk semua k adalah 1, sehingga semua pelacakan dokumen yang sama,
   berapa pun banyaknya, bersama-sama tetap dalam batas eps.</li>
   {% if staged %}
@@ -136,9 +137,12 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
   batas atas peluang bahwa, di antara semua penerima lain yang tidak bersalah, ada yang secara
   kebetulan memperoleh skor setinggi skor salinan tersebut. Contohnya, 2,3 &times; 10<sup>&minus;12</sup>
   berarti kejadian seperti itu terjadi tidak lebih sering dari sekali dalam sekitar 430 miliar
-  pemeriksaan serupa.{% if trace_no is not none %} Angka itu sudah dibagi dengan bagian eps yang
-  dipakai pelacakan ini, sehingga berlaku untuk semua pelacakan dokumen yang sama, bukan hanya
-  pelacakan ini.{% endif %} Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang
+  pemeriksaan serupa.{% if staged %} Angka itu sudah dibagi dengan bagian eps yang dipakai tahap
+  yang menuduh salinan tersebut{% if trace_no is not none %} (bagian dari jatah pelacakan ini), sehingga
+  berlaku untuk semua tahap dan semua pelacakan dokumen yang sama, bukan hanya tahap atau pelacakan
+  ini{% else %}, sehingga berlaku untuk semua tahap pelacakan ini bersama{% endif %}.{% elif trace_no is not none %}
+  Angka itu sudah dibagi dengan bagian eps yang dipakai pelacakan ini, sehingga berlaku untuk semua
+  pelacakan dokumen yang sama, bukan hanya pelacakan ini.{% endif %} Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang
   sebenarnya dapat lebih kecil.</li>
   <li><strong>Aturan tidak cukup bukti.</strong> Bila tidak ada salinan yang skornya mencapai Z,
   putusannya adalah "tidak cukup bukti" dan tidak ada nama yang disebutkan, termasuk pemilik skor
@@ -335,7 +339,7 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
     jatah eps pelacakan ini; pemeriksaan dengan jangkar ini mengungkapnya.</td></tr>
   {% endif %}
   <tr><th>Aturan ambang</th><td>Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak
-    bersalah tidak melebihi eps1 (jatah eps pelacakan dibagi n_max), dihitung hanya dari vektor bias
+    bersalah tidak melebihi eps1 (jatah eps {% if staged %}tahap 1{% else %}pelacakan{% endif %} dibagi n_max), dihitung hanya dari vektor bias
     dan bobot dekoder.
     <div class="label-rumus">Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya,
     dalam bahasa Inggris):</div>

@@ -732,14 +732,15 @@ def _trace_text(t: ThresholdRecord) -> str:
     """Section V and VI: which trace of the document this was and the eps it spent."""
     if t.trace_no is None:
         text = ("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; "
-                "ambang memakai seluruh eps")
+                + ("pelacakan ini memakai seluruh eps" if t.stage_eps is not None else "ambang memakai seluruh eps"))
     else:
         text = (f"pelacakan ke-{t.trace_no} untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps "
                 f"pelacakan ini 6 / (\u03c0\u00b2 \u00d7 {t.trace_no}\u00b2) = "
                 f"{_strip_zeros(format_number(100 * t.share, 2))} % dari eps")
     if t.stage_eps is not None:
         text += (f"; pelacakan bertahap (kebijakan {t.stage_policy}): tahap 1 memakai "
-                 f"{_strip_zeros(format_number(100 * t.stage_spent / t.spent, 2))} % dari jatah itu")
+                 f"{_strip_zeros(format_number(100 * t.stage_spent / t.spent, 2))} % "
+                 f"{'dari jatah itu' if t.trace_no is not None else 'dari eps itu'}")
     return text
 
 
@@ -763,7 +764,8 @@ def _canary_rows(info: ReportInfo, shown_seqs: set[int], redact: Callable[[str],
 def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
     """Everything the template may show, as formatted strings.
 
-    Identities enter only through ``accused_rows`` and ``digests``; free text is redacted.
+    Identities enter only through ``accused_rows``, the rows of the later stages (``stages``)
+    and ``digests``; free text is redacted.
     """
     check_consistent(attribution)
     t = attribution.threshold
