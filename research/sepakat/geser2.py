@@ -78,6 +78,13 @@ nothing), so the cause of the blind spot on prints can be separated (noise-only 
 strengths, or the geser-v2 shift strengths themselves). The honest and benchmark parts do not
 involve the coalition and are not rerun.
 
+Review part ``jujur-tinjauan`` (honest behaviour on fresh seeds, seeds fixed in a review
+script before it ran; this part reproduces that run): four more geser-v2 issuances,
+nota_dinas N = 20 (8911) and N = 100 (8913), surat_telegram N = 20 (8912) and N = 100 (8914),
+exactly as part ``jujur`` otherwise (copies 1 to 10 through the four channels with seed
+[8941, issuance, copy, channel], the unmarked master through three with seed [8951,
+issuance, channel]), into ``geser2_jujur_tinjauan.jsonl``.
+
 Usage (from the repository root; at most 3 worker processes, 1 BLAS thread each):
 
     python research/sepakat/geser2.py terbit
@@ -87,6 +94,8 @@ Usage (from the repository root; at most 3 worker processes, 1 BLAS thread each)
     python research/sepakat/geser2.py tipografi --out research/sepakat/hasil/geser2_tipografi.jsonl
     python research/sepakat/geser2.py serang --out research/sepakat/hasil/geser2_serang_jangkar.jsonl
     python research/sepakat/geser2.py tipografi --out research/sepakat/hasil/geser2_tipografi_jangkar.jsonl
+    python research/sepakat/geser2.py terbit-tinjauan
+    python research/sepakat/geser2.py jujur-tinjauan --out research/sepakat/hasil/geser2_jujur_tinjauan.jsonl
     python research/sepakat/geser2.py ringkas research/sepakat/hasil/geser2_*.jsonl
 """
 
@@ -121,6 +130,10 @@ ATTACK_ISSUANCES = [("nota_dinas", 20, 7801), ("nota_dinas", 100, 7802), ("surat
 HONEST_ISSUANCES = ATTACK_ISSUANCES + [("nota_dinas", 20, 7805), ("surat_telegram", 20, 7806),
                                        ("nota_dinas", 20, 7807), ("surat_telegram", 20, 7808)]
 SEEDS = {"koalisi": 7811, "kanal": 7821, "serangan": 7831, "jujur": 7841, "induk": 7851}
+# Review part jujur-tinjauan: honest behaviour on four more issuances with fresh seeds.
+REVIEW_ISSUANCES = [("nota_dinas", 20, 8911), ("surat_telegram", 20, 8912), ("nota_dinas", 100, 8913),
+                    ("surat_telegram", 100, 8914)]
+REVIEW_SEEDS = {"jujur": 8941, "induk": 8951}
 KS = (2, 3, 4)
 COALITIONS = 3
 COPIES = 10
@@ -137,11 +150,12 @@ BENCH_SETS = {"layar": ROOT / "samples" / "photos", "cetak": ROOT / "samples" / 
               "ponsel": ROOT / "samples" / "photos-ponsel", "fotolayar": ROOT / "samples" / "photos-layar"}
 
 
-def issue_all() -> None:
-    """Issue every issuance of this protocol with geser-v2 (skips the ones already there)."""
+def issue_all(issuances: list[tuple[str, int, int]] | None = None) -> None:
+    """Issue every issuance of this protocol (or ``issuances``) with geser-v2 (skips the ones
+    already there)."""
     from tapak.marker.issue import IssueManifest
 
-    for doc, n, seed in HONEST_ISSUANCES:
+    for doc, n, seed in HONEST_ISSUANCES if issuances is None else issuances:
         folder = ukur.issuance_dir(doc, n, seed)
         if not list(folder.glob("data/dokumen/*/salinan/manifest.json")):
             csv = ukur._recipients_csv(folder, n)
@@ -210,7 +224,8 @@ def attack_job(job: tuple) -> list[dict]:
 
 def honest_job(job: tuple) -> list[dict]:
     """One honest copy (seq >= 1) or the unmarked master (seq 0) through the channels."""
-    iss, (doc, n, seed), seq = job
+    iss, (doc, n, seed), seq, *rest = job
+    seeds_of = rest[0] if rest else SEEDS  # REVIEW_SEEDS for part jujur-tinjauan
     ctx, _ = ukur.context(doc, n, seed)
     if seq == 0:
         pdf, channels = ctx.master.pdf_bytes, ATTACK_CHANNELS
@@ -221,7 +236,7 @@ def honest_job(job: tuple) -> list[dict]:
     rows = []
     for ch_i, channel in enumerate(channels):
         t0 = time.perf_counter()
-        seeds = [SEEDS["induk"], iss, ch_i] if seq == 0 else [SEEDS["jujur"], iss, seq, ch_i]
+        seeds = [seeds_of["induk"], iss, ch_i] if seq == 0 else [seeds_of["jujur"], iss, seq, ch_i]
         obs, _ = ukur.evidence(ctx, pdf, channel, np.random.default_rng(seeds), seq)
         row = {"bagian": "induk" if seq == 0 else "jujur", "dok": doc, "N": n, "benih": seed, "salinan": seq,
                "kanal": channel}
@@ -289,6 +304,12 @@ def attack_jobs() -> list[tuple]:
 def honest_jobs() -> list[tuple]:
     """Copies 1 to COPIES and the master (0) of every honest issuance."""
     return [(iss, spec, seq) for iss, spec in enumerate(HONEST_ISSUANCES) for seq in range(0, COPIES + 1)]
+
+
+def review_honest_jobs() -> list[tuple]:
+    """Part jujur-tinjauan: copies 1 to COPIES and the master of every review issuance."""
+    return [(iss, spec, seq, REVIEW_SEEDS) for iss, spec in enumerate(REVIEW_ISSUANCES)
+            for seq in range(0, COPIES + 1)]
 
 
 def bench_jobs() -> list[tuple]:
@@ -457,12 +478,17 @@ def summary(paths: list[str]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("bagian", choices=["terbit", "jujur", "serang", "bench", "tipografi", "ringkas"])
+    ap.add_argument("bagian", choices=["terbit", "jujur", "serang", "bench", "tipografi", "ringkas",
+                                       "terbit-tinjauan", "jujur-tinjauan"])
     ap.add_argument("paths", nargs="*", default=[])
     ap.add_argument("--out", type=Path)
     args = ap.parse_args(argv)
     if args.bagian == "terbit":
         issue_all()
+    elif args.bagian == "terbit-tinjauan":
+        issue_all(REVIEW_ISSUANCES)
+    elif args.bagian == "jujur-tinjauan":
+        ukur._run(honest_job, review_honest_jobs(), args.out)
     elif args.bagian == "jujur":
         ukur._run(honest_job, honest_jobs(), args.out)
     elif args.bagian == "serang":
