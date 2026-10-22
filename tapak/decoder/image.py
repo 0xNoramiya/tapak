@@ -63,8 +63,11 @@ def collect_from_gray(gray: np.ndarray, ctx: "TraceContext", read_text: bool = T
         sb.meta.update(reg_meta)
         out.append(sb)
     if read_text:
-        from tapak.decoder.ocr import read_visible_text
+        from tapak.decoder.ocr import ocr_unavailable_reason, page_slots, read_visible_text
 
+        if any(page_slots(ctx, reg.page)) and ocr_unavailable_reason() is not None:
+            for sb in out:  # the page carries visible-text marks that could not be read (no Tesseract)
+                sb.meta["ocr_unavailable"] = True
         for sb in read_visible_text(gray, reg, ctx):
             sb.meta.update(reg_meta)
             out.append(sb)

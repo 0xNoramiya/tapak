@@ -11,9 +11,9 @@ Kode penerima yang sama ditanam di empat kanal, ditambah token kanari sebagai ka
 | 1. Geser kata dan baris | kelompok kata bergeser horizontal dan baris bergeser vertikal. Skema v2 (bawaan sejak penerbitan ini): setiap kelompok kata bergeser 0,025 mm dan satu baris dibaca bersama setelah pergeseran dan kemiringannya diproyeksikan keluar ([rincian](#skema-geser-v2)). Skema v1 (semua dokumen lama): kelompok data di antara dua kelompok kontrol bergeser 0,05 mm dan dibaca relatif terhadap tetangganya. Baris berselang-seling 0,05 mm pada keduanya | cetak, foto, tangkapan layar |
 | 2. Pola latar | pola acak berfrekuensi rendah +/-2 tingkat abu-abu (sel 2 mm). Setiap posisi kode menempati 8 sel yang tersebar dan didekode secara buta per bit. Profil cetak (opsional): 242 +/- 5 | tangkapan layar, foto layar; dengan profil cetak juga kertas cetak (printer simulasi, [di bawah](#salinan-yang-dicetak)) |
 | 3. Karakter tak terlihat | sepasang simbol lebar-nol sebelum dan sesudah kata (2 bit per simbol) serta huruf kembar Kiril pada kata huruf kecil | salin-tempel, berkas diteruskan |
-| 4. Varian semantik | parafrasa kalimat pembuka, penutup, dan tembusan oleh LLM lokal, disetujui manusia | pengetikan ulang, tetapi hanya beberapa bit (4 pada contoh), belum cukup untuk menyebut nama |
+| 4. Varian semantik | parafrasa kalimat pembuka, penutup, dan tembusan oleh LLM lokal, disetujui manusia | pengetikan ulang, tetapi hanya beberapa bit (4 pada contoh), belum cukup untuk menyebut nama. Juga dibaca dengan OCR dari foto, tangkapan layar, dan cetakan ([di bawah](#teks-terlihat-pada-bukti-gambar-ocr)) |
 | 5. Kanari DNS | satu subdomain unik per salinan di bawah domain kanari. Pendengar DNS mencatat kapan nama itu dicari dan resolver mana yang bertanya, bukan siapa pembukanya. Token ini tidak membawa kode Tardos | berkas dibuka di luar jaringan satuan, di Adobe Reader atau Word |
-| 6. Pilihan kata (opsional) | bentuk bermakna sama dari tabel leksikon draf, misalnya "terdiri atas" atau "terdiri dari", "dan" atau "serta". Setiap titik disetujui manusia | pengetikan ulang oleh satu pembocor, bila dokumennya cukup panjang (terukur: mulai sekitar 1.300 kata isi; TAPAK menyatakan cukup mulai 64 bit, sekitar 1.800 kata isi); tidak tahan kolusi. Bentuknya terlihat di kertas, jadi dapat ditiru |
+| 6. Pilihan kata (opsional) | bentuk bermakna sama dari tabel leksikon draf, misalnya "terdiri atas" atau "terdiri dari", "dan" atau "serta". Setiap titik disetujui manusia | pengetikan ulang oleh satu pembocor, bila dokumennya cukup panjang (terukur: mulai sekitar 1.300 kata isi; TAPAK menyatakan cukup mulai 64 bit, sekitar 1.800 kata isi); tidak tahan kolusi. Bentuknya terlihat di kertas, jadi dapat ditiru, dan dibaca dengan OCR dari foto, tangkapan layar, dan cetakan |
 
 ## Dokumen induk hasil pindai
 
@@ -45,6 +45,8 @@ Satu kebocoran dapat dilacak berulang kali, misalnya dengan potongan atau gabung
 ## Fusi bukti
 
 Setiap kanal menghasilkan rasio log-kemungkinan (LLR) per posisi kode tanpa pernah melihat kode penerima. LLR dijumlahkan; keputusan y_i = tanda LLR, bobot w_i = tanh(|LLR|/2). Skor tuduhan dihitung pada hasil fusi dan pada setiap kanal fisik secara terpisah, sehingga laporan menyebut berapa kanal yang sepakat secara independen. Kanal yang saling bertentangan dilaporkan sebagai kemungkinan manipulasi.
+
+**Satu slot yang terbaca lebih dari sekali.** Bila beberapa berkas bukti dari satu kebocoran memperlihatkan slot yang sama, setiap pembacaan ikut dijumlahkan: dua foto halaman yang sama menjumlahkan LLR geser dan latarnya (derau kameranya bebas, cetakannya tidak), dan PDF yang diteruskan bersama fotonya menambahkan pembacaan PDF yang persis ke pembacaan foto. Pengecualiannya kanal yang tandanya kata terlihat, yaitu varian kalimat dan pilihan kata. Frasa tercetak yang sama, dibaca dari lapisan teks PDF, teks tempelan, atau teks OCR sebuah gambar ([di bawah](#teks-terlihat-pada-bukti-gambar-ocr)), adalah satu tanda, bukan dua bukti yang saling bebas: galat OCR berulang pada cetakan yang sama, dan lapisan teks serta OCR halaman yang sama sepakat dengan sendirinya. Karena itu pembacaan satu posisi dari berkas yang berbeda digabung sebagai jumlahnya, dipangkas ke |LLR| tunggal terbesar (`fuse.combine_repeated_reads`). Pembacaan yang sepakat memberi keyakinan pembacaan terbaik saja, tidak lebih; pembacaan yang bertentangan menurunkannya, sampai terhapus bila sama kuat. Satu berkas bukti memberi LLR yang persis sama dengan sebelumnya, dan aturan ini hanya memakai LLR, tidak pernah kode penerima. Kanal sepakat dihitung per kanal fisik, jadi varian kalimat yang dibaca dari teks dan dari OCR tetap satu kanal ("semantik"), bukan dua.
 
 ## Pelacakan bertahap
 
@@ -111,7 +113,8 @@ tapak/
                 canary, docx_marker, render (gambar ulang + gerbang visual), raster (halaman pindaian),
                 issue (paralel)
   decoder/      rectify, lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_lexical,
-                ch_docx, image, fuse, accuse, erasure (pola penghapusan), trace, report (berita acara)
+                ch_docx, image, ocr (teks terlihat pada bukti gambar), fuse, accuse, erasure (pola penghapusan),
+                trace, report (berita acara)
   assets/       font DejaVu, leksikon pilihan kata (leksikon/naskah_dinas_v1.json, draf)
   registry/     chain (rantai hash, trigger tambah-saja), signing (Ed25519), verify, merkle
   canary_dns/   server (dnslib), store (log berantai)
@@ -130,6 +133,7 @@ tests/          pytest (tanpa GPU, tanpa model LLM, tanpa jaringan)
 research/ketik/ pengukuran kanal pilihan kata (kapasitas, galat baca, atribusi)
 research/pindaian/ pengukuran induk hasil pindai (protokol, hasil, potongan gambar)
 research/ponsel/ pengukuran foto ponsel dan foto layar simulasi (protokol, pemilihan dekoder, hasil)
+research/ocr/   OCR bukti gambar untuk varian kalimat dan pilihan kata (protokol, pemilihan pengaturan, hasil)
 research/sepakat/ koalisi yang memahami TAPAK: serangan, pemeriksaan pola penghapusan, penyamaran
 docs/           dokumentasi, gambar README (docs/figures membuatnya ulang), keluaran simulasi dan benchmark
 ```
@@ -342,11 +346,12 @@ Penyamaran membuat salinan berbeda di setiap posisi, sehingga kesamaan tidak ter
 | Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |
 | Teks diketik ulang dengan 5 % salah ketik (kanal semantik) | 4 bit semantik pulih 20 dari 20 percobaan; tidak cukup untuk menyebut nama |
 | Teks diketik ulang, kanal pilihan kata ([rincian](#kanal-pilihan-kata-opsional)): dokumen sintetis 6 halaman (47 bit), 200 percobaan untuk N = 20 dan 200 untuk N = 100, pelacakan pertama yang tercatat | 395 dari 400 benar, 0 tuduhan salah; nota dinas contoh 2 halaman (11 bit): "tidak cukup bukti" |
+| Varian kalimat dan pilihan kata dibaca dengan OCR dari foto, tangkapan layar, dan foto cetak sintetis (kedua dokumen contoh, N = 20, set uji tertahan; [rincian](#teks-terlihat-pada-bukti-gambar-ocr)) | 1.765 dari 1.771 bit yang tercetak terbaca, 0 salah; 27 putusan foto cetak berubah menjadi benar, tidak satu pun sebaliknya; 0 tuduhan salah dalam 598 pelacakan |
 | Dokumen induk hasil pindai (nota dinas sintetis 2 halaman, 300 dpi), 20 salinan: PDF salinan, tangkapan layar, dan foto sintetis halaman 1 ([rincian](keamanan.md#batasan)) | 60 dari 60 benar, 0 tuduhan salah; gabungan sepertiga halaman dari 3 salinan: 15 dari 15 anggota koalisi tertangkap, tidak ada orang lain |
 | Penerbitan 20 salinan dokumen 2 halaman | sekitar 4 sampai 5 detik (hasil pindai 300 dpi: sekitar 30 detik) |
 | Kanari DNS, pembukaan disimulasikan (kueri langsung ke pendengar lokal) | tercatat dalam sekitar 0,1 detik (syarat: di bawah 5 detik) |
 | Registri: verifikasi hanya dengan kunci publik, setiap perubahan baris terdeteksi | lulus |
-| `make demo` (skenario lengkap) | sekitar 18 sampai 20 detik di mesin uji yang dipakai bersama, termasuk sekitar 5 detik untuk templat induk tepat pada pelacakan foto |
+| `make demo` (skenario lengkap) | sekitar 18 sampai 20 detik di mesin uji yang dipakai bersama, termasuk sekitar 5 detik untuk templat induk tepat pada pelacakan foto; sejak varian kalimat pada foto dibaca dengan OCR, sekitar 3 detik lebih lama |
 
 ## Kanal pilihan kata (opsional)
 
@@ -358,7 +363,7 @@ Pengetikan ulang menghapus semua tanda kecuali isi kata-katanya. Kanal ini membe
 * **Peninjauan.** Setiap titik disetujui atau ditolak manusia, dengan melihat seluruh kalimatnya (lintas baris) dan frasanya dalam kurung siku. Penerbitan diblokir selama masih ada titik yang menunggu. Titik dan bentuk yang disunting di luar TAPAK ditolak, karena digest pemindaiannya tidak cocok dan pemindaian ulang dokumen induk memberi titik yang berbeda. Keputusan setuju atau tolak di berkas itu tidak diautentikasi: berkas yang statusnya disunting tangan tetap diterima, jadi `leksikal.json` dijaga seperti dokumen induk.
 * **Posisi kode.** Dokumen yang memakai kanal ini mengambil posisi kanal semantik dan pilihan kata hanya dari posisi dengan bias 0,3 sampai 0,7. Keduanya memakai satu urutan berkunci: semantik dari depan, pilihan kata dari belakang. Penerbitan ditolak bila pita itu tidak cukup untuk semua bit keduanya (misalnya c = 1 dengan dokumen panjang), jadi posisinya tidak pernah bertabrakan atau berulang. Aturan ini dicatat sebagai `retype_positions` di catatan penerbitan dan registri; dokumen lama tetap memakai aturan seragam. Pemilihan hanya memakai vektor bias, tidak pernah kode penerima, jadi ambang Chernoff tetap berlaku. Di dekat p = 1/2, satu pembocor menyumbang skor sampai 1 per bit. Sebaliknya, koalisi yang memilih bit minoritas menekan skornya ke sekitar nol, jadi posisi ini hanya menolong untuk pembocor tunggal.
 * **Dekode.** Teks bukti disejajarkan dengan teks induk (jarak edit), lalu setiap bentuk dicocokkan bersama konteks 16 karakter di kiri dan kanannya. LLR = 2 x selisih jarak edit, paling besar 6, dan paling besar 2 bila suntingan berkumpul di frasa itu. Frasa yang ditulis ulang atau terpotong dianggap tidak terbaca, bukan dibaca salah. Pengecualiannya titik berkonteks berulang: frasa dan konteksnya juga ada di bagian lain dokumen. Bila pembocor menukar urutan kalimat, titik itu dapat terbaca di tempat lain dengan yakin. Akibatnya skor pembocor turun, tetapi salinan lain tidak pernah tertuduh karenanya. Pemindaian menandai titik seperti ini untuk peninjau; kedua contoh tidak memilikinya. Ambangnya tetap dihitung dari vektor bias dan bobot dekoder.
-* **Tanda yang terlihat.** Pilihan kata dan varian kalimat terlihat di kertas. Bila sebuah nama hanya didukung kedua kanal itu (tanpa keduanya salinan itu tidak mencapai ambang), hasil CLI, web, dan berita acara menambahkan peringatan di bawah putusan: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya saat mengetik ulang, jadi hasil itu menunjuk pilihan kata salinan tersebut, bukan pengetiknya, dan memerlukan bukti pendukung. Peringatan ini tidak mengubah ambang atau putusan.
+* **Tanda yang terlihat.** Pilihan kata dan varian kalimat terlihat di kertas. Bila sebuah nama hanya didukung kedua kanal itu (tanpa keduanya salinan itu tidak mencapai ambang), juga bila keduanya dibaca dengan [OCR](#teks-terlihat-pada-bukti-gambar-ocr) dari foto atau cetakan, hasil CLI, web, dan berita acara menambahkan peringatan di bawah putusan: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya saat mengetik ulang, jadi hasil itu menunjuk pilihan kata salinan tersebut, bukan pengetiknya, dan memerlukan bukti pendukung. Peringatan ini tidak mengubah ambang atau putusan.
 
 Angka di bawah dibuat ulang dengan `research/ketik/ukur.py`; semua pilihan acak berasal dari benih tetap, dan keluarannya disimpan di `research/ketik/hasil/` (`kapasitas.jsonl`, `galat.jsonl`, `atribusi.jsonl`). Pengetikan ulangnya disimulasikan (`tapak/ketik.py`); belum ada orang sungguhan yang mengetik ulang. Semua angka memakai tabel draf tingkat A.
 
@@ -400,9 +405,43 @@ Tidak ada tuduhan salah dalam 2.000 percobaan. Ada dua angka yang berbeda:
 
 Kolusi tidak tertangani di teks ketikan ulang. Menurut simulasi riset (200 percobaan per sel, derau baca terukur), koalisi 3 orang yang memilih bentuk minoritas tidak pernah tertangkap dengan posisi pita (0 dari 200 sampai 768 bit). Dengan posisi seragam pun koalisi itu baru tertangkap pada sekitar 1.000 sampai 1.500 bit, kira-kira 90 sampai 140 halaman isi dengan tabel ini.
 
+## Teks terlihat pada bukti gambar (OCR)
+
+Varian kalimat dan pilihan kata adalah kata yang tercetak di halaman. Keduanya bertahan pada foto, tangkapan layar, pindaian, dan cetakan, sedangkan pola latar bawaan tidak sampai ke kertas. Karena itu, bila dokumen memakai salah satu kanal itu, halaman yang ditemukan pada bukti gambar juga dibaca teksnya dengan Tesseract lokal (`tapak/decoder/ocr.py`). Dokumen tanpa kedua kanal itu dilacak persis seperti sebelumnya; penerbitan benchmark README tidak memakainya, jadi hasilnya tidak berubah.
+
+* **Pembacaan.** Registrasi menemukan halaman induk dan meluruskan gambar ke bingkai halaman itu (urutan halaman dan potongan yang sama dengan kanal geser dan latar). Halaman terektifikasi dibagi taksiran terang kertasnya, sehingga bayangan, vinyet, dan pencahayaan tidak rata hilang, lalu dibaca Tesseract (`-l ind+eng --oem 1 --psm 3`, satu utas, resolusi analisis registrasi). Gambar masuk lewat stdin dan teks keluar lewat stdout, tanpa berkas sementara. Halaman yang tidak memuat slot kedua kanal tidak dibaca.
+* **Pembaca yang sama.** Teksnya hanya diberikan ke pembaca varian kalimat dan pilihan kata yang dipakai untuk teks tempelan, tanpa perubahan, dan hanya untuk slot yang tercetak di halaman itu. Acuan pilihan kata hanya memuat baris halaman itu, jadi konteks sebuah titik berakhir di tepi halaman, seperti pada gambar. Keduanya tetap buta kode: hanya halaman, slot, teks induk, dan himpunan varian yang dipakai, tidak pernah kode penerima.
+* **Tidak ke kanal teks.** Teks OCR tidak pernah diberikan ke kanal karakter tak terlihat dan huruf kembar. OCR tidak melihat simbol lebar-nol dan membaca huruf kembar sebagai huruf Latin biasa, jadi keluarannya tidak berkata apa pun tentang tanda itu.
+* **Teks rusak menjadi terhapus.** Pembaca menolak kalimat atau titik yang bentuk terdekatnya terlalu jauh dari teks, atau yang penjajarannya menunjukkan suntingan rapat di frasa itu (terpotong, ditulis ulang, atau tak terbaca), dan memberi LLR rendah pada suntingan yang berkumpul. Galat ini diukur pada keluaran OCR sungguhan dari gambar sintetis, bukan pada salah ketik simulasi: pada set uji tertahan tidak satu pun dari 1.765 bit yang terbaca salah; empat kalimat atau titik terhapus dan tiga dibaca dengan keyakinan rendah.
+* **Label, bukan teks.** Sub-kanalnya `semantic_ocr` dan `lexical_ocr`, bagian dari kanal fisik semantik dan leksikal. CLI, JSON, halaman Lacak, dan berita acara menulis kanal itu dengan keterangan "OCR gambar" (atau "teks dan OCR gambar" bila juga dibaca dari teks), dan tidak pernah menampilkan teks OCR. Diagnostik hanya memuat jumlah, id kalimat dan titik, halaman, dan waktu OCR. Nama yang hanya didukung tanda ini tetap diberi [peringatan tanda yang terlihat](#kanal-pilihan-kata-opsional).
+* **Bukti yang sama dua kali.** PDF dan foto salinan yang sama, atau dua foto halaman yang sama, membaca frasa yang sama. Frasa itu dihitung sebagai satu tanda ([fusi bukti](#fusi-bukti)).
+* **Tanpa Tesseract** (atau tanpa data bahasa Indonesia), pelacakan tetap berjalan tanpa kedua sub-kanal itu, dan hasilnya menyebutnya dalam satu baris catatan.
+* **Waktu.** Tesseract memerlukan median 2,9 detik per halaman di mesin uji yang dipakai bersama (gambar 1600 px sekitar 2,7 detik, foto cetak 4000 px 4,3 detik, paling lama 9,8 detik), di atas dekode kanal geser dan latar.
+
+**Pemilihan pengaturan.** Protokol, benih, kandidat, dan aturan pemilihan ditetapkan di `research/ocr/ukur.py` sebelum pengukuran ([rinciannya](../research/ocr/README.md)). Pada 96 gambar pengembangan (kedua dokumen contoh, salinan 1 sampai 6, enam jenis bukti), psm 3 pada halaman yang dibagi terang kertasnya membaca 778 dari 780 bit yang tercetak, tanpa satu pun yang salah. Tanpa pembagian itu psm 3 membaca 701, psm 4 721, psm 6 738, dan pencuplikan ulang ke 300 dpi 709 (psm 3) dan 728 dengan satu bit salah (psm 6), dengan waktu OCR sekitar 1,6 kali lebih lama.
+
+**Hasil** (set uji tertahan, dilacak sekali seperti `make bench`: tanpa registri, seluruh eps, satu tahap). Kedua dokumen contoh diterbitkan untuk N = 20 dengan semua varian tabel frasa tiruan dan semua titik pilihan kata disetujui. Nota dinas membawa 8 bit terlihat di halaman 1 dan 7 di halaman 2; surat telegram 9 di halaman 1 dan tidak ada di halaman 2. Setiap gambar didekode sekali, lalu pengamatan yang sama dituduh dengan dan tanpa sub-kanal OCR. Kolom terakhir adalah penerbitan bawaan tanpa kedua kanal itu, dengan id salinan, kode, dan bilangan acak cetak dan foto yang sama.
+
+| Foto cetak (20 salinan per baris), benar / tcb / salah | Dengan OCR | Tanpa OCR | Penerbitan tanpa kedua kanal |
+|---|---|---|---|
+| 1600 px, nota hal. 1 | 11 / 9 / 0 | 8 / 12 / 0 | 15 / 5 / 0 |
+| 1600 px, nota hal. 2 | 0 / 20 / 0 | 0 / 20 / 0 | 4 / 16 / 0 |
+| 1600 px, telegram hal. 1 | 4 / 16 / 0 | 1 / 19 / 0 | 12 / 8 / 0 |
+| 4000 px, nota hal. 1 | 20 / 0 / 0 | 20 / 0 / 0 | 20 / 0 / 0 |
+| 4000 px, nota hal. 2 | 0 / 20 / 0 | 0 / 20 / 0 | 16 / 4 / 0 |
+| 4000 px, telegram hal. 1 | 12 / 8 / 0 | 5 / 15 / 0 | 20 / 0 / 0 |
+| 1600 px, dua halaman (nota; telegram) | 20; 6 | 18; 3 | 20; 14 |
+| 4000 px, dua halaman (nota; telegram) | 20; 18 | 20; 9 | 20; 20 |
+
+* **Bit terbaca.** 1.765 dari 1.771 bit yang tercetak di halaman yang ditemukan, tanpa satu pun yang salah: foto, foto ISP ponsel, foto monitor, dan tangkapan layar 810 dari 811, foto cetak 1600 px 475 dari 480, foto cetak 4000 px 480 dari 480.
+* **Putusan yang berubah.** OCR mengubah 27 putusan menjadi benar (13 foto satu halaman dan 14 pasangan dua halaman), tidak satu pun sebaliknya. Pada 13 foto itu skor salinan yang benar naik dari 0,94 sampai 0,99 kali ambang menjadi 1,01 sampai 1,07 kali. Foto layar dan tangkapan layar sudah benar lewat pola latar (98 dari 100, dengan dan tanpa OCR).
+* **Harga kanal pilihan kata di kertas.** Baris yang memuat titik pilihan kata keluar dari kanal geser ([di atas](#kanal-pilihan-kata-opsional)). Dengan skema geser v2, rencana nota dinas membawa 314 posisi geser (tanpa kanal itu 439) dan surat telegram 200 (249). Pada foto cetak, posisi geser yang terbaca turun dari median 252 menjadi 193 (nota hal. 1), 186 menjadi 121 (nota hal. 2), dan 229 menjadi 180 (telegram hal. 1), sedangkan OCR mengembalikan paling banyak 9 bit per halaman. Jadi untuk salinan yang akan dicetak, penerbitan tanpa kanal pilihan kata tetap lebih sering menyebut salinan yang benar daripada penerbitan dengan kanal itu ditambah OCR (setiap sel yang hasilnya berbeda pada tabel di atas). OCR memperkecil kerugian itu, tetapi tidak menutupnya.
+* **Tuduhan salah: 0** dalam 438 pelacakan gambar dan 160 pasangan dua halaman, masing-masing dengan dan tanpa OCR; skor tak bersalah tertinggi 0,47 kali ambang. Delapan belas foto dokumen induk tanpa tanda membaca 144 bit OCR (bentuk dokumen induk) dan tidak menuduh siapa pun.
+* **Batas angka ini.** Gambar dari simulator foto, ISP ponsel, monitor, dan printer, bukan perangkat sungguhan; Tesseract 5.3.4 dengan data bahasa Ubuntu 24.04; dua dokumen pendek, varian dari tabel frasa tiruan, leksikon draf tingkat A, dan satu rahasia kode per dokumen. Tesseract versi lain dapat membaca lebih buruk; bacaan yang rusak menjadi terhapus, bukan tuduhan. Angka lengkap ada di `research/ocr/hasil/`.
+
 ## Salinan yang dicetak
 
-Pola latar bawaan (253 +/- 2) terlalu terang untuk printer. Model printer kami mengasumsikan tingkat abu-abu di atas sekitar 250 tercetak sebagai kertas polos; angka ini belum diukur pada printer sungguhan, dan kesimpulan di bagian ini paling bergantung padanya. Foto salinan yang dicetak karena itu hanya membawa kanal geser: sekitar 80 sampai 100 posisi kode terbaca per halaman dengan skema v1, dan 170 sampai 240 dengan skema v2. Printer sungguhan belum diuji; angka di bagian ini berasal dari simulator printer dan foto sintetis.
+Pola latar bawaan (253 +/- 2) terlalu terang untuk printer. Model printer kami mengasumsikan tingkat abu-abu di atas sekitar 250 tercetak sebagai kertas polos; angka ini belum diukur pada printer sungguhan, dan kesimpulan di bagian ini paling bergantung padanya. Foto salinan yang dicetak karena itu hanya membawa kanal geser: sekitar 80 sampai 100 posisi kode terbaca per halaman dengan skema v1, dan 170 sampai 240 dengan skema v2. Dokumen yang memakai varian kalimat atau pilihan kata menambah beberapa bit lewat OCR ([di atas](#teks-terlihat-pada-bukti-gambar-ocr)). Printer sungguhan belum diuji; angka di bagian ini berasal dari simulator printer dan foto sintetis.
 
 Angka di bagian ini diukur dengan dekoder sekarang (`research/kapasitas/`, [operasi](operasi.md#mengukur-salinan-yang-dicetak)), termasuk profil latar cetak. Hasil studi sebelumnya ada di [`results/`](results/) (`cetak_*`); kalibrasi printer dan ukuran tampilan pola di sana masih berlaku.
 

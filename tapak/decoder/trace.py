@@ -574,15 +574,15 @@ def trace_files(items: list[tuple[str, bytes]], ctx: TraceContext,
 
 
 def ocr_missing_note(observations: list[SoftBits], ctx: TraceContext) -> str | None:
-    """One line when a page of image evidence was found but its printed sentence variants and
-    word choices could not be read because Tesseract is missing; None otherwise (also for
-    documents without those channels)."""
+    """One line when a page of image evidence carries printed sentence variants or word choices
+    that could not be read because Tesseract is missing (``image.collect_from_gray`` marks such
+    pages); None otherwise, also for documents without those channels."""
     from tapak.decoder.ocr import OCR_SKIPPED, ocr_applies, ocr_unavailable_reason
 
-    if not any("correlation" in sb.meta for sb in observations) or not ocr_applies(ctx):
+    if not ocr_applies(ctx) or not any(sb.meta.get("ocr_unavailable") for sb in observations):
         return None
-    reason = ocr_unavailable_reason()
-    return None if reason is None else f"{reason}: {OCR_SKIPPED} (OCR)"
+    reason = ocr_unavailable_reason() or "Tesseract tidak tersedia"
+    return f"{reason}: {OCR_SKIPPED} (OCR)"
 
 
 def trace_file(path: Path, ctx: TraceContext,

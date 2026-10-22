@@ -332,6 +332,7 @@ def test_trace_without_tesseract_notes_it_once(visible, monkeypatch):
     data = _png(img)
     result, obs = trace_files([("a.png", data), ("b.png", data)], ctx)
     assert not {o.channel for o in obs} & OCR_SUBCHANNELS
+    assert all(o.meta.get("ocr_unavailable") for o in obs if "correlation" in o.meta)
     notes = [n for n in result.notes if OCR_SKIPPED in n]
     assert notes == ["Tesseract tidak terpasang: " + OCR_SKIPPED + " (OCR)"]
     assert result.threshold.n_observed > 0  # the other channels were read as usual
