@@ -248,7 +248,7 @@ _GROUPS = 32
 READ_BOXES = 64
 _FAST_GROUPS = 8
 _FAST_ALPHA_TOL = 1e-4
-_FAST_LAM_TOL = 1e-2
+_FAST_LAM_TOL = None  # lam0 = lam_star alone (measured: the same bound to 0.01 in log10)
 
 
 def _check_coalition(coalition: int) -> int:
@@ -484,7 +484,7 @@ def _expected_threshold_lambda(itg: _Integrand, m: int, log_inv: float) -> float
 
 def _minimize_chernoff(
     objective: Callable[[float | None], Callable[[float], float]], lam_star: float | None,
-    alpha_tol: float = 1e-7, lam_tol: float = 1e-3,
+    alpha_tol: float = 1e-7, lam_tol: float | None = 1e-3,
 ) -> tuple[float, float, float | None]:
     """Minimize a Chernoff log bound over alpha, and over lam0 near ``lam_star``.
 
@@ -503,11 +503,13 @@ def _minimize_chernoff(
     if lam_star is None:
         val, alpha = inner(None)
         return val, alpha, None
-    lo = max(math.log(_LAM_RANGE[0]), math.log(lam_star) - 1.0)
-    hi = min(math.log(_LAM_RANGE[1]), math.log(lam_star) + 1.0)
-    # The bound is valid for every lam0 and only second-order sensitive to it near the optimum.
-    u, _ = _min_scalar(lambda v: inner(math.exp(v))[0], lo, hi, lam_tol)
-    candidates = [math.exp(u), lam_star]
+    candidates = [lam_star]
+    if lam_tol is not None:  # None: lam_star alone
+        lo = max(math.log(_LAM_RANGE[0]), math.log(lam_star) - 1.0)
+        hi = min(math.log(_LAM_RANGE[1]), math.log(lam_star) + 1.0)
+        # The bound is valid for every lam0 and only second-order sensitive to it near the optimum.
+        u, _ = _min_scalar(lambda v: inner(math.exp(v))[0], lo, hi, lam_tol)
+        candidates.insert(0, math.exp(u))
     best = min((inner(lam) + (lam,) for lam in candidates), key=lambda x: x[0])
     return best[0], best[1], best[2]
 

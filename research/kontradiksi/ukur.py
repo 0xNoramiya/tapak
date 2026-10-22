@@ -65,7 +65,7 @@ forgery starts from the first member). Standard strategies, obeying the marking 
 ``salin`` (the first member), ``rata`` (the average, which erases disagreeing units of two
 copies and weakens them for three), ``mayoritas``, ``minoritas``. Knowing coalitions (random
 member at disagreeing units, ``erase_fraction`` 1 unless stated): ``hapus`` (agreeing marks
-erased), ``balik`` (reversed), ``acak`` (randomized: a random sign per cell, the own or the
+erased), ``balik`` (reversed), ``acak-sama`` (randomized: a random sign per cell, the own or the
 mirrored position per data unit), ``adaptif`` (reversed with the smallest fraction r on the grid
 0.05, 0.10, ..., 1.00 for which no member is named in the PDF trace, found by bisection with the
 real decoder and the code secret: a coalition stronger than any real one), ``buang`` (the whole
@@ -90,7 +90,7 @@ through ``pdf``, ``cetak1`` and ``cetak2``. U8: copies 1 to 3 and coalitions k =
 k = 3 ``mayoritas`` through ``pdf``, ``foto`` and ``cetak2``.
 
 Part ``sadar`` (3b, uji): U1 to U6, coalitions of k = 2 and 3, three per issuance and k (seed
-[9222, issuance, k]); ``jujur``, ``hapus``, ``balik``, ``acak``, ``adaptif`` and ``buang``
+[9222, issuance, k]); ``jujur``, ``hapus``, ``balik``, ``acak-sama``, ``adaptif`` and ``buang``
 through ``pdf``, ``layar`` and ``foto``, and ``jujur``, ``hapus``, ``balik`` and ``adaptif``
 through ``cetak2`` (channel seed [9223, issuance, k, coalition, medium], attack seed [9224,
 issuance, k, coalition, attack]); ``balik1`` of the first member of every k = 2 coalition
@@ -170,7 +170,7 @@ MEDIA = ("pdf", "layar", "foto", "ponsel", "monitor", "cetak1", "cetak2")
 PHOTO_ANGLES = (0.0, 10.0, 20.0, 30.0)
 PRINT_ANGLES = (10.0, 30.0)
 STANDARD = ("acak", "salin", "rata", "mayoritas", "minoritas")
-KNOWING = ("hapus", "balik", "acak", "adaptif", "buang")
+KNOWING = ("hapus", "balik", "acak-sama", "adaptif", "buang")
 PRINT_ATTACKS = ("jujur", "hapus", "balik", "adaptif")
 ADAPTIVE_GRID = tuple(round(0.05 * i, 2) for i in range(1, 21))
 NOISE_LEVELS = (0.0, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, "buang")
@@ -252,9 +252,10 @@ def issue_all(which: str) -> None:
         manifest = IssueManifest.from_json(next(folder.glob("data/dokumen/*/salinan/manifest.json"))
                                            .read_text(encoding="utf-8"))
         want = "geser-v2" if scheme == "v2" else "geser-v1"
-        if manifest.shift_scheme != want:
-            raise SystemExit(f"{name}: skema {manifest.shift_scheme}, bukan {want}")
-        print(f"{name}: {folder.name}, {manifest.shift_scheme}", flush=True)
+        got = manifest.shift_scheme or "geser-v1"  # geser-v1 manifests carry no scheme field
+        if got != want:
+            raise SystemExit(f"{name}: skema {got}, bukan {want}")
+        print(f"{name}: {folder.name}, {got}", flush=True)
 
 
 # --- worker side ---------------------------------------------------------------------------
@@ -263,8 +264,11 @@ _CTX: dict[str, tuple] = {}
 
 
 def _init() -> None:
+    import cv2
+
     from tapak.decoder import rectify
 
+    cv2.setNumThreads(1)  # one thread per worker on a shared machine (results do not depend on it)
     rectify._EXACT_CACHE = rectify._ByteBudgetCache(150_000_000)  # three workers on a shared machine
 
 
@@ -430,7 +434,8 @@ def _forge(ctx, pdfs: list[bytes], attack_name: str, rng_seed: list[int], fracti
         for lv in plan.levels.values():
             lv[:] = 0.0
         return forge_copy(ctx.master, pdfs, plan), plan.counts
-    neutralize = {"hapus": "hapus", "balik": "balik", "adaptif": "balik", "acak": "acak", "balik1": "balik"}[attack_name]
+    neutralize = {"hapus": "hapus", "balik": "balik", "adaptif": "balik", "acak-sama": "acak",
+                  "balik1": "balik"}[attack_name]
     data, _, plan = attack(ctx.master, pdfs, "acak", fraction, rng=rng, neutralize=neutralize)
     return data, plan.counts
 
