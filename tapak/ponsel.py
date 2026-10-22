@@ -280,14 +280,22 @@ def unsharp_amount(overshoot: float, edge_sigma: float, mask_sigma: float) -> fl
     Gaussian ``edge_sigma`` overshoot by ``overshoot`` of its height.
 
     The sharpened edge is E + A (E - E_blurred) with E = Phi(x / a) and E_blurred =
-    Phi(x / b), a = edge_sigma, b = sqrt(a^2 + mask_sigma^2); the difference peaks where both
-    densities agree, at x^2 = 2 ln(b / a) / (1 / a^2 - 1 / b^2).
+    Phi(x / b), a = edge_sigma, b = sqrt(a^2 + mask_sigma^2); its maximum minus 1 grows
+    monotonically with A, so A is found by bisection on a fine grid of x (in units of a).
     """
     a = max(float(edge_sigma), 1e-3)
-    b = math.hypot(a, float(mask_sigma))
-    x = math.sqrt(2.0 * math.log(b / a) / (1.0 / a ** 2 - 1.0 / b ** 2))
-    peak = 0.5 * (math.erf(x / (a * math.sqrt(2.0))) - math.erf(x / (b * math.sqrt(2.0))))
-    return float(overshoot) / peak
+    ratio = math.hypot(a, float(mask_sigma)) / a
+    x = np.linspace(0.0, 8.0 * ratio, 4001)
+    sq2 = math.sqrt(2.0)
+    e = 0.5 * (1.0 + np.vectorize(math.erf)(x / sq2))
+    d = e - 0.5 * (1.0 + np.vectorize(math.erf)(x / (ratio * sq2)))
+    lo, hi = 0.0, 1.0
+    while float(np.max(e + hi * d)) - 1.0 < overshoot:
+        hi *= 2.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if float(np.max(e + mid * d)) - 1.0 < overshoot else (lo, mid)
+    return 0.5 * (lo + hi)
 
 
 def draw_isp(isp: IspParams, rng: np.random.Generator) -> dict[str, float]:
