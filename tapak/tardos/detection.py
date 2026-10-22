@@ -369,8 +369,8 @@ def miss_bound(
         length: code length m (default ``params.length``).
         z: a fixed threshold instead of TAPAK's Z(p) for a full read (default: TAPAK's).
         eps1: per-recipient target that sets Z(p) (default ``params.eps1``, the full-eps
-            threshold recorded at issuance; pass ``TraceSpending.eps1(n_max)`` for a logged
-            trace).
+            threshold recorded at issuance; pass ``TraceSpending.stage_eps1(1, n_max)`` for a
+            logged or staged trace: the bound covers stage 1 only).
 
     The bound holds for every strategy obeying the marking assumption, on a full
     hard-decision read (see the module docstring for the derivation and scope).

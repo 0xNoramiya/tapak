@@ -29,7 +29,7 @@ tapak issue dok.pdf penerima.csv --latar cetak   # pola latar yang bertahan saat
 tapak docs                                       # daftar dokumen terbitan
 tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
 tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu kebocoran, digabung
-tapak trace foto_bocor.jpg --master induk.pdf --manifest manifest.json --pelacakan-ke 2   # ulangi pelacakan ke-2 (perintah di berita acara)
+tapak trace foto_bocor.jpg --master induk.pdf --manifest manifest.json --pelacakan-ke 2 --bertahap bertahap-v1   # ulangi pelacakan ke-2 (perintah di berita acara)
 tapak verify                                     # verifikasi registri dengan kunci publik saja
 tapak verify --jangkar 63:<hash>                 # juga mendeteksi entri yang dihapus setelah jangkar itu
 tapak registry export-merkle                     # akar Merkle harian
@@ -42,6 +42,7 @@ tapak leksikal review leksikal.json --interaktif # putuskan titik satu per satu
 tapak issue dok.pdf penerima.csv --leksikal leksikal.json  # ditolak jika masih ada titik menunggu
 tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000
 tapak simulate --table
+tapak simulate --n 100 --c 3 --coalition 5 --bertahap   # tuduhan satu tahap dan pelacakan bertahap pada bocoran yang sama
 tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
 tapak kanari-izin                                # tulis ulang daftar izin token dari semua penerbitan
 ```

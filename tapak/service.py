@@ -27,7 +27,11 @@ from tapak.keys import load_code_secret
 from tapak.marker.issue import IssueManifest, IssueSettings, Recipient, SemanticSelection, issue
 from tapak.marker.layout import sha256_hex
 from tapak.marker.lexical import LexicalSelection
-from tapak.tardos.spending import TraceSpending
+from tapak.tardos.spending import DEFAULT_STAGE_POLICY, TraceSpending
+
+# Stage policy of every trace run through this module (CLI --doc and the web app): stage 1
+# keeps 90 % of the trace's share, stages 2 to 4 split the rest (``tapak.tardos.spending``).
+TRACE_STAGE_POLICY = DEFAULT_STAGE_POLICY
 
 
 @dataclass
@@ -474,7 +478,7 @@ def canary_alerts(settings: Settings, manifest: IssueManifest) -> list[dict[str,
 
 # Added to the result of every trace that the registry does not log.
 UNLOGGED_TRACE_NOTE = ("pelacakan ini tidak dicatat di registri, jadi pelacakan berulang atas dokumen ini tidak "
-                       "diperhitungkan: ambang memakai seluruh eps dan batas peluang tuduhan salah hanya berlaku "
+                       "diperhitungkan: pelacakan ini memakai seluruh eps dan batas peluang tuduhan salah hanya berlaku "
                        "untuk pelacakan ini saja")
 UNSIGNED_TRACE_NOTE = ("entri pelacakan ini dicatat di registri tanpa tanda tangan; pemegang kunci "
                        "menandatanganinya dengan tapak registry sign")
@@ -504,8 +508,12 @@ class TraceOutcome:
     trace_entry_hash: str | None = None
 
 
-def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str], eps: float):
+def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str], eps: float,
+               stage_policy: str | None = None):
     """Append the ``trace`` entry of this trace before decoding and return it.
+
+    ``stage_policy`` (the staged accusation's budget split) is written into the entry, so the
+    eps of every stage is fixed in the registry before any evidence is read.
 
     Signed when the signing key is here, unless older entries still await review: signing now
     would be refused, since a signature must never cover rows nobody reviewed. A trace that
@@ -521,7 +529,7 @@ def _log_trace(settings: Settings, keys: Keys, doc_hash: str, digests: list[str]
         with Registry.open(settings.registry_path) as reg, reg.transaction():
             signer = keys.signer if keys.signer is not None and not reg.pending() else None
             return reg.record_trace(doc_hash=doc_hash, evidence_sha256=digests, eps=eps,
-                                    signer=signer)  # type: ignore[arg-type]
+                                    signer=signer, stage_policy=stage_policy)  # type: ignore[arg-type]
     except (sqlite3.Error, RegistryError, OSError, ValueError) as exc:
         raise TraceError(f"pelacakan tidak dapat dicatat di registri ({exc}); pelacakan dibatalkan dan "
                          "tidak ada nama yang disebut") from exc
@@ -536,6 +544,10 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     only its share of eps: trace number k gets eps * 6 / (pi^2 k^2), so all traces of the
     document together stay within eps. Without a registry record the trace spends all of eps
     and the result says that repeated traces are not accounted for.
+
+    Every trace runs the staged accusation with ``TRACE_STAGE_POLICY`` (``tapak.tardos.staged``):
+    the policy and the eps of every stage go into the trace's registry entry with its number,
+    before decoding, and the trace's share is split over the stages by that fixed policy.
     """
     from tapak.decoder.trace import check_evidence_types, load_context, trace_files
 
@@ -571,11 +583,11 @@ def trace_evidence(settings: Settings, doc_key: str, evidence_name: str, evidenc
     digests = [sha256_hex(d) for _, d in items]
     eps = manifest.tardos_params.eps
     entry = None
-    if reg.recorded:  # logged first: the trace number, and so the threshold, is fixed before decoding
-        entry = _log_trace(settings, keys, manifest.doc_hash, digests, eps)
-        spending = TraceSpending.logged(eps, entry.payload["trace_no"])
+    if reg.recorded:  # logged first: the trace number and stage budgets, so the thresholds, precede decoding
+        entry = _log_trace(settings, keys, manifest.doc_hash, digests, eps, TRACE_STAGE_POLICY)
+        spending = TraceSpending.logged(eps, entry.payload["trace_no"], entry.payload.get("stage_policy"))
     else:
-        spending = TraceSpending.unlogged(eps)
+        spending = TraceSpending.unlogged(eps, TRACE_STAGE_POLICY)
     if ctx is None:
         attribution, obs, ctx = _trace_docx(master, manifest, keys.code_secret, items, spending)
     else:
