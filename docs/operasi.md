@@ -50,7 +50,7 @@ tapak kanari-izin                                # tulis ulang daftar izin token
 
 `--latar` memilih profil pola latar. `layar` (bawaan) tidak terlihat, tetapi hilang saat dokumen dicetak. `cetak` bertahan pada kertas cetak (diuji dengan printer simulasi), tetapi seluruh halaman tampak abu-abu muda dan teksturnya mungkin terlihat, sehingga TAPAK mencetak peringatan. Pakai `cetak` hanya untuk dokumen yang memang akan dicetak dan bila tampilan itu diterima ([cara kerja](cara-kerja.md#salinan-yang-dicetak)). Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Pola latar, bawaan Layar); bila Cetak dipilih, peringatan itu tampil di formulir, di rencana penandaan, dan di hasil penerbitan.
 
-`--geser` memilih skema geser kata. `v2` (bawaan) menggeser setiap kelompok kata 0,025 mm dan membawa sekitar dua setengah kali lebih banyak posisi per halaman daripada `v1`, sehingga foto salinan cetak yang tajam sering cukup dari satu halaman ([cara kerja](cara-kerja.md#skema-geser-v2)). `v1` adalah skema semua dokumen yang terbit sebelumnya; catatan penerbitannya tidak menyebut skema dan tetap dibaca seperti dulu. Catatan penerbitan dan registri dokumen v2 hanya menyimpan nama skemanya. Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Skema geser kata, bawaan v2).
+`--geser` memilih skema geser kata. `v2` (bawaan) menggeser setiap kelompok kata 0,025 mm dan membaca lebih dari dua kali jumlah posisi per halaman `v1`, sehingga foto salinan cetak yang tajam sering cukup dari satu halaman ([cara kerja](cara-kerja.md#skema-geser-v2)). `v1` adalah skema semua dokumen yang terbit sebelumnya; catatan penerbitannya tidak menyebut skema dan tetap dibaca seperti dulu. Catatan penerbitan dan registri dokumen v2 hanya menyimpan nama skemanya. Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Skema geser kata, bawaan v2).
 
 Pelacakan foto atau pindaian pertama untuk setiap halaman dan resolusi analisis merender templat induk tepat untuk kanal geser, sekitar 5 sampai 7 detik CPU per halaman penuh teks. `tapak web` menyimpannya di memori untuk pelacakan berikutnya, sedangkan setiap perintah `tapak trace` merendernya lagi.
 
@@ -244,6 +244,8 @@ export PYTHONPATH=.
 .venv/bin/python research/kapasitas/ukur.py uji --kandidat v2cf  # uji tertahan, sekali
 .venv/bin/python research/kapasitas/ukur.py ringkas uji
 .venv/bin/python research/kapasitas/ukur.py visibilitas    # isyarat geometris dan potongan gambar
+.venv/bin/python research/kapasitas/tinjauan.py lawan      # tinjauan: tuduhan salah pada bukti campuran
+.venv/bin/python research/kapasitas/tinjauan.py kalibrasi  # tinjauan: keandalan LLR bit kata
 ```
 
 Salinan dan pengamatan mentah ada di `out/riset_kapasitas/` (tidak di-commit), baris ringkas di `research/kapasitas/hasil/`, dan potongan gambar di `research/kapasitas/potongan/`. Grid pengembangan memerlukan sekitar 2 jam dan uji tertahan sekitar 4 jam dengan 3 proses di mesin bersama. Skrip `scripts/cetak/` di bawah adalah studi sebelumnya (skema v1, `docs/results/cetak_*`); dijalankan sekarang, skrip itu menerbitkan dengan skema bawaan v2.
