@@ -122,6 +122,10 @@ def test_random_code_shapes():
     params = TardosParams(c=2, eps=1e-3, n_max=10)
     p, x = random_code(params, 7, np.random.default_rng(0))
     assert p.shape == (params.length,) and x.shape == (7, params.length)
+    p2, x2 = random_code(params, 3, np.random.default_rng(0), length=50)
+    assert p2.shape == (50,) and x2.shape == (3, 50) and p2.min() >= params.cutoff - 1e-12
+    with pytest.raises(ValueError):
+        random_code(params, 3, np.random.default_rng(0), length=0)
 
 
 # --- accuse --------------------------------------------------------------------------
@@ -252,6 +256,7 @@ def test_majority_and_minority_choose_expected_bits():
     assert attacks.minority(xc, rng)[0].tolist() == [0, 0, 0, 0]
     assert attacks.all_ones(xc, rng)[0].tolist() == [1, 1, 0, 1]
     assert attacks.all_zeros(xc, rng)[0].tolist() == [0, 0, 0, 0]
+    assert attacks.worst_case(xc, rng)[0].tolist() == [0, 0, 0, 0]  # minority for odd c
     with pytest.raises(ValueError):
         attacks.majority(np.array([1, 0]), rng)
 
@@ -297,6 +302,13 @@ def test_run_simulation_small():
         run_simulation(params, n_users=3, coalition=3, trials=1)
 
 
+def test_run_simulation_length_override():
+    params = TardosParams(c=2, eps=1e-4, n_max=10)
+    rep = run_simulation(params, n_users=10, trials=3, strategies=["worst-case"], seed=3, length=200)
+    assert rep.params["length"] == 200 and rep.params["c"] == 2
+    assert rep.results[0].strategy == "worst-case"
+
+
 def test_run_simulation_with_noise_still_sound():
     params = TardosParams(c=2, eps=1e-4, n_max=30)
     rep = run_simulation(params, n_users=30, trials=30, strategies=["majority"], ber=0.1, erasure=0.3, seed=2)
@@ -310,3 +322,5 @@ def test_parameter_table_rows():
     for r in rows:
         assert r.z_chernoff > r.z_gaussian
         assert r.expected_top_colluder > r.z_chernoff
+        assert 0.0 < r.miss_bound < 1e-15  # proven, at the default K = 2 pi^2
+    assert rows[1].miss_bound == pytest.approx(1.8e-23, rel=0.05)

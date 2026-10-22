@@ -104,6 +104,22 @@ def test_cli_suggest_with_llamacpp_reports_dropped_candidates(tmp_path, capsys, 
     assert all(s["provider"] == "llamacpp" and len(s["variants"]) == 1 for s in sel["sets"])
 
 
+def test_cli_simulate_prints_proven_miss_bound(capsys):
+    assert main(["simulate", "--n", "10", "--c", "2", "--eps", "1e-3", "--trials", "5",
+                 "--strategies", "worst-case,minority"]) == 0
+    out = capsys.readouterr().out
+    assert "terburuk" in out and "Batas terbukti peluang koalisi 2 orang lolos" in out
+    assert main(["simulate", "--n", "10", "--c", "2", "--eps", "1e-3", "--trials", "2", "--ber", "0.01",
+                 "--strategies", "majority"]) in (0, 1)
+    assert "deteksi hanya diukur" in capsys.readouterr().out
+
+
+def test_cli_simulate_table_has_proven_column(capsys):
+    assert main(["simulate", "--table"]) == 0
+    out = capsys.readouterr().out
+    assert "P(lolos) terbukti" in out and "1.8e-23" in out
+
+
 def test_cli_trace_requires_document(tmp_path, capsys):
     assert _run(tmp_path, "keys", "init") == 0
     f = tmp_path / "x.txt"

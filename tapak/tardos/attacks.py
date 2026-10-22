@@ -14,6 +14,8 @@ from collections.abc import Callable
 
 import numpy as np
 
+from tapak.tardos.detection import worst_case_strategy
+
 Strategy = Callable[[np.ndarray, np.random.Generator], tuple[np.ndarray, np.ndarray]]
 
 
@@ -81,6 +83,25 @@ def erase(xc: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndar
     return y, w
 
 
+def worst_case(xc: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Per-position rule that minimizes the coalition's expected total score E[T | z].
+
+    The leak rule comes from ``detection.worst_case_strategy``: at a position where z
+    colluders hold a 1, leak 1 with probability q[z]. Under TAPAK's arcsine bias density
+    the table is the minority bit with ties (z = c/2) broken by a fair coin, for every
+    cutoff, so the cutoff of a code designed for this coalition size is used. The table is
+    computed from the closed form, not assumed. The rule a Chernoff bound is computed
+    against can differ (``MissBound.chernoff_choice``); the proven bound covers both.
+    """
+    ones, c, _ = _split(xc)
+    q = worst_case_strategy(c, 1.0 / (300.0 * c))[ones]
+    y = (q == 1.0).astype(np.uint8)
+    tie = (q > 0.0) & (q < 1.0)
+    if tie.any():  # no draw when there is no tie, so the random stream is unchanged for odd c
+        y[tie] = (rng.random(int(tie.sum())) < q[tie]).astype(np.uint8)
+    return y, np.ones(xc.shape[1])
+
+
 STRATEGIES: dict[str, Strategy] = {
     "majority": majority,
     "minority": minority,
@@ -89,6 +110,7 @@ STRATEGIES: dict[str, Strategy] = {
     "all-1": all_ones,
     "all-0": all_zeros,
     "erase": erase,
+    "worst-case": worst_case,
 }
 
 # Indonesian names for reports; the keys above stay the command-line identifiers.
@@ -100,6 +122,7 @@ STRATEGY_LABELS: dict[str, str] = {
     "all-1": "semua 1",
     "all-0": "semua 0",
     "erase": "hapus",
+    "worst-case": "terburuk",
 }
 
 

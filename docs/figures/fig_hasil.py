@@ -3,8 +3,11 @@
 skor: every Tardos accusation score divided by its own trial's threshold Z, for innocent
 recipients and for coalition members. It replays the random stream of
 ``tapak.tardos.simulate.run_simulation`` with the settings behind
-docs/results/simulate_n100_c3.json (N=100, c=3, eps=1e-6, 1000 trials, seed 2026, all
-seven strategies), so the extremes drawn here are the ones reported in that file.
+docs/results/simulate_n100_c3.json (N=100, c=3, eps=1e-6, 1000 trials, seed 2026, every
+strategy in ``attacks.STRATEGIES``), so the extremes drawn here are the ones reported in that
+file. The ``worst-case`` strategy (added after the published figure) leaks the minority bit and
+draws nothing from the stream for odd c, so the earlier seven strategies replay exactly and
+the extremes do not change.
 """
 
 from __future__ import annotations

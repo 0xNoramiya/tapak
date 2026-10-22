@@ -1,0 +1,24 @@
+{"bagian": "bawaan", "N": 20, "c": 2, "m": 1328, "K": 19.739208802178716, "log10_batas_per_koalisi": [-394.572, -16.262], "log10_batas": -16.262, "log10_batas_pelacakan_1": -15.731, "pilihan_chernoff": [0, 0, 1], "galat_kuadratur": 0.0}
+{"bagian": "panjang_minimum", "N": 20, "c": 2, "delta": 0.001, "m": 733, "K": 10.9, "batas": 0.0009772190998782538, "batas_m_kurang_1": 0.001015496430644705}
+{"bagian": "panjang_minimum", "N": 20, "c": 2, "delta": 1e-06, "m": 893, "K": 13.28, "batas": 9.795460859998048e-07, "batas_m_kurang_1": 1.026867605923163e-06}
+{"bagian": "bawaan", "N": 20, "c": 3, "m": 2987, "K": 19.739208802178716, "log10_batas_per_koalisi": [-1450.102, -61.29, -22.74], "log10_batas": -22.74, "log10_batas_pelacakan_1": -22.041, "pilihan_chernoff": [0, 0, 1, 1], "galat_kuadratur": 5.305977879288548e-12}
+{"bagian": "panjang_minimum", "N": 20, "c": 3, "delta": 0.001, "m": 1473, "K": 9.736, "batas": 0.0009817580676112366, "batas_m_kurang_1": 0.0010021289213049515}
+{"bagian": "panjang_minimum", "N": 20, "c": 3, "delta": 1e-06, "m": 1770, "K": 11.699, "batas": 9.815130082405286e-07, "batas_m_kurang_1": 1.0070014552865948e-06}
+{"bagian": "bawaan", "N": 20, "c": 4, "m": 5310, "K": 19.739208802178716, "log10_batas_per_koalisi": [-3365.007, -128.038, -60.7, -30.326], "log10_batas": -30.326, "log10_batas_pelacakan_1": -29.41, "pilihan_chernoff": [0, 0, 0, 1, 1], "galat_kuadratur": 1.1790568521519162e-11}
+{"bagian": "panjang_minimum", "N": 20, "c": 4, "delta": 0.001, "m": 2416, "K": 8.982, "batas": 0.000999017195031245, "batas_m_kurang_1": 0.0010126912266078324}
+{"bagian": "panjang_minimum", "N": 20, "c": 4, "delta": 1e-06, "m": 2862, "K": 10.64, "batas": 9.8335979805203e-07, "batas_m_kurang_1": 1.0004627233885452e-06}
+{"bagian": "bawaan", "N": 20, "c": 5, "m": 8297, "K": 19.739208802178716, "log10_batas_per_koalisi": [-6269.942, -213.766, -113.829, -66.601, -37.779], "log10_batas": -37.779, "log10_batas_pelacakan_1": -36.652, "pilihan_chernoff": [0, 0, 0, 1, 1, 1], "galat_kuadratur": 3.6846081741259695e-12}
+{"bagian": "panjang_minimum", "N": 20, "c": 5, "delta": 0.001, "m": 3577, "K": 8.511, "batas": 0.0009995821919732285, "batas_m_kurang_1": 0.001009777851093156}
+{"bagian": "panjang_minimum", "N": 20, "c": 5, "delta": 1e-06, "m": 4177, "K": 9.939, "batas": 9.908841404028304e-07, "batas_m_kurang_1": 1.0034631933944683e-06}
+{"bagian": "bawaan", "N": 100, "c": 2, "m": 1455, "K": 19.739208802178716, "log10_batas_per_koalisi": [-432.273, -17.815], "log10_batas": -17.815, "log10_batas_pelacakan_1": -17.284, "pilihan_chernoff": [0, 0, 1], "galat_kuadratur": 6.461498003318411e-13}
+{"bagian": "panjang_minimum", "N": 100, "c": 2, "delta": 0.001, "m": 786, "K": 10.667, "batas": 0.000965122271832162, "batas_m_kurang_1": 0.0010018213753965335}
+{"bagian": "panjang_minimum", "N": 100, "c": 2, "delta": 1e-06, "m": 950, "K": 12.893, "batas": 9.831968020010618e-07, "batas_m_kurang_1": 1.0294879823619836e-06}
+{"bagian": "bawaan", "N": 100, "c": 3, "m": 3273, "K": 19.739208802178716, "log10_batas_per_koalisi": [-1588.958, -67.159, -24.918], "log10_batas": -24.918, "log10_batas_pelacakan_1": -24.218, "pilihan_chernoff": [0, 0, 1, 1], "galat_kuadratur": 4.360511951517765e-12}
+{"bagian": "panjang_minimum", "N": 100, "c": 3, "delta": 0.001, "m": 1581, "K": 9.536, "batas": 0.0009865341384191191, "batas_m_kurang_1": 0.001006358446151904}
+{"bagian": "panjang_minimum", "N": 100, "c": 3, "delta": 1e-06, "m": 1887, "K": 11.382, "batas": 9.840140963583749e-07, "batas_m_kurang_1": 1.0088635880609574e-06}
+{"bagian": "bawaan", "N": 100, "c": 4, "m": 5818, "K": 19.739208802178716, "log10_batas_per_koalisi": [-3686.818, -140.284, -66.504, -33.225], "log10_batas": -33.225, "log10_batas_pelacakan_1": -32.308, "pilihan_chernoff": [0, 0, 0, 1, 1], "galat_kuadratur": 1.2918555114538322e-11}
+{"bagian": "panjang_minimum", "N": 100, "c": 4, "delta": 0.001, "m": 2599, "K": 8.818, "batas": 0.000991488883426708, "batas_m_kurang_1": 0.0010049428376108225}
+{"bagian": "panjang_minimum", "N": 100, "c": 4, "delta": 1e-06, "m": 3058, "K": 10.376, "batas": 9.846878304134056e-07, "batas_m_kurang_1": 1.001307919998581e-06}
+{"bagian": "bawaan", "N": 100, "c": 5, "m": 9091, "K": 19.739208802178716, "log10_batas_per_koalisi": [-6869.848, -234.221, -124.72, -72.973, -41.392], "log10_batas": -41.392, "log10_batas_pelacakan_1": -40.265, "pilihan_chernoff": [0, 0, 0, 1, 1, 1], "galat_kuadratur": 4.037215006746919e-12}
+{"bagian": "panjang_minimum", "N": 100, "c": 5, "delta": 0.001, "m": 3854, "K": 8.369, "batas": 0.000991140492677795, "batas_m_kurang_1": 0.0010008971523856696}
+{"bagian": "panjang_minimum", "N": 100, "c": 5, "delta": 1e-06, "m": 4470, "K": 9.706, "batas": 9.953362075774073e-07, "batas_m_kurang_1": 1.0075806423180464e-06}

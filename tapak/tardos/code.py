@@ -91,10 +91,16 @@ def code_digest(doc_hash: str, copy_id: str, codeword: np.ndarray) -> str:
 
 
 def random_code(
-    params: TardosParams, n_users: int, rng: np.random.Generator
+    params: TardosParams, n_users: int, rng: np.random.Generator, length: int | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Fresh (p, X) for simulations, using numpy randomness instead of the keyed stream."""
-    m = params.length
+    """Fresh (p, X) for simulations, using numpy randomness instead of the keyed stream.
+
+    ``length`` overrides the code length (default ``params.length``) for experiments with
+    shorter or longer codes; the cutoff stays ``params.cutoff``.
+    """
+    m = params.length if length is None else int(length)
+    if m < 1:
+        raise ValueError("panjang kode minimal 1")
     p = bias_from_uniform(rng.random(m), params.cutoff)
     x = codeword_from_uniform(rng.random((n_users, m)), p)
     return p, x

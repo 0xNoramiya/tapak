@@ -8,6 +8,9 @@ the threshold fixed beforehand. Reported per strategy:
 * detection rate: fraction of trials in which at least one colluder was accused;
 * all-caught rate: fraction of trials in which every colluder was accused.
 
+On a noise-free read the probability of a miss (no colluder accused) is at most the proven
+bound of ``detection.miss_bound``; for noisy reads the simulation is the only measure.
+
 Zero false accusations in 1000 trials only shows the rate is below about 3e-3 (rule of
 three). To check the bound itself, ``bound_check`` also counts how often innocent scores
 exceed thresholds computed for loose targets (1e-2, 1e-3) that are testable by sampling.
@@ -23,6 +26,7 @@ import numpy as np
 from tapak.tardos.accuse import gaussian_threshold, scores, threshold
 from tapak.tardos.attacks import STRATEGIES, add_channel_noise
 from tapak.tardos.code import random_code
+from tapak.tardos.detection import proven_miss_probability
 from tapak.tardos.params import TardosParams
 
 
@@ -91,8 +95,14 @@ def run_simulation(
     ber: float = 0.0,
     erasure: float = 0.0,
     bound_levels: tuple[float, ...] = (1e-2, 1e-3),
+    length: int | None = None,
 ) -> SimulationReport:
-    """Run the simulation; see the module docstring for what is measured."""
+    """Run the simulation; see the module docstring for what is measured.
+
+    ``length`` overrides the code length (default ``params.length``), e.g. to compare the
+    proven miss bound of ``detection.miss_bound`` with measured rates on short codes where
+    misses are frequent. The threshold is computed for the code actually drawn.
+    """
     coalition = params.c if coalition is None else coalition
     strategies = list(STRATEGIES) if strategies is None else strategies
     unknown = set(strategies) - set(STRATEGIES)
@@ -107,7 +117,7 @@ def run_simulation(
     innocent_evals = 0
 
     for _ in range(trials):
-        p, x_bits = random_code(params, n_users, rng)
+        p, x_bits = random_code(params, n_users, rng, length)
         x = x_bits.astype(np.float64)
         members = rng.choice(n_users, size=coalition, replace=False)
         is_member = np.zeros(n_users, dtype=bool)
@@ -156,8 +166,11 @@ def run_simulation(
         }
         for lvl in bound_levels
     }
+    params_dict = params.to_dict()
+    if length is not None:
+        params_dict["length"] = int(length)
     return SimulationReport(
-        params=params.to_dict(),
+        params=params_dict,
         n_users=n_users,
         coalition=coalition,
         trials=trials,
@@ -181,6 +194,7 @@ class TableRow:
     z_chernoff: float
     z_gaussian: float
     expected_top_colluder: float
+    miss_bound: float
 
 
 def parameter_table(
@@ -192,7 +206,10 @@ def parameter_table(
     """Code lengths and thresholds for the default (Skoric) constant, plus K=100 lengths.
 
     ``z_chernoff`` is the median over 5 bias draws of the rigorous threshold;
-    ``expected_top_colluder`` is 2m/(pi c), the guaranteed average colluder score.
+    ``expected_top_colluder`` is 2m/(pi c), the guaranteed average colluder score;
+    ``miss_bound`` is the proven upper bound on the probability that a coalition of at most
+    c recipients escapes a full hard-decision read at the default length (Z for eps1 = eps/N,
+    see ``detection.proven_miss_probability``).
     """
     rng = np.random.default_rng(seed)
     rows = []
@@ -211,6 +228,7 @@ def parameter_table(
                     z_chernoff=float(np.median(zs)),
                     z_gaussian=gaussian_threshold(ps.length, ps.eps1),
                     expected_top_colluder=2 * ps.length / (math.pi * c),
+                    miss_bound=proven_miss_probability(ps),
                 )
             )
     return rows

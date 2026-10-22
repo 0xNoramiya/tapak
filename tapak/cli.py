@@ -41,10 +41,12 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
 
     if args.table:
         print(f"{'N':>4} {'c':>2} {'eps1':>9} {'m (2pi^2)':>10} {'m (100)':>8} {'Z Chernoff':>11} "
-              f"{'Z Gauss':>8} {'E[skor koalisi]':>16}")
+              f"{'Z Gauss':>8} {'E[skor koalisi]':>16} {'P(lolos) terbukti':>18}")
         for r in parameter_table(eps=args.eps):
             print(f"{r.n:>4} {r.c:>2} {r.eps1:>9.1e} {r.m_skoric:>10} {r.m_tardos:>8} {r.z_chernoff:>11.1f} "
-                  f"{r.z_gaussian:>8.1f} {r.expected_top_colluder:>16.1f}")
+                  f"{r.z_gaussian:>8.1f} {r.expected_top_colluder:>16.1f} {r.miss_bound:>18.1e}")
+        print("P(lolos) terbukti: batas atas peluang tidak satu pun anggota koalisi (paling banyak c orang) "
+              "tertangkap, untuk pembacaan penuh dengan bit pasti (tanpa bobot lunak dan tanpa bit salah).")
         return 0
     params = TardosParams(c=args.c, eps=args.eps, n_max=args.n, constant=args.constant)
     strategies = args.strategies.split(",") if args.strategies else None
@@ -66,6 +68,14 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     for b in rep.bound_check.values():
         print(f"Uji batas: target {b['target']:g}, empiris {b['empirical']:.2e} "
               f"dari {int(b['innocent_evaluations'])} skor inosen")
+    if args.ber == 0 and args.erasure == 0:
+        from tapak.tardos.detection import miss_bound
+
+        mb = miss_bound(params, rep.coalition)
+        shown = f"{mb.bound:.1e}" if mb.log10_bound > -300 else f"1e{mb.log10_bound:.0f}"
+        print(f"Batas terbukti peluang koalisi {rep.coalition} orang lolos (pembacaan penuh, bit pasti): {shown}")
+    else:
+        print("Dengan bit salah atau posisi terhapus, deteksi hanya diukur (batas terbukti untuk pembacaan penuh)")
     print(f"Waktu: {dt:.1f} s")
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
@@ -609,7 +619,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="konstanta panjang kode: skoric (2 pi^2) atau tardos (100)")
     s.add_argument("--strategies", default=None,
                    help="daftar dipisah koma dari: majority (mayoritas), minority (minoritas), random-mix "
-                        "(campur acak), coin (lempar koin), all-1, all-0, erase (hapus); bawaan semua")
+                        "(campur acak), coin (lempar koin), all-1, all-0, erase (hapus), worst-case "
+                        "(terburuk untuk rata-rata skor koalisi); bawaan semua")
     s.add_argument("--ber", type=float, default=0.0, help="laju galat bit kanal")
     s.add_argument("--erasure", type=float, default=0.0, help="laju posisi terhapus")
     s.add_argument("--seed", type=int, default=2026, help="benih bilangan acak (hasil dapat diulang)")
