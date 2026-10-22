@@ -352,7 +352,11 @@ def test_scan_copy_pdf_trace_names_the_copy(scan_issued):
     assert set(by) == {CHANNEL_SHIFT, CHANNEL_BACKGROUND}
     assert len(by[CHANNEL_SHIFT]) > 40
     for sb in by.values():
-        assert np.mean((sb.llr > 0) == (x[sb.positions] == 1)) > 0.97
+        # geser-v2 reads twice the groups at half the shift; 2 to 4 % of its signs are wrong on a
+        # scanned copy, all with |LLR| below 2 (measured over 160 copies with random copy ids).
+        right = (sb.llr > 0) == (x[sb.positions] == 1)
+        assert np.mean(right) > 0.95
+        assert np.mean(right[np.abs(sb.llr) > 2]) > 0.995
     assert any("halaman pindaian" in n for n in result.notes)
 
 
