@@ -55,7 +55,7 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa dan satu halaman tidak cukup. Dua halaman menyebut salinan yang benar pada 8 dari 8 pasangan, tetapi skornya hanya 1,02 sampai 1,19 kali ambang, dan dengan 100 penerima hanya 5 sampai 8 dari 20 (lihat [batasan](#batasan)).
 
-Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,2 &times; 10<sup>-21</sup>. Dengan ISP ponsel simulasi foto yang sama benar 32 dari 32, dan foto salinan di monitor simulasi 31 dari 32.
+Satu foto layar berakhir "tidak cukup bukti" karena 95 % kertasnya jenuh putih dan pola latarnya terhapus. Foto dengan 88 dan 90 % kertas jenuh tetap terbaca ([batasan 4](docs/keamanan.md#batasan)). Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar pada foto layar, batas peluang tuduhan salahnya paling besar 7,2 &times; 10<sup>-21</sup>. Adegan foto yang sama lewat ISP ponsel simulasi benar 32 dari 32, dan foto salinan di monitor simulasi benar 31 dari 32.
 
 Uji lainnya:
 
