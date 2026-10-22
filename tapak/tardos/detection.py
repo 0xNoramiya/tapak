@@ -62,8 +62,12 @@ so T_i depends on position i only through (z_i, y_i, p_i). Note T(z,0,p) = -T(z,
    of smooth functions of r. They are computed with composite Gauss-Legendre quadrature in
    log space, panels graded towards both ends where g or h is large. At the optimum the
    quadrature is repeated on a grid with twice as many panels, and m times the difference in
-   log G is added to the log bound (``MissBound.quadrature_error``; about 1e-11 at TAPAK's
-   parameters, since Gauss-Legendre converges exponentially for these smooth integrands).
+   log G, plus ``FLOAT_SLACK`` = 1e-14 per position, is added to the log bound
+   (``MissBound.quadrature_error``; about 1e-10 at TAPAK's parameters). The refinement
+   difference alone can be exactly 0 while the computed log G is still a few ulp below the
+   exact value; against a 40-digit mpmath reference in p (not r) the error of log G was at
+   most 5e-16 at the optimum for c' = 1 to 5, default and short codes, so the per-position
+   slack covers floating-point rounding and the 2^-53 grid of the uniforms that draw r.
 
 5. Erasures. A position with weight 0 drops out of the scores and of Z(p, w)
    (``accuse._active``), so step 2 holds with the sum over observed positions only.
@@ -88,7 +92,10 @@ minimizes E[T | z] is therefore the minority bit (a tie at z = c'/2, where both 
 expected score per detectable position is only O(t) below zero; what the Chernoff bound is
 sensitive to is the lower tail, and ``MissBound.chernoff_choice`` reports the y attaining the
 maximum in G at the optimum (the majority bit at TAPAK's parameters). Both rules are in
-``attacks.STRATEGIES`` and the bound covers every rule.
+``attacks.STRATEGIES`` and the bound covers every rule. Neither is the most evasive
+strategy: a miss needs every colluder below Z, and a coalition that uses its other positions
+to keep the members' estimated scores level misses up to about 4 times as often on short
+codes (``research/deteksi/penyeimbang.py``), still below the bound, which covers it too.
 
 Coalitions smaller than c. ``proven_miss_probability`` returns the maximum of the bound over
 c' = 1, ..., c, so it covers every coalition of at most c recipients.
@@ -113,6 +120,9 @@ from tapak.tardos.params import TardosParams
 # Relative slack between TAPAK's numerically minimized threshold and the Chernoff objective
 # at a fixed lam0 (step 2 of the derivation).
 Z_SLACK = 1e-9
+# Per-position allowance in log G for floating-point rounding and the 2^-53 grid of the
+# uniforms that draw the bias (step 4 of the derivation), added with the quadrature check.
+FLOAT_SLACK = 1e-14
 # TAPAK's threshold search range for lambda (``accuse._LAMBDA_LO`` / ``_LAMBDA_HI``).
 _LAM_RANGE = (1e-7, 60.0)
 _ALPHA_RANGE = (1e-7, 20.0)
@@ -269,8 +279,8 @@ class MissBound:
         lam0: lambda at which Z(p) is bounded (None with a fixed ``z``).
         chernoff_choice: per z = 0..c', the leaked bit attaining the maximum in G at the
             optimum (the strategy the bound is computed against).
-        quadrature_error: m * |log G(finer grid) - log G(base grid)|, already added to
-            ``log_bound``.
+        quadrature_error: m * (|log G(finer grid) - log G(base grid)| + FLOAT_SLACK),
+            already added to ``log_bound``.
     """
 
     coalition: int
@@ -389,7 +399,7 @@ def miss_bound(
         shift_f = alpha * kappa * fine.log_mgf(lam0) / lam0
     lg_c, choice = itg.log_g(alpha, shift_c)
     lg_f, _ = fine.log_g(alpha, shift_f)
-    q_err = m * abs(lg_f - lg_c)
+    q_err = m * (abs(lg_f - lg_c) + FLOAT_SLACK)
     return MissBound(
         coalition=c,
         length=m,

@@ -6,6 +6,7 @@ import math
 
 import numpy as np
 import pytest
+from scipy.optimize import minimize_scalar
 
 from tapak.tardos import accuse as acc
 from tapak.tardos import attacks
@@ -89,10 +90,18 @@ def test_tapak_threshold_never_exceeds_the_bounded_objective():
         z = acc.threshold(p, C3.eps1, w)
         keep = w > 0
         mgf = acc._WorstCaseMgf(p[keep], w[keep])
-        lams = np.geomspace(0.02, 0.5, 400)
-        objective = np.array([(mgf(lam) + log_inv) / lam for lam in lams])
-        assert z <= (1 + det.Z_SLACK) * objective.min()
-        assert z >= objective.min() * (1 - 1e-4)  # and it is the minimum, not a loose value
+
+        def objective(u: float) -> float:
+            return (mgf(math.exp(u)) + log_inv) / math.exp(u)
+
+        # Tight minimum over TAPAK's whole lambda range: coarse grid, then a bounded refinement.
+        us = np.linspace(math.log(det._LAM_RANGE[0]), math.log(det._LAM_RANGE[1]), 400)
+        i = int(np.argmin([objective(u) for u in us]))
+        res = minimize_scalar(objective, bounds=(us[max(i - 1, 0)], us[min(i + 1, us.size - 1)]),
+                              method="bounded", options={"xatol": 1e-12})
+        tight = min(float(res.fun), objective(us[i]))
+        assert z <= (1 + det.Z_SLACK) * tight
+        assert z >= tight * (1 - 1e-12)  # and it is the minimum, not a loose value
 
 
 def test_per_position_factor_matches_monte_carlo():
@@ -143,6 +152,55 @@ def test_bound_dominates_monte_carlo_where_misses_are_frequent():
     assert all(rate <= bound for rate in misses.values()), (bound, misses)
     assert sum(rate >= 0.05 for rate in misses.values()) >= 5, misses  # the comparison is not vacuous
     assert all(r.false_accusation_trials == 0 for r in rep.results)
+
+
+def _balancing_attack(c: int, cutoff: float):
+    """Cross-position adversary that keeps the colluders' estimated scores level.
+
+    The coalition does not see p, so it takes E[U(y, b, p) | z] (on the module's quadrature
+    nodes) as the expected contribution of each choice, visits its detectable positions in a
+    random order and leaks the bit that keeps the highest running estimate lowest. A miss needs
+    every colluder below Z, so levelling the scores is what an evading coalition wants, and the
+    rule depends on all positions, which none of the per-position rules in ``attacks`` does.
+    """
+    r, logw = det._nodes(cutoff, det._PANELS, det._ORDER)
+    p = np.sin(r) ** 2
+    g, h = np.sqrt((1 - p) / p), np.sqrt(p / (1 - p))
+    eu = np.zeros((c + 1, 2, 2))  # [z, leaked bit, colluder bit]
+    for z in range(c + 1):
+        w = np.exp(logw + z * np.log(p) + (c - z) * np.log1p(-p))
+        eg, eh = np.sum(w * g) / np.sum(w), np.sum(w * h) / np.sum(w)
+        eu[z, 1, 1], eu[z, 1, 0], eu[z, 0, 0], eu[z, 0, 1] = eg, -eh, eh, -eg
+
+    def attack(xc: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+        xc = np.asarray(xc, dtype=np.int64)
+        ones = xc.sum(axis=0)
+        y = (ones == c).astype(np.uint8)  # marking assumption; detectable positions below
+        run = np.zeros(c)
+        for i in rng.permutation(np.flatnonzero((ones > 0) & (ones < c))):
+            up1, up0 = run + eu[ones[i], 1, xc[:, i]], run + eu[ones[i], 0, xc[:, i]]
+            y[i] = int(up1.max() < up0.max() or (up1.max() == up0.max() and rng.random() < 0.5))
+            run = up1 if y[i] else up0
+        return y, np.ones(xc.shape[1])
+
+    return attack
+
+
+def test_bound_dominates_a_cross_position_balancing_attack():
+    """The proof covers strategies that use other positions; this one misses more than any in attacks."""
+    m = 464  # proven bound about 0.9 for c = 2, N = 20
+    bound = proven_miss_probability(C2, length=m)
+    attack = _balancing_attack(2, C2.cutoff)
+    rng = np.random.default_rng(21)
+    trials, misses = 300, 0
+    for _ in range(trials):
+        p, x = random_code(C2, 2, rng, length=m)
+        y, w = attack(x, rng)
+        ones = x.sum(axis=0)
+        assert (y[ones == 0] == 0).all() and (y[ones == 2] == 1).all()
+        misses += int(not np.any(acc.scores(x, y, p, w) >= acc.threshold(p, C2.eps1)))
+    assert misses / trials <= bound, (bound, misses)
+    assert misses / trials > 0.1, misses  # a strong attack, so the comparison is not vacuous
 
 
 @pytest.mark.slow
