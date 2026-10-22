@@ -22,6 +22,10 @@ Visibility was decided before capacity (see ``PROTOCOL["visibility"]`` and the d
 * scheme c (smaller groups, MIN_GROUP_WIDTH 10 pt) only regroups words; its cues are those of
   the scheme it is combined with.
 
+Outcome: the dev choice was v2cf (b with c and the page-field decoder, 29 of 72 dev one-page
+prints against 0 for v1); on the held-out seeds it passed every criterion of the decision rule,
+so geser-v2 in tapak is v2cf and the default of a new issuance (docs/cara-kerja.md).
+
 Evidence kinds: ``cetak`` (phone photo of a page printed by the simulated laser or inkjet
 printer, ``tapak.photos``), ``kolusi`` (a page cut together from three copies in the white
 space between rows near 1/3 and 2/3 of the text, printed and photographed), ``pdf`` (the copy
@@ -36,7 +40,8 @@ thread per worker (shared machine). Usage, from the repository root:
 
     PYTHONPATH=. python research/kapasitas/ukur.py dev          # development grid
     PYTHONPATH=. python research/kapasitas/ukur.py ringkas dev  # tables, candidate choice
-    PYTHONPATH=. python research/kapasitas/ukur.py uji --kandidat v2   # held-out, once
+    PYTHONPATH=. python research/kapasitas/ukur.py dev-veld     # dev re-decode with the page field
+    PYTHONPATH=. python research/kapasitas/ukur.py uji --kandidat v2cf  # held-out, once (the dev choice)
     PYTHONPATH=. python research/kapasitas/ukur.py ringkas uji
     PYTHONPATH=. python research/kapasitas/ukur.py visibilitas  # geometric cues and crops
 """

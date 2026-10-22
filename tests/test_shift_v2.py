@@ -344,3 +344,48 @@ def test_v2_survives_affine_distortion_and_curvature(v2_fixed):
     # Expected errors among confident bits: sum of 1 / (1 + e^|LLR|); allow a generous margin.
     expected = float(np.sum(1.0 / (1.0 + np.exp(np.abs(sb.llr[sure])))))
     assert int(np.sum(~right[sure])) <= 3 * expected + 3
+
+
+def test_registry_records_and_checks_the_shift_scheme(tmp_path, v2_fixed):
+    """A geser-v2 document entry carries the scheme name (and only for geser-v2); a manifest
+    edited back to geser-v1 no longer matches the registry, and an unknown name is refused."""
+    import copy
+
+    from tapak.config import Settings
+    from tapak.registry.chain import Registry, registry_from_manifest, shift_scheme_problems
+    from tapak.registry.verify import verify_registry
+    from tapak.service import check_registry, ensure_keys
+
+    _, manifest, _ = v2_fixed
+    s = Settings(data_dir=tmp_path / "data", key_dir=tmp_path / "keys", canary_domain="")
+    keys = ensure_keys(s)
+    with Registry.open(s.registry_path) as reg:
+        entries = registry_from_manifest(manifest, reg, signer=keys.signer, code_secret=keys.code_secret)
+        assert entries[0].payload["shift_scheme"] == SCHEME_V2
+        base = {k: entries[0].payload[k] for k in ("doc_hash", "doc_name", "params", "channels", "shift_mm",
+                                                    "excluded_rows", "plan_summary", "threshold_rule",
+                                                    "threshold_full", "issuer", "issued_at")}
+        with pytest.raises(ValueError, match="skema geser"):
+            reg.record_document(**dict(base, doc_hash="cd" * 32), shift_scheme="geser-v9")
+    assert verify_registry(s.registry_path, keys.public_key_hex).ok
+    assert shift_scheme_problems(SCHEME_V1) and not shift_scheme_problems(SCHEME_V2)
+    assert "shift_scheme" not in check_registry(s, manifest).document_mismatch
+    edited = copy.deepcopy(manifest)
+    edited.shift_scheme = None  # the record rewritten to geser-v1
+    assert "shift_scheme" in check_registry(s, edited).document_mismatch
+
+
+def test_cli_issues_v2_by_default_and_v1_on_request(tmp_path, capsys, monkeypatch):
+    from tapak.cli import build_parser, main
+    from tests_support import RECIPIENTS, SAMPLE
+
+    monkeypatch.chdir(tmp_path)
+    assert build_parser().parse_args(["issue", "a.pdf", "b.csv"]).geser == "v2"
+    for flag, scheme in (("v2", SCHEME_V2), ("v1", None)):
+        data = tmp_path / flag
+        rc = main(["--data", str(data), "--keys", str(tmp_path / "keys"), "issue", str(SAMPLE), str(RECIPIENTS),
+                   "--no-registry", "--canary-domain", "", "--workers", "1", "--geser", flag])
+        out = capsys.readouterr().out
+        assert rc == 0 and f"Skema geser: geser-{flag}" in out
+        manifest = json.loads(next((data / "dokumen").glob("*/manifest.json")).read_text(encoding="utf-8"))
+        assert manifest.get("shift_scheme") == scheme

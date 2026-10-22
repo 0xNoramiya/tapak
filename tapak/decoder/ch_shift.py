@@ -26,8 +26,9 @@ photo leaves a bow along the rows after rectification that a per-row line cannot
 one field for the page costs far fewer degrees of freedom than a curvature term in every row.
 The field is fitted to the displacements minus the marks the decoder itself expects (the
 posterior mean of each sign, zero at first), and refitted FIELD_ROUNDS times
-(:func:`joint_decode`), so on a clean copy it does not keep a trace of the marks. Sign patterns that differ by an affine ramp, such as a row whose
-groups all moved the same way, look the same and get LLR 0: the decoder never guesses. Like
+(:func:`joint_decode`), so on a clean copy it does not keep a trace of the marks. Sign patterns
+that differ by an affine ramp, such as a row whose groups all moved the same way, look the same
+and get LLR 0: the decoder never guesses. Like
 every channel decoder here this uses only the evidence, the master layout and the code-blind
 plan (positions and whitening), never a recipient's codeword.
 """

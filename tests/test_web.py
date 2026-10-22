@@ -856,6 +856,31 @@ def test_unknown_background_profile_is_a_field_error(client):
     assert set(_STAGING) == before  # nothing staged
 
 
+def test_shift_scheme_choice_defaults_to_v2(client):
+    from tapak.config import load_settings
+    from tapak.marker.issue import IssueManifest
+
+    def radio(html: str, value: str) -> str:
+        return re.search(rf'<input type="radio" name="geser" value="{value}"[^>]*>', html).group(0)
+
+    page = client.get("/terbitkan").text
+    assert ">Skema geser kata</legend>" in page
+    assert " checked" in radio(page, "v2") and " checked" not in radio(page, "v1")
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6"})  # no choice sent
+    assert r.status_code == 200 and 'class="ch-profil">skema v2</span>' in r.text
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6", "geser": "v1"})
+    assert r.status_code == 200 and 'class="ch-profil">skema v1</span>' in r.text
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    r = client.post(f"/terbitkan/{sid}/terbitkan")
+    assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
+    doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
+    manifest = IssueManifest.from_json((load_settings().workspaces / doc / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.shift_scheme is None and manifest.shift_settings.scheme == "geser-v1"
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6", "geser": "v9"})
+    assert "<form" in r.text and "Pilih skema geser v1 atau v2." in r.text
+    assert " checked" not in radio(r.text, "v1") and " checked" not in radio(r.text, "v2")
+
+
 def test_stepper_step_three_covers_both_text_reviews(client):
     from tapak.web.app import ISSUE_STEPS, _STAGING
 
