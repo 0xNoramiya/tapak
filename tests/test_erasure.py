@@ -132,6 +132,30 @@ def test_shift_strengths_mark_implausible_units_as_erased(issued_v1, ctx_v1):
     assert sb2.meta["slots_implausible"] > 0 and np.sum(sb2.strengths.values == 0.0) >= sb2.meta["slots_implausible"]
 
 
+def test_v2_shift_strengths_cover_every_decoded_group(issued, ctx):
+    """geser-v2: every decoded word group has a strength (also one whose sign the row cannot
+    tell apart), groups read as bits are clear on a PDF, a slipped match reads 0."""
+    from tapak.decoder.ch_shift import decode_displacements, measure_vector
+    from tapak.marker.pdf_shift import SCHEME_V2
+
+    out, manifest = issued
+    assert manifest.shift_scheme == SCHEME_V2
+    disp = measure_vector((out / manifest.copies[0].file).read_bytes(), ctx.master)
+    sb = decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded)
+    strength = dict(zip(sb.strengths.positions.tolist(), sb.strengths.values[:, 0].tolist()))
+    assert len(strength) == len(sb.strengths) >= len(sb) > 300
+    read = [strength[q] for q in sb.positions.tolist()]
+    assert np.mean(np.array(read) > 5.0) > 0.95 and np.median(read) > 10.0
+    groups = [g for page in ctx.master.shift_layout.pages for row in page.rows for g in row.groups[:1]
+              if len(row.groups) >= 3]
+    moved = {row_word for g in groups[::4] for row_word in
+             [ctx.master.shift_layout.pages[g.id[0]].rows[g.id[1]].words[i].id for i in g.word_indices]}
+    bumped = {k: (v[0] + (1.0 if k in moved else 0.0), v[1]) for k, v in disp.items()}  # slipped matches
+    sb2 = decode_displacements(ctx.master, ctx.plan, bumped, ctx.shift, ctx.excluded)
+    zeros = int(np.sum(sb2.strengths.values == 0.0))
+    assert sb2.meta["slots_implausible"] >= len(groups[::4]) - 2 and zeros >= sb2.meta["slots_implausible"]
+
+
 def test_background_strengths_are_reported_without_a_pattern(ctx):
     from tapak.decoder.trace import collect_background_from_pdf
 

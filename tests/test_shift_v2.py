@@ -23,6 +23,7 @@ from tapak.decoder.ch_shift import (
     fit_page_field,
     joint_decode,
     joint_measurements,
+    joint_strengths,
     joint_word_llrs,
     measure_vector,
     row_projector,
@@ -250,6 +251,40 @@ def test_joint_word_llrs_fits_sigma_and_splits_long_rows():
     bow = 4e-6 * (x - 200) ** 2
     l2, _ = joint_word_llrs([(x, bow + delta * s)], delta, floor=0.005, degree=2)
     assert np.array_equal(np.sign(l2[0]), s)
+
+
+def test_joint_strengths_mean_what_geser_v1_strengths_mean():
+    """A group's strength is its offset from the row line through the other groups once their
+    expected marks are taken off, in noise units, as the geser-v1 offset from the line through
+    two control neighbours: a clear group scores about delta / sigma, a group put back at its
+    master position about 0, a dropped group exactly 0. Nothing but the evidence enters."""
+    rng = np.random.default_rng(11)
+    delta, sigma = 0.07, 0.006
+    x = np.linspace(50.0, 500.0, 9)
+    s = np.array([1, -1, -1, 1, 1, -1, 1, -1, 1], dtype=float)
+    tilt = 0.02 + 1e-4 * x  # an affine nuisance along the row: it does not enter the strength
+    d = tilt + delta * s + rng.normal(0.0, sigma, 9)
+    erased = d - delta * s * (np.arange(9) == 4)
+    llrs, fitted = joint_word_llrs([(x, d), (x, erased)], delta, floor=0.05 * delta)
+    rows = [[(10 + k, 0, float(x[k]), float(d[k])) for k in range(9)],
+            [(30 + k, 1, float(x[k]), float(erased[k])) for k in range(9)]]
+    st = joint_strengths(rows, llrs, fitted, delta, dropped=[99])
+    assert st.positions.tolist() == list(range(10, 19)) + list(range(30, 39)) + [99]
+    clear = st.values[:9, 0]
+    assert np.allclose(clear * fitted, delta, atol=4 * sigma)
+    assert st.values[13, 0] == st.values[9:18, 0].min() and st.values[13, 0] * fitted < 4 * sigma
+    assert st.values[-1, 0] == 0.0
+    # Exact marks and exact LLRs: the offset is exactly delta, whichever way the group moved.
+    exact = joint_strengths([[(k, 0, float(x[k]), float(delta * s[k])) for k in range(9)]],
+                            [s * 50.0], sigma, delta)
+    assert np.allclose(exact.values[:, 0], delta / sigma)
+    long_row = [(k, 0, float(k), float(delta * (-1) ** k)) for k in range(MAX_JOINT_GROUPS + 3)]
+    assert len(joint_strengths([long_row], [np.array([50.0 * (-1) ** k for k in range(len(long_row))])],
+                               sigma, delta)) == len(long_row)
+    with pytest.raises(ValueError):
+        joint_strengths(rows, llrs[:1], fitted, delta)
+    with pytest.raises(ValueError):
+        joint_strengths(rows, llrs, 0.0, delta)
 
 
 def test_fit_page_field_takes_the_smooth_part_only():

@@ -29,7 +29,11 @@ The field is fitted to the displacements minus the marks the decoder itself expe
 posterior mean of each sign, zero at first), and refitted FIELD_ROUNDS times
 (:func:`joint_decode`), so on a clean copy it does not keep a trace of the marks. Sign patterns
 that differ by an affine ramp, such as a row whose groups all moved the same way, look the same
-and get LLR 0: the decoder never guesses. Like
+and get LLR 0: the decoder never guesses. Every decoded group also gets a code-blind strength
+with the meaning of the geser-v1 one (:func:`joint_strengths`): its offset from the row line
+fitted to the other groups once their expected marks are taken off, in noise units, so a group
+read clearly scores about delta / sigma and a group back at its master position about 0; a
+slipped match dropped by :func:`screen_row` gets 0, and rows keep |s| / sigma. Like
 every channel decoder here this uses only the evidence, the master layout and the code-blind
 plan (positions and whitening), never a recipient's codeword.
 """
@@ -336,6 +340,33 @@ def _word_units(master: MasterDocument, plan: EmbeddingPlan,
     return by_row
 
 
+def _screened_rows(
+    master: MasterDocument,
+    plan: EmbeddingPlan,
+    disp: Displacements,
+    delta: float,
+    degree: int,
+    field: dict[int, float] | None,
+) -> tuple[list[list[tuple[int, int, float, float]]], list[int]]:
+    """Rows as in :func:`joint_measurements`, and the code positions of the dropped groups."""
+    by_row = _word_units(master, plan, disp)
+    if field:
+        by_row = {k: [(q, w, xc, dx - field.get(q, 0.0)) for q, w, xc, dx in units] for k, units in by_row.items()}
+    rows = []
+    dropped: list[int] = []
+    for units in by_row.values():
+        if len(units) <= degree + 1:
+            continue
+        x = np.array([u[2] for u in units])
+        d = np.array([u[3] for u in units])
+        keep = screen_row(x, d, delta, degree)
+        dropped += [u[0] for u, k in zip(units, keep) if not k]
+        kept = [u for u, k in zip(units, keep) if k]
+        if len(kept) > degree + 1:
+            rows.append(kept)
+    return rows, dropped
+
+
 def joint_measurements(
     master: MasterDocument,
     plan: EmbeddingPlan,
@@ -348,22 +379,8 @@ def joint_measurements(
     group centre, measured dx minus ``field`` at that position), after :func:`screen_row`; plus
     the number of groups dropped as slipped matches. ``field`` maps code positions to the page
     field to subtract (see :func:`joint_decode`); None subtracts nothing."""
-    by_row = _word_units(master, plan, disp)
-    if field:
-        by_row = {k: [(q, w, xc, dx - field.get(q, 0.0)) for q, w, xc, dx in units] for k, units in by_row.items()}
-    rows = []
-    dropped = 0
-    for units in by_row.values():
-        if len(units) <= degree + 1:
-            continue
-        x = np.array([u[2] for u in units])
-        d = np.array([u[3] for u in units])
-        keep = screen_row(x, d, delta, degree)
-        dropped += int((~keep).sum())
-        kept = [u for u, k in zip(units, keep) if k]
-        if len(kept) > degree + 1:
-            rows.append(kept)
-    return rows, dropped
+    rows, dropped = _screened_rows(master, plan, disp, delta, degree, field)
+    return rows, len(dropped)
 
 
 def joint_decode(
@@ -384,6 +401,21 @@ def joint_decode(
     the previous decode (zero before the first), and subtracted before decoding. Without it, one
     decode with the per-row nuisance only.
     """
+    rows, llrs, sigma, dropped = _joint_decode(master, plan, disp, delta, floor, degree, field_degree, rounds)
+    return rows, llrs, sigma, len(dropped)
+
+
+def _joint_decode(
+    master: MasterDocument,
+    plan: EmbeddingPlan,
+    disp: Displacements,
+    delta: float,
+    floor: float,
+    degree: int,
+    field_degree: int | None,
+    rounds: int,
+) -> tuple[list[list[tuple[int, int, float, float]]], list[np.ndarray], float, list[int]]:
+    """:func:`joint_decode` with the code positions of the dropped groups (last round)."""
     layout = master.shift_layout
     units = _word_units(master, plan, disp)
     means: dict[int, float] = {}
@@ -397,12 +429,61 @@ def joint_decode(
                 fit = fit_page_field(np.array([p[1] for p in pts]), np.array([p[2] for p in pts]),
                                      np.array([p[3] for p in pts]), degree=field_degree)
                 field.update({p[0]: float(v) for p, v in zip(pts, fit)})
-        rows, dropped = joint_measurements(master, plan, disp, delta, degree, field)
+        rows, dropped = _screened_rows(master, plan, disp, delta, degree, field)
         llrs, sigma = joint_word_llrs([(np.array([u[2] for u in r]), np.array([u[3] for u in r])) for r in rows],
                                       delta, floor=floor, degree=degree)
         # Posterior mean of each physical sign (direction of the move).
         means = {u[0]: float(np.tanh(v / 2.0)) for r, rl in zip(rows, llrs) for u, v in zip(r, rl)}
     return rows, llrs, sigma, dropped
+
+
+def joint_strengths(
+    rows: list[list[tuple[int, int, float, float]]],
+    llrs: list[np.ndarray],
+    sigma: float,
+    delta: float,
+    dropped: list[int] | tuple[int, ...] = (),
+    degree: int = JOINT_DEGREE,
+) -> Strengths:
+    """Code-blind strength of every geser-v2 word group read by :func:`joint_decode`.
+
+    ``rows`` and ``llrs`` are the decoded rows (units as in :func:`joint_measurements`) and
+    their sign LLRs, ``sigma`` the fitted noise and ``delta`` the shift (same unit). Under
+    geser-v1 a data unit's strength is its offset from the line through its two unmarked
+    control neighbours, in noise units. Under geser-v2 every neighbour is marked, so each one's
+    expected mark (delta times the posterior mean tanh(LLR / 2) of its sign) is taken off
+    first; the strength of group g is then |d_g - L_g| / sigma, with L_g the row nuisance
+    (polynomial of ``degree``, offset and slope) fitted to the other groups of its row, or of
+    its chunk for rows split as in :func:`joint_word_llrs`. A clearly read group scores about
+    delta / sigma whichever way it moved, a group put back at its master position about 0.
+    Groups in ``dropped`` (slipped matches, see :func:`screen_row`) were measured but show no
+    mark and get 0, like an implausible geser-v1 unit. Only the evidence enters: neither a
+    codeword nor the bias vector.
+    """
+    if sigma <= 0 or delta <= 0:
+        raise ValueError("sigma dan delta harus positif")
+    if len(rows) != len(llrs) or any(len(r) != len(np.asarray(v).reshape(-1)) for r, v in zip(rows, llrs)):
+        raise ValueError("satu LLR per kelompok")
+    pos: list[int] = []
+    val: list[float] = []
+    for units, lam in zip(rows, llrs):
+        x = np.array([u[2] for u in units], dtype=np.float64)
+        d = np.array([u[3] for u in units], dtype=np.float64)
+        mean = np.tanh(np.asarray(lam, dtype=np.float64).reshape(-1) / 2.0)
+        offset = np.zeros(x.size)
+        for sl in _chunks(x.size):
+            if sl.stop - sl.start <= degree + 1:  # no line through the others: no strength
+                offset[sl] = np.nan
+                continue
+            p = row_projector(x[sl], degree)
+            resid = p @ (d[sl] - delta * mean[sl])
+            # d_g minus the nuisance fitted to the other groups' marks-removed displacements
+            offset[sl] = resid / np.maximum(np.diag(p), 1e-12) + delta * mean[sl]
+        for u, v in zip(units, offset):
+            if np.isfinite(v):
+                pos.append(u[0])
+                val.append(abs(float(v)) / sigma)
+    return Strengths(np.array(pos + list(dropped), dtype=np.int64), np.array(val + [0.0] * len(dropped)))
 
 
 def _decode_v2(
@@ -415,10 +496,12 @@ def _decode_v2(
     degree: int,
     field_degree: int | None,
 ) -> SoftBits:
-    """Channel 1 soft bits under geser-v2: word groups jointly per row, rows as in geser-v1."""
+    """Channel 1 soft bits under geser-v2: word groups jointly per row, rows as in geser-v1.
+    Strengths: :func:`joint_strengths` for the word groups, |s| / sigma for the rows (0 for an
+    implausible offset), as under geser-v1."""
     delta = settings.word_pt
-    rows, llrs, sigma_w, dropped = joint_decode(master, plan, disp, delta, sigma_floor_ratio * delta, degree,
-                                                field_degree)
+    rows, llrs, sigma_w, dropped = _joint_decode(master, plan, disp, delta, sigma_floor_ratio * delta, degree,
+                                                 field_degree, FIELD_ROUNDS)
     pos: list[int] = []
     llr: list[float] = []
     for units, row_llr in zip(rows, llrs):
@@ -428,22 +511,27 @@ def _decode_v2(
                 llr.append(float(v) * (1 - 2 * white))
     n_words = len(pos)
     sigmas: dict[str, float] = {"kata": sigma_w} if rows else {}
+    parts = [joint_strengths(rows, llrs, sigma_w, delta, dropped, degree)]
     rpos, rvals, _ = signed_measurements(master, plan, disp, excluded, words=False)
-    implausible = dropped
+    implausible = len(dropped)
     if rpos:
         s = np.array(rvals)
         sane = np.abs(s) <= OUTLIER_FACTOR * settings.row_pt
         implausible += int((~sane).sum())
+        row_strength = np.zeros(s.size)  # an implausible offset: measured, no mark
         if sane.any():
             sigma = estimate_sigma(s[sane], settings.row_pt, floor=sigma_floor_ratio * settings.row_pt)
             sigmas["baris"] = sigma
+            row_strength[sane] = np.abs(s[sane]) / sigma
             row_llr = gaussian_llr(s[sane], settings.row_pt, sigma)
             for q, v in zip(np.array(rpos)[sane], row_llr):
                 if v != 0.0:
                     pos.append(int(q))
                     llr.append(float(v))
+        parts.append(Strengths(np.array(rpos, dtype=np.int64), row_strength))
+    strengths = Strengths(np.concatenate([p.positions for p in parts]), np.concatenate([p.values for p in parts]))
     total = len(plan.channel(CHANNEL_SHIFT))
-    if not pos:
+    if not pos and not len(strengths):
         return SoftBits.empty(CHANNEL_SHIFT, slots_total=total, scheme=SCHEME_V2)
     clear = float(np.mean(np.abs(np.array(llr[:n_words])) >= 2.0)) if n_words else 0.0
     return SoftBits(
@@ -452,6 +540,7 @@ def _decode_v2(
         np.array(llr),
         {"slots_read": len(pos), "slots_total": total, "slots_implausible": implausible, "sigma_pt": sigmas,
          "fraction_clear": clear, "scheme": SCHEME_V2, "word_slots_read": n_words},
+        strengths,
     )
 
 

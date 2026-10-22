@@ -1,10 +1,12 @@
 """Check for erasure aimed at the positions where the colluders' copies agree.
 
 A coalition that knows TAPAK can compare its copies and neutralize the marks exactly where
-they are identical (flatten the background cells, put data groups back on the line through
-their control neighbours), keeping the rest. That is outside the marking assumption and the
-proven miss bound does not cover it (``tapak.tardos.detection``, ``research/sepakat``). This
-module lets the decoder notice it without ever looking at a codeword.
+they are identical (flatten the background cells; put data groups back on the line through
+their control neighbours under geser-v1, or every agreeing word group back at its master
+position estimated from the word gaps under geser-v2), keeping the rest. That is outside the
+marking assumption and the proven miss bound does not cover it (``tapak.tardos.detection``,
+``research/sepakat``). This module lets the decoder notice it without ever looking at a
+codeword.
 
 Idea. At code position i the coalition's copies agree with probability p_i^c + (1 - p_i)^c,
 which rises with q_i = (2 p_i - 1)^2 for every coalition size (for c = 2 and 3 it is exactly
@@ -12,8 +14,11 @@ linear in q_i). An erasure that follows agreement therefore removes the marks of
 positions more often than those of low-q positions. Channel noise cannot do that: the bias
 vector p is secret, the slots are matched to positions by a keyed permutation and the
 whitened marks look the same for every bit, so how clearly a unit is read (its strength,
-``softbits.Strengths``) does not depend on p. The statistic is the correlation between the
-strengths and q over the positions measured:
+``softbits.Strengths``) does not depend on p. The shift strength is a unit's offset in noise
+units: under geser-v1 from the line through its two control neighbours (|s| / sigma), under
+geser-v2 from the row line fitted to the other groups of its row once their expected marks are
+taken off (``ch_shift.joint_strengths``); rows keep |s| / sigma in both. The statistic is the
+correlation between the strengths and q over the positions measured:
 
 * every channel output (one ``SoftBits``) turns each of its strength measures into
   standardized rank scores ((rank - 1/2) / n - 1/2) * sqrt(12), ties sharing their mean rank,
