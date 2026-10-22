@@ -1,0 +1,63 @@
+{
+  "n": 20,
+  "c": 3,
+  "eps": 1e-06,
+  "secret": "sha256('TAPAK-riset-ponsel-v1')",
+  "documents": {
+    "nota_dinas": "samples/nota_dinas.pdf",
+    "surat_telegram": "samples/surat_telegram.pdf"
+  },
+  "copy_id_seed": {
+    "nota_dinas": 20261101,
+    "surat_telegram": 20261102
+  },
+  "render_dpi": 200,
+  "page": 1,
+  "splits": {
+    "pengembangan": 7100,
+    "uji": 7200
+  },
+  "photo_conditions": [
+    "foto_netral",
+    "foto_ponsel",
+    "foto_nr",
+    "foto_hdr",
+    "foto_nada",
+    "foto_tajam",
+    "foto_jpeg"
+  ],
+  "screen_conditions": [
+    "layar_ideal",
+    "layar_netral",
+    "layar_ponsel",
+    "layar_silau"
+  ],
+  "master_conditions": [
+    "foto_ponsel",
+    "layar_netral",
+    "layar_ponsel"
+  ],
+  "master_images": 10,
+  "angles": [
+    0,
+    10,
+    20,
+    30
+  ],
+  "monitors": [
+    "fhd24",
+    "qhd27",
+    "uhd27",
+    "laptop13"
+  ],
+  "distances_cm": [
+    30,
+    45,
+    60
+  ],
+  "design": "copy s (1..20) or master image k: i = s - 1 or k; monitor = monitors[i % 4], distance = distances[(i // 4) % 3], angle = angles[(i + i // 4) % 4]",
+  "generators": "photo: default_rng([split seed, document index, s, 11]), ISP default_rng([..., 12]); monitor: [..., 21] and [..., 22]; master image k uses s = 1000 + k",
+  "base_commit": "0de1e9752ca3fa5e8c9a436402409ab73db50003",
+  "spending": "tidak dicatat (seluruh eps), seperti make bench",
+  "script_sha256": "7bd3073f674b83e87844f2d889862ed6de14fe598e86a28b274e1316ed6c48db"
+}

@@ -1,15 +1,19 @@
 """Regression benchmark over the synthetic photo sets (``make bench``).
 
 Traces every image listed in ``samples/photos/truth.json`` (phone photos of a page as it
-looks on screen, and screenshots; ``make photos``) and, when it exists,
-``samples/photos-cetak/truth.json`` (phone photos of printed pages, ``make photos-cetak``)
-against the issued document they were made from. Printed photos are traced one page at a
-time and as two-page pairs (pages 1 and 2 of the same copy, angle and repetition, fused in
-one trace). Results are counted per medium: "layar" (screen photos and screenshots),
-"cetak, 1 halaman" and "cetak, 2 halaman". Printed photos are never counted together with
-screen photos, because the background pattern survives only on screens. For each medium
-the benchmark counts correct identifications, honest "tidak cukup bukti" verdicts and
-wrong accusations (which must stay at zero).
+looks on screen, and screenshots; ``make photos``) and, when they exist,
+``samples/photos-cetak/truth.json`` (phone photos of printed pages, ``make photos-cetak``),
+``samples/photos-ponsel/truth.json`` (the photos of ``make photos`` processed by the
+simulated phone ISP, ``make photos-ponsel``) and ``samples/photos-layar/truth.json`` (phone
+photos of the copy on a simulated monitor, with the ISP, ``make photos-layar``) against the
+issued document they were made from. Printed photos are traced one page at a time and as
+two-page pairs (pages 1 and 2 of the same copy, angle and repetition, fused in one trace).
+Results are counted per medium: "layar" (screen photos and screenshots), "cetak, 1 halaman",
+"cetak, 2 halaman", "foto ponsel" and "foto layar (monitor)". No medium is ever counted
+together with another: the background pattern survives only on screens, and the phone and
+monitor sets are simulation studies of their own. For each medium the benchmark counts
+correct identifications, honest "tidak cukup bukti" verdicts and wrong accusations (which
+must stay at zero).
 """
 
 from __future__ import annotations
@@ -21,15 +25,25 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
-KIND_PRINT = "cetak"  # same value as tapak.photos.KIND_PRINT (kept import-free here)
+KIND_PRINT = "cetak"  # same values as tapak.photos.KIND_PRINT, KIND_PHONE and KIND_SCREEN_PHOTO
+KIND_PHONE = "ponsel"  # (kept import-free here)
+KIND_SCREEN_PHOTO = "fotolayar"
 MEDIUM_SCREEN = "layar"
 MEDIUM_PRINT_1 = "cetak, 1 halaman"
 MEDIUM_PRINT_2 = "cetak, 2 halaman"
-MEDIA = (MEDIUM_SCREEN, MEDIUM_PRINT_1, MEDIUM_PRINT_2)
+MEDIUM_PHONE = "foto ponsel"
+MEDIUM_SCREEN_PHOTO = "foto layar (monitor)"
+MEDIA = (MEDIUM_SCREEN, MEDIUM_PRINT_1, MEDIUM_PRINT_2, MEDIUM_PHONE, MEDIUM_SCREEN_PHOTO)
+_REMAKE = {KIND_PRINT: "make photos-cetak", KIND_PHONE: "make photos-ponsel", KIND_SCREEN_PHOTO: "make photos-layar"}
 
 
 def medium(row: dict) -> str:
-    """The medium a benchmark row belongs to: screen, or print with one or two pages."""
+    """The medium a benchmark row belongs to: screen, print with one or two pages, the phone
+    ISP set or the monitor set."""
+    if row["kind"] == KIND_PHONE:
+        return MEDIUM_PHONE
+    if row["kind"] == KIND_SCREEN_PHOTO:
+        return MEDIUM_SCREEN_PHOTO
     if row["kind"] != KIND_PRINT:
         return MEDIUM_SCREEN
     return MEDIUM_PRINT_2 if row.get("pages", 1) == 2 else MEDIUM_PRINT_1
@@ -42,6 +56,10 @@ def group_label(row: dict) -> str:
         return f"foto {angle:>2} derajat"
     if row["kind"] == KIND_PRINT:
         return "cetak 2 halaman" if row.get("pages", 1) == 2 else f"cetak {angle:>2} derajat"
+    if row["kind"] == KIND_PHONE:
+        return f"ponsel {angle:>2} derajat"
+    if row["kind"] == KIND_SCREEN_PHOTO:
+        return f"monitor {angle:>2} derajat"
     return "tangkapan layar"
 
 
@@ -77,7 +95,7 @@ def check_issuance(folder: Path, entries: list[dict], by_copy: dict[str, int]) -
     "tidak cukup bukti" without anyone noticing."""
     stale = [e["file"] for e in entries if e.get("copy_id") not in by_copy]
     if stale:
-        remake = "make photos-cetak" if any(e.get("kind") == KIND_PRINT for e in entries) else "make photos"
+        remake = next((_REMAKE[e["kind"]] for e in entries if e.get("kind") in _REMAKE), "make photos")
         raise SystemExit(f"set foto {folder} dibuat dari penerbitan lain ({len(stale)} dari {len(entries)} foto "
                          f"bukan salinan dokumen terbitan yang diuji, misalnya {stale[0]}); jalankan ulang: {remake}")
 
@@ -96,6 +114,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--photos", default="samples/photos", help="foto layar dan tangkapan layar (make photos)")
     ap.add_argument("--cetak", default="samples/photos-cetak",
                     help="foto kertas cetak (make photos-cetak); dilewati bila tidak ada")
+    ap.add_argument("--ponsel", default="samples/photos-ponsel",
+                    help="foto dengan ISP ponsel simulasi (make photos-ponsel); dilewati bila tidak ada")
+    ap.add_argument("--layar", default="samples/photos-layar",
+                    help="foto monitor simulasi (make photos-layar); dilewati bila tidak ada")
     ap.add_argument("--data", default="out/photos/data")
     ap.add_argument("--keys", default="out/photos/keys")
     ap.add_argument("--json", default=None)
@@ -108,11 +130,14 @@ def main(argv: list[str] | None = None) -> int:
     from tapak.service import list_workspaces, trace_evidence
 
     settings = load_settings()
-    folders = [Path(f) for f in (args.photos, args.cetak) if (Path(f) / "truth.json").exists()]
+    folders = [Path(f) for f in (args.photos, args.cetak, args.ponsel, args.layar) if (Path(f) / "truth.json").exists()]
     if not folders:
         raise SystemExit("tidak ada set foto; jalankan: make photos (dan make photos-cetak)")
-    if not (Path(args.cetak) / "truth.json").exists():
-        print(f"Foto kertas cetak dilewati ({args.cetak} belum ada; jalankan: make photos-cetak)")
+    for folder, what, target in ((args.cetak, "Foto kertas cetak", "make photos-cetak"),
+                                 (args.ponsel, "Foto ISP ponsel", "make photos-ponsel"),
+                                 (args.layar, "Foto monitor", "make photos-layar")):
+        if not (Path(folder) / "truth.json").exists():
+            print(f"{what} dilewati ({folder} belum ada; jalankan: {target})")
     docs = list_workspaces(settings)
     if not docs:
         raise SystemExit("tidak ada dokumen terbitan; jalankan: make photos")

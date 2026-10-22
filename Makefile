@@ -4,7 +4,7 @@ TAPAK ?= .venv/bin/tapak
 PHOTO_DATA ?= out/photos
 ISSUED_COPIES = "$$(ls -d $(PHOTO_DATA)/data/dokumen/*/salinan | head -1)"
 
-.PHONY: setup samples samples-pindaian test test-fast simulate table photos photos-cetak photos-issued bench demo web verify docker figures clean
+.PHONY: setup samples samples-pindaian test test-fast simulate table photos photos-cetak photos-ponsel photos-layar photos-issued bench demo web verify docker figures clean
 
 setup:            ## create the virtualenv and install TAPAK (needs network once)
 	uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
@@ -27,8 +27,8 @@ simulate:         ## Tardos collusion simulation (acceptance numbers)
 table:            ## code length / threshold table
 	$(TAPAK) simulate --table
 
-photos-issued:    ## the issuance behind both photo sets (20 copies, no registry), made once; a new one drops both sets
-	@test -d $(PHOTO_DATA)/data/dokumen || { rm -rf samples/photos samples/photos-cetak && \
+photos-issued:    ## the issuance behind every photo set (20 copies, no registry), made once; a new one drops the sets
+	@test -d $(PHOTO_DATA)/data/dokumen || { rm -rf samples/photos samples/photos-cetak samples/photos-ponsel samples/photos-layar && \
 		$(TAPAK) --data $(PHOTO_DATA)/data --keys $(PHOTO_DATA)/keys \
 		issue samples/nota_dinas.pdf samples/recipients.csv --no-registry --canary-domain ""; }
 
@@ -40,6 +40,14 @@ photos-cetak: photos-issued  ## phone photos of printed copies (simulated laser)
 	$(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
 		--out samples/photos-cetak --seqs 13,7,1,20 --angles 10,30 --per-copy 1 --all-pages \
 		--no-screenshots --cetak laser --seed 2026
+
+photos-ponsel: photos-issued  ## the make photos scenes processed by the simulated phone ISP, in samples/photos-ponsel
+	$(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
+		--out samples/photos-ponsel --seqs 13,7,1,20 --per-copy 2 --no-screenshots --isp ponsel --seed 2026
+
+photos-layar: photos-issued   ## phone photos of the copies on a simulated monitor (with the phone ISP), in samples/photos-layar
+	$(PY) -m tapak.photos --issued $(ISSUED_COPIES) \
+		--out samples/photos-layar --seqs 13,7,1,20 --per-copy 2 --no-screenshots --layar --isp ponsel --seed 2026
 
 demo:             ## the 90-second scenario, non-interactive
 	$(TAPAK) demo --workdir out/demo
@@ -59,7 +67,7 @@ figures:          ## README figures in docs/img (needs: uv pip install -e ".[fig
 	$(PY) docs/figures/fig_hasil.py
 
 clean:
-	rm -rf out samples/photos samples/photos-cetak .pytest_cache
+	rm -rf out samples/photos samples/photos-cetak samples/photos-ponsel samples/photos-layar .pytest_cache
 
-bench:            ## trace every image of the photo sets (make photos, optionally make photos-cetak); prints are reported separately
+bench:            ## trace every image of the photo sets (make photos, optionally photos-cetak, photos-ponsel, photos-layar); each medium reported separately
 	$(PY) -m tapak.benchmark --json docs/results/bench_photos.json
