@@ -37,7 +37,16 @@ Candidates:
   plus or minus delta rounds to its measured pixel (``ch_shift.lattice_row_llrs``, the decoder of
   this working tree with the registration's ``PixelGrid``). On those exploration captures (MuPDF
   and Poppler, 48 to 120 dpi) it read 61 rows with abs LLR >= 2, none wrong, where the Gaussian
-  rows had 11 of 66 wrong.
+  rows had 11 of 66 wrong. Scored on the development set it failed condition (3): confidently
+  wrong row bits fell from 204 to 112 (45 %), none of them on the pages it decoded; the rest were
+  Cairo captures (quarter-pixel baselines), MuPDF below 56 dpi and downscaled captures.
+* ``kisi_baris2``: ``kisi_baris`` with the grid step tested at one, a half and a quarter pixel,
+  coarsest first (``ch_shift.GRID_PITCHES_PX``). Added after ``kisi_baris`` failed, with the rule
+  unchanged: kuantisasi.py at 28 to 40 dpi showed that MuPDF puts the baselines of glyphs below
+  about 8 pixels per em on half pixels (11 pt text below 56 dpi), and Cairo uses quarter pixels at
+  every resolution. Downscaled captures (the rows on a grid of 2/3 pixel in ``kecil``) are left to
+  the Gaussian model: a messenger's scale factor is arbitrary, and searching it would widen the
+  gate.
 
 Selection rule (``ATURAN``, fixed after exploring the current decoder's row offsets on part of the
 development set and before any candidate was scored on the whole development set): a candidate
@@ -86,7 +95,7 @@ ATURAN = ("kandidat menggantikan dekoder sekarang hanya bila pada set dev: (1) t
           "bobot dengan paling sedikit 50 bit, laju salah terukur paling besar 1,5 kali laju terkalibrasi (1 - w)/2 "
           "ditambah 1 poin persentase. Bila beberapa kandidat lolos, dipilih yang bit baris salah yakinnya paling "
           "sedikit; bila sama, yang putusan benar dari kanal geser saja paling banyak")
-CANDIDATES = ("sekarang", "kuantum_baris", "kisi_baris")
+CANDIDATES = ("sekarang", "kuantum_baris", "kisi_baris", "kisi_baris2")
 
 
 def load_trace(row: dict, scheme: str) -> dict:
@@ -116,11 +125,17 @@ def decode(candidate: str, ctx, saved: dict):
         return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded)
     if candidate == "kuantum_baris":
         return decode_quantized_rows(ctx, saved)
-    if candidate == "kisi_baris":
+    if candidate in ("kisi_baris", "kisi_baris2"):
+        from tapak.decoder import ch_shift
         from tapak.decoder.ch_shift import PixelGrid
 
         grid = PixelGrid(saved["h"], float(saved["reg"][1]), float(saved["reg"][2]))
-        return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded, grid=grid)
+        pitches = ch_shift.GRID_PITCHES_PX
+        ch_shift.GRID_PITCHES_PX = (1.0,) if candidate == "kisi_baris" else (1.0, 0.5, 0.25)
+        try:
+            return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded, grid=grid)
+        finally:
+            ch_shift.GRID_PITCHES_PX = pitches
     raise ValueError(candidate)
 
 
@@ -287,8 +302,11 @@ def run_nilai(candidates: list[str], split: str = "dev", reference: str = "sekar
             out_rows.append(r)
             if i % 100 == 0:
                 print(f"{i}/{len(rows)}", flush=True)
-    (HASIL / f"{split}_kandidat.jsonl").write_text(
-        "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in out_rows), encoding="utf-8")
+    import gzip
+
+    text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in out_rows)
+    with gzip.GzipFile(HASIL / f"{split}_kandidat.jsonl.gz", "wb", mtime=0) as fh:  # several MB as plain text
+        fh.write(text.encode("utf-8"))
     report(out_rows, candidates, split)
 
 

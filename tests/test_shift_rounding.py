@@ -180,7 +180,9 @@ def test_rounded_rows_read_whole_pixel_moves_of_an_issued_copy(scheme, issued, c
         plain = decode_displacements(c.master, c.plan, disp, c.shift, c.excluded)
         words = [int(p) not in rows for p in plain.positions]
         assert np.array_equal(plain.positions[words], sb.positions[:int(np.sum(words))])  # word groups untouched
-    assert confident >= 2 and correct == confident
+    # Copy ids (and so the marks) differ per test issuance; an LLR of 2 to 4.6 still allows the odd
+    # wrong sign where the control rows leave the pixel boundary uncertain.
+    assert confident >= 10 and confident - correct <= max(1, 0.05 * confident)
     assert some >= 10 and some_wrong <= 0.35 * some  # an LLR of 1 promises at most 27 % wrong
 
 

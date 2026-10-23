@@ -621,18 +621,19 @@ def _decode_gaussian(
     )
 
 
-# Baselines on the evidence's pixel grid (screenshots, rasterized PDF pages). MuPDF and Poppler's
-# Splash rasterizer draw every baseline on a whole device pixel, Cairo on a quarter pixel
-# (measured in research/layar/kuantisasi.py), so in a capture that was not rescaled every text row
-# sits at the same offset from the image's pixel grid, and a row shift of 0.05 mm (0.08 to 0.3
-# pixel at 40 to 150 dpi) is either rounded away or moves the row by a whole pixel. The Gaussian
-# row model then reads the rounding of the neighbouring rows as a mark, with a confident sign now
-# and then, and drops the rows that moved a whole pixel as implausible (beyond 3 delta). The gate
-# and the model were chosen on the development set of research/layar (kandidat.py) before its
-# held-out run.
+# Baselines on the evidence's pixel grid (screenshots, rasterized PDF pages). PDF renderers put
+# every baseline on a grid of device pixels: MuPDF and Poppler's Splash on whole pixels (MuPDF on
+# half pixels for glyphs below about 8 pixels per em, 11 pt text below 56 dpi), Cairo on quarter
+# pixels (measured in research/layar/kuantisasi.py). In a capture that was not rescaled every text
+# row then sits at the same offset from that grid, and a row shift of 0.05 mm (0.08 to 0.3 pixel at
+# 40 to 150 dpi) is either rounded away or moves the row by one grid step. The Gaussian row model
+# reads the rounding of the neighbouring rows as a mark, with a confident sign now and then, and
+# drops rows that moved a whole pixel as implausible (beyond 3 delta). The gate and the model were
+# chosen on the development set of research/layar (kandidat.py) before its held-out run.
 GRID_MIN_CONTROLS = 8          # measured control rows a page needs before its pixel grid is tested
-GRID_MIN_CONCENTRATION = 0.7   # mean resultant length of the control rows' image positions modulo 1 px
-LATTICE_OFF_GRID_PX = 0.25     # a row further than this from the lattice is not a clean lattice point
+GRID_MIN_CONCENTRATION = 0.7   # mean resultant length of the control rows' positions modulo one grid step
+GRID_PITCHES_PX = (1.0, 0.5, 0.25)  # grid steps tested, in image pixels, coarsest first
+LATTICE_OFF_GRID_PX = 0.25     # a row further than this (in grid steps) is not a clean lattice point
 LATTICE_SPAN = 0.01            # relative range of pixel scales searched around the control rows' fit
 LATTICE_STEPS = 4001
 LATTICE_FLOOR = 0.01           # chance that a row lands on a pixel the model does not predict (|LLR| <= 4.6)
@@ -703,7 +704,9 @@ def lattice_row_llrs(
     shift that moved the row a whole pixel is read, with ``floor`` the chance of a pixel the model
     does not predict. Rows (controls or data) further than LATTICE_OFF_GRID_PX from the common
     pixel offset are not clean lattice points: controls are left out, data rows get mask False.
-    Only the evidence, the master baselines and which rows carry no mark enter: no codeword.
+    Only the evidence, the master baselines and which rows carry no mark enter: no codeword. For a
+    grid finer than one pixel, pass the positions divided by the grid step (then "pixel" above means
+    one grid step).
     """
     cy = np.asarray(control_pt, dtype=np.float64).reshape(-1)
     cz = np.asarray(control_px, dtype=np.float64).reshape(-1)
@@ -795,11 +798,12 @@ def rounded_rows(
     qualifies.
 
     The gate is code-blind: the control rows (unmarked) of a page are mapped into the image with
-    ``grid``; with at least GRID_MIN_CONTROLS of them and a :func:`grid_concentration` of at least
-    GRID_MIN_CONCENTRATION the page's baselines were rounded to the image pixels (a capture that was
-    not rescaled), and the page's rows are read with the rounding model. A rescaled capture, a photo
-    or a scan does not pass and keeps the Gaussian model, as does a page whose control rows admit
-    no rounding.
+    ``grid``; with at least GRID_MIN_CONTROLS of them, the first grid step of GRID_PITCHES_PX (whole,
+    half or quarter pixel) at which their positions have a :func:`grid_concentration` of at least
+    GRID_MIN_CONCENTRATION is the step the renderer rounded the baselines to (a capture that was not
+    rescaled), and the page's rows are read with the rounding model on that grid. A rescaled
+    capture, a photo or a scan does not pass and keeps the Gaussian model, as does a page whose
+    control rows admit no rounding.
     """
     delta = settings.row_pt
     pages: set[int] = set()
@@ -811,14 +815,19 @@ def rounded_rows(
             continue
         c_pt = np.array([c[0] for c in units.controls])
         c_px = grid.image_y(np.full(c_pt.size, units.x_ref), np.array([c[1] for c in units.controls]))
-        conc = grid_concentration(c_px)
+        pitch, conc = GRID_PITCHES_PX[0], 0.0
+        for pitch in GRID_PITCHES_PX:
+            conc = grid_concentration(c_px / pitch)
+            if conc >= GRID_MIN_CONCENTRATION:
+                break
         entry: dict[str, object] = {"page": page, "concentration": round(conc, 4), "control_rows": len(units.controls)}
         tested.append(entry)
         if conc < GRID_MIN_CONCENTRATION or not units.data:
             continue
         d_pt = np.array([u[2] for u in units.data])
         d_px = grid.image_y(np.full(d_pt.size, units.x_ref), np.array([u[3] for u in units.data]))
-        found = lattice_row_llrs(c_pt, c_px, d_pt, d_px, delta)
+        found = lattice_row_llrs(c_pt, c_px / pitch, d_pt, d_px / pitch, delta)
+        entry["pitch_px"] = pitch
         if found is None:
             entry["feasible"] = False
             continue
@@ -828,7 +837,7 @@ def rounded_rows(
             if ok and v != 0.0:
                 pos.append(position)
                 llr.append(float(v) * (1 - 2 * white))
-        entry.update(info, feasible=True, q_pt=round(grid.pixel_pt, 5), rows_explained=int(explained.sum()))
+        entry.update(info, feasible=True, q_pt=round(pitch * grid.pixel_pt, 5), rows_explained=int(explained.sum()))
     if not pages:
         return None
     return pages, np.array(pos, dtype=np.int64), np.array(llr), {"pages": tested}
