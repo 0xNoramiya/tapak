@@ -179,7 +179,10 @@ positions per box; the quadrature check of step 4 is taken at every corner. The 
 enter Z(p, w) are still the read's own, exact weights (the boxes only bound the factors), so the
 miss event is the one TAPAK's accusation decides. The result bounds P(miss | w) for every flip
 law that obeys (C1) and (C2) with rates at most the given ceilings; with one box per distinct
-pair and G increasing in e it equals ``read_miss_bound``.
+pair and G increasing in e it equals ``read_miss_bound``. The argument conditions on w only
+through the product over positions, so it holds just as well conditionally on any finer
+channel statistic V that fixes the weights and the ceilings (for ceilings computed from the
+LLR, V = |L|), provided (C1) and (C2) hold given V.
 
 Where the conditions fail.
 (a) Weights that depend on the code: conditioning on w then changes the law of (z_i, p_i)

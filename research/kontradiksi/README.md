@@ -61,6 +61,15 @@ Batas pada PDF yang dibalik paling besar 6,3 x 10^-7 (median 4,3 x 10^-9). Pada 
 
 **Biaya.** Pemeriksaan sendiri: median 0,28 detik, persentil 95 0,58 detik per bukti (2.424 pelacakan); median 0,25 detik pada 1.408 bukti tanpa nama, satu-satunya saat ia berjalan.
 
+## Peninjauan (di luar protokol)
+
+Dijalankan setelah semua bagian di atas, tanpa mengubah aturan, laju, atau faktor apa pun (`tinjau.py`, benih baru 9301: nota dinas, N = 20, skema v2, profil latar bawaan).
+
+* **Alarm palsu, benih baru** (`hasil/tinjau/jujur.jsonl`). Salinan 1 sampai 10 dan tiga koalisi standar (2 acak, 3 mayoritas, 2 rata-rata) lewat cetakan satu halaman, cetakan dua halaman, dan foto monitor: 0 peringatan dari 39 pelacakan. 8 tanpa nama (5 cetakan satu halaman, 3 cetakan dua halaman), semuanya dengan batas 1. Tidak ada alarm pola penghapusan dan tidak ada tuduhan salah.
+* **Lolos termurah** (`hasil/tinjau/serang.jsonl`). Satu salinan saja cukup untuk lolos dari kedua pemeriksaan tanpa nama: membuang gambar pola latar setiap halaman dan mencerminkan semua unit geser salinan itu, lalu meneruskan PDF-nya (tersisa 439 posisi geser) atau tangkapan layarnya (243). Koalisi dua salinan yang membalik tanda di tempat salinannya sama lolos lewat render PNG (242 posisi) atau dengan derau 4 tingkat abu-abu pada gambar pola latar PDF (2.924 posisi, batas 10^-1,3), sedangkan salinan jujur dengan derau yang sama disebut (batas 10^-19,3).
+* **Putusan dan skor tidak berubah.** Sepuluh bukti dari benih 9301 (PDF jujur, dibalik, dihapus, koalisi mayoritas, PDF yang pola latar halaman 1-nya diratakan dengan dan tanpa pembalikan, tangkapan layar jujur dan dibalik, foto, dan cetakan dua halaman) dilacak dengan kode `master` dan kode cabang ini, bertahap dan satu tahap: putusan, ambang, skor setiap salinan, kanal, dan tahap identik pada 20 dari 20 pelacakan. Yang berbeda hanya nilai Z pola penghapusan pada bukti yang pola latarnya tidak ditemukan di sebagian halaman atau seluruhnya (bagian 4), dan peringatan baru.
+* **Catatan untuk pemeriksaan berikutnya** (deskriptif, bukan aturan). Pada gambar, pembalikan meninggalkan tanda yang jelas di dekoder latar sendiri: z pilot (bacaan pada posisi pilot dari vektor bias, tanpa kode penerima) paling besar -5 pada 35 dari 36 foto dan 36 dari 36 tangkapan layar yang dibalik (satu salinan: 17 dari 18 dan 18 dari 18), sedangkan 938 halaman gambar jujur tidak pernah di bawah -2,8 dan serangan lain tidak di bawah -3,4. Pada PDF yang dibalik, skor anggota koalisi jauh di bawah nol (anggota tertinggi -1,7 sampai -3,1 kali Z), padahal skor penerima yang tidak bersalah di bawah -Z sama mustahilnya dengan di atas Z (hukum -U untuk bit y sama dengan hukum U untuk bit 1 - y). Keduanya perlu protokol sendiri dengan benih baru; yang kedua juga mengubah aturan tuduhan.
+
 ## Menjalankan
 
 Dari akar repositori, paling banyak 3 proses pekerja dengan 1 utas BLAS:
@@ -76,6 +85,14 @@ python research/kontradiksi/ukur.py jujur --out research/kontradiksi/hasil/jujur
 python research/kontradiksi/ukur.py lawan --out research/kontradiksi/hasil/lawan.jsonl
 python research/kontradiksi/ukur.py besar --out research/kontradiksi/hasil/besar.jsonl
 python research/kontradiksi/ukur.py ringkas research/kontradiksi/hasil/*.jsonl
+```
+
+Peninjauan (`hasil/tinjau/`, di luar ringkasan protokol):
+
+```bash
+python research/kontradiksi/tinjau.py terbit
+python research/kontradiksi/tinjau.py jujur --out research/kontradiksi/hasil/tinjau/jujur.jsonl
+python research/kontradiksi/tinjau.py serang --out research/kontradiksi/hasil/tinjau/serang.jsonl
 ```
 
 Penerbitan riset (`tapak issue --benih-riset`) ditulis ke `out/kontradiksi/` (tidak dicatat di git) dan dapat dibuat ulang byte demi byte dari benihnya. Satu baris JSON per bukti ada di `hasil/`.

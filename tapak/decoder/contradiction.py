@@ -22,11 +22,15 @@ name at stage 1, so "nobody named" is exactly "no copy reached the stage-1 thres
 False alarms. For honest evidence (any coalition of at most c that obeys the marking
 assumption, a single leaker included) under (C1) and (C2),
 
-    P(warning) = E[ 1{B(w) <= r} P(no member reaches Z | w) ] <= E[ 1{B(w) <= r} B(w) ] <= r,
+    P(warning) = E[ 1{B <= r} P(no member reaches Z | |L|) ] <= E[ 1{B <= r} B ] <= r,
 
-with r = CONTRADICTION_RATE, because the bound holds conditionally on the weights and B is a
-function of the weights alone. The rate is fixed before any measurement (``research/kontradiksi``):
-1e-3, the erasure check's rate. Whether the decoder's LLRs are calibrated is measured, not
+with r = CONTRADICTION_RATE, because the bound holds conditionally on the fused |L| (which fixes
+both the weights w = tanh(|L| / 2) and the ceilings, and is channel randomness alone under (C1);
+the weights alone do not fix the ceilings where w rounds to 1) and B is a function of |L| alone.
+The probability is over the code draw, the coalition's randomness and the channel, as for the
+detection bound: for one document and one coalition the rate can be higher, while its average
+over documents stays at most r. The rate is fixed before any measurement
+(``research/kontradiksi``): 1e-3, the erasure check's rate. Whether the decoder's LLRs are calibrated is measured, not
 assumed: the ceilings temper every fused LLR by CONTRADICTION_TEMPERING, a factor fixed on
 development seeds only, so that the tempered rates cover the error rates measured per medium.
 Measured on 30 honest copies of three development issuances through seven media
@@ -180,8 +184,8 @@ def _contradiction_sentences(check: ContradictionCheck) -> str:
             f"masalah pembacaan bukti")
 
 
-def _contradiction_rate_text(check: ContradictionCheck) -> str:
-    return (f"pada bukti jujur peringatan ini muncul dengan peluang paling besar {format_rate(check.rate)}, bila derau "
+def _contradiction_rate_text(check: ContradictionCheck, which: str = "peringatan ini") -> str:
+    return (f"pada bukti jujur {which} muncul dengan peluang paling besar {format_rate(check.rate)}, bila derau "
             "bacaan tidak bergantung pada kode dan laju salah bacaan tidak melebihi perkiraannya")
 
 
@@ -209,7 +213,7 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
     return (f"{ERASURE_NOTE} ({erased.text()}; peluang alarm palsu pada bukti jujur rata-rata sekitar "
             f"{format_rate(erased.alarm_rate)}, untuk dokumen tertentu dapat sampai beberapa persen). Selain itu, "
             f"{CONTRADICTION_NOTE}. {_contradiction_sentences(contradicted)}. {tail} "
-            f"({_contradiction_rate_text(contradicted)})")
+            f"({_contradiction_rate_text(contradicted, 'peringatan bacaan jelas tanpa nama')})")
 
 
 def is_manipulation_note(note: str) -> bool:
