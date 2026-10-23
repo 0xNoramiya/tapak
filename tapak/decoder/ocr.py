@@ -105,6 +105,8 @@ def ocr_languages() -> str:
         run = subprocess.run([exe, "--list-langs"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
         raise OcrUnavailable(f"Tesseract tidak dapat dijalankan ({type(exc).__name__})") from exc
+    if run.returncode != 0:  # a broken installation, not missing language data
+        raise OcrUnavailable(f"Tesseract tidak dapat dijalankan (kode keluar {run.returncode})")
     installed = set(((run.stdout or "") + (run.stderr or "")).split())
     if OCR_LANGUAGES[0] not in installed:
         raise OcrUnavailable("data bahasa Indonesia Tesseract (tesseract-ocr-ind) tidak terpasang")

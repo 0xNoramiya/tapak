@@ -65,7 +65,38 @@ Tesseract 5.3.4 (Ubuntu 24.04, `ind.traineddata` sha256 `69786901da87ab87...`, `
 
   Halaman 2 surat telegram (6 baris, tanpa tanda terlihat) tidak pernah cukup sendirian, dan 8 dari 20 fotonya pada 4000 px tidak ditemukan registrasi pada kedua arm. Foto, foto ISP ponsel, foto monitor, dan tangkapan layar: 98 dari 100 benar dengan dan tanpa OCR (pola latar sudah cukup di sana).
 * **OCR mengubah 27 putusan** menjadi benar (13 foto satu halaman dan 14 pasangan dua halaman), dan tidak satu pun sebaliknya. Pada 13 foto itu skor salinan yang benar naik dari 0,94 sampai 0,99 kali ambang menjadi 1,01 sampai 1,07 kali.
-* **Harga kanal pilihan kata di kertas.** Baris yang memuat titik pilihan kata keluar dari kanal geser: rencana nota dinas membawa 314 posisi geser (penerbitan bawaan 439), surat telegram 200 (249). Pada foto cetak, posisi geser yang terbaca turun dari median 252 menjadi 193 (nota hal. 1), 186 menjadi 121 (nota hal. 2), dan 229 menjadi 180 (telegram hal. 1), sedangkan OCR mengembalikan paling banyak 9 bit per halaman. Karena itu arm `tanpa` lebih sering menyebut salinan yang benar daripada arm `utama` dengan OCR di setiap sel cetak yang hasilnya tidak sama; tiga sel lainnya sama (20 dari 20). OCR memperkecil kerugian itu, tetapi tidak menutupnya.
+* **Harga kanal pilihan kata di kertas.** Baris yang memuat titik pilihan kata keluar dari kanal geser: rencana nota dinas membawa 314 posisi geser (penerbitan bawaan 439), surat telegram 200 (249). Pada foto cetak, posisi geser yang terbaca turun dari median 252 menjadi 193 (nota hal. 1), 187 menjadi 121 (nota hal. 2), dan 229 menjadi 180 (telegram hal. 1), sedangkan OCR mengembalikan paling banyak 9 bit per halaman. Karena itu arm `tanpa` lebih sering menyebut salinan yang benar daripada arm `utama` dengan OCR di setiap sel cetak yang hasilnya tidak sama; tiga sel lainnya sama (20 dari 20). OCR memperkecil kerugian itu, tetapi tidak menutupnya.
 * **Tuduhan salah: 0** dalam 438 pelacakan gambar dan 160 pasangan dua halaman, masing-masing dengan dan tanpa OCR. Skor tak bersalah tertinggi 0,47 kali ambang. Delapan belas foto induk tanpa tanda (foto dan foto cetak) membaca 144 bit OCR (bentuk dokumen induk) dan tidak menuduh siapa pun (skor tertinggi 0,41 kali ambang).
 
 Batasan: gambar dari simulator, bukan kamera, monitor, atau printer sungguhan; satu versi Tesseract; dua dokumen pendek dengan 7 sampai 9 bit terlihat per halaman, varian dari tabel frasa tiruan, dan leksikon draf tingkat A; satu rahasia kode per dokumen dan set, jadi foto dalam satu sel tidak saling bebas sepenuhnya. Pengaturan OCR dipilih pada set dev, yang juga memakai simulator yang sama.
+
+## Pemeriksaan tinjauan (benih baru)
+
+Protokol dan benih ditetapkan di `tinjau.py` sebelum dijalankan dan masuk riwayat repositori lebih dulu. Penerbitan seperti arm `utama`, tetapi dengan benih riset baru 7801 (nota dinas) dan 7802 (surat telegram) dan benih bukti 7811. Satu gambar per salinan, dilacak sekali seperti di atas (tanpa registri, seluruh eps, satu tahap). Hasil di `hasil/tinjau_ulang.jsonl` dan `hasil/tinjau_lawan.jsonl`.
+
+```bash
+python research/ocr/tinjau.py terbit   # penerbitan (out/riset_ocr/tinjau/)
+python research/ocr/tinjau.py ulang    # ulangan pada benih baru
+python research/ocr/tinjau.py lawan    # gambar lawan
+```
+
+* **Ulangan.** Foto cetak 1600 px halaman 1, salinan 1 sampai 8: nota dinas 62 dari 64 bit terbaca, surat telegram 70 dari 72, foto nota dinas (salinan 1 sampai 4) 32 dari 32; tidak satu pun salah. Nota dinas menyebut salinan yang benar pada 4 dari 8 foto cetak dengan OCR dan 2 dari 8 tanpa OCR (set uji: 11 dan 8 dari 20); surat telegram 0 dari 8 dengan dan tanpa OCR (set uji: 4 dan 1 dari 20). Waktu OCR median 2,8 detik per halaman.
+* **Gambar lawan** (halaman 1 nota dinas, salinan 1 sampai 6, 48 bit tercetak per jenis), bit terbaca dan salah:
+
+  | Jenis | Terbaca | Salah (yakin) | Putusan benar, dengan / tanpa OCR |
+  |---|---|---|---|
+  | foto 1000 px | 39 | 0 | 6 / 6 |
+  | foto 800 px | 22 | 0 | 6 / 6 |
+  | buram 2,5 sampai 3,5 px | 1 | 0 | 5 / 5 |
+  | JPEG kualitas 8 sampai 12, dua kali | 48 | 0 | 5 / 5 |
+  | foto cetak 1000 px | 40 | 0 | 2 / 2 |
+  | foto diputar 180 derajat | 46 | 0 | 6 / 6 |
+  | foto terpotong sampai 35 % ke dalam halaman | 21 (22 kalimat atau titik di luar gambar, tidak dibaca) | 0 | 6 / 6 |
+  | bentuk lain diketik di atas bentuk tercetak, tanpa penghapus | 40 | 8 (2) | 6 / 6 |
+  | bentuk lain di atas penghapus putih (pemalsuan) | 48 | 36 (36) | 6 / 6 |
+
+  Gambar yang buruk menjadi terhapus, bukan salah. Satu-satunya bit salah berasal dari bentuk yang ditimpa: OCR kadang membaca bentuk yang diketik di atasnya, dua kali dengan yakin (salinan 4, satu titik dengan 0 suntingan, LLR 6, dan satu dengan LLR 4), dan pada pemalsuan dengan penghapus setiap bit pilihan kata terbaca sebagai bentuk palsu, seperti yang memang tertulis di kertas. Pembaca membaca kata yang terlihat; ia tidak dapat membedakan kata yang ditimpa atau dipalsukan dari kata cetakan. Putusan di sini tetap benar lewat kanal geser dan pola latar.
+* **Dokumen dan halaman lain.** Foto halaman 1 surat telegram yang dilacak terhadap nota dinas tidak ditemukan (6 dari 6), tidak ada yang dibaca atau dituduh. Teks OCR foto halaman 2 nota dinas yang sengaja dibaca terhadap slot halaman 1: 0 bit terbaca (6 dari 6).
+* **Tuduhan salah: 0** dalam 86 gambar, masing-masing dengan dan tanpa OCR.
+* **Waktu pada halaman penuh** (satu proses, mesin yang dipakai bersama): seluruh langkah OCR menambah 2,4 detik pada foto 1600 px (Tesseract 2,1 detik; dekode tanpa OCR 3,6 detik) dan 4,5 sampai 5 detik pada foto cetak 4000 px (Tesseract 3,6 detik; dekode tanpa OCR 43 detik). Pada foto buram Tesseract lebih lambat (median 7,8 detik, paling lama 9,7).
+* **Tanpa berkas teks.** Setelah pelacakan CLI dengan berita acara dan JSON, folder data hanya berubah di `registry.db`, folder sementara tetap kosong, dan tidak ada kata hasil OCR di registri, keluaran CLI, JSON, berita acara, atau halaman Lacak yang tidak juga muncul pada pelacakan yang sama tanpa OCR (kata umum seperti "dengan" dan "dokumen"). Cadangan registrasi foto (`tapak/decoder/lines.py`) kini juga memanggil Tesseract lewat stdin dan stdout; kata yang dikembalikannya sama persis dengan panggilan pytesseract sebelumnya pada 31 gambar uji (termasuk foto buram, kecil, terpotong, dan terbalik).

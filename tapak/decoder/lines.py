@@ -4,15 +4,23 @@ When the page outline is not visible and feature matching fails (heavy blur, par
 crop), the decoder reads words with Tesseract, matches them to the master words of a page
 by text, and fits a homography from matched word centres with RANSAC. The result is only
 an initial estimate; ECC refinement in ``rectify.py`` does the precise alignment.
+
+Tesseract reads the image from stdin and writes its TSV to stdout, so neither the image nor
+the recognized words are written to disk (the call is the one pytesseract makes, without its
+temporary files). The words live in memory for the matching only.
 """
 
 from __future__ import annotations
 
 import difflib
+import os
 import shutil
+import subprocess
 
 import cv2
 import numpy as np
+
+OCR_TIMEOUT_S = 120
 
 
 def tesseract_available() -> bool:
@@ -20,24 +28,64 @@ def tesseract_available() -> bool:
     return shutil.which("tesseract") is not None
 
 
-def ocr_words(image: np.ndarray, lang: str = "ind+eng") -> list[tuple[str, float, float, float]]:
-    """(text, centre x, centre y, height) for every word Tesseract recognizes confidently."""
-    if not tesseract_available():
-        return []
-    import pytesseract
+def tesseract_tsv(img8: np.ndarray, lang: str | None) -> str | None:
+    """Tesseract's TSV for an 8-bit grayscale image, or None when Tesseract fails.
 
-    img8 = np.clip(image, 0, 255).astype(np.uint8)
+    Same engine settings as ``pytesseract.image_to_data`` (default engine and page
+    segmentation, ``tessedit_create_tsv``, no stated resolution), so the same image gives the
+    same words; one thread. The image goes in through stdin and the TSV comes back through
+    stdout: no temporary files.
+    """
+    ok, png = cv2.imencode(".png", np.ascontiguousarray(img8, dtype=np.uint8))
+    if not ok:
+        return None
+    cmd = [shutil.which("tesseract") or "tesseract", "stdin", "stdout"]
+    if lang:
+        cmd += ["-l", lang]
+    cmd += ["-c", "tessedit_create_tsv=1"]
     try:
-        data = pytesseract.image_to_data(img8, lang=lang, output_type=pytesseract.Output.DICT)
-    except pytesseract.TesseractError:
-        data = pytesseract.image_to_data(img8, output_type=pytesseract.Output.DICT)
+        run = subprocess.run(cmd, input=png.tobytes(), capture_output=True, timeout=OCR_TIMEOUT_S,
+                             env=dict(os.environ, OMP_THREAD_LIMIT="1"))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if run.returncode != 0:
+        return None
+    return run.stdout.decode("utf-8", errors="replace")
+
+
+def parse_words(tsv: str) -> list[tuple[str, float, float, float]]:
+    """(text, centre x, centre y, height) of the TSV words with at least 3 characters and a
+    confidence of at least 60 (truncated to an integer, as pytesseract reports it)."""
     out = []
-    for text, conf, x, y, w, h in zip(data["text"], data["conf"], data["left"], data["top"],
-                                      data["width"], data["height"]):
-        t = (text or "").strip()
-        if len(t) >= 3 and float(conf) >= 60:
+    for row in tsv.strip().split("\n")[1:]:
+        cells = row.split("\t")
+        if len(cells) == 11:  # the last word of the page may come without its (empty) text cell
+            cells.append("")
+        if len(cells) < 12:
+            continue
+        try:
+            x, y, w, h, conf = (int(float(c)) for c in cells[6:11])
+        except ValueError:
+            continue
+        t = cells[11].strip()
+        if len(t) >= 3 and conf >= 60:
             out.append((t, x + w / 2.0, y + h / 2.0, float(h)))
     return out
+
+
+def ocr_words(image: np.ndarray, lang: str = "ind+eng") -> list[tuple[str, float, float, float]]:
+    """(text, centre x, centre y, height) for every word Tesseract recognizes confidently.
+
+    Without the language data ``lang`` Tesseract's default language is used; without
+    Tesseract, or when it fails, no words.
+    """
+    if not tesseract_available():
+        return []
+    img8 = np.clip(image, 0, 255).astype(np.uint8)
+    tsv = tesseract_tsv(img8, lang)
+    if tsv is None:
+        tsv = tesseract_tsv(img8, None)
+    return parse_words(tsv) if tsv is not None else []
 
 
 def tesseract_homography(image: np.ndarray, pdf_bytes: bytes, page: int, dpi: float) -> np.ndarray | None:

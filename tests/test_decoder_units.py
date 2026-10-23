@@ -3,6 +3,9 @@ image shift measurement)."""
 
 from __future__ import annotations
 
+import subprocess
+import tempfile
+
 import cv2
 import numpy as np
 import pytest
@@ -79,10 +82,52 @@ def test_feature_homography_on_scaled_render(sample_pdf):
     assert feature_homography(page, np.full((200, 200), 128, np.float32)) is None
 
 
+TSV = ("level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+       "1\t1\t0\t0\t0\t0\t0\t0\t800\t600\t-1\t\n"
+       "5\t1\t1\t1\t1\t1\t10\t20\t60\t14\t96.4\tKomandan\n"
+       "5\t1\t1\t1\t1\t2\t80\t20\t20\t14\t95.0\tdi\n"
+       "5\t1\t1\t1\t1\t3\t110\t20\t50\t14\t59.9\tlatihan\n"
+       "5\t1\t1\t1\t1\t4\t170\t20\t50\t14\t60.0\tlapangan\n"
+       "5\t1\t1\t1\t1\t5\t230\t20\t40\t14\t-1")
+
+
+def test_parse_words_keeps_confident_words():
+    # conf truncated to an integer as pytesseract did (59.9 is out); short and empty words are out
+    assert lines.parse_words(TSV) == [("Komandan", 40.0, 27.0, 14.0), ("lapangan", 195.0, 27.0, 14.0)]
+    assert lines.parse_words("") == [] and lines.parse_words(TSV.split("\n")[0]) == []
+
+
+def test_tesseract_tsv_streams_and_falls_back(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, input=None, capture_output=False, timeout=None, env=None):  # noqa: A002
+        calls.append((cmd, input, env))
+        code = 1 if "-l" in cmd else 0  # the language data is missing: retried without it
+        return subprocess.CompletedProcess(cmd, code, stdout=b"" if code else TSV.encode(), stderr=b"")
+
+    monkeypatch.setattr(lines, "tesseract_available", lambda: True)
+    monkeypatch.setattr(lines.subprocess, "run", fake_run)
+    assert lines.ocr_words(np.full((20, 30), 255.0)) == lines.parse_words(TSV)
+    (first, png, env), (second, _, _) = calls
+    assert first[1:3] == ["stdin", "stdout"] and second[1:3] == ["stdin", "stdout"]  # no file on disk
+    assert first[first.index("-l") + 1] == "ind+eng" and "-l" not in second
+    assert first[-2:] == ["-c", "tessedit_create_tsv=1"] and second[-2:] == ["-c", "tessedit_create_tsv=1"]
+    assert png.startswith(b"\x89PNG") and env["OMP_THREAD_LIMIT"] == "1"
+    monkeypatch.setattr(lines.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 1, b"", b""))
+    assert lines.tesseract_tsv(np.zeros((5, 5), np.uint8), "ind") is None and lines.ocr_words(np.zeros((5, 5))) == []
+
+
 @pytest.mark.skipif(not lines.tesseract_available(), reason="tesseract not installed")
-def test_tesseract_helpers(sample_pdf):
+def test_tesseract_helpers(sample_pdf, tmp_path, monkeypatch):
+    def no_temp_files(*args, **kwargs):
+        raise AssertionError("the OCR fallback must not write temporary files")
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", no_temp_files)
+    monkeypatch.setattr(tempfile, "mkstemp", no_temp_files)
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
     page = render_page(sample_pdf, 0, 150)
     words = lines.ocr_words(page)
+    assert list(tmp_path.iterdir()) == []
     texts = {w[0].lower() for w in words}
     assert {"komandan", "latihan"} & texts
     h = lines.tesseract_homography(page, sample_pdf, 0, 150)

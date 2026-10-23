@@ -129,6 +129,17 @@ def test_missing_tesseract_is_reported_not_fatal(monkeypatch):
         ocr_languages.cache_clear()
 
 
+def test_broken_tesseract_is_not_called_missing_language_data(monkeypatch):
+    ocr_languages.cache_clear()
+    monkeypatch.setattr(ocr_mod.shutil, "which", lambda name: "/usr/bin/tesseract")
+    monkeypatch.setattr(ocr_mod.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr=""))
+    try:
+        assert ocr_unavailable_reason() == "Tesseract tidak dapat dijalankan (kode keluar 1)"
+    finally:
+        ocr_languages.cache_clear()
+
+
 def test_recognize_streams_through_stdin_and_stdout(monkeypatch):
     seen = {}
 
@@ -250,6 +261,37 @@ def test_ocr_readers_are_code_blind(visible):
     assert [o.channel for o in a] == [o.channel for o in b]
     for u, v in zip(a, b):
         assert np.array_equal(u.positions, v.positions) and np.array_equal(u.llr, v.llr)
+
+
+@needs_ocr
+def test_image_path_with_ocr_is_code_blind(visible):
+    """The whole image path (registration, visible slots, OCR, readers) on a blurred simulated
+    photo gives the same OCR soft bits when every codeword bit is inverted."""
+    from tapak.photos import PhotoParams, photo_jpeg
+
+    out, manifest, ctx = visible
+    page = render_pages((out / manifest.copies[5].file).read_bytes(), 200, [0])[0]
+    data, _ = photo_jpeg(page, np.random.default_rng(11), PhotoParams(blur_sigma=(1.5, 2.0)))
+    flipped = dataclasses.replace(ctx, codewords=(1 - ctx.codewords).astype(ctx.codewords.dtype))
+    a = [o for o in collect_from_image(data, ctx) if o.channel in OCR_SUBCHANNELS]
+    b = [o for o in collect_from_image(data, flipped) if o.channel in OCR_SUBCHANNELS]
+    assert a and [o.channel for o in a] == [o.channel for o in b]
+    for u, v in zip(a, b):
+        assert np.array_equal(u.positions, v.positions) and np.array_equal(u.llr, v.llr)
+        assert {k: w for k, w in u.meta.items() if k != "ocr_seconds"} == {
+            k: w for k, w in v.meta.items() if k != "ocr_seconds"}
+
+
+@needs_ocr
+def test_text_of_another_page_reads_nothing(visible):
+    """OCR text of page 2 read against the slots of page 1 (a wrong registration) is all erasures."""
+    _, _, ctx = visible
+    img = _page_render(visible, 8, page=1)
+    p = ctx.master.layout.pages[1]
+    image, dpi = page_image(img.astype(np.float32), _perfect_registration(img, 1), (p.width, p.height))
+    obs = read_page_text(recognize(image, dpi), 0, ctx)
+    assert {o.channel for o in obs} == {CHANNEL_SEMANTIC_OCR, CHANNEL_LEXICAL_OCR}
+    assert sum(len(o) for o in obs) == 0
 
 
 def test_slot_box_holds_the_printed_forms_of_every_copy(visible):
