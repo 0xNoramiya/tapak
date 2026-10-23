@@ -55,7 +55,7 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Semua ini memakai satu rahasia kode; dengan rahasia lain angkanya dapat lebih rendah ([batasan 3](docs/keamanan.md#batasan-3)).
 
-Satu foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan-4)). Foto itu disebut lewat kanal geser saja, tipis di atas ambang, dan ambangnya tidak diturunkan. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 4,0 &times; 10<sup>-26</sup>.
+Satu foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan-4)). Foto itu disebut lewat kanal geser saja, tipis di atas ambang (sebagai pelacakan tercatat pertama, dengan jatah eps lebih kecil, jawabannya "tidak cukup bukti"), dan ambangnya tidak diturunkan. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 4,0 &times; 10<sup>-26</sup>.
 
 Uji lainnya:
 
@@ -95,14 +95,14 @@ Docker, semua perintah `tapak`, kunci, dan konfigurasi ada di [panduan menjalank
 - TAPAK tidak menghubungi layanan luar. Satu-satunya bagian yang menghadap internet adalah pendengar DNS kanari.
 - Registri bersifat tambah-saja, dengan rantai SHA-256 dan tanda tangan Ed25519. Registri tidak menyimpan teks dokumen, gambar, atau nama penerima.
 - Bila kunci publik terpasang, TAPAK hanya menyebut nama kalau rantai registri utuh dan setiap salinan cocok dengan entrinya. Entri yang belum bertanda tangan ditandai jelas di hasil. Mode lepas `tapak trace --master --manifest` melewati pemeriksaan ini, menyatakannya di keluaran, dan tidak membuat berita acara.
-- Log jangkar opsional, disimpan di tempat yang tidak dapat disunting pemegang registri, mengungkap entri yang dihapus dari ujung registri sebelum pelacakan atau penerbitan berikutnya.
+- Log jangkar opsional mengungkap entri yang dihapus dari ujung registri sebelum pelacakan atau penerbitan berikutnya, asalkan log itu disimpan di tempat yang tidak dapat disunting orang yang dapat menyunting registri.
 - Di Docker, pendengar kanari berjalan di kontainer dan jaringan terpisah, dan hanya melihat log-nya sendiri serta daftar token yang sah.
 
 Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keamanan.md).
 
 ## Batasan
 
-- **Cetakan** hanya membawa kanal geser, karena pola latar bawaan hilang di kertas. Dalam uji printer simulasi dengan skema geser v2, satu halaman teks penuh menyebut nama pada semua foto 4000 px dan 57 % foto 1600 px (lebih jarang dengan rahasia kode lain; dokumen skema v1 perlu dua halaman), tanpa ketahanan kolusi. Tepi teks v2 bergeser sampai 0,05 mm antarbaris, belum diuji dengan pengamat ([batasan 3](docs/keamanan.md#batasan-3)).
+- **Cetakan** hanya membawa kanal geser, karena pola latar bawaan hilang di kertas. Dalam uji printer simulasi dengan skema geser v2, satu halaman teks penuh menyebut nama pada semua foto 4000 px dan 57 % foto 1600 px (lebih jarang dengan rahasia kode lain; dokumen skema v1 baru kadang-kadang cukup dari dua halaman), tanpa ketahanan kolusi. Tepi teks v2 bergeser sampai 0,05 mm antarbaris, belum diuji dengan pengamat ([batasan 3](docs/keamanan.md#batasan-3)).
 - **Ketikan ulang** hanya menyisakan varian kalimat dan pilihan kata opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti"; satu pembocor baru dapat disebut dari sekitar 1.300 kata isi (simulasi), tanpa ketahanan kolusi. Pilihan kata dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan ([batasan 1](docs/keamanan.md#batasan-1)).
 - **Kanari** hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word, dan Adobe Reader lebih dulu menampilkan peringatan izin yang membuat kanari mudah dikenali ([batasan 7](docs/keamanan.md#batasan-7)).
 - **Lawan yang memahami TAPAK** dapat lolos tanpa nama dan tanpa peringatan dengan mengacak atau melemahkan tanda, juga dari satu salinan saja. Tanda yang dibalik dan penghapusan di tempat salinan koalisi sama umumnya diberi peringatan, kecuali penghapusan pada cetakan. Tidak ada orang lain yang tertuduh karenanya ([batasan 6](docs/keamanan.md#batasan-6)).

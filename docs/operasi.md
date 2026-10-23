@@ -340,7 +340,7 @@ Tanpa konfigurasi, varian semantik berasal dari tabel frasa tiruan (`TAPAK_LLM=m
 
 Sebelum mengirim kalimat dokumen, TAPAK memeriksa bahwa alamat itu menjawab `GET /v1/models` dengan daftar model. Bila tidak, misalnya karena port itu milik layanan lain atau kontainer, TAPAK berhenti tanpa mengirim teks. Permintaan dikirim ke `/v1/chat/completions`, sehingga templat obrolan model dipakai. Alamat lama yang berakhiran `/completion` tetap diterima. Jangan isi `TAPAK_LLM_MODEL` kecuali llama-cpp-python terpasang, karena variabel itu memilih jalur di dalam proses. Batas waktu per permintaan 120 detik dan dapat diubah dengan `TAPAK_LLM_TIMEOUT`.
 
-`tapak semantic suggest` mencetak varian yang lolos dan jumlah kandidat yang dibuang beserta alasannya. Tiap kalimat memerlukan satu panggilan parafrase dan satu panggilan pemeriksa untuk setiap kandidat yang lolos pemeriksaan otomatis. Baca setiap varian sebelum menyetujuinya. Pemeriksa model meloloskan banyak kalimat yang menambah keterangan atau menghapus "Demikian" dan "Dengan hormat" (lihat [batasan](keamanan.md#batasan)).
+`tapak semantic suggest` mencetak varian yang lolos dan jumlah kandidat yang dibuang beserta alasannya. Tiap kalimat memerlukan satu panggilan parafrase dan satu panggilan pemeriksa untuk setiap kandidat yang lolos pemeriksaan otomatis. Baca setiap varian sebelum menyetujuinya. Pemeriksa model meloloskan banyak kalimat yang menambah keterangan atau menghapus "Demikian" dan "Dengan hormat" (lihat [batasan 2](keamanan.md#batasan-2)).
 
 Model yang sudah diuji (CPU 4 utas di mesin yang dipakai bersama, 2 dokumen contoh):
 
@@ -386,7 +386,7 @@ Suite ini tidak memerlukan GPU, model LLM, atau jaringan. Uji foto ditandai `slo
 
 ## Riset
 
-Setiap angka uji tertahan di [cara kerja](cara-kerja.md) dan [batasan](keamanan.md#batasan) berasal dari satu folder `research/`. Protokol, benih, dan aturan keputusannya ditulis di skrip folder itu dan dicatat di git sebelum pengukuran; perintahnya ada di docstring skrip atau di README studi. Hasil ringkas ada di `hasil/` setiap folder, sedangkan salinan dan gambar bukti ada di `out/` (tidak di-commit).
+Setiap angka uji tertahan di [cara kerja](cara-kerja.md) dan [batasan](keamanan.md#batasan) berasal dari satu folder `research/`. Protokol atau grid, benih, dan aturan keputusan (bila ada) setiap studi ditetapkan di skrip folder itu sebelum pengukuran (sebagian, misalnya `research/layar/` dan `research/balik/`, juga mencatatnya di git lebih dulu); `research/ketik/` hanya memakai benih tetap, tanpa set uji tertahan. Perintahnya ada di docstring skrip atau di README studi. Hasil ringkas ada di `hasil/` setiap folder, sedangkan salinan dan gambar bukti ada di `out/` (tidak di-commit).
 
 | Folder | Yang diukur | Angka di | Perintah |
 |---|---|---|---|
