@@ -20,13 +20,33 @@ Protokol, benih, dan aturan pemilihan ditetapkan di `ukur.py` (`PROTOCOL`) dan `
 
 ## Tahap yang menyerah (set dev, jalur sebelum studi ini)
 
-(diisi)
+Set dev dilacak lebih dulu dengan jalur lama (`hasil/dev_sebelum.jsonl`, 1.132 gambar, sebelum tahap penyelamat ada). Dari 1.084 gambar salinan bertanda, 304 tidak ditemukan: potongan layar 182 dari 640, paragraf 53 dari 120, halaman 24 sampai 48 dpi 58 dari 220, foto sebagian halaman 11 dari 104. Tahap yang menyerah (`ringkas.stage`, dari catatan setiap tahap registrasi pada `hasil/dev_periksa.jsonl`):
+
+| Tahap | Potongan layar | Paragraf | Halaman 24 sampai 48 dpi | Foto sebagian |
+|---|---|---|---|---|
+| tidak ada kata induk yang terlihat (bagian kosong halaman 2) | 40 | 0 | 0 | 7 |
+| tidak ada pose awal | 6 | 1 | 2 | 0 |
+| ada pose awal, tidak satu pun dekat halaman yang benar | 52 | 36 | 23 | 4 |
+| pose awal benar, ECC menyimpang darinya | 54 | 6 | 1 | 0 |
+| ECC benar, korelasinya di bawah 0,75 | 30 | 10 | 32 | 0 |
+
+* **Jendela penampil** adalah penyebab terbesar pada potongan layar: 122 dari 142 kegagalan yang memuat teks berada di jendela penampil (dari 319 potongan berjendela, 141 tidak ditemukan; tanpa jendela 41 dari 321). Gambar bukti diratakan terangnya sebelum ECC, dan bilah alat gelap serta tepi halaman menjadi "tinta" yang menarik ECC menjauh, bahkan dari pose awal SIFT yang tepat (galat 0,4 piksel, sesudah ECC 53 piksel).
+* **Paragraf** kecil (2 sampai 10 baris, 100 sampai 1.000 piksel lebarnya) memberi terlalu sedikit fitur SIFT dan kata Tesseract.
+* **Halaman 24 sampai 28 dpi** biasanya diregistrasi dengan benar, tetapi ECC pada 100 dpi membandingkan induk yang tajam dengan bukti yang buram dan korelasinya berhenti di 0,54 sampai 0,70, di bawah ambang 0,75. Halaman yang memenuhi gambar (tanpa jendela) tidak punya garis tepi, dan SIFT tidak menemukan fitur pada 24 dpi.
+* **Pose yang ditemukan jalur lama tidak selalu tepat**: pada potongan halaman 2 surat telegram yang hampir kosong, homografi yang dicocokkan pada beberapa baris di bagian atas meleset sampai puluhan piksel di bagian kosong, tetapi salinan tetap disebut (pola latar di dekat teks terbaca, sel yang meleset menjadi derau).
 
 ## Tahap penyelamat
 
-Tahap ini hanya berjalan bila tahap sebelumnya tidak menemukan halaman (tidak ada pose awal, atau korelasi ECC di bawah 0,75). Semua yang ditemukannya dipilih pada set dev; dekoder dan registrasi tetap buta kode (hanya bukti, PDF induk, dan ukuran halaman).
+Tahap ini hanya berjalan bila tahap sebelumnya tidak menemukan halaman (tidak ada pose awal, atau korelasi ECC di bawah 0,75), jadi bukti yang sudah ditemukan didekode persis seperti sebelumnya. Dekoder dan registrasi tetap buta kode (hanya bukti, PDF induk, dan ukuran halaman). Rancangannya dibuat pada gambar dev yang tidak ditemukan jalur lama:
 
-(diisi)
+1. **Masker kertas** (`paper_mask`). Tangkapan layar menampilkan kertas pada satu tingkat abu-abu yang tepat (foto tidak). Baris dan kolom yang memuat kertas membentuk persegi bagian halaman; di luarnya jendela penampil, yang diganti warna kertas sebelum ECC dan tidak ikut didekode. Pada sampel set dev masker menemukan 61 dari 61 persegi berjendela (selisih paling besar 3 piksel) dan tidak memberi masker pada 79 dari 79 tangkapan tanpa jendela.
+2. **Pose awal tambahan dari pencocokan templat** (`template_poses`): tinta bukti dicari di tinta setiap halaman induk dengan korelasi silang ternormalisasi atas skala (16 sampai 400 dpi, langkah 5 %) dan geseran, kasar pada 30 dpi lalu halus pada 45 dpi. Jendela induk yang kosong tidak menjadi kandidat (korelasinya tidak terdefinisi).
+3. **ECC bermasker**, dengan peta afin untuk tangkapan layar (tanpa perspektif: potongan yang hanya memuat kaki halaman tidak lagi miring, galat 2,4 sampai 7 piksel menjadi 1,1 sampai 1,4) dan pada resolusi bukti sendiri di bawah 100 dpi (halaman 24 dpi: galat 1,1 sampai 2,6 piksel menjadi 0,5 sampai 1,1).
+4. **Verifikasi**: pose ditolak bila ECC mengubah skalanya lebih dari 25 % atau skala lokalnya menyebar lebih dari 1,6 kali (`pose_is_sane`), bila korelasi tinta bukti dan induk pada pose itu kurang dari `RESCUE_MIN_AGREEMENT` (`pose_agreement`), atau bila pose lain di halaman lain atau 14 pt jauhnya menyusul dalam `RESCUE_AMBIGUITY`. Korelasinya diukur pada resolusi bukti setelah rata-rata lokal setiap baris (Gaussian 16 pt sepanjang baris) dibuang. Tanpa pembuangan itu, bukti dokumen lain (font, tepi, kop, dan jarak baris sama) mencapai 0,91 pada paragraf dua baris dan 0,6 sampai 0,77 pada potongan dan halaman, sedangkan pose yang benar paling rendah 0,92; dengan pembuangan itu dokumen lain paling besar 0,58 dan pose yang benar paling rendah 0,70.
+
+**Pemilihan** (`pilih.py`). Semua gambar dev yang tidak ditemukan jalur lama, ditambah induk tanpa tanda dan bukti dokumen lain, diregistrasi dengan kode akhir (`hasil/pilih_dev.jsonl`, 450 gambar tempat tahap penyelamat berjalan). Aturan (`ATURAN`, ditetapkan sebelum pengumpulan pertama): di antara pasangan ambang yang tidak menerima satu pun pose salah, pasangan yang menerima pose tidak salah paling banyak, lalu keduanya dinaikkan satu langkah kisi. Hasilnya `RESCUE_MIN_AGREEMENT` 0,65 dan `RESCUE_AMBIGUITY` 0,05 (`hasil/pilihan.json`): pada set dev 259 registrasi diterima, 0 salah, 219 tepat dan 40 kasar. Varian rancangan tanpa tingkat ECC 0,25 menerima 260 (0 salah) pada 314 gambar yang sama; selisihnya tidak berarti, jadi rancangan dipertahankan. Peta afin dipilih dari potongan dev yang hanya memuat kaki halaman (di atas), tanpa pembandingan pada seluruh set.
+
+**Pemeriksaan dekode pada set dev** (`hasil/dev_periksa.jsonl`, `hasil/ringkas_dev.json`: 304 gambar yang tidak ditemukan jalur lama dan 48 induk tanpa tanda; bukti dokumen lain sudah tidak diterima pada tahap registrasi): 259 registrasi baru (219 tepat, 40 kasar, 0 salah), 219 salinan baru disebut (skor paling kecil 1,05 kali ambang, median 4,1), tidak ada yang hilang, tidak ada tuduhan salah, dan tidak ada peringatan pola penghapusan atau bacaan jelas tanpa nama. Batas bawah halaman utuh turun ke 24 dpi untuk setiap penggambar dan format (sebelumnya 28 sampai 48 dpi). Paragraf yang baru ditemukan 52 dari 53, tetapi hanya 20 yang disebut: paragraf dua sampai empat baris membawa terlalu sedikit sel pola latar.
 
 ## Hasil (set uji)
 
