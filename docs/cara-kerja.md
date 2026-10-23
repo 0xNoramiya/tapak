@@ -119,7 +119,6 @@ tapak/
   registry/     chain (rantai hash, trigger tambah-saja), signing (Ed25519), verify, merkle
   canary_dns/   server (dnslib), store (log berantai)
   llm/          provider (antarmuka), mock (deterministik), llamacpp (lokal, loopback saja)
-  learned_wm/   kerangka tanda air berbasis model (opsional, belum dilatih)
   web/          FastAPI + HTMX, antarmuka berbahasa Indonesia
   photos.py     simulator foto, tangkapan layar, dan printer
   ponsel.py     ISP ponsel dan monitor simulasi untuk photos.py (opsional)
