@@ -864,10 +864,12 @@ def test_verdict_notes_are_ranked_and_said_once():
     """Under an identified verdict the warnings come in the order they change what to do: a
     name resting on visible marks, an identity the registry does not confirm, the manipulation
     warning (without the statistics, which the validity box lists), a skipped scanned-page shift
-    channel. A registry sentence shown there is left out of the validity box."""
+    channel. Each starts with its finding (for the registry: what it means for the name), set in
+    bold by the page, so a higher warning never reads lighter than a lower one. A registry
+    sentence or a note the verdict already says is left out of the validity box."""
     from types import SimpleNamespace
 
-    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+    from tapak.decoder.accuse import NO_MARKS_NOTE, VISIBLE_MARKS_NOTE
     from tapak.decoder.erasure import ErasureCheck
     from tapak.decoder.manipulation import MANIPULATION_LEAD, manipulation_note
     from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
@@ -878,13 +880,16 @@ def test_verdict_notes_are_ranked_and_said_once():
     scan = f"{SCAN_SHIFT_SKIPPED}: kotak kata tidak dapat dibaca ulang (simulasi)"
     visible = f"salinan #3: {VISIBLE_MARKS_NOTE}"
     a = SimpleNamespace(notes=["catatan biasa", scan, warning, visible], erasure=erasure, contradiction=None,
-                        reversal=None)
+                        reversal=None, threshold=SimpleNamespace(n_observed=1981))
     unsigned = "2 entri salinan dokumen ini belum bertanda tangan; rantai tanpa tanda tangan tidak terlindungi"
     reg = SimpleNamespace(recorded=True, chain_ok=True, copies_unsigned=2, problems=[unsigned, "log kanari: rusak"])
     v = _verdict_notes(SimpleNamespace(registry=reg), a, True, lambda n: n)
-    firsts = [n["parts"][0] for n in v["notes"]]
-    assert firsts[0] == visible and firsts[1].startswith("2 entri salinan dokumen ini belum bertanda tangan")
-    assert firsts[2].startswith(MANIPULATION_LEAD) and firsts[3] == scan
+    parts = [n["parts"] for n in v["notes"]]
+    lead, rest = VISIBLE_MARKS_NOTE.split(". ", 1)
+    assert parts[0] == [f"salinan #3: {lead}.", f"{rest}."]  # every word kept, the finding first
+    assert parts[1] == ["identitas penerima belum dilindungi tanda tangan registri.", f"{unsigned}."]
+    assert parts[2][0].startswith(MANIPULATION_LEAD)
+    assert parts[3] == ["kanal geser halaman pindaian dilewati.", "Kotak kata tidak dapat dibaca ulang (simulasi)."]
     assert v["notes"][2].get("manipulation") and "z = -9,50" in warning
     assert not any("z = -9,50" in part for part in v["notes"][2]["parts"])
     assert "untuk dokumen tertentu laju alarm palsunya dapat sampai beberapa persen" in " ".join(v["notes"][2]["parts"])
@@ -892,15 +897,46 @@ def test_verdict_notes_are_ranked_and_said_once():
     # "tidak cukup bukti": no registry sentence under the verdict, the box keeps it
     v = _verdict_notes(SimpleNamespace(registry=reg), a, False, lambda n: n)
     firsts = [n["parts"][0] for n in v["notes"]]
-    assert firsts[-1] == scan and not any(f.startswith("2 entri salinan") for f in firsts) and unsigned in v["problems"]
+    assert firsts[-1] == "kanal geser halaman pindaian dilewati." and not any(f.startswith("identitas") for f in firsts)
+    assert unsigned in v["problems"]
+    # nothing read: the verdict says so, the box does not say it again
+    a.notes, a.threshold.n_observed = [NO_MARKS_NOTE, "catatan biasa"], 0
+    assert _verdict_notes(SimpleNamespace(registry=reg), a, False, lambda n: n)["notes_rest"] == ["catatan biasa"]
     # a document issued without a registry: the trace note moves under the verdict, once
     note = "dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari catatan lokal"
-    a.notes = [note, "pelacakan ini tidak dicatat di registri"]
+    a.notes, a.threshold.n_observed = [note, "pelacakan ini tidak dicatat di registri"], 1981
     reg = SimpleNamespace(recorded=False, chain_ok=None, copies_unsigned=0, problems=["registri tidak ditemukan"])
     v = _verdict_notes(SimpleNamespace(registry=reg), a, True, lambda n: n)
-    assert v["notes"][0]["parts"] == ["Dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari "
+    assert v["notes"][0]["parts"] == ["dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari "
                                       "catatan lokal."]
     assert v["notes_rest"] == ["pelacakan ini tidak dicatat di registri"] and v["problems"] == ["registri tidak ditemukan"]
+    # no public key here: the consequence for the name first, the registry problem after it
+    reg = SimpleNamespace(recorded=True, chain_ok=None, copies_unsigned=0,
+                          problems=["kunci publik tidak tersedia; rantai tidak diverifikasi"])
+    v = _verdict_notes(SimpleNamespace(registry=reg), a, True, lambda n: n)
+    assert v["notes"][0]["parts"] == ["identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.",
+                                      "Kunci publik tidak tersedia; rantai tidak diverifikasi."]
+    assert v["problems"] == []
+
+
+def test_trace_notes_and_commands_read_as_the_page_writes_them():
+    """A channel pair in a decoder note is named as the channel table names it, and a TAPAK
+    command in running text is set in the monospace face with no flag broken after its dashes
+    (never "tapak verify --" at the end of one line and "jangkar" on the next)."""
+    from tapak.web.app import _page_note, _prose
+
+    note = "kanal geser|latar saling bertentangan pada 27 dari 104 posisi; kemungkinan salah satu kanal dimanipulasi"
+    assert _page_note(note) == ("kanal geser kata dan baris dan kanal pola latar saling bertentangan pada 27 dari 104 "
+                                "posisi; kemungkinan salah satu kanal dimanipulasi")
+    out = str(_prose("log jangkar (tapak jangkar mulai) atau jangkar berita acara (tapak verify --jangkar) <b>"))
+    assert '<span class="mono">tapak jangkar mulai</span>' in out
+    assert '<span class="mono">tapak verify <span class="nowrap">--jangkar</span></span>' in out
+    assert out.endswith("&lt;b&gt;")
+    out = str(_prose("tapak jangkar mulai --ulang --alasan '...'; tapak registry sign lebih dulu"))
+    assert ('<span class="mono">tapak jangkar mulai <span class="nowrap">--ulang</span> '
+            '<span class="nowrap">--alasan</span></span> &#39;...&#39;') in out
+    assert '<span class="mono">tapak registry sign</span> lebih dulu' in out
+    assert '10<sup>\u22123</sup>' in str(_prose("di atas 10^-3"))
 
 
 def test_powers_of_ten_are_written_and_read_as_numbers():
@@ -1208,7 +1244,9 @@ def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(c
     skipped = f"{trace.SCAN_SHIFT_SKIPPED}: kotak kata tidak dapat dibaca ulang (simulasi)"
     monkeypatch.setattr(trace, "attach_recorded_scans", lambda master, manifest: skipped)
     r = client.post("/lacak", data={"dokumen": doc, "teks": "Teks ini tidak berasal dari dokumen mana pun."})
-    assert r.status_code == 200 and f"<b>Perhatian:</b> {skipped}</p>" in r.text
+    assert r.status_code == 200
+    assert ("<b>Perhatian:</b> <b>kanal geser halaman pindaian dilewati.</b> <span class=\"notice-part\">Kotak kata "
+            "tidak dapat dibaca ulang (simulasi).</span></p>") in r.text
     note = re.search(r'<p class="hint kanal-catatan" id="kanal-catatan">(.*?)</p>', r.text, re.S).group(1)
     assert "Kanal geser tidak membaca halaman pindaian (lihat peringatan di atas); pola latar halaman itu tetap dibaca." in note
 
@@ -1229,7 +1267,9 @@ def test_lacak_warns_next_to_the_verdict_when_scanned_shift_was_skipped(client, 
     r = client.post("/lacak", data={"dokumen": doc, "teks": "Teks ini tidak berasal dari dokumen mana pun."})
     assert r.status_code == 200 and "Tidak cukup bukti" in r.text
     verdict = r.text[:r.text.index('class="verdict-actions"')]
-    assert f'<p class="notice notice-warn verdict-note"><b>Perhatian:</b> {note}</p>' in verdict
+    lead, detail = note.split(": ", 1)
+    assert (f'<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>{lead}.</b> '
+            f'<span class="notice-part">{detail[:1].upper()}{detail[1:]}.</span></p>') in verdict
     assert r.text.count(trace.SCAN_SHIFT_SKIPPED) == 1  # not repeated among the notes
     assert not re.search(r'<ul class="notes">\s*</ul>', r.text)  # no empty notes list
 

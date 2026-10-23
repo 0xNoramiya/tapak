@@ -84,11 +84,13 @@
   {% endif %}
 
   {# Warnings, ranked by how much they change what the operator does next (app._verdict_notes).
-     Each is said here only; the validity box keeps the numbers behind them. #}
+     Each starts with its finding in bold, so rank and weight agree; each is said here only, and
+     the validity box keeps the numbers behind them. In the merged manipulation warning the
+     third sentence is the rate, set quieter, with the link to those numbers. #}
   {% if v.notes %}
   <div class="verdict-notes">
     {% for n in v.notes %}
-    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {% if n.parts|length > 1 %}<b>{{ n.parts[0]|pangkat }}</b>{% for s in n.parts[1:] %} <span class="notice-part{% if loop.index == 2 %} notice-rate{% endif %}">{{ s|pangkat }}{% if loop.index == 2 and n.manipulation %} <a class="link" href="#sah-h">Angka setiap pemeriksaan</a> ada di Keabsahan dan catatan.{% endif %}</span>{% endfor %}{% else %}{{ n.parts[0]|pangkat }}{% endif %}</p>
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>{{ n.parts[0]|prosa }}</b>{% for s in n.parts[1:] %} <span class="notice-part{% if n.manipulation and loop.index == 2 %} notice-rate{% endif %}">{{ s|prosa }}{% if n.manipulation and loop.index == 2 %} <a class="link" href="#sah-h">Angka setiap pemeriksaan</a> ada di Keabsahan dan catatan.{% endif %}</span>{% endfor %}</p>
     {% endfor %}
   </div>
   {% endif %}
@@ -278,7 +280,7 @@
         {% set jangkar = o.anchor_line() %}
         {% if jangkar %}
         <dt>Log jangkar</dt>
-        <dd>{{ jangkar[:1]|upper }}{{ jangkar[1:] }}.</dd>
+        <dd>{{ jangkar|kalimat|prosa }}</dd>
         {% endif %}
       </dl>
       {% if o.trace_entry is not none and o.trace_entry_hash %}
@@ -303,11 +305,14 @@
         <span class="label">Catatan</span>
         {% if v.notes_rest %}
         <ul class="notes">
-          {% for n in v.notes_rest %}<li>{{ redact(n)|pangkat }}</li>{% endfor %}
+          {% for n in v.notes_rest %}<li>{{ redact(n)|prosa }}</li>{% endfor %}
         </ul>
         {% endif %}
-        {% if v.problems %}
-        <div class="notice notice-warn"><ul class="notes">{% for p in v.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+        {# one registry problem is a sentence beside the warning icon, not a one-item list #}
+        {% if v.problems|length == 1 %}
+        <p class="notice notice-warn">{{ v.problems[0]|kalimat|prosa }}</p>
+        {% elif v.problems %}
+        <div class="notice notice-warn"><ul class="notes">{% for p in v.problems %}<li>{{ p|prosa }}</li>{% endfor %}</ul></div>
         {% endif %}
       </div>
       {% endif %}

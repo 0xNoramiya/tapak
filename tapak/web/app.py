@@ -284,6 +284,34 @@ REGISTRY_NO_KEY = "kunci publik tidak tersedia"
 REGISTRY_UNRECORDED = "dokumen ini diterbitkan tanpa registri"
 
 
+def _clause(text: str) -> str:
+    """A finding that follows "Perhatian:" under the verdict: lower case kept, as the decoder
+    writes it (and as the merged manipulation warning starts), with a final period."""
+    text = text.strip()
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+def _lead(text: str, sep: str) -> list[str]:
+    """``text`` cut at the first ``sep`` into its finding (set in bold under the verdict) and
+    the rest (a sentence on its own line); ``[text]`` as one finding when ``sep`` does not occur."""
+    head, found, tail = text.partition(sep)
+    return [_clause(head), _sentence(tail)] if found and tail.strip() else [_clause(text)]
+
+
+# A pair of channels as the decoder writes it in a note ("kanal geser|latar saling bertentangan").
+_CHANNEL_PAIR = re.compile(r"\bkanal (\w+)\|(\w+)\b")
+
+
+def _page_note(note: str) -> str:
+    """A trace note in the words of this page: a channel pair is named as the channel table
+    names its channels (one name per channel), not with the decoder's keys."""
+    def pair(m: re.Match) -> str:
+        a, b = (CHANNEL_NAMES.get(k, k).lower() for k in (m[1], m[2]))
+        return f"kanal {a} dan kanal {b}"
+
+    return _CHANNEL_PAIR.sub(pair, note)
+
+
 def _verdict_notes(outcome, attribution, identified: bool, redact) -> dict[str, object]:
     """Everything said under the verdict, in the order it changes what the operator does, and
     what is left for the validity box.
@@ -294,53 +322,60 @@ def _verdict_notes(outcome, attribution, identified: bool, redact) -> dict[str, 
     "tidak cukup bukti" only the last two apply. The merged warning is shown without the
     statistic of each check: the validity box lists those, each with its own row.
 
+    Every warning starts with its finding, set in bold, and gives the rest on its own lines, so
+    a warning ranked higher never reads lighter than one below it. For the registry the finding
+    is what it means for the name; the registry problem behind it follows.
+
     Returns ``notes`` (each a list of sentences: the first is the finding, the others go on
     their own lines; ``manipulation`` marks the merged warning), ``notes_rest`` (the trace notes
-    for the validity box) and ``problems`` (the registry problems for the validity box).
+    for the validity box, without one the verdict already says) and ``problems`` (the registry
+    problems for the validity box).
     """
-    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+    from tapak.decoder.accuse import NO_MARKS_NOTE, VISIBLE_MARKS_NOTE
     from tapak.decoder.manipulation import is_manipulation_note, manipulation_note, manipulation_parts
     from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
 
     a, r = attribution, outcome.registry
     shown = _visible_marks_caveats(a.notes)
     rest = [n for n in a.notes if n not in shown]
+    if not identified and not a.threshold.n_observed:
+        rest = [n for n in rest if n != NO_MARKS_NOTE]  # the verdict says "Tidak ada tanda yang terbaca"
     problems = list(r.problems)
     ranked: list[tuple[int, dict[str, object]]] = []
     for n in shown:
         if VISIBLE_MARKS_NOTE in n:
-            ranked.append((0, {"parts": [redact(n)]}))
+            ranked.append((0, {"parts": _lead(redact(n), ". ")}))
         elif is_manipulation_note(n):
             short = manipulation_note(a.erasure, a.contradiction, a.reversal, statistics=False) or n
             ranked.append((2, {"parts": manipulation_parts(short), "manipulation": True}))
         elif n.startswith(SCAN_SHIFT_SKIPPED):
-            ranked.append((3, {"parts": [redact(n)]}))
+            ranked.append((3, {"parts": _lead(redact(n), ": ")}))
     if identified:
-        text = None
+        parts = None
         if not r.recorded:
             note = next((n for n in rest if n.startswith(REGISTRY_UNRECORDED)), None)
             if note is not None:
                 rest.remove(note)
-                text = _sentence(note)
+                parts = [_clause(note)]
             else:
-                text = ("Dokumen ini tidak tercatat di registri. Identitas penerima hanya berasal dari catatan lokal "
-                        "dan belum dikonfirmasi.")
+                parts = ["identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.",
+                         "Dokumen ini tidak tercatat di registri."]
         elif r.chain_ok is not True:
             p = next((p for p in problems if p.startswith(REGISTRY_NO_KEY)), None)
             if p is not None:
                 problems.remove(p)
-            text = (_sentence(p or "registri tidak diverifikasi karena kunci publik tidak tersedia")
-                    + " Identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.")
+            parts = ["identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.",
+                     _sentence(p or "registri tidak diverifikasi karena kunci publik tidak tersedia")]
         elif r.copies_unsigned:
             prefix = f"{r.copies_unsigned} entri salinan dokumen ini belum bertanda tangan"
             p = next((p for p in problems if p.startswith(prefix)), None)
             if p is not None:
                 problems.remove(p)
-            text = _sentence(p or prefix) + " Identitas penerima belum dilindungi tanda tangan registri."
-        if text:
-            ranked.append((1, {"parts": [text]}))
+            parts = ["identitas penerima belum dilindungi tanda tangan registri.", _sentence(p or prefix)]
+        if parts:
+            ranked.append((1, {"parts": parts}))
     ranked.sort(key=lambda item: item[0])  # stable: notes of one kind keep their order
-    return {"notes": [note for _, note in ranked], "notes_rest": rest, "problems": problems}
+    return {"notes": [note for _, note in ranked], "notes_rest": [_page_note(n) for n in rest], "problems": problems}
 
 
 _POWER = re.compile(r"(?:(\d+(?:,\d+)?) x )?10\^(-?)(\d+)")
@@ -365,6 +400,28 @@ def _powers(text: object) -> Markup:
 
 
 templates.env.filters["pangkat"] = _powers
+
+# A TAPAK command in running text ("tapak verify --jangkar", "tapak jangkar mulai"): in the
+# monospace face commands have everywhere else on these pages, and a flag is never broken after
+# its dashes ("tapak verify --" at the end of a line, "jangkar" on the next). Lines may still
+# break between words, so a long command fits a phone. At most two subcommand words, then any
+# flags: "tapak jangkar mulai --ulang --alasan", but not the prose after a command ("tapak
+# registry sign lebih dulu").
+_COMMAND = re.compile(r"\btapak(?:(?: [a-z][a-z-]*){1,2}(?: --?[a-z][a-z-]*)*|(?: --?[a-z][a-z-]*)+)")
+
+
+def _command(m: re.Match) -> str:
+    words = (f'<span class="nowrap">{w}</span>' if "-" in w else w for w in m[0].split(" "))
+    return f'<span class="mono">{" ".join(words)}</span>'
+
+
+def _prose(text: object) -> Markup:
+    """Escaped running text as :func:`_powers` writes it, with every TAPAK command set as one."""
+    return Markup(_COMMAND.sub(_command, str(_powers(text))))
+
+
+templates.env.filters["prosa"] = _prose
+templates.env.filters["kalimat"] = _sentence
 
 
 def _fap(candidate, n_copies: int):

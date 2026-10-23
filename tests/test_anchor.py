@@ -792,6 +792,13 @@ def test_web_shows_the_anchor_and_refuses_after_tail_deletion(tmp_path, monkeypa
     _drop_tail(s.registry_path)
     r = client.get("/registri")
     assert "Tidak cocok" in r.text and "dihapus dari ujung rantai" in r.text and "Rantai registri rusak" in r.text
+    # the chain card names the anchor problem and points to the Log jangkar card, which tells it once
+    from markupsafe import escape
+
+    from tapak.service import anchor_status
+
+    assert 'log jangkar: rinciannya di bagian <a class="link" href="#jangkar-h">Log jangkar</a> di bawah' in r.text
+    assert all(r.text.count(str(escape(p))) == 1 for p in anchor_status(s).problems)
     r = client.post("/lacak", data={"dokumen": doc[:16], "teks": evidence.decode("utf-8")})
     assert "Pelacakan ditolak: log jangkar" in r.text and "tidak dapat dilakukan: pelacakan ditolak" not in r.text and "tapak verify" in r.text
 

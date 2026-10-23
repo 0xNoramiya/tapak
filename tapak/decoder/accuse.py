@@ -59,6 +59,8 @@ VISIBLE_MARKS_NOTE = (
     "saat mengetik ulang, jadi hasil ini menunjuk pilihan kata salinan tersebut, bukan pengetiknya, dan "
     "memerlukan bukti pendukung"
 )
+# Note of a trace in which no channel read a single position (the web result says it in its verdict).
+NO_MARKS_NOTE = "tidak ada tanda yang terbaca pada bukti"
 THRESHOLD_RULE = (
     "Z = min_lambda (Lambda(lambda) + ln(1/eps1)) / lambda, Chernoff bound with the worst case "
     "leaked bit per position, computed from the bias vector and the decoder weights only"
@@ -414,7 +416,7 @@ def attribute(
     )
     notes: list[str] = []
     if fused.n_observed == 0:
-        notes.append("tidak ada tanda yang terbaca pada bukti")
+        notes.append(NO_MARKS_NOTE)
     # Step 2: scores.
     s = scores(codewords, fused.y, p, fused.weights) if fused.n_observed else np.zeros(len(refs))
 

@@ -107,8 +107,8 @@ LONE_LEAKER_WORDS = 1800  # LONE_LEAKER_BITS at BITS_PER_100_WORDS, rounded to 1
 PRINT_NOTE = (
     "Untuk dokumen cetak, pilihan kata mengambil lebih banyak posisi geser daripada yang dikembalikan OCR: pada "
     "nota dinas contoh 439 menjadi 314 posisi geser (bersama varian kalimat), sedangkan OCR mengembalikan paling "
-    "banyak 9 bit per halaman; dalam uji foto cetak simulasi (profil latar bawaan), penerbitan tanpa keduanya "
-    "menyebut salinan yang benar sama sering atau lebih sering di setiap sel"
+    "banyak 9 bit per halaman; dalam uji foto cetak simulasi (profil latar bawaan), penerbitan tanpa pilihan kata "
+    "dan varian kalimat menyebut salinan yang benar sama sering atau lebih sering di setiap sel"
 )
 
 POLICIES = ("lokal", "kalimat")
