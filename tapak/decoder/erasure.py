@@ -94,7 +94,11 @@ argument as before (each Z has mean 0 and variance 1 when the strengths do not d
 Where no background output missed its pattern the two statistics are the same number and the
 check is simply a little stricter. The split and the rules were fixed before any measurement
 of ``research/balik``. A caller can still ask for one rule (``rules="semua"``), which then gets
-the whole rate, as before.
+the whole rate, as before. Measured there on held-out seeds (36 coalitions per channel, every
+agreeing mark erased): flagged on 36 of 36 PDFs, 36 of 36 screenshots, 33 of 36 photos and 10 of
+36 two-page prints, 115 of 144, against 70 ("pola" alone) and 102 ("semua" alone) at the old
+threshold on the same evidence; no alarm on 674 measured honest traces through seven media and
+128 README benchmark traces (lowest Z -2.67 under "pola", -3.04 under "semua").
 """
 
 from __future__ import annotations

@@ -275,6 +275,21 @@ def _visible_marks_caveats(notes: list[str]) -> list[str]:
 templates.env.globals["peringatan_terlihat"] = _visible_marks_caveats
 
 
+def _warning_parts(note: str) -> tuple[str, str]:
+    """(first sentence, rest) of the merged manipulation warning, so the page can set what was
+    found in bold and the causes, the rate and "nobody is named" after it; ("", note) for any
+    other note."""
+    from tapak.decoder.manipulation import CAUSES_LEAD, is_manipulation_note
+
+    cut = note.find(". " + CAUSES_LEAD)
+    if not is_manipulation_note(note) or cut < 0:
+        return "", note
+    return note[:cut + 1], note[cut + 2:]
+
+
+templates.env.globals["bagian_peringatan"] = _warning_parts
+
+
 def _fap(candidate, n_copies: int):
     """False-accusation probability of a named copy, exact even when it underflows a float."""
     import math

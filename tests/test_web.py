@@ -1367,7 +1367,8 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", forged, "application/pdf")})
     assert r.status_code == 200
     verdict = r.text[:r.text.index('class="verdict-actions"')]
-    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> ' + MANIPULATION_LEAD + ": " in verdict
+    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>' + MANIPULATION_LEAD + ": " in verdict
+    assert '.</b> Kemungkinan penyebab: ' in verdict  # the first sentence (what was found) in bold
     assert ERASURE_NOTE in verdict and r.text.count(ERASURE_NOTE) == 1 and r.text.count(MANIPULATION_LEAD) == 1
     box = r.text[r.text.index('id="sah-h"'):]
     assert "Pola penghapusan" in box and "Terdeteksi" in box and "posisi terukur" in box
@@ -1402,7 +1403,8 @@ def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
     assert r.status_code == 200
     verdict = r.text[:r.text.index('class="verdict-actions"')]
     assert "Tidak cukup bukti" in verdict and 'class="who-seq"' not in verdict
-    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> ' + MANIPULATION_LEAD + ": " in verdict
+    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>' + MANIPULATION_LEAD + ": " in verdict
+    assert '.</b> Kemungkinan penyebab: ' in verdict  # the first sentence (what was found) in bold
     assert r.text.count(MANIPULATION_LEAD) == 1 and r.text.count(CONTRADICTION_NOTE) == 1
     assert REVERSAL_NOTE in verdict and "koalisi lebih dari 3 orang" in verdict
     box = r.text[r.text.index('id="sah-h"'):]

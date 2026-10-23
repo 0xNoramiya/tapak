@@ -26,6 +26,8 @@ from tapak.decoder.reversal import REVERSAL_MAX_COALITION, REVERSAL_NOTE, Revers
 
 # Every merged warning starts with this; ``is_manipulation_note`` recognises it.
 MANIPULATION_LEAD = "bukti kemungkinan diubah oleh orang yang memahami TAPAK"
+# The second sentence starts with this (the web page sets the first sentence in bold before it).
+CAUSES_LEAD = "Kemungkinan penyebab: "
 ONLY_A_WARNING = ("Ini hanya peringatan: tidak ada nama yang disebut karenanya, dan putusan, ambang, serta skor tidak "
                   "berubah")
 
@@ -43,7 +45,10 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
     findings = [text for check, text in ((rev, REVERSAL_NOTE), (era, ERASURE_NOTE), (con, CONTRADICTION_NOTE))
                 if check is not None]
     verbs = [verb for verb, on in (("menghapus", era), ("membalik", rev or con), ("mengacak", con)) if on is not None]
-    did = verbs[0] if len(verbs) == 1 else ", ".join(verbs[:-1]) + (", atau " if len(verbs) > 2 else " atau ") + verbs[-1]
+    if len(verbs) == 1:
+        did = verbs[0]
+    else:
+        did = ", ".join(verbs[:-1]) + (", atau " if len(verbs) > 2 else " atau ") + verbs[-1]
     causes = [f"koalisi pemegang dua salinan atau lebih {did} tanda di tempat salinannya sama"
               + (", atau satu salinan membalik semua tandanya" if rev or con else "")]
     if rev or con:
@@ -65,9 +70,9 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
     rates = [c.alarm_rate for c in (rev, era) if c is not None] + ([con.rate] if con is not None else [])
     rate = max(rates)
     which = "pemeriksaan ini" if len(findings) == 1 else "setiap pemeriksaan ini"
-    return (f"{MANIPULATION_LEAD}: {'; '.join(findings)}. Kemungkinan penyebab: {cause_text}. Pada bukti jujur "
-            f"{which} berbunyi dengan peluang paling besar sekitar {format_rate(rate)}, rata-rata atas dokumen, bila "
-            f"derau bacaan tidak bergantung pada kode ({'; '.join(details)}). {ONLY_A_WARNING}")
+    return (f"{MANIPULATION_LEAD}: {'; '.join(findings)}. {CAUSES_LEAD}{cause_text}. Pada bukti jujur "
+            f"{which} memberi peringatan dengan peluang paling besar sekitar {format_rate(rate)}, rata-rata atas "
+            f"dokumen, bila derau bacaan tidak bergantung pada kode ({'; '.join(details)}). {ONLY_A_WARNING}")
 
 
 def is_manipulation_note(note: str) -> bool:
@@ -75,4 +80,4 @@ def is_manipulation_note(note: str) -> bool:
     return note.startswith(MANIPULATION_LEAD)
 
 
-__all__ = ["MANIPULATION_LEAD", "ONLY_A_WARNING", "is_manipulation_note", "manipulation_note"]
+__all__ = ["CAUSES_LEAD", "MANIPULATION_LEAD", "ONLY_A_WARNING", "is_manipulation_note", "manipulation_note"]

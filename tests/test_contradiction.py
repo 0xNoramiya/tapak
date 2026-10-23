@@ -176,14 +176,16 @@ def test_one_warning_for_either_or_both_checks():
     assert alone == contradiction_note(_check()) and alone.startswith(MANIPULATION_LEAD + ": " + CONTRADICTION_NOTE)
     for part in ("10^-3", "koalisi lebih dari 3 orang", "masalah pembacaan bukti", "dua salinan atau lebih",
                  "membalik atau mengacak", "tidak ada nama yang disebut", "5,1 x 10^-13",
-                 "bila laju salah bacaan tidak melebihi perkiraannya", "Pada bukti jujur pemeriksaan ini berbunyi"):
+                 "bila laju salah bacaan tidak melebihi perkiraannya",
+                 "Pada bukti jujur pemeriksaan ini memberi peringatan"):
         assert part in alone
     both = manipulation_note(erased, _check())
     assert both.startswith(MANIPULATION_LEAD + ": " + ERASURE_NOTE + "; " + CONTRADICTION_NOTE)
     assert both.count(CONTRADICTION_NOTE) == 1 and both.count(ERASURE_NOTE) == 1
     assert both.count("hanya peringatan") == 1 and both.count("putusan, ambang") == 1 and both.endswith(ONLY_A_WARNING)
     assert "z = -9,50" in both and "menghapus, membalik, atau mengacak" in both
-    assert "Pada bukti jujur setiap pemeriksaan ini berbunyi" in both and both.count("Kemungkinan penyebab") == 1
+    assert "Pada bukti jujur setiap pemeriksaan ini memberi peringatan" in both
+    assert both.count("Kemungkinan penyebab") == 1
     for note in (alone, both, erasure_note(erased)):
         assert is_manipulation_note(note) and is_caveat(note) and EM_DASH not in note and REVERSAL_NOTE not in note
     assert not is_manipulation_note("catatan biasa")

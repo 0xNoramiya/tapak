@@ -1,0 +1,10 @@
+{"job": "[2, \"random-mix\"]", "bagian": "simetri", "k": 2, "strategi": "random-mix", "m": 300, "eps1": 0.01, "skor": 36000, "atas": 4, "bawah": 38}
+{"job": "[2, \"majority\"]", "bagian": "simetri", "k": 2, "strategi": "majority", "m": 300, "eps1": 0.01, "skor": 36000, "atas": 4, "bawah": 32}
+{"job": "[2, \"minority\"]", "bagian": "simetri", "k": 2, "strategi": "minority", "m": 300, "eps1": 0.01, "skor": 36000, "atas": 2, "bawah": 40}
+{"job": "[2, \"all-0\"]", "bagian": "simetri", "k": 2, "strategi": "all-0", "m": 300, "eps1": 0.01, "skor": 36000, "atas": 1, "bawah": 28}
+{"job": "[2, \"erase\"]", "bagian": "simetri", "k": 2, "strategi": "erase", "m": 300, "eps1": 0.01, "skor": 36000, "atas": 2, "bawah": 19}
+{"job": "[3, \"random-mix\"]", "bagian": "simetri", "k": 3, "strategi": "random-mix", "m": 300, "eps1": 0.01, "skor": 34000, "atas": 0, "bawah": 28}
+{"job": "[3, \"majority\"]", "bagian": "simetri", "k": 3, "strategi": "majority", "m": 300, "eps1": 0.01, "skor": 34000, "atas": 9, "bawah": 29}
+{"job": "[3, \"minority\"]", "bagian": "simetri", "k": 3, "strategi": "minority", "m": 300, "eps1": 0.01, "skor": 34000, "atas": 6, "bawah": 28}
+{"job": "[3, \"all-0\"]", "bagian": "simetri", "k": 3, "strategi": "all-0", "m": 300, "eps1": 0.01, "skor": 34000, "atas": 4, "bawah": 36}
+{"job": "[3, \"erase\"]", "bagian": "simetri", "k": 3, "strategi": "erase", "m": 300, "eps1": 0.01, "skor": 34000, "atas": 0, "bawah": 26}

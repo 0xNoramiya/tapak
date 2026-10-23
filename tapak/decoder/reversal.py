@@ -61,12 +61,25 @@ probability is over the code draw and the reading noise, averaged over documents
 split and the threshold were fixed before any measurement (``research/balik``). A missing
 statistic (no image page, nothing read) is not computed and its share is unused.
 
+Measured on held-out seeds (``research/balik``, 36 coalitions of 2 and 3 copies per channel,
+geser-v1 and v2): reversed agreeing marks were flagged on 36 of 36 forwarded PDFs, screenshots,
+photos and two-page prints each (on images by the pilot, -64 to -43 on screenshots; on prints by
+the shift units alone), also with noise of 4 gray levels on the PDF background (36 of 36, where
+the contradiction check fell silent), one copy reversing all its marks 54 of 54, the background
+dropped and the agreeing shift units reversed 95 of 108 (the misses are mostly geser-v1
+documents, about 85 to 100 shift units), and 0.8 and 0.6 partial reversals 108 and 101 of 108.
+Honest evidence: no warning on 678 traces through seven media and 128 README benchmark traces
+(lowest z_signs 2.94 on marked evidence, -1.39 on unmarked masters; lowest page pilot -3.14 over
+672 honest image pages), nor on 72 honest coalitions of 4 to 6 copies. No score, threshold or
+verdict changed and nobody was named.
+
 What it does not see. A partial reversal that leaves fewer than half of the agreeing marks
 reversed, or a randomization, keeps both statistics positive or near 0: the marks are weakened,
 not reversed (the erasure check is the one that can see that). A coalition that drops the
-background and reverses only half of the shift units at random keeps A near 0. Neither changes a
-score, a threshold or the verdict, and neither names anyone; the warning never names anyone
-either.
+background and reverses only half of the shift units at random keeps A near 0. Measured: the
+oracle-guided partial reversal (0.40 or 0.45), per-cell random signs, and the background dropped
+with the agreeing shift units randomized raised no reversal warning on any channel. Neither
+statistic changes a score, a threshold or the verdict, and the warning never names anyone.
 """
 
 from __future__ import annotations

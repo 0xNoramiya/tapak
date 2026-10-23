@@ -97,7 +97,8 @@ def test_pilot_combines_pages_and_bounds_repeated_reads():
     # Two reads of the same page share their keyed signs: spreads add (Minkowski), not variances.
     same = pilot_statistic([_bg(0, 3.0, 4.0), _bg(0, 3.0, 4.0)])
     assert same == (pytest.approx(6.0 / 4.0), 2)
-    assert pilot_statistic([SoftBits("shift", [1], [1.0]), SoftBits("background", [1], [1.0], {"page": 0})]) == (None, 0)
+    no_pilot = [SoftBits("shift", [1], [1.0]), SoftBits("background", [1], [1.0], {"page": 0})]
+    assert pilot_statistic(no_pilot) == (None, 0)
     assert pilot_statistic([_bg(0, 0.0, 0.0)]) == (None, 1)
     with pytest.raises(ValueError):
         pilot_statistic([_bg(0, 1.0, -1.0)])
