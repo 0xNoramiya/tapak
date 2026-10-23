@@ -2,6 +2,21 @@
 
 [Kembali ke README](../README.md) · [Cara kerja](cara-kerja.md) · [Keamanan dan batasan](keamanan.md)
 
+| Bagian | Isinya |
+|---|---|
+| [Prasyarat](#prasyarat) | memasang, target `make` yang sering dipakai |
+| [Baris perintah](#baris-perintah) | perintah `tapak` menurut urutan pemakaian, verifikasi oleh pihak ketiga |
+| [Kunci dan konfigurasi](#kunci-dan-konfigurasi) | berkas kunci dan variabel lingkungan |
+| [Docker](#docker) | compose, proses kerja, versi pustaka, log jangkar dan induk hasil pindai di Docker, uji image |
+| [Log jangkar](#log-jangkar-eksternal-opsional) | memasang, rotasi, bila pelacakan ditolak |
+| [Kanal pilihan kata](#kanal-pilihan-kata-opsional) | pindai, tinjau, terbitkan |
+| [Induk hasil pindai](#dokumen-induk-hasil-pindai) | syarat, yang ditolak, Tesseract |
+| [Antarmuka web](#antarmuka-web) | halaman Terbitkan, Lacak, dan Registri |
+| [LLM lokal](#llm-lokal-untuk-kanal-semantik) | `llama-server` untuk varian kalimat |
+| [Pengujian](#pengujian) | isi `make test` |
+| [Benchmark foto](#benchmark-foto) | `make bench` dan `make bench-check` |
+| [Riset](#riset) | membuat ulang angka di dokumentasi: setiap folder `research/` |
+
 ## Prasyarat
 
 Python 3.11 atau lebih baru, `uv` (atau pip), Tesseract dengan bahasa Indonesia, poppler-utils, dan pango (untuk WeasyPrint). Di Ubuntu:
@@ -10,17 +25,19 @@ Python 3.11 atau lebih baru, `uv` (atau pip), Tesseract dengan bahasa Indonesia,
 sudo apt-get install -y tesseract-ocr tesseract-ocr-ind poppler-utils libpango-1.0-0 libharfbuzz-subset0
 make setup          # memasang dependensi (sekali, perlu jaringan)
 make demo           # skenario lengkap tanpa interaksi
-make test           # seluruh pengujian
+make web            # antarmuka web di http://127.0.0.1:8000
+make test           # seluruh pengujian (make test-fast melewati uji foto yang lambat)
+make verify         # verifikasi data/registry.db dengan kunci publik saja
+make docker         # app dan canary-dns dengan Docker Compose (lihat Docker)
+make docker-cek     # image Docker diuji ujung ke ujung dengan tag, nama proyek, dan port sendiri
+make kunci-versi    # versi pustaka Python image (requirements.lock) dari .venv yang sudah diuji
 make simulate       # angka simulasi Tardos
 make photos bench   # kumpulan foto sintetis lalu uji regresi dekoder
 make photos-cetak   # foto kertas cetak (printer disimulasikan); make bench melaporkannya terpisah
 make photos-ponsel  # foto make photos lewat ISP ponsel simulasi; dilaporkan terpisah
 make photos-layar   # foto salinan di monitor simulasi (subpiksel, moire) dengan ISP ponsel; dilaporkan terpisah
 make bench-check    # semua kumpulan foto dari awal; hasilnya harus sama byte demi byte dengan docs/results
-make web            # antarmuka web di http://127.0.0.1:8000
 make figures        # grafik README dibuat ulang dari kode dan data (perlu: uv pip install -e ".[figures]")
-make docker-cek     # image Docker diuji ujung ke ujung dengan tag, nama proyek, dan port sendiri (lihat Docker)
-make kunci-versi    # versi pustaka Python image (requirements.lock) dari .venv yang sudah diuji (lihat Docker)
 ```
 
 Tesseract dengan bahasa Indonesia (dan Inggris, yang ikut terpasang bersama `tesseract-ocr`) juga dipakai saat melacak bukti gambar dokumen yang memakai varian kalimat atau pilihan kata: setiap halaman yang ditemukan pada foto, tangkapan layar, pindaian, atau foto cetakan dibaca dengan OCR lokal, satu utas, sekitar 3 detik per halaman di mesin uji yang dipakai bersama (median 2,9 detik; foto 4000 px sekitar 4 detik, paling lama 10 detik), di atas waktu pelacakan foto biasa ([cara kerja](cara-kerja.md#teks-terlihat-pada-bukti-gambar-ocr)). Tanpa Tesseract atau data bahasa Indonesianya, pelacakan tetap berjalan tanpa kedua kanal itu, dan hasilnya menyebutnya dalam satu baris catatan. Dokumen tanpa kedua kanal itu tidak memakai OCR saat pelacakan, kecuali sebagai cadangan registrasi bila tepi halaman dan fitur gambar tidak ditemukan.
@@ -30,40 +47,53 @@ Setelah `make setup`, semuanya berjalan luring. Tangkapan layar antarmuka di REA
 ## Baris perintah
 
 ```bash
+# sekali: kunci
 tapak keys init                                  # rahasia kode + kunci tanda tangan registri
+
+# sebelum menerbitkan: kanal opsional, setiap keputusan oleh manusia
+tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
+tapak semantic approve varian.json --unit u0 --variant 2   # keputusan manusia
+tapak leksikal scan dok.pdf -o leksikal.json     # titik pilihan kata (opsional), semua menunggu tinjauan
+tapak leksikal show leksikal.json                # konteks, bentuk, status, jumlah bit
+tapak leksikal review leksikal.json --interaktif # putuskan titik satu per satu
+
+# menerbitkan
 tapak issue samples/nota_dinas.pdf samples/recipients.csv --canary-domain kanari.satuan.mil
+tapak issue dok.pdf penerima.csv --semantic varian.json    # ditolak jika masih ada varian menunggu
+tapak issue dok.pdf penerima.csv --leksikal leksikal.json  # ditolak jika masih ada titik menunggu
 tapak issue dok.pdf penerima.csv --latar cetak   # pola latar yang bertahan saat dicetak (lihat di bawah)
-TAPAK_WORKERS=2 tapak issue dok.pdf penerima.csv # paling banyak 2 proses kerja (bawaan: sebanyak CPU, paling banyak 8)
 tapak issue dok.pdf penerima.csv --geser v1      # skema geser lama (bawaan: v2)
+TAPAK_WORKERS=2 tapak issue dok.pdf penerima.csv # paling banyak 2 proses kerja (bawaan: sebanyak CPU, paling banyak 8)
 tapak docs                                       # daftar dokumen terbitan
+
+# kanari: pendengar DNS di komputer yang menghadap internet
+tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
+tapak kanari-izin                                # tulis ulang daftar izin token dari semua penerbitan
+
+# melacak kebocoran
 tapak trace foto_bocor.jpg --doc <hash> --report berita_acara.pdf
 tapak trace foto_hal1.jpg foto_hal2.jpg --doc <hash>      # beberapa bukti satu kebocoran, digabung
 tapak trace foto_bocor.jpg --master induk.pdf --manifest manifest.json --pelacakan-ke 2 --bertahap bertahap-v1   # ulangi pelacakan ke-2 (perintah di berita acara)
+
+# memeriksa registri
 tapak verify                                     # verifikasi registri dengan kunci publik saja
 tapak verify --jangkar 63:<hash>                 # juga mendeteksi entri yang dihapus setelah jangkar itu
 tapak --log-jangkar /mnt/jangkar/tapak.log jangkar mulai   # log jangkar eksternal (opsional, lihat di bawah)
 tapak jangkar status                             # bandingkan log jangkar dengan registri, ukuran, dapat ditulis
 tapak jangkar rotasi /mnt/jangkar/tapak-2.log    # teruskan log ke segmen baru sebelum batas ukurannya
 tapak registry export-merkle                     # akar Merkle harian
-tapak semantic suggest dok.pdf -o varian.json    # usulan varian oleh LLM lokal
-tapak semantic approve varian.json --unit u0 --variant 2   # keputusan manusia
-tapak issue dok.pdf penerima.csv --semantic varian.json    # ditolak jika masih ada varian menunggu
-tapak leksikal scan dok.pdf -o leksikal.json     # titik pilihan kata (opsional), semua menunggu tinjauan
-tapak leksikal show leksikal.json                # konteks, bentuk, status, jumlah bit
-tapak leksikal review leksikal.json --interaktif # putuskan titik satu per satu
-tapak issue dok.pdf penerima.csv --leksikal leksikal.json  # ditolak jika masih ada titik menunggu
+
+# analisis tanpa dokumen
 tapak simulate --n 100 --c 3 --eps 1e-6 --trials 1000
 tapak simulate --table
 tapak simulate --n 100 --c 3 --coalition 5 --bertahap   # tuduhan satu tahap dan pelacakan bertahap pada bocoran yang sama
 tapak deteksi --n 20 --c 3 --ber 0.05            # batas terbukti peluang koalisi lolos dengan 5 % bit salah
 tapak deteksi --sebaran research/deteksi/hasil/llr_foto.json --target 1e-6   # bobot dekoder pada foto sintetis
-tapak canary-dns --domain kanari.satuan.mil --port 53   # log di data/kanari/, daftar izin di data/kanari-izin/
-tapak kanari-izin                                # tulis ulang daftar izin token dari semua penerbitan
 ```
 
 `--latar` memilih profil pola latar. `layar` (bawaan) tidak terlihat, tetapi hilang saat dokumen dicetak. `cetak` bertahan pada kertas cetak (diuji dengan printer simulasi), tetapi seluruh halaman tampak abu-abu muda dan teksturnya mungkin terlihat, sehingga TAPAK mencetak peringatan. Pakai `cetak` hanya untuk dokumen yang memang akan dicetak dan bila tampilan itu diterima ([cara kerja](cara-kerja.md#salinan-yang-dicetak)). Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Pola latar, bawaan Layar); bila Cetak dipilih, peringatan itu tampil di formulir, di rencana penandaan, dan di hasil penerbitan.
 
-`--geser` memilih skema geser kata. `v2` (bawaan) menggeser setiap kelompok kata 0,025 mm dan membaca lebih dari dua kali jumlah posisi per halaman `v1`, sehingga foto salinan cetak yang tajam sering cukup dari satu halaman penuh teks dalam uji printer simulasi (benchmark README: halaman 1 pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8; angkanya bergantung pada rahasia kode, [batasan 3](keamanan.md#batasan), dan [cara kerja](cara-kerja.md#skema-geser-v2)). `v1` adalah skema semua dokumen yang terbit sebelumnya; catatan penerbitannya tidak menyebut skema dan tetap dibaca seperti dulu. Catatan penerbitan dan registri dokumen v2 hanya menyimpan nama skemanya. Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Skema geser kata, bawaan v2).
+`--geser` memilih skema geser kata. `v2` (bawaan) menggeser setiap kelompok kata 0,025 mm dan membaca lebih dari dua kali jumlah posisi per halaman `v1`, sehingga foto salinan cetak yang tajam sering cukup dari satu halaman penuh teks dalam uji printer simulasi (benchmark README: halaman 1 pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8; angkanya bergantung pada rahasia kode, [batasan 3](keamanan.md#batasan-3), dan [cara kerja](cara-kerja.md#skema-geser-v2)). `v1` adalah skema semua dokumen yang terbit sebelumnya; catatan penerbitannya tidak menyebut skema dan tetap dibaca seperti dulu. Catatan penerbitan dan registri dokumen v2 hanya menyimpan nama skemanya. Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Skema geser kata, bawaan v2).
 
 Pelacakan foto atau pindaian pertama untuk setiap halaman dan resolusi analisis merender templat induk tepat untuk kanal geser, sekitar 5 sampai 7 detik CPU per halaman penuh teks. `tapak web` menyimpannya di memori untuk pelacakan berikutnya, sedangkan setiap perintah `tapak trace` merendernya lagi.
 
@@ -78,9 +108,107 @@ tapak-verify-registry data/registry.db --public-key keys/registry_signing.pub --
 
 Kode keluar: 0 utuh, 1 ada masalah, 3 utuh sejauh yang diperiksa tetapi registri memakai log jangkar yang tidak diberikan. Kode 3 berarti entri yang dihapus dari ujung rantai belum diperiksa; minta log jangkarnya. Bila log pernah dirotasi, minta juga segmen lamanya (`--segmen-lama`); tanpa itu hasilnya tetap 0 dengan peringatan bahwa rotasi tidak diperiksa.
 
+## Kunci dan konfigurasi
+
+| Berkas | Isi | Pemegang |
+|---|---|---|
+| `keys/code_secret.key` | rahasia 32 byte; menurunkan vektor bias, kata kode, dan rencana penandaan | operator TAPAK |
+| `keys/registry_signing.key` | benih Ed25519 penanda tangan registri | dapat dipegang eselon atas, terpisah dari konfigurasi aplikasi |
+| `keys/registry_signing.pub` | kunci publik verifikasi | siapa saja |
+
+Variabel lingkungan:
+
+| Variabel | Fungsi |
+|---|---|
+| `TAPAK_DATA`, `TAPAK_KEY_DIR` | lokasi data dan kunci |
+| `TAPAK_CANARY_DOMAIN` | domain kanari bawaan |
+| `TAPAK_LLM` | `mock` atau `llamacpp` |
+| `TAPAK_LLM_MODEL` | berkas GGUF untuk llama-cpp-python di dalam proses (opsional; kosongkan untuk memakai `llama-server`) |
+| `TAPAK_LLM_URL` | alamat `llama-server` lokal, misalnya `http://127.0.0.1:8799`; bawaan `http://127.0.0.1:8080`; alamat selain loopback ditolak |
+| `TAPAK_LLM_TIMEOUT` | batas waktu per permintaan ke LLM dalam detik; bawaan 120 |
+| `TAPAK_ALLOWED_HOSTS` | nama host yang dilayani aplikasi web; bawaan `127.0.0.1,localhost` |
+| `TAPAK_SIGNING_KEY`, `TAPAK_PUBLIC_KEY` | lokasi kunci tanda tangan dan kunci publik registri; bawaan di `TAPAK_KEY_DIR` |
+| `TAPAK_ANCHOR_LOG` | berkas [log jangkar](#log-jangkar-eksternal-opsional) di penyimpanan terpisah (sama dengan `tapak --log-jangkar`); kosong = tidak dipakai |
+| `TAPAK_WORKERS` | jumlah proses kerja paling banyak untuk setiap penerbitan (CLI, web, demo; juga membatasi `--workers`) dan untuk pelacakan web yang berjalan bersamaan (paling banyak 2); bilangan bulat positif; kosong = sebanyak CPU, paling banyak 8; docker-compose: bawaan 4 ([Docker](#docker)) |
+| `TAPAK_CANARY_NS_IP` | alamat IPv4 publik pendengar kanari untuk `ns1.<domain>`, sama dengan glue di registrar |
+| `TAPAK_CANARY_ANSWER_IP` | (docker-compose) alamat IPv4 jawaban untuk nama kanari; bawaan `127.0.0.1` |
+
+## Docker
+
+```bash
+.venv/bin/tapak keys init                        # kunci di ./keys (dipasang ke kontainer app saja)
+mkdir -p data/kanari data/kanari-izin && sudo chown -R 10001 data keys
+docker compose up --build -d                     # app (127.0.0.1:8000) dan canary-dns (port 53 -> 5353)
+docker compose exec app tapak verify             # perintah tapak di dalam kontainer app
+```
+
+Kontainer `canary-dns` hanya melihat `data/kanari` (log kejadiannya, dapat ditulis) dan `data/kanari-izin` (daftar digest token, hanya-baca). Di belakang proksi terbalik, tambahkan nama publik aplikasi ke `TAPAK_ALLOWED_HOSTS` (misalnya `127.0.0.1,localhost,tapak.satuan.mil`; bentuk `*.domain` didukung). Di Docker, tulis variabel ini di bagian `environment` layanan `app` pada `docker-compose.yml`, karena compose hanya meneruskan `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan `TAPAK_WORKERS` dari lingkungan host ke kontainer itu. Tanpa itu, aplikasi menolak header Host dan Origin asing.
+
+Bila port 8000 atau 53 sudah dipakai layanan lain, atur `TAPAK_PORT` (port web di 127.0.0.1) dan `TAPAK_CANARY_PORT` (UDP dan TCP) sebelum `docker compose up`. `TAPAK_IMAGE` memilih tag image. Tanpa ketiganya, nilainya sama seperti di atas. Berkas yang ditulis TAPAK (dokumen, salinan, registri, kunci) hanya dapat dibaca pemiliknya, uid 10001.
+
+**Proses kerja.** Penerbitan merender salinan di beberapa proses sekaligus: sebanyak CPU yang terlihat, paling banyak 8. Di kontainer, `os.cpu_count()` menghitung semua CPU host, jadi `docker-compose.yml` mengatur `TAPAK_WORKERS` (bawaan 4). Variabel ini membatasi proses kerja setiap penerbitan (web, `docker compose exec app tapak issue`, dan demo), juga `--workers` yang lebih besar, serta jumlah pelacakan web yang berjalan bersamaan (paling banyak 2). Penerbitan yang diminta bersamaan lewat web merender salinan bergiliran, jadi server web tidak pernah menjalankan lebih dari `TAPAK_WORKERS` proses kerja; `docker compose exec app tapak issue` adalah proses terpisah dengan batasnya sendiri. Samakan dengan jatah CPU kontainer, misalnya `TAPAK_WORKERS=2 docker compose up -d` untuk kontainer dengan `cpus: 2`. Setiap proses juga menambah memori: dalam uji, kontainer `app` mencapai sekitar 1,4 GiB saat menerbitkan 20 salinan contoh hasil pindai dengan 3 proses ([Uji image](#uji-image)). Batas `--cpuset-cpus` (atau `taskset`) sudah terlihat oleh TAPAK, kuota `--cpus` tidak. Nilai selain bilangan bulat positif menghentikan server web saat menyala dengan pesan `galat: TAPAK_WORKERS harus bilangan bulat positif (jumlah proses kerja paling banyak), bukan '...'`, dan perintah `tapak issue`, `tapak web`, dan `tapak demo` menolaknya dengan pesan yang sama sebelum mulai bekerja.
+
+**Versi pustaka.** Image memasang pustaka Python persis dari `requirements.lock`: versi di `.venv` yang sudah diuji, hanya dependensi yang dipakai TAPAK saat berjalan (42 pustaka, tanpa pytest dan httpx). Semuanya dari wheel, tanpa resolusi versi saat build (`pip install --no-deps`), lalu `pip check` menggagalkan build bila ada dependensi yang tidak terkunci. Jadi membangun ulang image tidak lagi mengambil rilis terbaru setiap pustaka. Kunci ini mencatat versi, bukan hash berkas. Setuptools untuk membangun paket TAPAK sendiri diunduh ke lingkungan build terpisah dan tidak masuk image. Rentang versi di `pyproject.toml` tidak berubah, jadi `make setup` (`uv pip install -e ".[dev]"`) tetap berjalan seperti biasa. Memperbarui kunci, di Linux dengan Python 3.12 seperti image:
+
+```bash
+uv pip install --python .venv/bin/python -U fastapi   # pustaka yang diperbarui (atau make setup di venv baru)
+make test                                              # uji dulu dengan versi baru
+make kunci-versi                                       # tulis ulang requirements.lock dari .venv
+make docker-cek                                        # image dengan kunci baru diuji ujung ke ujung
+```
+
+`.venv/bin/python scripts/kunci_versi.py --cek` hanya membandingkan (kode keluar 1 bila `.venv` berbeda dari kunci). `make docker-cek` memeriksa bahwa pustaka di image sama persis dengan kunci, dan kunci sama dengan `.venv`.
+
+Kunci tanda tangan registri tidak harus ada di server. Tanpa kunci itu, entri baru dicatat tanpa tanda tangan, dan eselon atas menandatanganinya dengan `tapak registry sign --key ...` di komputernya sendiri.
+
+### Log jangkar di Docker
+
+`docker-compose.jangkar.yml` memasang folder [log jangkar](#log-jangkar-eksternal-opsional) ke kontainer `app` sebagai `/jangkar` dan mengatur `TAPAK_ANCHOR_LOG=/jangkar/tapak.log`. Berkas ini opsional: tanpa berkas itu, compose berjalan seperti sebelumnya.
+
+```bash
+sudo mkdir -p /mnt/jangkar && sudo chown 10001 /mnt/jangkar      # penyimpanan terpisah, dapat ditulis uid 10001
+export TAPAK_ANCHOR_DIR=/mnt/jangkar
+export COMPOSE_FILE=docker-compose.yml:docker-compose.jangkar.yml  # atau -f untuk kedua berkas di setiap perintah
+docker compose up -d
+docker compose exec app tapak verify                              # registri harus utuh dulu
+docker compose exec app tapak jangkar mulai
+sudo chattr +a /mnt/jangkar/tapak.log                             # bila memakai atribut tambah-saja
+```
+
+Compose menolak berjalan bila `TAPAK_ANCHOR_DIR` kosong atau foldernya tidak ada, jadi log tidak pernah tertulis di lapisan kontainer. Proses lain yang menulis registri yang sama, misalnya `tapak` di host dengan folder `./data`, memakai berkas yang sama lewat jalurnya sendiri (`tapak --log-jangkar /mnt/jangkar/tapak.log ...`). `make docker-cek` menguji susunan ini, termasuk atribut tambah-saja: kontainer tetap dapat menambah baris, tetapi tidak dapat membuka log untuk ditimpa.
+
+### Induk hasil pindai di Docker
+
+Image memasang Tesseract dari Debian trixie (5.5.0 saat diuji), sedangkan Ubuntu 24.04 memasang 5.3.4. Data bahasa `ind` keduanya sama (`ind.traineddata` sha256 69786901...). Pelacakan membaca ulang kotak kata induk hasil pindai dan memakainya hanya bila hash-nya sama dengan saat penerbitan ([dokumen induk hasil pindai](#dokumen-induk-hasil-pindai)).
+
+Dalam uji (`make docker-cek`, 22 Oktober 2026), kedua versi itu memberi kotak kata yang sama pada contoh hasil pindai: induk yang diterbitkan di host lalu dilacak di kontainer, dan sebaliknya, tetap dibaca kanal gesernya dan menyebut salinan yang benar. Itu tidak dijamin untuk dokumen atau versi lain. Bila kotak katanya berbeda (dalam uji dipaksa dengan data bahasa lain lewat `TESSDATA_PREFIX`), kanal geser halaman pindaian dilewati dengan catatan "kanal geser halaman pindaian dilewati: kotak kata hasil Tesseract berbeda dari saat penerbitan (sekarang ..., saat penerbitan ...)", tidak ada bit geser halaman itu yang dibaca, dan putusan hanya bertumpu pada pola latar. PDF salinan dan foto layar contoh tetap menyebut salinan yang benar, tetapi foto salinan cetak tidak lagi membawa bukti ([batasan 8](keamanan.md#batasan-8)).
+
+Karena itu, terbitkan dan lacak induk hasil pindai dengan image yang sama. Simpan tag image yang dipakai saat menerbitkan, dan jangan membangun ulang image di antara penerbitan dan pelacakan: Dockerfile mengunci rilis Debian (`python:3.12-slim-trixie`) dan versi pustaka Python (`requirements.lock`), tetapi paket Debian di rilis itu tetap dapat diperbarui, dan rilis Debian berikutnya membawa Tesseract lain. `docker compose exec app tesseract --version` menunjukkan versi di image, dan catatan penerbitan menyimpan versi saat penerbitan. Dokumen berlapis teks tidak bergantung pada Tesseract.
+
+### Uji image
+
+`make docker-cek` (`scripts/cek_docker.py`) membangun image dengan tag sendiri (`tapak-cek:lokal`), menjalankannya dengan nama proyek compose sendiri (`tapakcek`) di port bebas (127.0.0.1:8797 untuk web, 15353 UDP dan TCP untuk kanari) dan folder kerja `out/docker-cek`, lalu menghapus hanya yang dibuatnya: kontainer, jaringan, folder kerja, dan image. Kontainer lain di mesin yang sama tidak disentuh. Semua isinya fiktif. Yang diperiksa:
+
+0. Image: pustaka Python di image sama persis dengan `requirements.lock`, dan kunci itu sama dengan `.venv` host. Dengan `TAPAK_WORKERS=nol`, perintah image (uvicorn) tidak menyala dan menyebut alasannya.
+1. CLI di kontainer tanpa jaringan (`--network none`, `TAPAK_WORKERS=3`): kunci, log jangkar dan penanda medianya di folder host terpisah dengan atribut tambah-saja, penerbitan contoh teks dan contoh hasil pindai tanpa `--workers` (keluaran harus menyebut 3 proses), pelacakan PDF salinan dan foto sintetis keduanya, dan berita acara. Pada salinan penerapan itu: `tapak jangkar status` di folder kosong (media belum dipasang) menyebut HILANG, `tapak jangkar mulai --ulang` di folder tanpa penanda media ditolak tanpa menulis apa pun, dengan `--tandai-media` berhasil, lalu `tapak jangkar rotasi` ke segmen baru: pelacakan dengan segmen lama ditolak, `tapak verify --segmen-lama` lulus, dan pelacakan dengan segmen baru menyebut salinan yang benar dan rotasinya.
+2. Compose dengan `docker-compose.jangkar.yml` (`TAPAK_WORKERS=3`): semua halaman web dan berkas statis, analisis induk hasil pindai di Terbitkan dengan Tesseract kontainer, penerbitan 20 salinannya lewat web sambil proses kontainer dicuplik (paling banyak 3 proses kerja sekaligus, walaupun kontainer melihat 8 CPU), dua sesi Terbitkan yang diterbitkan bersamaan (contoh teks dan hasil pindai lain, masing-masing 8 penerima; dirender bergiliran, tetap paling banyak 3 proses kerja), dan keempat bukti di Lacak.
+3. Pendengar kanari: token terbit dijawab dan dicatat (UDP dan TCP), token karangan dijawab tetapi tidak dicatat, nama lain di zona NXDOMAIN, nama di luar zona REFUSED.
+4. Luring: soket kedua kontainer compose dicuplik sepanjang uji dan hanya boleh berupa layanan yang dipublikasikan. Registri, log jangkar, log kanari, dan log kontainer tidak memuat kata dokumen atau nama penerima.
+5. Tesseract host dan kontainer: induk hasil pindai diterbitkan di satu sisi dan dilacak di sisi lain.
+6. Benih riset: `--benih-riset 2026` menurunkan rahasia kode, id salinan, dan komitmen kode yang sama di host dan di kontainer, dan salinan #7 keduanya identik piksel demi piksel (berkas PDF-nya hanya berbeda pada /ID).
+7. Entri pelacakan terakhir dihapus dari registri di dalam kontainer: pelacakan CLI dan web ditolak.
+
+Opsi: `--tanpa-bangun --image TAG` memakai image yang ada (dan tidak menghapusnya), `--port-web`, `--port-dns`, `--proyek`, dan `--kerja` memilih port, nama, dan folder kerja lain, `--pekerja` mengatur `TAPAK_WORKERS` di kontainer (bawaan 3), `--simpan-image` tidak menghapus image yang dibangun, dan `--simpan-kerja` menyimpan folder kerja. Butuh Docker Compose v2 atau lebih baru dan `.venv` dari `make setup` (TAPAK dan dnslib sisi host). Uji silang Tesseract memakai `tesseract` di host; tanpa itu bagian 5 dilewati. Skrip mengatur sendiri semua variabel yang dibaca berkas compose (`TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan lainnya), jadi lingkungan penerapan di host tidak mengubah yang diuji. Dengan `--simpan-kerja`, berkas milik uid 10001 di folder kerja hanya dapat dihapus sebagai root.
+
+Hasil 22 Oktober 2026 di mesin uji yang dipakai bersama (8 CPU, WSL2, Docker 29.4), dengan image dari `requirements.lock`: semua 45 pemeriksaan lulus dalam sekitar 10 menit. Pembangunan tanpa cache (`docker build --no-cache`) memakan 172 detik (apt 47 detik, pip dari kunci 67 detik, paket TAPAK 8 detik, ekspor 46 detik), dengan cache 12 detik, dan 58 detik bila hanya kode TAPAK berubah. Image berukuran 302 MB terkompresi dan 1,17 GB di disk, sama seperti sebelum ada kunci. Di image ada 42 pustaka dari kunci (FastAPI 0.156.4, sama dengan `.venv`), ditambah pip dan TAPAK sendiri. Di kontainer tanpa jaringan, penerbitan 20 salinan memakan 9 detik untuk contoh teks dan 30 detik untuk contoh hasil pindai 2 halaman (3 proses). Lewat web, penerbitan 20 salinan contoh hasil pindai memakan 25 detik dengan paling banyak 3 proses kerja sekaligus (75 cuplikan), dan puncak memori kontainer `app` sampai saat itu 1,4 GiB (1392 MiB). Dua sesi yang diterbitkan bersamaan selesai dalam 12 detik, juga dengan paling banyak 3 proses kerja sekaligus. Pelacakan lewat CLI memakan 7 detik (PDF teks), 14 detik (foto teks), 35 detik (PDF hasil pindai), dan 19 detik (foto hasil pindai); lewat web 5, 12, 29, dan 10 detik. Waktu CLI termasuk menyalakan kontainer. Dua uji lain dengan kunci yang sama pada hari itu, satu sebelum pemeriksaan dua sesi ditambahkan (44 pemeriksaan), juga lulus semuanya dalam 9 sampai 11 menit.
+
+Uji sebelumnya pada hari yang sama, dengan image tanpa kunci (pip mengambil rilis terbaru, misalnya FastAPI 0.159), lulus 32 dari 32 dalam 10 sampai 15 menit; pembangunan tanpa cache 184 sampai 223 detik. Salah satunya dijalankan dengan `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan `TAPAK_CANARY_ANSWER_IP` lain di lingkungan host, dan hasilnya sama. Pada penerapan compose terpisah dengan `docker-compose.jangkar.yml` (halaman web, pelacakan lewat web, dan kueri DNS termasuk nama di luar zona), seluruh lalu lintas jembatan jaringan kedua kontainer direkam sejak sebelum kontainer menyala: kontainer hanya membalas di port 8000 dan 5353, tanpa koneksi keluar dan tanpa kueri DNS sendiri.
+
+FastAPI versi baru (0.156.4 di `.venv` dan di image) membawa kait OpenTelemetry dan memasang `opentelemetry-api` (1.45.1, ada di kunci). Tanpa SDK dan tanpa pengaturan, kait itu tidak mengirim apa pun; image juga menyetel `OTEL_SDK_DISABLED=true`.
+
 ## Log jangkar eksternal (opsional)
 
-Tanpa log jangkar, entri pelacakan yang dihapus dari ujung registri dengan menyunting berkasnya di luar TAPAK hanya terungkap oleh jangkar di berita acara atau akar Merkle yang disimpan di luar sistem ([batasan 13](keamanan.md#batasan)). Log jangkar membuat penghapusan itu terdeteksi otomatis: setelah setiap entri registri tersimpan, TAPAK menambahkan satu baris (nomor, hash, jenis, waktu entri) ke berkas di penyimpanan terpisah, dan sebelum setiap pelacakan dan penerbitan membandingkan registri dengan berkas itu. Bila tidak diatur, perilaku TAPAK tidak berubah; hasil pelacakan hanya mendapat satu baris yang menyebut bahwa penghapusan itu belum terperiksa.
+Tanpa log jangkar, entri pelacakan yang dihapus dari ujung registri dengan menyunting berkasnya di luar TAPAK hanya terungkap oleh jangkar di berita acara atau akar Merkle yang disimpan di luar sistem ([batasan 13](keamanan.md#batasan-13)). Log jangkar membuat penghapusan itu terdeteksi otomatis: setelah setiap entri registri tersimpan, TAPAK menambahkan satu baris (nomor, hash, jenis, waktu entri) ke berkas di penyimpanan terpisah, dan sebelum setiap pelacakan dan penerbitan membandingkan registri dengan berkas itu. Bila tidak diatur, perilaku TAPAK tidak berubah; hasil pelacakan hanya mendapat satu baris yang menyebut bahwa penghapusan itu belum terperiksa.
 
 **Di mana menyimpannya.** Log hanya melindungi bila orang yang dapat menyunting `registry.db` tidak dapat menyunting log itu. Berkas di komputer dan akun yang sama tidak melindungi apa pun, dan TAPAK memperingatkan bila log berada di folder data atau kunci. Pilihan, dari yang paling sederhana:
 
@@ -139,7 +267,7 @@ Kanal ini hanya untuk dokumen induk PDF dan hanya aktif bila penerbit memberikan
 3. **Terbitkan.** `tapak issue dok.pdf penerima.csv --leksikal leksikal.json` (boleh bersama `--semantic`). Penerbitan ditolak bila masih ada titik menunggu, bila titik atau bentuknya disunting di luar TAPAK, bila tabel leksikon berubah sejak pemindaian, atau bila pita bias 0,3 sampai 0,7 tidak cukup untuk semua bit (tolak sebagian titik atau pakai c lebih besar). Keluarannya menyebut jumlah bit tahan ketik ulang (pilihan kata dan semantik) dan jumlah kata isi. "Cukup untuk satu pembocor" baru muncul pada 64 bit atau lebih; di bawahnya keluaran menyebut kekurangan bit dan perkiraan kata isi tambahan.
 4. **Simpan.** `leksikal.json` memuat teks dokumen. TAPAK menyimpannya di folder dokumen, di samping `induk.pdf` dan `varian.json`; registri hanya menyimpan digest-nya. Keputusan setuju atau tolak di berkas ini tidak diautentikasi, jadi simpan berkas itu di tempat yang hanya dapat ditulis penerbit, sebelum dan sesudah penerbitan. Saat pelacakan, berkas ini dicocokkan dengan digest di catatan penerbitan. Bila hilang atau tidak cocok, kanal pilihan kata dilewati dengan peringatan, dan kanal lain tetap dibaca.
 5. **Baca hasilnya dengan hati-hati.** Nama yang hanya didukung pilihan kata dan varian kalimat diberi peringatan di bawah putusan: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya. Nama seperti itu memerlukan bukti pendukung.
-6. **Bukti gambar.** Pilihan kata dan varian kalimat pada foto, tangkapan layar, dan foto cetakan dibaca dengan OCR lokal (perlu Tesseract, lihat [prasyarat](#prasyarat)). Hasil CLI, JSON, halaman Lacak, dan berita acara menulis kanal itu dengan keterangan "OCR gambar", tanpa teks OCR-nya. Baris yang memuat titik pilihan kata keluar dari kanal geser, jadi untuk salinan yang akan dicetak kanal ini mengurangi lebih banyak posisi geser daripada yang dikembalikan OCR ([batasan 3](keamanan.md#batasan)).
+6. **Bukti gambar.** Pilihan kata dan varian kalimat pada foto, tangkapan layar, dan foto cetakan dibaca dengan OCR lokal (perlu Tesseract, lihat [prasyarat](#prasyarat)). Hasil CLI, JSON, halaman Lacak, dan berita acara menulis kanal itu dengan keterangan "OCR gambar", tanpa teks OCR-nya. Baris yang memuat titik pilihan kata keluar dari kanal geser, jadi untuk salinan yang akan dicetak kanal ini mengurangi lebih banyak posisi geser daripada yang dikembalikan OCR ([batasan 3](keamanan.md#batasan-3)).
 
 ## Dokumen induk hasil pindai
 
@@ -150,7 +278,7 @@ tapak issue nota_pindaian.pdf penerima.csv
 make samples-pindaian        # contoh fiktif 300 dpi di samples/generated/ (tidak di-commit)
 ```
 
-* **Resolusi.** Setiap halaman pindaian minimal 200 dpi; 300 dpi disarankan. Di bawah itu penerbitan ditolak dengan pesan yang menyebut halaman dan resolusinya. Geser 0,05 mm (skema v1) tinggal 0,4 piksel pada 200 dpi dan 0,3 piksel pada 150 dpi, geser kata 0,025 mm skema v2 separuhnya, galat bit geser pada foto naik saat resolusi turun, dan Tesseract dibuat untuk sekitar 300 dpi ([batasan 8](keamanan.md#batasan)).
+* **Resolusi.** Setiap halaman pindaian minimal 200 dpi; 300 dpi disarankan. Di bawah itu penerbitan ditolak dengan pesan yang menyebut halaman dan resolusinya. Geser 0,05 mm (skema v1) tinggal 0,4 piksel pada 200 dpi dan 0,3 piksel pada 150 dpi, geser kata 0,025 mm skema v2 separuhnya, galat bit geser pada foto naik saat resolusi turun, dan Tesseract dibuat untuk sekitar 300 dpi ([batasan 8](keamanan.md#batasan-8)).
 * **Yang ditolak.** Halaman pindaian yang diputar (`/Rotate`), gambar dengan masker (transparansi atau warna) atau konten opsional, dan satu gambar yang dipakai di beberapa halaman belum didukung. Halaman yang memuat teks terlihat di atas gambar diperlakukan sebagai halaman teks: hanya teks itu yang ditandai. Bila halaman itu juga berlapis OCR tak terlihat, kata OCR ikut tergambar ulang dan gerbang visual menolak penerbitan. Halaman yang tersusun dari beberapa gambar (misalnya kompresi MRC: latar dan masker teks terpisah) tidak dikenali sebagai halaman pindaian: tanpa lapisan teks halaman itu tidak membawa tanda, dan dengan lapisan OCR penerbitan ditolak.
 * **Tesseract.** `tesseract-ocr` dan `tesseract-ocr-ind` diperlukan saat menerbitkan dan saat melacak, dengan versi yang sama. Pelacakan membaca ulang kotak kata (beberapa detik per halaman). Bila hasilnya berbeda dari saat penerbitan, kanal geser halaman pindaian dilewati dengan catatan, dan pola latar tetap dibaca. Simpan versi Tesseract bersama instalasi TAPAK.
 * **Keluaran.** Rencana penandaan menyebut mode setiap halaman (teks atau pindaian), kanal yang berlaku, dan lapisan OCR yang dibuang. Gerbang menyatakan bahwa salinan tanpa tanda identik piksel demi piksel dengan induk. Gambar halaman salinan disimpan tanpa kompresi lossy, jadi salinan jauh lebih besar dari induk JPEG-nya (contoh 300 dpi: sekitar 2,9 MB per halaman, induk 0,7 MB per halaman). Ukuran rata-rata dan terbesar dicetak setelah penerbitan.
@@ -212,7 +340,7 @@ Tanpa konfigurasi, varian semantik berasal dari tabel frasa tiruan (`TAPAK_LLM=m
 
 Sebelum mengirim kalimat dokumen, TAPAK memeriksa bahwa alamat itu menjawab `GET /v1/models` dengan daftar model. Bila tidak, misalnya karena port itu milik layanan lain atau kontainer, TAPAK berhenti tanpa mengirim teks. Permintaan dikirim ke `/v1/chat/completions`, sehingga templat obrolan model dipakai. Alamat lama yang berakhiran `/completion` tetap diterima. Jangan isi `TAPAK_LLM_MODEL` kecuali llama-cpp-python terpasang, karena variabel itu memilih jalur di dalam proses. Batas waktu per permintaan 120 detik dan dapat diubah dengan `TAPAK_LLM_TIMEOUT`.
 
-`tapak semantic suggest` mencetak varian yang lolos dan jumlah kandidat yang dibuang beserta alasannya. Tiap kalimat memerlukan satu panggilan parafrase dan satu panggilan pemeriksa untuk setiap kandidat yang lolos pemeriksaan otomatis. Baca setiap varian sebelum menyetujuinya. Pemeriksa model meloloskan banyak kalimat yang menambah keterangan atau menghapus "Demikian" dan "Dengan hormat" (lihat [batasan](keamanan.md#batasan)).
+`tapak semantic suggest` mencetak varian yang lolos dan jumlah kandidat yang dibuang beserta alasannya. Tiap kalimat memerlukan satu panggilan parafrase dan satu panggilan pemeriksa untuk setiap kandidat yang lolos pemeriksaan otomatis. Baca setiap varian sebelum menyetujuinya. Pemeriksa model meloloskan banyak kalimat yang menambah keterangan atau menghapus "Demikian" dan "Dengan hormat" (lihat [batasan 2](keamanan.md#batasan-2)).
 
 Model yang sudah diuji (CPU 4 utas di mesin yang dipakai bersama, 2 dokumen contoh):
 
@@ -224,104 +352,6 @@ Model yang sudah diuji (CPU 4 utas di mesin yang dipakai bersama, 2 dokumen cont
 Kedua model belum cukup baik untuk kanal ini. Qwen2.5-3B sering hanya mengulang kalimat asli, sedangkan Gemma 3 4B menulis bahasa Indonesia yang lancar tetapi menulis ulang terlalu bebas. Periksa lisensi model sebelum dipakai di luar penelitian.
 
 Di Docker, loopback kontainer `app` adalah kontainer itu sendiri, jadi server di loopback host tidak terjangkau. Jalur ini belum diuji di Docker.
-
-## Docker
-
-```bash
-.venv/bin/tapak keys init                        # kunci di ./keys (dipasang ke kontainer app saja)
-mkdir -p data/kanari data/kanari-izin && sudo chown -R 10001 data keys
-docker compose up --build -d                     # app (127.0.0.1:8000) dan canary-dns (port 53 -> 5353)
-docker compose exec app tapak verify             # perintah tapak di dalam kontainer app
-```
-
-Kontainer `canary-dns` hanya melihat `data/kanari` (log kejadiannya, dapat ditulis) dan `data/kanari-izin` (daftar digest token, hanya-baca). Di belakang proksi terbalik, tambahkan nama publik aplikasi ke `TAPAK_ALLOWED_HOSTS` (misalnya `127.0.0.1,localhost,tapak.satuan.mil`; bentuk `*.domain` didukung). Di Docker, tulis variabel ini di bagian `environment` layanan `app` pada `docker-compose.yml`, karena compose hanya meneruskan `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan `TAPAK_WORKERS` dari lingkungan host ke kontainer itu. Tanpa itu, aplikasi menolak header Host dan Origin asing.
-
-Bila port 8000 atau 53 sudah dipakai layanan lain, atur `TAPAK_PORT` (port web di 127.0.0.1) dan `TAPAK_CANARY_PORT` (UDP dan TCP) sebelum `docker compose up`. `TAPAK_IMAGE` memilih tag image. Tanpa ketiganya, nilainya sama seperti di atas. Berkas yang ditulis TAPAK (dokumen, salinan, registri, kunci) hanya dapat dibaca pemiliknya, uid 10001.
-
-**Proses kerja.** Penerbitan merender salinan di beberapa proses sekaligus: sebanyak CPU yang terlihat, paling banyak 8. Di kontainer, `os.cpu_count()` menghitung semua CPU host, jadi `docker-compose.yml` mengatur `TAPAK_WORKERS` (bawaan 4). Variabel ini membatasi proses kerja setiap penerbitan (web, `docker compose exec app tapak issue`, dan demo), juga `--workers` yang lebih besar, serta jumlah pelacakan web yang berjalan bersamaan (paling banyak 2). Penerbitan yang diminta bersamaan lewat web merender salinan bergiliran, jadi server web tidak pernah menjalankan lebih dari `TAPAK_WORKERS` proses kerja; `docker compose exec app tapak issue` adalah proses terpisah dengan batasnya sendiri. Samakan dengan jatah CPU kontainer, misalnya `TAPAK_WORKERS=2 docker compose up -d` untuk kontainer dengan `cpus: 2`. Setiap proses juga menambah memori: dalam uji, kontainer `app` mencapai sekitar 1,4 GiB saat menerbitkan 20 salinan contoh hasil pindai dengan 3 proses ([Uji image](#uji-image)). Batas `--cpuset-cpus` (atau `taskset`) sudah terlihat oleh TAPAK, kuota `--cpus` tidak. Nilai selain bilangan bulat positif menghentikan server web saat menyala dengan pesan `galat: TAPAK_WORKERS harus bilangan bulat positif (jumlah proses kerja paling banyak), bukan '...'`, dan perintah `tapak issue`, `tapak web`, dan `tapak demo` menolaknya dengan pesan yang sama sebelum mulai bekerja.
-
-**Versi pustaka.** Image memasang pustaka Python persis dari `requirements.lock`: versi di `.venv` yang sudah diuji, hanya dependensi yang dipakai TAPAK saat berjalan (42 pustaka, tanpa pytest dan httpx). Semuanya dari wheel, tanpa resolusi versi saat build (`pip install --no-deps`), lalu `pip check` menggagalkan build bila ada dependensi yang tidak terkunci. Jadi membangun ulang image tidak lagi mengambil rilis terbaru setiap pustaka. Kunci ini mencatat versi, bukan hash berkas. Setuptools untuk membangun paket TAPAK sendiri diunduh ke lingkungan build terpisah dan tidak masuk image. Rentang versi di `pyproject.toml` tidak berubah, jadi `make setup` (`uv pip install -e ".[dev]"`) tetap berjalan seperti biasa. Memperbarui kunci, di Linux dengan Python 3.12 seperti image:
-
-```bash
-uv pip install --python .venv/bin/python -U fastapi   # pustaka yang diperbarui (atau make setup di venv baru)
-make test                                              # uji dulu dengan versi baru
-make kunci-versi                                       # tulis ulang requirements.lock dari .venv
-make docker-cek                                        # image dengan kunci baru diuji ujung ke ujung
-```
-
-`.venv/bin/python scripts/kunci_versi.py --cek` hanya membandingkan (kode keluar 1 bila `.venv` berbeda dari kunci). `make docker-cek` memeriksa bahwa pustaka di image sama persis dengan kunci, dan kunci sama dengan `.venv`.
-
-Kunci tanda tangan registri tidak harus ada di server. Tanpa kunci itu, entri baru dicatat tanpa tanda tangan, dan eselon atas menandatanganinya dengan `tapak registry sign --key ...` di komputernya sendiri.
-
-### Log jangkar di Docker
-
-`docker-compose.jangkar.yml` memasang folder [log jangkar](#log-jangkar-eksternal-opsional) ke kontainer `app` sebagai `/jangkar` dan mengatur `TAPAK_ANCHOR_LOG=/jangkar/tapak.log`. Berkas ini opsional: tanpa berkas itu, compose berjalan seperti sebelumnya.
-
-```bash
-sudo mkdir -p /mnt/jangkar && sudo chown 10001 /mnt/jangkar      # penyimpanan terpisah, dapat ditulis uid 10001
-export TAPAK_ANCHOR_DIR=/mnt/jangkar
-export COMPOSE_FILE=docker-compose.yml:docker-compose.jangkar.yml  # atau -f untuk kedua berkas di setiap perintah
-docker compose up -d
-docker compose exec app tapak verify                              # registri harus utuh dulu
-docker compose exec app tapak jangkar mulai
-sudo chattr +a /mnt/jangkar/tapak.log                             # bila memakai atribut tambah-saja
-```
-
-Compose menolak berjalan bila `TAPAK_ANCHOR_DIR` kosong atau foldernya tidak ada, jadi log tidak pernah tertulis di lapisan kontainer. Proses lain yang menulis registri yang sama, misalnya `tapak` di host dengan folder `./data`, memakai berkas yang sama lewat jalurnya sendiri (`tapak --log-jangkar /mnt/jangkar/tapak.log ...`). `make docker-cek` menguji susunan ini, termasuk atribut tambah-saja: kontainer tetap dapat menambah baris, tetapi tidak dapat membuka log untuk ditimpa.
-
-### Induk hasil pindai di Docker
-
-Image memasang Tesseract dari Debian trixie (5.5.0 saat diuji), sedangkan Ubuntu 24.04 memasang 5.3.4. Data bahasa `ind` keduanya sama (`ind.traineddata` sha256 69786901...). Pelacakan membaca ulang kotak kata induk hasil pindai dan memakainya hanya bila hash-nya sama dengan saat penerbitan ([dokumen induk hasil pindai](#dokumen-induk-hasil-pindai)).
-
-Dalam uji (`make docker-cek`, 22 Oktober 2026), kedua versi itu memberi kotak kata yang sama pada contoh hasil pindai: induk yang diterbitkan di host lalu dilacak di kontainer, dan sebaliknya, tetap dibaca kanal gesernya dan menyebut salinan yang benar. Itu tidak dijamin untuk dokumen atau versi lain. Bila kotak katanya berbeda (dalam uji dipaksa dengan data bahasa lain lewat `TESSDATA_PREFIX`), kanal geser halaman pindaian dilewati dengan catatan "kanal geser halaman pindaian dilewati: kotak kata hasil Tesseract berbeda dari saat penerbitan (sekarang ..., saat penerbitan ...)", tidak ada bit geser halaman itu yang dibaca, dan putusan hanya bertumpu pada pola latar. PDF salinan dan foto layar contoh tetap menyebut salinan yang benar, tetapi foto salinan cetak tidak lagi membawa bukti ([batasan 8](keamanan.md#batasan)).
-
-Karena itu, terbitkan dan lacak induk hasil pindai dengan image yang sama. Simpan tag image yang dipakai saat menerbitkan, dan jangan membangun ulang image di antara penerbitan dan pelacakan: Dockerfile mengunci rilis Debian (`python:3.12-slim-trixie`) dan versi pustaka Python (`requirements.lock`), tetapi paket Debian di rilis itu tetap dapat diperbarui, dan rilis Debian berikutnya membawa Tesseract lain. `docker compose exec app tesseract --version` menunjukkan versi di image, dan catatan penerbitan menyimpan versi saat penerbitan. Dokumen berlapis teks tidak bergantung pada Tesseract.
-
-### Uji image
-
-`make docker-cek` (`scripts/cek_docker.py`) membangun image dengan tag sendiri (`tapak-cek:lokal`), menjalankannya dengan nama proyek compose sendiri (`tapakcek`) di port bebas (127.0.0.1:8797 untuk web, 15353 UDP dan TCP untuk kanari) dan folder kerja `out/docker-cek`, lalu menghapus hanya yang dibuatnya: kontainer, jaringan, folder kerja, dan image. Kontainer lain di mesin yang sama tidak disentuh. Semua isinya fiktif. Yang diperiksa:
-
-0. Image: pustaka Python di image sama persis dengan `requirements.lock`, dan kunci itu sama dengan `.venv` host. Dengan `TAPAK_WORKERS=nol`, perintah image (uvicorn) tidak menyala dan menyebut alasannya.
-1. CLI di kontainer tanpa jaringan (`--network none`, `TAPAK_WORKERS=3`): kunci, log jangkar dan penanda medianya di folder host terpisah dengan atribut tambah-saja, penerbitan contoh teks dan contoh hasil pindai tanpa `--workers` (keluaran harus menyebut 3 proses), pelacakan PDF salinan dan foto sintetis keduanya, dan berita acara. Pada salinan penerapan itu: `tapak jangkar status` di folder kosong (media belum dipasang) menyebut HILANG, `tapak jangkar mulai --ulang` di folder tanpa penanda media ditolak tanpa menulis apa pun, dengan `--tandai-media` berhasil, lalu `tapak jangkar rotasi` ke segmen baru: pelacakan dengan segmen lama ditolak, `tapak verify --segmen-lama` lulus, dan pelacakan dengan segmen baru menyebut salinan yang benar dan rotasinya.
-2. Compose dengan `docker-compose.jangkar.yml` (`TAPAK_WORKERS=3`): semua halaman web dan berkas statis, analisis induk hasil pindai di Terbitkan dengan Tesseract kontainer, penerbitan 20 salinannya lewat web sambil proses kontainer dicuplik (paling banyak 3 proses kerja sekaligus, walaupun kontainer melihat 8 CPU), dua sesi Terbitkan yang diterbitkan bersamaan (contoh teks dan hasil pindai lain, masing-masing 8 penerima; dirender bergiliran, tetap paling banyak 3 proses kerja), dan keempat bukti di Lacak.
-3. Pendengar kanari: token terbit dijawab dan dicatat (UDP dan TCP), token karangan dijawab tetapi tidak dicatat, nama lain di zona NXDOMAIN, nama di luar zona REFUSED.
-4. Luring: soket kedua kontainer compose dicuplik sepanjang uji dan hanya boleh berupa layanan yang dipublikasikan. Registri, log jangkar, log kanari, dan log kontainer tidak memuat kata dokumen atau nama penerima.
-5. Tesseract host dan kontainer: induk hasil pindai diterbitkan di satu sisi dan dilacak di sisi lain.
-6. Benih riset: `--benih-riset 2026` menurunkan rahasia kode, id salinan, dan komitmen kode yang sama di host dan di kontainer, dan salinan #7 keduanya identik piksel demi piksel (berkas PDF-nya hanya berbeda pada /ID).
-7. Entri pelacakan terakhir dihapus dari registri di dalam kontainer: pelacakan CLI dan web ditolak.
-
-Opsi: `--tanpa-bangun --image TAG` memakai image yang ada (dan tidak menghapusnya), `--port-web`, `--port-dns`, `--proyek`, dan `--kerja` memilih port, nama, dan folder kerja lain, `--pekerja` mengatur `TAPAK_WORKERS` di kontainer (bawaan 3), `--simpan-image` tidak menghapus image yang dibangun, dan `--simpan-kerja` menyimpan folder kerja. Butuh Docker Compose v2 atau lebih baru dan `.venv` dari `make setup` (TAPAK dan dnslib sisi host). Uji silang Tesseract memakai `tesseract` di host; tanpa itu bagian 5 dilewati. Skrip mengatur sendiri semua variabel yang dibaca berkas compose (`TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan lainnya), jadi lingkungan penerapan di host tidak mengubah yang diuji. Dengan `--simpan-kerja`, berkas milik uid 10001 di folder kerja hanya dapat dihapus sebagai root.
-
-Hasil 22 Oktober 2026 di mesin uji yang dipakai bersama (8 CPU, WSL2, Docker 29.4), dengan image dari `requirements.lock`: semua 45 pemeriksaan lulus dalam sekitar 10 menit. Pembangunan tanpa cache (`docker build --no-cache`) memakan 172 detik (apt 47 detik, pip dari kunci 67 detik, paket TAPAK 8 detik, ekspor 46 detik), dengan cache 12 detik, dan 58 detik bila hanya kode TAPAK berubah. Image berukuran 302 MB terkompresi dan 1,17 GB di disk, sama seperti sebelum ada kunci. Di image ada 42 pustaka dari kunci (FastAPI 0.156.4, sama dengan `.venv`), ditambah pip dan TAPAK sendiri. Di kontainer tanpa jaringan, penerbitan 20 salinan memakan 9 detik untuk contoh teks dan 30 detik untuk contoh hasil pindai 2 halaman (3 proses). Lewat web, penerbitan 20 salinan contoh hasil pindai memakan 25 detik dengan paling banyak 3 proses kerja sekaligus (75 cuplikan), dan puncak memori kontainer `app` sampai saat itu 1,4 GiB (1392 MiB). Dua sesi yang diterbitkan bersamaan selesai dalam 12 detik, juga dengan paling banyak 3 proses kerja sekaligus. Pelacakan lewat CLI memakan 7 detik (PDF teks), 14 detik (foto teks), 35 detik (PDF hasil pindai), dan 19 detik (foto hasil pindai); lewat web 5, 12, 29, dan 10 detik. Waktu CLI termasuk menyalakan kontainer. Dua uji lain dengan kunci yang sama pada hari itu, satu sebelum pemeriksaan dua sesi ditambahkan (44 pemeriksaan), juga lulus semuanya dalam 9 sampai 11 menit.
-
-Uji sebelumnya pada hari yang sama, dengan image tanpa kunci (pip mengambil rilis terbaru, misalnya FastAPI 0.159), lulus 32 dari 32 dalam 10 sampai 15 menit; pembangunan tanpa cache 184 sampai 223 detik. Salah satunya dijalankan dengan `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan `TAPAK_CANARY_ANSWER_IP` lain di lingkungan host, dan hasilnya sama. Pada penerapan compose terpisah dengan `docker-compose.jangkar.yml` (halaman web, pelacakan lewat web, dan kueri DNS termasuk nama di luar zona), seluruh lalu lintas jembatan jaringan kedua kontainer direkam sejak sebelum kontainer menyala: kontainer hanya membalas di port 8000 dan 5353, tanpa koneksi keluar dan tanpa kueri DNS sendiri.
-
-FastAPI versi baru (0.156.4 di `.venv` dan di image) membawa kait OpenTelemetry dan memasang `opentelemetry-api` (1.45.1, ada di kunci). Tanpa SDK dan tanpa pengaturan, kait itu tidak mengirim apa pun; image juga menyetel `OTEL_SDK_DISABLED=true`.
-
-## Kunci dan konfigurasi
-
-| Berkas | Isi | Pemegang |
-|---|---|---|
-| `keys/code_secret.key` | rahasia 32 byte; menurunkan vektor bias, kata kode, dan rencana penandaan | operator TAPAK |
-| `keys/registry_signing.key` | benih Ed25519 penanda tangan registri | dapat dipegang eselon atas, terpisah dari konfigurasi aplikasi |
-| `keys/registry_signing.pub` | kunci publik verifikasi | siapa saja |
-
-Variabel lingkungan:
-
-| Variabel | Fungsi |
-|---|---|
-| `TAPAK_DATA`, `TAPAK_KEY_DIR` | lokasi data dan kunci |
-| `TAPAK_CANARY_DOMAIN` | domain kanari bawaan |
-| `TAPAK_LLM` | `mock` atau `llamacpp` |
-| `TAPAK_LLM_MODEL` | berkas GGUF untuk llama-cpp-python di dalam proses (opsional; kosongkan untuk memakai `llama-server`) |
-| `TAPAK_LLM_URL` | alamat `llama-server` lokal, misalnya `http://127.0.0.1:8799`; bawaan `http://127.0.0.1:8080`; alamat selain loopback ditolak |
-| `TAPAK_LLM_TIMEOUT` | batas waktu per permintaan ke LLM dalam detik; bawaan 120 |
-| `TAPAK_ALLOWED_HOSTS` | nama host yang dilayani aplikasi web; bawaan `127.0.0.1,localhost` |
-| `TAPAK_SIGNING_KEY`, `TAPAK_PUBLIC_KEY` | lokasi kunci tanda tangan dan kunci publik registri; bawaan di `TAPAK_KEY_DIR` |
-| `TAPAK_ANCHOR_LOG` | berkas [log jangkar](#log-jangkar-eksternal-opsional) di penyimpanan terpisah (sama dengan `tapak --log-jangkar`); kosong = tidak dipakai |
-| `TAPAK_WORKERS` | jumlah proses kerja paling banyak untuk setiap penerbitan (CLI, web, demo; juga membatasi `--workers`) dan untuk pelacakan web yang berjalan bersamaan (paling banyak 2); bilangan bulat positif; kosong = sebanyak CPU, paling banyak 8; docker-compose: bawaan 4 ([Docker](#docker)) |
-| `TAPAK_CANARY_NS_IP` | alamat IPv4 publik pendengar kanari untuk `ns1.<domain>`, sama dengan glue di registrar |
-| `TAPAK_CANARY_ANSWER_IP` | (docker-compose) alamat IPv4 jawaban untuk nama kanari; bawaan `127.0.0.1` |
 
 ## Pengujian
 
@@ -337,6 +367,7 @@ Variabel lingkungan:
 - log jangkar: entri yang dihapus dari ujung, diganti, atau diubah, log yang hilang, jendela mati listrik, tanda tangan baris, pengakuan dan awal ulang, batas ukuran dan rotasi (rantai segmen), pemeriksaan bertahap yang sama dengan pemeriksaan penuh, log yang tidak dapat ditulis, penanda media, kode keluar 3 `tapak verify` tanpa log, isi log tanpa data dokumen, CLI, berita acara, dan web (termasuk label log yang terlalu besar, hilang, tidak terbaca, atau belum dimulai);
 - batas proses kerja `TAPAK_WORKERS`: validasi, CLI, web, demo, penerbitan yang tidak memulai proses lebih dari batasnya, dan penerbitan bersamaan dalam satu proses yang bergiliran tanpa tertukar dokumen;
 - `requirements.lock`: setiap dependensi `pyproject.toml` terkunci di dalam rentangnya, tanpa alat pengembangan, dan dipasang Dockerfile tanpa resolusi versi;
+- dokumentasi (README, `docs/`, README studi di `research/`): setiap tautan dan judul yang dirujuk ada, setiap target `make` yang disebut ada di Makefile, dan setiap opsi `tapak`, `tapak canary-dns`, dan `tapak-verify-registry` yang disebut dikenal CLI;
 - kanal pilihan kata: tabel leksikon, token terlindungi pada setiap kombinasi bentuk, tata letak, berkas yang disunting, teks ketikan ulang dan potongan, dokumen lama yang tidak berubah;
 - dokumen induk hasil pindai: deteksi per halaman, gerbang identik piksel, salinan tanpa lapisan OCR, pelacakan PDF dan foto, penolakan saat kotak kata berubah;
 - OCR bukti gambar untuk varian kalimat dan pilihan kata: halaman kecil yang dirender, halaman salinan yang dirender (setiap bit yang terbaca benar), teks rusak yang menjadi terhapus, pembaca yang tidak bergantung pada kode penerima (juga lewat jalur gambar lengkap), teks halaman lain yang tidak terbaca, tanda yang sama dari PDF dan foto yang dihitung sekali, catatan tanpa Tesseract, label "OCR gambar", cadangan registrasi Tesseract tanpa berkas sementara, dan tidak ada teks OCR di hasil, JSON, berita acara, diagnostik, log, atau berkas sementara (uji yang memerlukan Tesseract dilewati bila Tesseract tidak terpasang);
@@ -353,9 +384,45 @@ Suite ini tidak memerlukan GPU, model LLM, atau jaringan. Uji foto ditandai `slo
 
 `make bench-check` menjalankan semua langkah itu dari awal di `out/bench-check` lalu membandingkan hasilnya dengan `docs/results/bench_photos.json` byte demi byte (sekitar 16 menit di mesin uji yang dipakai bersama, dan sekitar 42 menit saat mesin itu sedang sibuk). Setelah penerbitan benchmark beralih ke skema v2, pemeriksaan ini lulus lagi dari ekspor `git archive` yang bersih dalam 25 menit. Perhitungan dan OCR berjalan satu utas, jadi hasilnya tidak bergantung pada jumlah utas. Kesamaan byte demi byte berlaku untuk versi pustaka yang sama; dengan numpy, OpenCV, MuPDF, atau Tesseract versi lain, angkanya dapat sedikit berbeda.
 
+## Riset
+
+Setiap angka uji tertahan di [cara kerja](cara-kerja.md) dan [batasan](keamanan.md#batasan) berasal dari satu folder `research/`. Protokol atau grid, benih, dan aturan keputusan (bila ada) setiap studi ditetapkan di skrip folder itu sebelum pengukuran (sebagian, misalnya `research/layar/` dan `research/balik/`, juga mencatatnya di git lebih dulu); `research/ketik/` hanya memakai benih tetap, tanpa set uji tertahan. Perintahnya ada di docstring skrip atau di README studi. Hasil ringkas ada di `hasil/` setiap folder, sedangkan salinan dan gambar bukti ada di `out/` (tidak di-commit).
+
+| Folder | Yang diukur | Angka di | Perintah |
+|---|---|---|---|
+| `research/deteksi/` | batas deteksi terbukti dibandingkan dengan simulasi | [batas deteksi](cara-kerja.md#batas-deteksi-terbukti), [batasan 12](keamanan.md#batasan-12) | docstring `ukur.py`, `kanal.py`, `penyeimbang.py`, `llr_foto.py`, `baca_foto.py` |
+| `research/bertahap/` | pelacakan bertahap | [pelacakan bertahap](cara-kerja.md#pelacakan-bertahap), [batasan 9](keamanan.md#batasan-9) | docstring `ukur.py` |
+| `research/ketik/` | kanal pilihan kata pada teks ketikan ulang | [kanal pilihan kata](cara-kerja.md#kanal-pilihan-kata-opsional), [batasan 1](keamanan.md#batasan-1) | docstring `ukur.py` |
+| `research/kapasitas/` | kanal geser pada cetakan, skema geser v2 | [skema geser v2](cara-kerja.md#skema-geser-v2), [batasan 3](keamanan.md#batasan-3) | [di bawah](#mengukur-salinan-yang-dicetak) |
+| `research/pindaian/` | dokumen induk hasil pindai | [batasan 8](keamanan.md#batasan-8) | docstring `ukur.py` |
+| `research/ponsel/` | foto ponsel dan foto monitor simulasi | [foto ponsel](cara-kerja.md#foto-ponsel-dan-foto-layar-simulasi), [batasan 10](keamanan.md#batasan-10) | [di bawah](#mengukur-foto-ponsel-dan-foto-layar) |
+| `research/layar/` | tangkapan layar dari penggambar PDF sungguhan | [tangkapan layar](cara-kerja.md#tangkapan-layar-dari-penampil-pdf), [batasan 5](keamanan.md#batasan-5) | [di bawah](#mengukur-tangkapan-layar), [README studi](../research/layar/README.md#menjalankan) |
+| `research/ocr/` | OCR bukti gambar untuk varian kalimat dan pilihan kata | [OCR](cara-kerja.md#teks-terlihat-pada-bukti-gambar-ocr), [batasan 1 dan 3](keamanan.md#batasan-3) | [README studi](../research/ocr/README.md#menjalankan) |
+| `research/sepakat/` | koalisi yang memahami TAPAK, pola penghapusan, penyamaran | [koalisi yang memahami TAPAK](cara-kerja.md#koalisi-yang-memahami-tapak), [batasan 6](keamanan.md#batasan-6) | docstring `ukur.py`, `geser2.py`, `balik.py`, `samaran.py` |
+| `research/kontradiksi/` | bacaan jelas tanpa nama, pola penghapusan pada cetakan | [bacaan jelas tanpa nama](cara-kerja.md#pemeriksaan-bacaan-jelas-tanpa-nama), [batasan 12](keamanan.md#batasan-12) | [README studi](../research/kontradiksi/README.md#menjalankan) |
+| `research/balik/` | pola tanda terbalik, dua statistik pola penghapusan, aturan skor dua sisi | [pola tanda terbalik](cara-kerja.md#pemeriksaan-pola-tanda-terbalik), [batasan 6](keamanan.md#batasan-6) | [README studi](../research/balik/README.md#menjalankan) |
+
+Studi salinan cetak, foto ponsel, dan tangkapan layar memerlukan waktu dan alat tambahan, jadi perintahnya dijelaskan di bawah.
+
 ## Mengukur salinan yang dicetak
 
-Angka salinan cetak di [cara kerja](cara-kerja.md#salinan-yang-dicetak) dan [batasan 3](keamanan.md#batasan) dapat dibuat ulang dengan `scripts/cetak/` (hasil di `out/cetak`, atau `CETAK_OUT`):
+Angka salinan cetak di [cara kerja](cara-kerja.md#salinan-yang-dicetak) dan [batasan 3](keamanan.md#batasan-3), skema v1 dan v2 serta profil latar cetak, berasal dari `research/kapasitas/`. Protokol, benih, grid, dan aturan keputusan ditetapkan di `ukur.py` sebelum pengukuran; benih pengembangan dipakai untuk memilih rancangan, benih uji tertahan dijalankan sekali di akhir:
+
+```bash
+export PYTHONPATH=.
+.venv/bin/python research/kapasitas/ukur.py dev            # grid pengembangan (semua kandidat)
+.venv/bin/python research/kapasitas/ukur.py dev-veld       # dekode ulang dev dengan medan geser halaman
+.venv/bin/python research/kapasitas/ukur.py ringkas dev    # tabel dan pilihan kandidat
+.venv/bin/python research/kapasitas/ukur.py uji --kandidat v2cf  # uji tertahan, sekali
+.venv/bin/python research/kapasitas/ukur.py ringkas uji
+.venv/bin/python research/kapasitas/ukur.py visibilitas    # isyarat geometris dan potongan gambar
+.venv/bin/python research/kapasitas/tinjauan.py lawan      # tinjauan: tuduhan salah pada bukti campuran
+.venv/bin/python research/kapasitas/tinjauan.py kalibrasi  # tinjauan: keandalan LLR bit kata
+```
+
+Salinan dan pengamatan mentah ada di `out/riset_kapasitas/` (tidak di-commit), baris ringkas di `research/kapasitas/hasil/`, dan potongan gambar di `research/kapasitas/potongan/`. Grid pengembangan memerlukan sekitar 2 jam dan uji tertahan sekitar 4 jam dengan 3 proses di mesin bersama.
+
+Studi sebelumnya (skema v1, `docs/results/cetak_*`) memilih profil latar cetak dan mengukur kalibrasi printer serta tampilan pola; kalibrasi dan ukuran tampilan itu masih dipakai. Studi itu dibuat dengan `scripts/cetak/` (hasil di `out/cetak`, atau `CETAK_OUT`). Dijalankan sekarang, skrip itu menerbitkan dengan skema bawaan v2:
 
 ```bash
 export PYTHONPATH=.
@@ -378,27 +445,11 @@ unset CETAK_OUT CETAK_ISSUED_CETAK
 .venv/bin/python -m scripts.cetak.needbits          # posisi terbaca yang diperlukan per jejak
 ```
 
-Angka kapasitas kanal geser (skema v1 dan v2, [batasan 3](keamanan.md#batasan)) berasal dari `research/kapasitas/`. Protokol, benih, grid, dan aturan keputusan ditetapkan di `ukur.py` sebelum pengukuran; benih pengembangan dipakai untuk memilih rancangan, benih uji tertahan dijalankan sekali di akhir:
-
-```bash
-export PYTHONPATH=.
-.venv/bin/python research/kapasitas/ukur.py dev            # grid pengembangan (semua kandidat)
-.venv/bin/python research/kapasitas/ukur.py dev-veld       # dekode ulang dev dengan medan geser halaman
-.venv/bin/python research/kapasitas/ukur.py ringkas dev    # tabel dan pilihan kandidat
-.venv/bin/python research/kapasitas/ukur.py uji --kandidat v2cf  # uji tertahan, sekali
-.venv/bin/python research/kapasitas/ukur.py ringkas uji
-.venv/bin/python research/kapasitas/ukur.py visibilitas    # isyarat geometris dan potongan gambar
-.venv/bin/python research/kapasitas/tinjauan.py lawan      # tinjauan: tuduhan salah pada bukti campuran
-.venv/bin/python research/kapasitas/tinjauan.py kalibrasi  # tinjauan: keandalan LLR bit kata
-```
-
-Salinan dan pengamatan mentah ada di `out/riset_kapasitas/` (tidak di-commit), baris ringkas di `research/kapasitas/hasil/`, dan potongan gambar di `research/kapasitas/potongan/`. Grid pengembangan memerlukan sekitar 2 jam dan uji tertahan sekitar 4 jam dengan 3 proses di mesin bersama. Skrip `scripts/cetak/` di bawah adalah studi sebelumnya (skema v1, `docs/results/cetak_*`); dijalankan sekarang, skrip itu menerbitkan dengan skema bawaan v2.
-
 Setiap profil diterbitkan sekali untuk 100 penerima fiktif. Id salinan diundi saat penerbitan, jadi penerbitan baru memberi kode lain dan angka yang sedikit berbeda; `CETAK_ISSUED_LAYAR` atau `CETAK_ISSUED_CETAK` memakai ulang folder penerbitan yang ada. Tabel profil bawaan memakai penerbitan dari riset sebelumnya, yang id salinannya tidak ada di repositori. Hasil di `docs/results/cetak_*` diukur sebelum kanal latar memakai strata kejenuhan dan uji pilot; perintah di atas kini memakai dekoder sekarang, jadi angka profil cetak dapat berbeda. Satu foto cetak memerlukan sekitar 20 sampai 60 detik (1600 px) atau 1 sampai 2 menit (4000 px) per proses di mesin uji yang dipakai bersama; `--workers` mengatur jumlah proses (bawaan 3).
 
 ## Mengukur foto ponsel dan foto layar
 
-Angka foto ponsel dan foto layar di [cara kerja](cara-kerja.md#foto-ponsel-dan-foto-layar-simulasi) dan [batasan 10](keamanan.md#batasan) dibuat ulang dengan `research/ponsel/`. Salinan dan gambar bukti ada di `out/riset_ponsel`, hasil JSONL di `research/ponsel/hasil/`. Protokol dan semua benih ditetapkan di `ukur.py` sebelum pengukuran.
+Angka foto ponsel dan foto layar di [cara kerja](cara-kerja.md#foto-ponsel-dan-foto-layar-simulasi) dan [batasan 10](keamanan.md#batasan-10) dibuat ulang dengan `research/ponsel/`. Salinan dan gambar bukti ada di `out/riset_ponsel`, hasil JSONL di `research/ponsel/hasil/`. Protokol dan semua benih ditetapkan di `ukur.py` sebelum pengukuran.
 
 ```bash
 export PYTHONPATH=.

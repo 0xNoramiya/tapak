@@ -115,6 +115,8 @@ python research/balik/ukur.py bench --bench out/bench-check --kerja KERJA --out 
 python research/balik/ukur.py ringkas research/balik/hasil/*.jsonl
 ```
 
+Kolom `job` baris `bench` menyebut folder set foto relatif terhadap `--bench` (misalnya `photos`), jadi baris yang di-commit tidak memuat jalur mesin pengukur dan pelari yang dilanjutkan mengenali barisnya dengan `--bench` mana pun. Baris itu semula ditulis dengan jalur absolut ekspor; hanya kolom itu yang diganti, dan keluaran `ringkas` tetap sama byte demi byte.
+
 Peninjauan (`hasil/tinjau/`, di luar ringkasan protokol; `EKSPOR_MASTER` adalah ekspor `git archive master`):
 
 ```bash
