@@ -284,3 +284,20 @@ def test_summary_json_berita_acara_and_web_show_one_warning(ctx_seeded, reversed
     out = tpl.render(notes=result.notes, a=result)
     assert out.startswith("[P]") and out.count("[P]") == 1 and "batas " in out
     assert CONTRADICTION_BOXES == 64
+
+
+def test_berita_acara_merges_both_warnings_into_one():
+    from tapak.decoder.report import render_html
+
+    from test_report import _info, _synthetic
+
+    erased = ErasureCheck(-9.5, 1981, -ERASURE_Z, ERASURE_ALARM_RATE, True, {"latar": 1942, "geser": 103})
+    note = manipulation_note(erased, _check())
+    att = _synthetic(VERDICT_INSUFFICIENT, [], notes=["catatan lain", note])
+    att.erasure, att.contradiction = erased, _check()
+    html = render_html(att, _info())
+    assert html.count(ERASURE_NOTE) == 1 and html.count(CONTRADICTION_NOTE) == 1
+    assert html.count("hanya peringatan") == 1 and html.count('class="peringatan"') == 1
+    assert "Pemeriksaan pola penghapusan disengaja" in html and "Pemeriksaan bacaan jelas tanpa nama" in html
+    assert "batas 5,1 x 10^-13 untuk koalisi paling banyak 3 orang" in html
+    assert html.index("TIDAK CUKUP BUKTI") < html.index(ERASURE_NOTE)

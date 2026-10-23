@@ -1372,3 +1372,34 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     honest = client.post("/lacak", data={"dokumen": doc},
                          files={"bukti": ("bocor.pdf", pdfs[0], "application/pdf")}).text
     assert ERASURE_NOTE not in honest and "Pola penghapusan" in honest and "Terdeteksi" not in honest
+
+
+def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
+    """Two copies whose agreeing marks are reversed (a coalition that knows TAPAK): every mark
+    still reads clearly, nobody is named, and the page shows one warning under the verdict with
+    the bound, and the check in the validity box. An honest copy is named, so the check does not
+    run and neither the warning nor the row appears."""
+    import numpy as np
+
+    from tapak.collusion import attack
+    from tapak.decoder.contradiction import CONTRADICTION_NOTE
+    from tapak.marker.master import load_master
+
+    s, manifest = _issue_small(6)
+    doc = manifest.doc_hash[:16]
+    folder = s.workspaces / doc
+    pdfs = [(folder / "salinan" / manifest.copies[i].file).read_bytes() for i in (1, 4)]
+    forged, _, _ = attack(load_master((folder / "induk.pdf").read_bytes()), pdfs, "acak", 1.0,
+                          rng=np.random.default_rng(4), neutralize="balik")
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", forged, "application/pdf")})
+    assert r.status_code == 200
+    verdict = r.text[:r.text.index('class="verdict-actions"')]
+    assert "Tidak cukup bukti" in verdict and 'class="who-seq"' not in verdict
+    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> ' + CONTRADICTION_NOTE in verdict
+    assert r.text.count(CONTRADICTION_NOTE) == 1 and "koalisi lebih dari 3 orang" in verdict
+    box = r.text[r.text.index('id="sah-h"'):]
+    assert "Bacaan tanpa nama" in box and "Bertentangan" in box and "tidak lebih dari 10^-3" in box
+    honest = client.post("/lacak", data={"dokumen": doc},
+                         files={"bukti": ("salinan.pdf", pdfs[0], "application/pdf")}).text
+    assert CONTRADICTION_NOTE not in honest and "Bacaan tanpa nama" not in honest
+    assert '<span class="who-seq">Salinan #2</span>' in honest

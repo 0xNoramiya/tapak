@@ -48,6 +48,20 @@ background pattern image removed from a PDF, or a background that the image deco
 because its bias pilot reads the reversed pattern as no pattern), or degradation that leaves too
 few clear positions for a guarantee against c colluders. Then B is large and the check is
 silent, and a reversal or randomization of what remains escapes.
+
+Measured on held-out seeds (``research/kontradiksi``, part ``sadar``: 36 coalitions of 2 and 3
+copies per channel, geser-v1 and v2): reversing the agreeing marks of a forwarded PDF is flagged
+36 of 36 times (bound at most 6e-7), and one copy reversing all its own marks 18 of 18 times.
+Reversal through a screenshot, a photo or a print escapes 36 of 36 times: the image background
+decoder reads a reversed pattern as no pattern, and some 220 shift positions are too few for a
+guarantee against three colluders. Randomized marks (a random sign per cell), partial reversal
+(an oracle-guided 40 to 45 % of the cells and units, just enough that nobody is named) and a
+dropped background escape on every channel. No false accusation in 846 traces. Honest evidence
+(part ``jujur``: single copies, standard coalitions of 2 and 3 and unmarked masters through seven
+media) raised no warning in 678 traces; of the 177 that named nobody, mostly prints, none had a
+bound below 1. Honest coalitions of 4 to 6 (part ``besar``, one of the causes the warning names)
+raised it on 12 of the 41 traces that named nobody, all screenshots and photos. The check took a
+median 0.25 s on the 1,408 held-out traces that named nobody.
 """
 
 from __future__ import annotations

@@ -63,13 +63,21 @@ It does not stop a coalition that knows it (``research/sepakat/balik.py``). Reve
 agreeing marks instead of erasing them (background cells negated, data units mirrored about
 their master position) leaves every unit as clearly marked as in an honest copy, so Z stays
 near 0 or turns positive, and the coalition escapes all the same; the proven bound does not
-cover a reversal either. Flattening the whole background and erasing only the agreeing shift
+cover a reversal either (on a forwarded PDF the contradiction check of
+``decoder/contradiction.py`` flags it instead). Flattening the whole background and erasing only the agreeing shift
 units also passes: the strengths of the unmarked background (thousands of positions that
-carry only noise) drown the shift units. For the same reason the check is blind on prints,
-where the default background never reaches the paper: also under geser-v2, whose prints now
-carry enough shift positions to name a copy, it flagged 1 of 36 erased prints, while the
-shift units alone would have flagged 19. The geser-v2 shift strengths are also a weaker
-detector than the geser-v1 ones: where most groups of a row are back at their master
+carry only noise) drowned the shift units. For the same reason the check was blind on prints,
+where the default background never reaches the paper: under geser-v2 it flagged 1 of 36
+erased prints, while the shift units alone would have flagged 19. Since
+``research/kontradiksi`` the strengths of a background output count only when the background
+decoder saw its pattern on that page (``SILENT_BACKGROUND_RULE``). On held-out seeds (36
+coalitions of 2 and 3 copies per channel, geser-v1 and v2) erased prints are now flagged 16 of
+36 times (before: 0), but erased PDFs 29 (36), screenshots 22 (36) and photos 19 (31): there
+the background left by the attack is often not found (a random member per cell where the
+copies differ leaves no coherent pattern, and flattened cells make the decoder's noise
+estimate collapse), while its strengths showed the erased cells. Overall 86 of 144 erased
+evidence is flagged, 103 under the old rule ("semua"). The geser-v2 shift strengths are also a
+weaker detector than the geser-v1 ones: where most groups of a row are back at their master
 positions, the row's offset makes them look like groups that all moved one way, so on their
 own they flagged 32 of 36 erased PDFs but only 13 of 36 screenshots and 6 of 36 photos; the
 warning there comes mostly from the background.
