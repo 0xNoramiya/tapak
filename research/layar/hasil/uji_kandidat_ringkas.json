@@ -1,0 +1,417 @@
+{
+ "sekarang": {
+  "false": 0,
+  "named": {
+   "mupdf|png": {
+    "semua": 225,
+    "geser": 50,
+    "n": 238
+   },
+   "mupdf|pesan": {
+    "semua": 222,
+    "geser": 51,
+    "n": 238
+   },
+   "mupdf|kecil": {
+    "semua": 195,
+    "geser": 69,
+    "n": 198
+   },
+   "poppler|png": {
+    "semua": 221,
+    "geser": 47,
+    "n": 238
+   },
+   "poppler|pesan": {
+    "semua": 218,
+    "geser": 44,
+    "n": 238
+   },
+   "poppler|kecil": {
+    "semua": 196,
+    "geser": 50,
+    "n": 198
+   },
+   "cairo|png": {
+    "semua": 231,
+    "geser": 66,
+    "n": 238
+   },
+   "cairo|pesan": {
+    "semua": 227,
+    "geser": 65,
+    "n": 238
+   },
+   "cairo|kecil": {
+    "semua": 193,
+    "geser": 74,
+    "n": 198
+   },
+   "poppler_tanpa_aa|png": {
+    "semua": 57,
+    "geser": 0,
+    "n": 66
+   },
+   "poppler_tanpa_aa|pesan": {
+    "semua": 56,
+    "geser": 0,
+    "n": 66
+   }
+  },
+  "confident_wrong": {
+   "baris": 470,
+   "kata": 722,
+   "latar": 11563
+  },
+  "wrong": {
+   "baris": 8296,
+   "kata": 54499,
+   "latar": 179045
+  },
+  "read": {
+   "baris": 31450,
+   "kata": 337223,
+   "latar": 3960353
+  },
+  "calibration_rows": [
+   {
+    "w": "0",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.00-0.50",
+    "n": 10725,
+    "wrong": 5189,
+    "rate": 0.4838,
+    "calibrated": 0.4117
+   },
+   {
+    "w": "0.50-0.80",
+    "n": 4353,
+    "wrong": 1367,
+    "rate": 0.314,
+    "calibrated": 0.1708
+   },
+   {
+    "w": "0.80-0.90",
+    "n": 2679,
+    "wrong": 722,
+    "rate": 0.2695,
+    "calibrated": 0.0736
+   },
+   {
+    "w": "0.90-0.95",
+    "n": 2113,
+    "wrong": 395,
+    "rate": 0.1869,
+    "calibrated": 0.0357
+   },
+   {
+    "w": "0.95-1.00",
+    "n": 11580,
+    "wrong": 623,
+    "rate": 0.0538,
+    "calibrated": 0.0046
+   }
+  ],
+  "calibration_model_rows": [
+   {
+    "w": "0",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.00-0.50",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.50-0.80",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.80-0.90",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.90-0.95",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.95-1.00",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   }
+  ],
+  "calibration_words": [
+   {
+    "w": "0",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.00-0.50",
+    "n": 90319,
+    "wrong": 36514,
+    "rate": 0.4043,
+    "calibrated": 0.3782
+   },
+   {
+    "w": "0.50-0.80",
+    "n": 56684,
+    "wrong": 13129,
+    "rate": 0.2316,
+    "calibrated": 0.1728
+   },
+   {
+    "w": "0.80-0.90",
+    "n": 23825,
+    "wrong": 2935,
+    "rate": 0.1232,
+    "calibrated": 0.0739
+   },
+   {
+    "w": "0.90-0.95",
+    "n": 16293,
+    "wrong": 944,
+    "rate": 0.0579,
+    "calibrated": 0.0366
+   },
+   {
+    "w": "0.95-1.00",
+    "n": 150102,
+    "wrong": 977,
+    "rate": 0.0065,
+    "calibrated": 0.0027
+   }
+  ]
+ },
+ "kisi_baris3": {
+  "false": 0,
+  "named": {
+   "mupdf|png": {
+    "semua": 225,
+    "geser": 54,
+    "n": 238
+   },
+   "mupdf|pesan": {
+    "semua": 222,
+    "geser": 57,
+    "n": 238
+   },
+   "mupdf|kecil": {
+    "semua": 195,
+    "geser": 69,
+    "n": 198
+   },
+   "poppler|png": {
+    "semua": 221,
+    "geser": 51,
+    "n": 238
+   },
+   "poppler|pesan": {
+    "semua": 218,
+    "geser": 47,
+    "n": 238
+   },
+   "poppler|kecil": {
+    "semua": 196,
+    "geser": 50,
+    "n": 198
+   },
+   "cairo|png": {
+    "semua": 231,
+    "geser": 70,
+    "n": 238
+   },
+   "cairo|pesan": {
+    "semua": 227,
+    "geser": 69,
+    "n": 238
+   },
+   "cairo|kecil": {
+    "semua": 193,
+    "geser": 74,
+    "n": 198
+   },
+   "poppler_tanpa_aa|png": {
+    "semua": 57,
+    "geser": 1,
+    "n": 66
+   },
+   "poppler_tanpa_aa|pesan": {
+    "semua": 56,
+    "geser": 0,
+    "n": 66
+   }
+  },
+  "confident_wrong": {
+   "baris": 243,
+   "kata": 722,
+   "latar": 11563
+  },
+  "wrong": {
+   "baris": 5703,
+   "kata": 54499,
+   "latar": 179045
+  },
+  "read": {
+   "baris": 29320,
+   "kata": 337223,
+   "latar": 3960353
+  },
+  "calibration_rows": [
+   {
+    "w": "0",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.00-0.50",
+    "n": 8905,
+    "wrong": 4140,
+    "rate": 0.4649,
+    "calibrated": 0.4271
+   },
+   {
+    "w": "0.50-0.80",
+    "n": 2660,
+    "wrong": 739,
+    "rate": 0.2778,
+    "calibrated": 0.1739
+   },
+   {
+    "w": "0.80-0.90",
+    "n": 1395,
+    "wrong": 341,
+    "rate": 0.2444,
+    "calibrated": 0.0722
+   },
+   {
+    "w": "0.90-0.95",
+    "n": 1551,
+    "wrong": 168,
+    "rate": 0.1083,
+    "calibrated": 0.0354
+   },
+   {
+    "w": "0.95-1.00",
+    "n": 14809,
+    "wrong": 315,
+    "rate": 0.0213,
+    "calibrated": 0.0082
+   }
+  ],
+  "calibration_model_rows": [
+   {
+    "w": "0",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.00-0.50",
+    "n": 3933,
+    "wrong": 1803,
+    "rate": 0.4584,
+    "calibrated": 0.4601
+   },
+   {
+    "w": "0.50-0.80",
+    "n": 488,
+    "wrong": 76,
+    "rate": 0.1557,
+    "calibrated": 0.1804
+   },
+   {
+    "w": "0.80-0.90",
+    "n": 209,
+    "wrong": 18,
+    "rate": 0.0861,
+    "calibrated": 0.0755
+   },
+   {
+    "w": "0.90-0.95",
+    "n": 255,
+    "wrong": 0,
+    "rate": 0.0,
+    "calibrated": 0.0337
+   },
+   {
+    "w": "0.95-1.00",
+    "n": 8458,
+    "wrong": 2,
+    "rate": 0.0002,
+    "calibrated": 0.0106
+   }
+  ],
+  "calibration_words": [
+   {
+    "w": "0",
+    "n": 0,
+    "wrong": 0,
+    "rate": null,
+    "calibrated": null
+   },
+   {
+    "w": "0.00-0.50",
+    "n": 90319,
+    "wrong": 36514,
+    "rate": 0.4043,
+    "calibrated": 0.3782
+   },
+   {
+    "w": "0.50-0.80",
+    "n": 56684,
+    "wrong": 13129,
+    "rate": 0.2316,
+    "calibrated": 0.1728
+   },
+   {
+    "w": "0.80-0.90",
+    "n": 23825,
+    "wrong": 2935,
+    "rate": 0.1232,
+    "calibrated": 0.0739
+   },
+   {
+    "w": "0.90-0.95",
+    "n": 16293,
+    "wrong": 944,
+    "rate": 0.0579,
+    "calibrated": 0.0366
+   },
+   {
+    "w": "0.95-1.00",
+    "n": 150102,
+    "wrong": 977,
+    "rate": 0.0065,
+    "calibrated": 0.0027
+   }
+  ]
+ },
+ "rule": "kandidat menggantikan dekoder sekarang hanya bila pada set dev: (1) tidak ada tuduhan salah (ketiga kumpulan kanal, termasuk induk tanpa tanda), (2) tidak ada penggambar dan format yang kehilangan putusan benar, dengan semua kanal maupun geser saja, (3) bit baris yang salah dengan yakin (abs LLR >= 4) turun paling sedikit separuh, dan (4) di antara baris yang didekode dengan model kandidat, di setiap kelompok bobot dengan paling sedikit 50 bit, laju salah terukur paling besar 1,5 kali laju terkalibrasi (1 - w)/2 ditambah 1 poin persentase. Bila beberapa kandidat lolos, dipilih yang bit baris salah yakinnya paling sedikit; bila sama, yang putusan benar dari kanal geser saja paling banyak"
+}

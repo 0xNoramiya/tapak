@@ -1,0 +1,236 @@
+{
+ "rule": "kandidat menggantikan dekoder sekarang hanya bila pada set dev: (1) tidak ada tuduhan salah (ketiga kumpulan kanal, termasuk induk tanpa tanda), (2) tidak ada penggambar dan format yang kehilangan putusan benar, dengan semua kanal maupun geser saja, (3) bit baris yang salah dengan yakin (abs LLR >= 4) turun paling sedikit separuh, dan (4) di antara baris yang didekode dengan model kandidat, di setiap kelompok bobot dengan paling sedikit 50 bit, laju salah terukur paling besar 1,5 kali laju terkalibrasi (1 - w)/2 ditambah 1 poin persentase. Bila beberapa kandidat lolos, dipilih yang bit baris salah yakinnya paling sedikit; bila sama, yang putusan benar dari kanal geser saja paling banyak",
+ "candidates": {
+  "kuantum_baris": {
+   "round": "dev_kandidat_putaran1_ringkas.json",
+   "1_no_false_accusation": true,
+   "2_groups_losing_verdicts": [],
+   "3_confident_wrong_rows": [
+    204,
+    112
+   ],
+   "3_halved": false,
+   "4_model_row_bins": [
+    {
+     "w": "0.00-0.50",
+     "n": 6439,
+     "wrong": 2612,
+     "rate": 0.4057,
+     "calibrated": 0.4289,
+     "limit": 0.6533,
+     "ok": true
+    },
+    {
+     "w": "0.50-0.80",
+     "n": 1814,
+     "wrong": 262,
+     "rate": 0.1444,
+     "calibrated": 0.1784,
+     "limit": 0.2776,
+     "ok": true
+    },
+    {
+     "w": "0.80-0.90",
+     "n": 255,
+     "wrong": 19,
+     "rate": 0.0745,
+     "calibrated": 0.084,
+     "limit": 0.136,
+     "ok": true
+    },
+    {
+     "w": "0.95-1.00",
+     "n": 205,
+     "wrong": 0,
+     "rate": 0.0,
+     "calibrated": 0.0034,
+     "limit": 0.0151,
+     "ok": true
+    }
+   ],
+   "4_calibrated": true,
+   "passes": false
+  },
+  "kisi_baris": {
+   "round": "dev_kandidat_putaran2_ringkas.json",
+   "1_no_false_accusation": true,
+   "2_groups_losing_verdicts": [],
+   "3_confident_wrong_rows": [
+    204,
+    112
+   ],
+   "3_halved": false,
+   "4_model_row_bins": [
+    {
+     "w": "0.00-0.50",
+     "n": 2201,
+     "wrong": 902,
+     "rate": 0.4098,
+     "calibrated": 0.459,
+     "limit": 0.6985,
+     "ok": true
+    },
+    {
+     "w": "0.50-0.80",
+     "n": 196,
+     "wrong": 26,
+     "rate": 0.1327,
+     "calibrated": 0.1831,
+     "limit": 0.2847,
+     "ok": true
+    },
+    {
+     "w": "0.80-0.90",
+     "n": 130,
+     "wrong": 10,
+     "rate": 0.0769,
+     "calibrated": 0.0724,
+     "limit": 0.1186,
+     "ok": true
+    },
+    {
+     "w": "0.90-0.95",
+     "n": 100,
+     "wrong": 0,
+     "rate": 0.0,
+     "calibrated": 0.0363,
+     "limit": 0.0644,
+     "ok": true
+    },
+    {
+     "w": "0.95-1.00",
+     "n": 2227,
+     "wrong": 0,
+     "rate": 0.0,
+     "calibrated": 0.0107,
+     "limit": 0.026,
+     "ok": true
+    }
+   ],
+   "4_calibrated": true,
+   "passes": false
+  },
+  "kisi_baris2": {
+   "round": "dev_kandidat_putaran2_ringkas.json",
+   "1_no_false_accusation": true,
+   "2_groups_losing_verdicts": [],
+   "3_confident_wrong_rows": [
+    204,
+    96
+   ],
+   "3_halved": true,
+   "4_model_row_bins": [
+    {
+     "w": "0.00-0.50",
+     "n": 2430,
+     "wrong": 1017,
+     "rate": 0.4185,
+     "calibrated": 0.4592,
+     "limit": 0.6988,
+     "ok": true
+    },
+    {
+     "w": "0.50-0.80",
+     "n": 239,
+     "wrong": 30,
+     "rate": 0.1255,
+     "calibrated": 0.1852,
+     "limit": 0.2878,
+     "ok": true
+    },
+    {
+     "w": "0.80-0.90",
+     "n": 148,
+     "wrong": 20,
+     "rate": 0.1351,
+     "calibrated": 0.073,
+     "limit": 0.1195,
+     "ok": false
+    },
+    {
+     "w": "0.90-0.95",
+     "n": 127,
+     "wrong": 0,
+     "rate": 0.0,
+     "calibrated": 0.0356,
+     "limit": 0.0634,
+     "ok": true
+    },
+    {
+     "w": "0.95-1.00",
+     "n": 4982,
+     "wrong": 14,
+     "rate": 0.0028,
+     "calibrated": 0.0105,
+     "limit": 0.0258,
+     "ok": true
+    }
+   ],
+   "4_calibrated": false,
+   "passes": false
+  },
+  "kisi_baris3": {
+   "round": "dev_kandidat_putaran3_ringkas.json",
+   "1_no_false_accusation": true,
+   "2_groups_losing_verdicts": [],
+   "3_confident_wrong_rows": [
+    204,
+    101
+   ],
+   "3_halved": true,
+   "4_model_row_bins": [
+    {
+     "w": "0.00-0.50",
+     "n": 2220,
+     "wrong": 907,
+     "rate": 0.4086,
+     "calibrated": 0.4581,
+     "limit": 0.6972,
+     "ok": true
+    },
+    {
+     "w": "0.50-0.80",
+     "n": 209,
+     "wrong": 26,
+     "rate": 0.1244,
+     "calibrated": 0.1847,
+     "limit": 0.2871,
+     "ok": true
+    },
+    {
+     "w": "0.80-0.90",
+     "n": 132,
+     "wrong": 10,
+     "rate": 0.0758,
+     "calibrated": 0.0723,
+     "limit": 0.1184,
+     "ok": true
+    },
+    {
+     "w": "0.90-0.95",
+     "n": 113,
+     "wrong": 0,
+     "rate": 0.0,
+     "calibrated": 0.0362,
+     "limit": 0.0643,
+     "ok": true
+    },
+    {
+     "w": "0.95-1.00",
+     "n": 4752,
+     "wrong": 0,
+     "rate": 0.0,
+     "calibrated": 0.0105,
+     "limit": 0.0258,
+     "ok": true
+    }
+   ],
+   "4_calibrated": true,
+   "passes": true
+  }
+ },
+ "passing": [
+  "kisi_baris3"
+ ],
+ "chosen": "kisi_baris3"
+}
