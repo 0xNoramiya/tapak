@@ -46,7 +46,13 @@ Candidates:
   about 8 pixels per em on half pixels (11 pt text below 56 dpi), and Cairo uses quarter pixels at
   every resolution. Downscaled captures (the rows on a grid of 2/3 pixel in ``kecil``) are left to
   the Gaussian model: a messenger's scale factor is arbitrary, and searching it would widen the
-  gate.
+  gate. Scored on the development set it passed conditions (1) to (3) (row errors 204 to 96) and
+  failed (4): rows read on half pixels (MuPDF below 56 dpi) were wrong 10 of 16 times at weights 0.8
+  to 0.9 and 14 of 230 times above 0.95 (1.1 % promised). On quarter pixels (Cairo) 2525 rows were
+  read above 0.95 with none wrong, and on whole pixels 2227 with none wrong.
+* ``kisi_baris3``: ``kisi_baris2`` without the half pixel (grid steps 1 and 1/4 pixel). MuPDF's
+  half-pixel steps measured 0.47 to 0.55 pixel (kuantisasi.py at 28 to 48 dpi), so the half-pixel
+  rows are no clean lattice; they keep the Gaussian model. Rule unchanged; added before scoring.
 
 Selection rule (``ATURAN``, fixed after exploring the current decoder's row offsets on part of the
 development set and before any candidate was scored on the whole development set): a candidate
@@ -95,7 +101,7 @@ ATURAN = ("kandidat menggantikan dekoder sekarang hanya bila pada set dev: (1) t
           "bobot dengan paling sedikit 50 bit, laju salah terukur paling besar 1,5 kali laju terkalibrasi (1 - w)/2 "
           "ditambah 1 poin persentase. Bila beberapa kandidat lolos, dipilih yang bit baris salah yakinnya paling "
           "sedikit; bila sama, yang putusan benar dari kanal geser saja paling banyak")
-CANDIDATES = ("sekarang", "kuantum_baris", "kisi_baris", "kisi_baris2")
+CANDIDATES = ("sekarang", "kuantum_baris", "kisi_baris", "kisi_baris2", "kisi_baris3")
 
 
 def load_trace(row: dict, scheme: str) -> dict:
@@ -125,13 +131,14 @@ def decode(candidate: str, ctx, saved: dict):
         return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded)
     if candidate == "kuantum_baris":
         return decode_quantized_rows(ctx, saved)
-    if candidate in ("kisi_baris", "kisi_baris2"):
+    if candidate in ("kisi_baris", "kisi_baris2", "kisi_baris3"):
         from tapak.decoder import ch_shift
         from tapak.decoder.ch_shift import PixelGrid
 
         grid = PixelGrid(saved["h"], float(saved["reg"][1]), float(saved["reg"][2]))
         pitches = ch_shift.GRID_PITCHES_PX
-        ch_shift.GRID_PITCHES_PX = (1.0,) if candidate == "kisi_baris" else (1.0, 0.5, 0.25)
+        ch_shift.GRID_PITCHES_PX = {"kisi_baris": (1.0,), "kisi_baris2": (1.0, 0.5, 0.25),
+                                    "kisi_baris3": (1.0, 0.25)}[candidate]
         try:
             return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded, grid=grid)
         finally:
