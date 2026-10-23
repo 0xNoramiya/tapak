@@ -34,7 +34,7 @@ Sidiknya memakai kode Tardos. Dalam simulasi tingkat kode, gabungan kode tiga pe
 - **Geser kata dan baris** bertahan pada cetakan, foto, dan tangkapan layar.
 - **Pola latar** bertahan pada foto layar dan tangkapan layar, tetapi hilang saat dicetak. Profil latar cetak (opsional) bertahan di kertas dalam uji printer simulasi, dengan harga halaman tampak abu-abu muda.
 - **Karakter tak terlihat** ikut terbawa saat teks disalin atau PDF diteruskan.
-- **Varian semantik**, parafrasa kalimat pembuka dan penutup yang dibuat LLM lokal lalu disetujui manusia, bertahan saat dokumen diketik ulang, tetapi hanya membawa beberapa bit.
+- **Varian kalimat**, parafrasa kalimat pembuka dan penutup yang dibuat LLM lokal lalu disetujui manusia, bertahan saat dokumen diketik ulang, tetapi hanya membawa beberapa bit.
 - **Kanari DNS**, subdomain unik per salinan, berbunyi bila berkas dibuka di luar jaringan satuan. Kanari tidak ikut dalam skor.
 
 Dekoder membaca dan menggabungkan bukti yang tersisa tanpa melihat kode penerima, jadi batas peluang tuduhan salah berlaku untuk bukti apa pun, selama rahasia kode aman dan catatan penerbitan utuh.
@@ -106,7 +106,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 - **Ketikan ulang** hanya menyisakan varian kalimat dan pilihan kata opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti"; satu pembocor baru dapat disebut dari sekitar 1.300 kata isi (simulasi), tanpa ketahanan kolusi. Pilihan kata dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan ([batasan 1](docs/keamanan.md#batasan-1)).
 - **Kanari** hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word, dan Adobe Reader lebih dulu menampilkan peringatan izin yang membuat kanari mudah dikenali ([batasan 7](docs/keamanan.md#batasan-7)).
 - **Lawan yang memahami TAPAK** dapat lolos tanpa nama dan tanpa peringatan dengan mengacak atau melemahkan tanda, juga dari satu salinan saja. Tanda yang dibalik dan penghapusan di tempat salinan koalisi sama umumnya diberi peringatan, kecuali penghapusan pada cetakan. Tidak ada orang lain yang tertuduh karenanya ([batasan 6](docs/keamanan.md#batasan-6)).
-- **Semua foto dan cetakan uji sintetis.** Kamera ponsel, monitor, dan printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan; LLM lokal 3 sampai 4B di CPU memberi 4 bit dari 24 pembangkitan pada dua dokumen contoh ([batasan 2](docs/keamanan.md#batasan-2) dan [10](docs/keamanan.md#batasan-10)).
+- **Semua foto dan cetakan uji sintetis.** Kamera ponsel, monitor, dan printer sungguhan belum diuji. Varian kalimat di demo berasal dari tabel frasa tiruan; LLM lokal 3 sampai 4B di CPU memberi 4 bit dari 24 pembangkitan pada dua dokumen contoh ([batasan 2](docs/keamanan.md#batasan-2) dan [10](docs/keamanan.md#batasan-10)).
 
 Kami memilih menjawab "tidak cukup bukti" daripada menebak. Ketiga belas batasan, dengan tabel ringkas dan angkanya, ada di [keamanan](docs/keamanan.md#batasan).
 
