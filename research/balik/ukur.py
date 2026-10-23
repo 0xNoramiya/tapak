@@ -644,7 +644,7 @@ def bench_job(job: tuple) -> list[dict]:
     ctx = _BENCH["ctx"]
     obs = []
     for f in files:
-        obs += collect_file(f, (Path(folder) / f).read_bytes(), ctx)[0]
+        obs += collect_file(f, (BENCH[0] / folder / f).read_bytes(), ctx)[0]
     spending = TraceSpending.unlogged(EPS, TRACE_STAGE_POLICY)
     return [{"bagian": "bench", "medium": medium, "kanal": medium, "berkas": files, "salinan": seq,
              **analyse(obs, ctx, {seq}, spending)}]
@@ -728,6 +728,8 @@ def bench_jobs() -> list[tuple]:
     """Every image of the benchmark sets, and every printed copy's pages 1 and 2 together."""
     if BENCH[0] is None:
         raise SystemExit("bagian bench memerlukan --bench (folder out/bench-check dari make bench-check)")
+    # A job names its photo set relative to --bench, so the "job" field of a committed row does not
+    # carry the build machine's paths and a resumed run under any --bench recognises its rows.
     jobs = []
     for medium, sub in BENCH_SETS.items():
         folder = BENCH[0] / sub
@@ -735,13 +737,13 @@ def bench_jobs() -> list[tuple]:
         if not truth.exists():
             raise SystemExit(f"{folder} belum ada: jalankan make bench-check")
         items = json.loads(truth.read_text(encoding="utf-8"))["items"]
-        jobs += [(medium, str(folder), [it["file"]], it["seq"]) for it in items]
+        jobs += [(medium, sub, [it["file"]], it["seq"]) for it in items]
         if medium == "cetak":
             pairs: dict[tuple, dict] = {}
             for it in items:
                 index = it["file"].rsplit("_", 1)[-1].split(".")[0]
                 pairs.setdefault((it["seq"], it["angle"], index), {})[it["page"]] = it["file"]
-            jobs += [("cetak2", str(folder), [d[p] for p in sorted(d)], key[0]) for key, d in pairs.items()
+            jobs += [("cetak2", sub, [d[p] for p in sorted(d)], key[0]) for key, d in pairs.items()
                      if len(d) == 2]
     return jobs
 

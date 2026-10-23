@@ -37,7 +37,7 @@ Sidiknya memakai kode Tardos. Dalam simulasi tingkat kode, gabungan kode tiga pe
 - **Varian semantik**, parafrasa kalimat pembuka dan penutup yang dibuat LLM lokal lalu disetujui manusia, bertahan saat dokumen diketik ulang, tetapi hanya membawa beberapa bit.
 - **Kanari DNS**, subdomain unik per salinan, berbunyi bila berkas dibuka di luar jaringan satuan. Kanari tidak ikut dalam skor.
 
-Dekoder menggabungkan bukti yang tersisa tanpa pernah melihat kode penerima, jadi batas peluang tuduhan salah berlaku untuk bukti apa pun, selama rahasia kode aman.
+Dekoder membaca dan menggabungkan bukti yang tersisa tanpa melihat kode penerima, jadi batas peluang tuduhan salah berlaku untuk bukti apa pun, selama rahasia kode aman dan catatan penerbitan utuh.
 
 ## Hasil
 
@@ -53,15 +53,15 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
   <img alt="Uji sintetis: foto layar 40 dari 40 benar; foto kertas cetak dari printer simulasi 9 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 32 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Ini simulasi dengan satu rahasia kode; dengan rahasia lain angkanya dapat lebih rendah (lihat [batasan](#batasan)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Semua ini memakai satu rahasia kode; dengan rahasia lain angkanya dapat lebih rendah ([batasan 3](docs/keamanan.md#batasan-3)).
 
-Foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan)) dan kini disebut lewat kanal geser saja, dengan skor tipis di atas ambang. Kami tidak menurunkan ambang mana pun. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 4,0 &times; 10<sup>-26</sup>. Adegan foto yang sama lewat ISP ponsel simulasi benar 32 dari 32, dan foto salinan di monitor simulasi juga 32 dari 32.
+Satu foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan-4)). Foto itu disebut lewat kanal geser saja, tipis di atas ambang, dan ambangnya tidak diturunkan. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 4,0 &times; 10<sup>-26</sup>.
 
 Uji lainnya:
 
 - Halaman digital gabungan dua salinan (diuji pada 2 pasangan): kedua penerimanya dituduh, tidak ada orang lain.
 - Pembukaan salinan yang disimulasikan tercatat di log kanari dalam sekitar 0,1 detik.
-- Penerbitan 20 salinan dokumen 2 halaman selesai dalam 4 sampai 5 detik.
+- Penerbitan 20 salinan dokumen 2 halaman selesai dalam 4 sampai 5 detik di mesin uji yang tidak sibuk.
 
 Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](docs/cara-kerja.md#angka-simulasi).
 
@@ -72,7 +72,7 @@ Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](
   <img alt="Halaman Lacak untuk foto sintetis salinan #13: skor, ambang, batas peluang tuduhan salah, dan bukti per kanal" src="docs/img/ui-lacak-light.png" width="100%">
 </picture>
 
-Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Putusannya hanya datang dari pola latar, jadi tidak berlaku untuk foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar (layar atau cetak) dan skema geser (v2 atau v1), meminta peninjauan setiap varian, lalu menghasilkan ZIP salinan.
+Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Di sini hanya pola latar yang sendirian menunjuk salinan #13 (kanal sepakat: 1), dan pola itu tidak ada pada foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar (layar atau cetak) dan skema geser (v2 atau v1), meminta peninjauan setiap varian, lalu menghasilkan ZIP salinan.
 
 ## Mulai cepat
 
@@ -83,7 +83,7 @@ sudo apt-get install -y \
   tesseract-ocr tesseract-ocr-ind poppler-utils \
   libpango-1.0-0 libharfbuzz-subset0
 make setup  # sekali, perlu jaringan
-make demo   # skenario lengkap, sekitar 20 detik
+make demo   # skenario lengkap, sekitar 20 sampai 30 detik
 make web    # http://127.0.0.1:8000
 make test   # seluruh pengujian
 ```
@@ -95,19 +95,20 @@ Docker, semua perintah `tapak`, kunci, dan konfigurasi ada di [panduan menjalank
 - TAPAK tidak menghubungi layanan luar. Satu-satunya bagian yang menghadap internet adalah pendengar DNS kanari.
 - Registri bersifat tambah-saja, dengan rantai SHA-256 dan tanda tangan Ed25519. Registri tidak menyimpan teks dokumen, gambar, atau nama penerima.
 - Bila kunci publik terpasang, TAPAK hanya menyebut nama kalau rantai registri utuh dan setiap salinan cocok dengan entrinya. Entri yang belum bertanda tangan ditandai jelas di hasil. Mode lepas `tapak trace --master --manifest` melewati pemeriksaan ini, menyatakannya di keluaran, dan tidak membuat berita acara.
+- Log jangkar opsional, disimpan di tempat yang tidak dapat disunting pemegang registri, mengungkap entri yang dihapus dari ujung registri sebelum pelacakan atau penerbitan berikutnya.
 - Di Docker, pendengar kanari berjalan di kontainer dan jaringan terpisah, dan hanya melihat log-nya sendiri serta daftar token yang sah.
 
 Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keamanan.md).
 
 ## Batasan
 
-- Dengan pola latar bawaan, foto salinan cetak hanya membawa kanal geser. Dalam uji printer simulasi, skema geser v2 (bawaan penerbitan baru) menyebut nama dari satu halaman teks penuh pada semua foto 4000 px uji tertahan dan 57 % foto 1600 px, tetapi lebih jarang dengan rahasia kode lain (17 dari 24 foto 4000 px pada benih pengembangan); dokumen lama (skema v1) baru cukup dari dua halaman, kadang-kadang. Tidak ada ketahanan kolusi. Skema v2 juga menggeser tepi kiri dan kanan teks sampai 0,05 mm antarbaris, kira-kira di ambang penglihatan dan belum diuji dengan pengamat. Profil `--latar cetak` membuat satu halaman cukup dalam simulasi, tetapi halamannya tampak abu-abu muda.
-- Pengetikan ulang hanya menyisakan varian semantik dan kanal pilihan kata yang opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti". Dalam simulasi, satu pembocor baru dapat disebut dari sekitar 1.300 kata isi, tanpa ketahanan kolusi. Pilihan kata terlihat di kertas dan dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan.
-- Orang yang memahami TAPAK tetap dapat lolos tanpa nama, dengan dua salinan atau lebih dan sering dengan satu salinan saja. Pembalikan tanda kini hampir selalu diberi peringatan, juga lewat gambar, cetakan, dan derau pada pola latar, dan penghapusan di tempat salinan koalisi sama umumnya juga, kecuali pada cetakan, tetapi tanda yang diacak atau dibalik kurang dari separuh lolos tanpa peringatan, juga oleh satu salinan saja, padahal salinan jujur lewat medium yang sama umumnya disebut namanya. Tidak ada orang lain yang tertuduh karenanya.
-- Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word. Adobe Reader pun lebih dulu menampilkan peringatan izin, sehingga kanari mudah dikenali.
-- Semua foto dan cetakan uji sintetis, dan kamera ponsel, monitor, serta printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan. Dengan LLM lokal 3 sampai 4B di CPU, varian yang layak disetujui jarang muncul (4 bit dari 24 pembangkitan pada dua dokumen contoh).
+- **Cetakan** hanya membawa kanal geser, karena pola latar bawaan hilang di kertas. Dalam uji printer simulasi dengan skema geser v2, satu halaman teks penuh menyebut nama pada semua foto 4000 px dan 57 % foto 1600 px (lebih jarang dengan rahasia kode lain; dokumen skema v1 perlu dua halaman), tanpa ketahanan kolusi. Tepi teks v2 bergeser sampai 0,05 mm antarbaris, belum diuji dengan pengamat ([batasan 3](docs/keamanan.md#batasan-3)).
+- **Ketikan ulang** hanya menyisakan varian kalimat dan pilihan kata opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti"; satu pembocor baru dapat disebut dari sekitar 1.300 kata isi (simulasi), tanpa ketahanan kolusi. Pilihan kata dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan ([batasan 1](docs/keamanan.md#batasan-1)).
+- **Kanari** hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word, dan Adobe Reader lebih dulu menampilkan peringatan izin yang membuat kanari mudah dikenali ([batasan 7](docs/keamanan.md#batasan-7)).
+- **Lawan yang memahami TAPAK** dapat lolos tanpa nama dan tanpa peringatan dengan mengacak atau melemahkan tanda, juga dari satu salinan saja. Tanda yang dibalik dan penghapusan di tempat salinan koalisi sama umumnya diberi peringatan, kecuali penghapusan pada cetakan. Tidak ada orang lain yang tertuduh karenanya ([batasan 6](docs/keamanan.md#batasan-6)).
+- **Semua foto dan cetakan uji sintetis.** Kamera ponsel, monitor, dan printer sungguhan belum diuji. Varian semantik di demo berasal dari tabel frasa tiruan; LLM lokal 3 sampai 4B di CPU memberi 4 bit dari 24 pembangkitan pada dua dokumen contoh ([batasan 2](docs/keamanan.md#batasan-2) dan [10](docs/keamanan.md#batasan-10)).
 
-Kami memilih menjawab "tidak cukup bukti" daripada menebak. Daftar lengkapnya, dengan angka, ada di [keamanan](docs/keamanan.md#batasan).
+Kami memilih menjawab "tidak cukup bukti" daripada menebak. Ketiga belas batasan, dengan tabel ringkas dan angkanya, ada di [keamanan](docs/keamanan.md#batasan).
 
 ---
 
