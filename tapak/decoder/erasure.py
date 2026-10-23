@@ -63,13 +63,21 @@ It does not stop a coalition that knows it (``research/sepakat/balik.py``). Reve
 agreeing marks instead of erasing them (background cells negated, data units mirrored about
 their master position) leaves every unit as clearly marked as in an honest copy, so Z stays
 near 0 or turns positive, and the coalition escapes all the same; the proven bound does not
-cover a reversal either. Flattening the whole background and erasing only the agreeing shift
+cover a reversal either (on a forwarded PDF the contradiction check of
+``decoder/contradiction.py`` flags it instead). Flattening the whole background and erasing only the agreeing shift
 units also passes: the strengths of the unmarked background (thousands of positions that
-carry only noise) drown the shift units. For the same reason the check is blind on prints,
-where the default background never reaches the paper: also under geser-v2, whose prints now
-carry enough shift positions to name a copy, it flagged 1 of 36 erased prints, while the
-shift units alone would have flagged 19. The geser-v2 shift strengths are also a weaker
-detector than the geser-v1 ones: where most groups of a row are back at their master
+carry only noise) drowned the shift units. For the same reason the check was blind on prints,
+where the default background never reaches the paper: under geser-v2 it flagged 1 of 36
+erased prints, while the shift units alone would have flagged 19. Since
+``research/kontradiksi`` the strengths of a background output count only when the background
+decoder saw its pattern on that page (``SILENT_BACKGROUND_RULE``). On held-out seeds (36
+coalitions of 2 and 3 copies per channel, geser-v1 and v2) erased prints are now flagged 16 of
+36 times (before: 0), but erased PDFs 29 (36), screenshots 22 (36) and photos 19 (31): there
+the background left by the attack is often not found (a random member per cell where the
+copies differ leaves no coherent pattern, and flattened cells make the decoder's noise
+estimate collapse), while its strengths showed the erased cells. Overall 86 of 144 erased
+evidence is flagged, 103 under the old rule ("semua"). The geser-v2 shift strengths are also a
+weaker detector than the geser-v1 ones: where most groups of a row are back at their master
 positions, the row's offset makes them look like groups that all moved one way, so on their
 own they flagged 32 of 36 erased PDFs but only 13 of 36 screenshots and 6 of 36 photos; the
 warning there comes mostly from the background.
@@ -78,18 +86,30 @@ warning there comes mostly from the background.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from statistics import NormalDist
 
 import numpy as np
 
 from tapak.decoder.softbits import SoftBits
-from tapak.marker.plan import PHYSICAL_CHANNEL
+from tapak.marker.plan import CHANNEL_BACKGROUND, PHYSICAL_CHANNEL
 
 ERASURE_ALARM_RATE = 1e-3
 ERASURE_CALIBRATION = 1.0
 ERASURE_Z = NormalDist().inv_cdf(1.0 - ERASURE_ALARM_RATE) * ERASURE_CALIBRATION
 ERASURE_MIN_POSITIONS = 100
+# Background strengths enter the statistic only from pages on which the background decoder saw
+# its pattern (``research/kontradiksi``, part 4: on a print the default pattern never reaches the
+# paper, and thousands of noise-only background strengths drowned the shift units). Two readings
+# of "saw" were fixed before any run; the one named here was chosen on development seeds by the
+# rule written there (both flagged 24 of 48 erased development evidence with no honest alarm,
+# so the tie went to "pola"), and ``"semua"`` keeps every background strength, as before:
+#   "pola": the decoder's own decision (``pattern_found``: a presence test passed and, on images,
+#           the pilot gave a positive gain);
+#   "uji":  a presence test passed (``presence``), whatever the gain.
+SILENT_BACKGROUND_RULE = "pola"
+SILENT_BACKGROUND_RULES = ("pola", "uji", "semua")
 ERASURE_NOTE = ("pola penghapusan disengaja terdeteksi: kemungkinan koalisi yang memahami TAPAK; bukti di posisi "
                 "tempat salinan koalisi sama dihapus")
 
@@ -156,11 +176,28 @@ def rank_scores(values: np.ndarray) -> np.ndarray:
     return (u - 0.5) * math.sqrt(12.0)
 
 
-def position_scores(observations: list[SoftBits], m: int) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
+def background_pattern_seen(meta: Mapping[str, object], rule: str = SILENT_BACKGROUND_RULE) -> bool:
+    """Whether a background channel output saw its pattern, by ``rule`` (``SILENT_BACKGROUND_RULES``).
+
+    A decision the background decoder has already made without any codeword; an output that
+    does not record it (older observations, other channels) counts as seen.
+    """
+    if rule not in SILENT_BACKGROUND_RULES:
+        raise ValueError(f"aturan latar tidak dikenal: {rule!r}")
+    if rule == "semua":
+        return True
+    key = "pattern_found" if rule == "pola" else "presence"
+    return bool(meta.get(key, True))
+
+
+def position_scores(observations: list[SoftBits], m: int,
+                    rule: str = SILENT_BACKGROUND_RULE) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
     """(positions, summed rank score per position, units per physical channel) of all strengths.
 
     Every measure (column) of a channel output is ranked on its own. A measure whose values
-    are all equal (an exact digital read) carries no information about erasure and is left out.
+    are all equal (an exact digital read) carries no information about erasure and is left out,
+    and so are the strengths of a background output that did not see its pattern
+    (:func:`background_pattern_seen` with ``rule``).
     """
     total = np.zeros(m)
     seen = np.zeros(m, dtype=bool)
@@ -168,6 +205,8 @@ def position_scores(observations: list[SoftBits], m: int) -> tuple[np.ndarray, n
     for sb in observations:
         st = sb.strengths
         if st is None or len(st) < 2:
+            continue
+        if sb.channel == CHANNEL_BACKGROUND and not background_pattern_seen(sb.meta, rule):
             continue
         if st.positions.min() < 0 or st.positions.max() >= m:
             raise ValueError(f"kanal {sb.channel}: posisi kekuatan di luar [0, {m})")
@@ -200,10 +239,14 @@ def erasure_z(scores: np.ndarray, q: np.ndarray) -> float:
     return float(np.sum(a * b) / den) * math.sqrt(n - 1)
 
 
-def erasure_check(observations: list[SoftBits], p: np.ndarray) -> ErasureCheck:
-    """Run the check on a trace's observations with the document's bias vector (no codeword)."""
+def erasure_check(observations: list[SoftBits], p: np.ndarray, rule: str = SILENT_BACKGROUND_RULE) -> ErasureCheck:
+    """Run the check on a trace's observations with the document's bias vector (no codeword).
+
+    ``rule`` decides which background outputs count (:func:`background_pattern_seen`); research
+    passes ``"semua"`` to reproduce the check as it was before.
+    """
     p = np.asarray(p, dtype=np.float64)
-    pos, scores, units = position_scores(observations, p.size)
+    pos, scores, units = position_scores(observations, p.size, rule)
     threshold = -ERASURE_Z
     if pos.size < ERASURE_MIN_POSITIONS:
         return ErasureCheck(None, int(pos.size), threshold, ERASURE_ALARM_RATE, False, units)
@@ -217,7 +260,9 @@ __all__ = [
     "ERASURE_NOTE",
     "ERASURE_Z",
     "ErasureCheck",
+    "SILENT_BACKGROUND_RULE",
     "agreement_score",
+    "background_pattern_seen",
     "erasure_check",
     "erasure_note",
     "erasure_z",

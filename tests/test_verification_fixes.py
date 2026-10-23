@@ -158,6 +158,12 @@ def test_docx_trace_fuses_every_evidence_file(tmp_path, monkeypatch):
     assert [c.copy.seq for c in both.attribution.accused] == [4]
     assert both.evidence_names == ["a.txt", "b.txt"]
     assert any("2 berkas bukti digabung" in n for n in both.attribution.notes)
+    # The contradiction check runs on DOCX traces too: not when someone is named, silent on a
+    # text without marks (nothing read, so nothing is contradicted).
+    assert both.attribution.contradiction is None
+    plain = trace_evidence(s, out.manifest.doc_hash, "c.txt", extract_docx_text(docx.read_bytes()).encode("utf-8"))
+    assert not plain.attribution.named_seqs and plain.attribution.contradiction is not None
+    assert not plain.attribution.contradiction.flagged and plain.attribution.contradiction.observed == 0
 
 
 def test_report_rerun_command_lists_every_evidence_file(issued, ctx):

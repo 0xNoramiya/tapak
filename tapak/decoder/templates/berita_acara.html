@@ -225,6 +225,10 @@ dicantumkan dalam berita acara ini.</p>
 <p>Pemeriksaan pola penghapusan disengaja (memakai vektor bias dokumen, tanpa kode penerima, dan tidak
 mengubah putusan): {{ erasure_text }}.</p>
 {% endif %}
+{% if contradiction_text %}
+<p>Pemeriksaan bacaan jelas tanpa nama (batas terbukti peluang koalisi lolos dari bobot bacaan ini, tanpa
+kode penerima, dan tidak mengubah putusan): {{ contradiction_text }}.</p>
+{% endif %}
 
 {% if accused_rows or anonymous_rows %}
 <table class="grid hasil">

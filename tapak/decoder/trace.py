@@ -17,7 +17,8 @@ import numpy as np
 from tapak.decoder.accuse import VISIBLE_MARKS_NOTE, Attribution, CopyRef, attribute
 from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
-from tapak.decoder.erasure import erasure_check, erasure_note
+from tapak.decoder.contradiction import contradiction_check, manipulation_note
+from tapak.decoder.erasure import erasure_check
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
 from tapak.marker.issue import (
@@ -284,7 +285,15 @@ def collect_background_from_pdf(pdf_bytes: bytes, ctx: TraceContext, dpi: float 
             continue  # another paper size: the cell grid would not line up
         parts.append(decode_background(img, np.ones(img.shape, dtype=bool), master, dpi, grids[f.master_page],
                                        ctx.plan.channel("background")))
-    return [SoftBits.concat("background", parts, pages=len(parts))] if parts else []
+    if not parts:
+        return []
+    # One output for all pages, as before, recording whether they saw the pattern; pages that
+    # differ in that go into separate outputs, so the erasure check can leave out exactly the
+    # strengths of pages without a pattern (``erasure.background_pattern_seen``).
+    keys = [(bool(p.meta.get("pattern_found")), bool(p.meta.get("presence"))) for p in parts]
+    return [SoftBits.concat("background", [p for p, k in zip(parts, keys) if k == key],
+                            pages=keys.count(key), pattern_found=key[0], presence=key[1])
+            for key in sorted(set(keys), reverse=True)]
 
 
 def collect_from_pdf(pdf_bytes: bytes, ctx: TraceContext,
@@ -446,17 +455,22 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
               spending: TraceSpending | None = None) -> Attribution:
     """Fuse, accuse, explain. ``spending`` is this trace's part of eps (None: not logged, all of eps).
 
-    The erasure check (``decoder/erasure.py``) runs on the same observations with the bias
-    vector only; when it flags the evidence, a warning is added to the notes. It never changes
-    the verdict, a threshold or a score, and never names anyone.
+    Two manipulation checks follow the accusation. The erasure check (``decoder/erasure.py``)
+    runs on the same observations with the bias vector only. When nobody is named, the
+    contradiction check (``decoder/contradiction.py``) asks whether the fused read was clear
+    enough that a coalition of at most c should have been named. Whatever they find becomes one
+    warning in the notes. Neither changes the verdict, a threshold or a score, and neither names
+    anyone.
     """
     fused = fuse(observations, ctx.params.length)
     per_channel = fuse_by_physical_channel(observations, ctx.params.length)
     result = attribute(fused, per_channel, ctx.p, ctx.codewords, ctx.refs, ctx.params, spending)
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
     result.erasure = erasure_check(observations, ctx.p)
-    if result.erasure.flagged:
-        result.notes.append(erasure_note(result.erasure))
+    result.contradiction = contradiction_check(fused, ctx.params, result.threshold.eps1, bool(result.named))
+    warning = manipulation_note(result.erasure, result.contradiction)
+    if warning is not None:
+        result.notes.append(warning)
     if ctx.plan.channel(CHANNEL_LEXICAL):  # documents without the channel keep their output unchanged
         lexical_bits = sum(len(s.positions) for s in ctx.plan.channel(CHANNEL_LEXICAL))
         body_words = ctx.lexical.body_words if ctx.lexical is not None else None

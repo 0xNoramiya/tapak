@@ -40,13 +40,17 @@ text PDF. Everything the attack decides is computed from those copies alone:
 
 The forged evidence (``forge_copy``) takes one copy's place for every unit: at an agreeing
 unit the mark is neutralized with probability ``erase_fraction``, either erased (``hapus``:
-background cell level 0, data unit moved to its estimated master position) or reversed
+background cell level 0, data unit moved to its estimated master position), reversed
 (``balik``: the cell's level negated, the data unit moved to the mirror of its position about
-the master position, so it carries the other bit at full strength); at a disagreeing unit the
-rule picks
-the first copy (``salin``), a random member per unit or cell (``acak``) or the average of the
-copies (``rata``, which erases the unit when two copies disagree, the classical averaging
-attack). The forged PDF is drawn with TAPAK's own renderer from the master with these offsets
+the master position, so it carries the other bit at full strength) or randomized (``acak``: a
+random sign per cell, and per data unit its own or the mirrored position, each with probability
+one half; the coalition cannot tell which cells belong to one code position, so the cells of a
+position get independent signs); at a disagreeing unit the rule picks the first copy
+(``salin``), a random member per unit or cell (``acak``), the average of the copies (``rata``,
+which erases the unit when two copies disagree, the classical averaging attack), or the value
+most (``mayoritas``) or fewest (``minoritas``) copies hold, a random member on a tie. Without
+neutralization (``erase_fraction`` 0) the last four are the code-level strategies of
+``tapak.tardos.attacks`` played on real copies: they obey the marking assumption. The forged PDF is drawn with TAPAK's own renderer from the master with these offsets
 and cell levels: the coalition gets the same file by moving copy 1's glyphs and replacing its
 background image, and its text layer carries no zero-width symbols or homoglyphs (stripped,
 as anyone who knows the text channel would). The master is used only to draw the result,
@@ -82,9 +86,9 @@ from tapak.marker.pdf_shift import (
 from tapak.marker.pdf_zerowidth import ZW_CHARS
 from tapak.marker.render import CopyMarks, render_copy
 
-RULES = ("salin", "acak", "rata")
+RULES = ("salin", "acak", "rata", "mayoritas", "minoritas")
 CHANNELS = ("latar", "geser")
-NEUTRALIZE = ("hapus", "balik")
+NEUTRALIZE = ("hapus", "balik", "acak")
 POSITION_TOLERANCE_PT = 0.01  # glyph origins of copies closer than this count as the same place
 ANCHOR_TOLERANCE = 0.25  # geser-v2 anchoring: a master value matches an anchor within this many deltas
 MIN_ANCHORS = 2          # ... and needs at least this many anchors (a column edge or a line pitch)
@@ -602,10 +606,11 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
     ``channels`` names the channels whose agreeing units are neutralized ("latar", "geser");
     in the others agreeing units keep copy 1's marks. Each agreeing unit (background cell,
     shift unit with a typographic estimate) is neutralized with probability
-    ``erase_fraction``: erased (``neutralize="hapus"``) or reversed (``"balik"``: level
-    negated, data unit mirrored about its master position). A background cell counts as
+    ``erase_fraction``: erased (``neutralize="hapus"``), reversed (``"balik"``: level
+    negated, data unit mirrored about its master position) or randomized (``"acak"``: a random
+    sign per cell, the own or the mirrored position per data unit). A background cell counts as
     agreeing when its agreement probability is at least ``agree_threshold`` (always 0 or 1
-    for TAPAK's pattern).
+    for TAPAK's pattern). ``mayoritas`` and ``minoritas`` read the levels as TAPAK's -1 / +1.
     """
     if rule not in RULES:
         raise ValueError(f"aturan tidak dikenal: {rule!r}")
@@ -628,12 +633,22 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
             out = np.where(agree, out, chosen)
         elif rule == "rata":
             out = np.where(agree, out, stack.mean(axis=0))
+        elif rule in ("mayoritas", "minoritas"):
+            total = stack.sum(axis=0)
+            pick = rng.integers(0, k, size=out.shape)
+            tie = np.take_along_axis(stack, pick[None], axis=0)[0]
+            side = np.sign(total) if rule == "mayoritas" else -np.sign(total)
+            out = np.where(agree, out, np.where(total != 0, side, tie))
         used = agree & (stack[0] != 0)
         counts["sel_sama"] += int(used.sum())
         counts["sel_beda"] += int((~agree).sum())
         if "latar" in channels:
             erase = used & (rng.random(out.shape) < erase_fraction)
-            out[erase] = -stack[0][erase] if reverse else 0.0
+            if neutralize == "acak":
+                flip = rng.random(out.shape) < 0.5
+                out[erase] = np.where(flip, -stack[0], stack[0])[erase]
+            else:
+                out[erase] = -stack[0][erase] if reverse else 0.0
             counts["sel_sama_dihapus"] += int(erase.sum())
         levels[page] = out
     moves: dict[UnitRef, float] = {}
@@ -645,7 +660,10 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
                 counts["unit_sama_tanpa_taksiran"] += 1
                 continue
             if "geser" in channels and rng.random() < erase_fraction:
-                moves[u.ref] = (-2.0 if reverse else -1.0) * u.typographic
+                if neutralize == "acak":
+                    moves[u.ref] = -2.0 * u.typographic if rng.random() < 0.5 else 0.0
+                else:
+                    moves[u.ref] = (-2.0 if reverse else -1.0) * u.typographic
                 counts["unit_sama_dinetralkan"] += 1
             continue
         counts["unit_beda"] += 1
@@ -653,7 +671,19 @@ def plan_forgery(view: CoalitionView, rule: str = "acak", erase_fraction: float 
             moves[u.ref] = float(u.positions[rng.integers(0, len(u.positions))]) - base
         elif rule == "rata":
             moves[u.ref] = float(np.mean(u.positions)) - base
+        elif rule in ("mayoritas", "minoritas"):
+            moves[u.ref] = _vote(u.positions, rule == "mayoritas", rng) - base
     return ForgeryPlan(levels, moves, counts, dict(view.backgrounds))
+
+
+def _vote(positions: np.ndarray, majority: bool, rng: np.random.Generator) -> float:
+    """The place most (``majority``) or fewest copies put a disagreeing unit; a random copy's on a tie."""
+    same = np.abs(positions - positions[0]) <= POSITION_TOLERANCE_PT
+    first, other = int(same.sum()), int((~same).sum())
+    if first == other:
+        return float(positions[rng.integers(0, len(positions))])
+    first_wins = (first > other) == majority
+    return float(positions[0] if first_wins else positions[~same][0])
 
 
 def _forged_hook(grids: dict[int, PageGrid], levels: dict[int, np.ndarray]):

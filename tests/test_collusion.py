@@ -149,7 +149,37 @@ def test_plan_follows_the_rule_and_the_channels(coalition):
     assert shift_only.counts["sel_sama_dihapus"] == 0 and shift_only.counts["unit_sama_dinetralkan"] > 0
     keep = plan_forgery(view, "acak", erase_fraction=0.0, channels=CHANNELS, rng=np.random.default_rng(0))
     assert keep.counts["sel_sama_dihapus"] == 0 and keep.counts["unit_sama_dinetralkan"] == 0
-    assert set(RULES) == {"salin", "acak", "rata"} and isinstance(keep, ForgeryPlan)
+    assert set(RULES) == {"salin", "acak", "rata", "mayoritas", "minoritas"} and isinstance(keep, ForgeryPlan)
+
+
+def test_vote_rules_and_randomized_agreeing_marks(issued_v1):
+    """Three copies: ``mayoritas`` takes the level two copies share at every disagreeing cell and
+    ``minoritas`` the other; without neutralization agreeing cells keep copy 1's level. The
+    randomized neutralization (``acak``) keeps every agreeing cell at full strength with a random
+    sign and puts every agreeing data unit at its own or its mirrored position."""
+    out, manifest = issued_v1
+    view = coalition_view([(out / manifest.copies[s - 1].file).read_bytes() for s in (3, 8, 15)])
+    for rule, sign in (("mayoritas", 1.0), ("minoritas", -1.0)):
+        plan = plan_forgery(view, rule, erase_fraction=0.0, rng=np.random.default_rng(0))
+        for page, stack in view.levels.items():
+            agree = np.all(stack == stack[:1], axis=0)
+            want = sign * np.sign(stack.sum(axis=0))
+            assert np.array_equal(plan.levels[page][~agree], want[~agree])
+            assert np.array_equal(plan.levels[page][agree], stack[0][agree])
+        for u in view.units:
+            if not u.agree:
+                target = float(u.positions[0]) + plan.moves[u.ref]
+                same = int(np.sum(np.abs(u.positions - target) <= 0.01))
+                assert same == (2 if rule == "mayoritas" else 1)
+    rnd = plan_forgery(view, "acak", rng=np.random.default_rng(1), neutralize="acak")
+    flips = []
+    for page, stack in view.levels.items():
+        agree = np.all(stack == stack[:1], axis=0) & (stack[0] != 0)
+        assert np.array_equal(np.abs(rnd.levels[page][agree]), np.abs(stack[0][agree]))
+        flips.append(np.mean(rnd.levels[page][agree] != stack[0][agree]))
+    assert 0.4 < float(np.mean(flips)) < 0.6
+    moved = [rnd.moves[u.ref] / u.typographic for u in view.units if u.agree and u.typographic is not None]
+    assert set(np.round(moved, 6)) <= {0.0, -2.0} and 0.3 < np.mean(np.array(moved) == 0.0) < 0.7
 
 
 def test_forged_pdf_carries_the_plan(ctx_v1, coalition):
@@ -192,12 +222,14 @@ def test_reversal_keeps_every_mark_and_escapes_the_erasure_check(ctx_v1, coaliti
     for u in view.units:
         if u.agree and u.typographic is not None:
             assert plan.moves[u.ref] == pytest.approx(-2.0 * u.typographic)
-    assert set(NEUTRALIZE) == {"hapus", "balik"}
+    assert set(NEUTRALIZE) == {"hapus", "balik", "acak"}
     forged, _, _ = attack(ctx.master, coalition, "acak", 1.0, rng=np.random.default_rng(1), neutralize="balik")
     obs, notes = collect_file("bukti.pdf", forged, ctx)
     result = run_trace(obs, ctx, notes)
     assert result.erasure.z is not None and not result.erasure.flagged
     assert not result.named_seqs
+    # The reversed read is as clear as an honest one, so naming nobody contradicts the bound.
+    assert result.contradiction is not None and result.contradiction.flagged
 
 
 # --- geser-v2: every word group is a data unit ---------------------------------------------
