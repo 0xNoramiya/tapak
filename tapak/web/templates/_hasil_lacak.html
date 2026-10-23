@@ -65,8 +65,8 @@
       {% endfor %}{% endfor %}
     </div>
     {% endif %}
-    {% for n in peringatan_terlihat(a.notes) %}
-    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
+    {% for n in peringatan_terlihat(a.notes) %}{% set bagian = bagian_peringatan(redact(n)) %}
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {% if bagian|length > 1 %}<b>{{ bagian[0] }}</b>{% for s in bagian[1:] %} <span class="notice-part{% if loop.index == 2 %} notice-rate{% endif %}">{{ s }}</span>{% endfor %}{% else %}{{ bagian[0] }}{% endif %}</p>
     {% endfor %}
     {% if a.named|length > 1 %}<p class="notice verdict-note">{% if later %}Lebih dari satu salinan dituduh, di tahap 1 dan di tahap lanjutan{% else %}Lebih dari satu salinan melewati ambang{% endif %}: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
     {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
@@ -89,8 +89,8 @@
       <p class="verdict-text">Tidak ada tanda yang terbaca pada bukti ini. Nama tidak disebutkan.</p>
       {% endif %}
     </div>
-    {% for n in peringatan_terlihat(a.notes) %}
-    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {{ redact(n) }}</p>
+    {% for n in peringatan_terlihat(a.notes) %}{% set bagian = bagian_peringatan(redact(n)) %}
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {% if bagian|length > 1 %}<b>{{ bagian[0] }}</b>{% for s in bagian[1:] %} <span class="notice-part{% if loop.index == 2 %} notice-rate{% endif %}">{{ s }}</span>{% endfor %}{% else %}{{ bagian[0] }}{% endif %}</p>
     {% endfor %}
   {% endif %}
 
@@ -257,7 +257,11 @@
         <dd class="tnum">{% if r.chain_ok is none %}-{% else %}{{ r.entries|num }}{% if r.copies_unsigned %}, {{ r.copies_unsigned|num }} salinan belum bertanda tangan{% endif %}{% endif %}</dd>
         <dt>Komitmen</dt>
         <dd class="tnum">{{ r.copies_confirmed|num }} dari {{ r.copies_total|num }} salinan cocok</dd>
-        {% if a.erasure and a.erasure.z is not none %}
+        {% if a.reversal and (a.reversal.z_pilot is not none or a.reversal.z_signs is not none) %}
+        <dt>Tanda terbalik</dt>
+        <dd class="tnum">{% if a.reversal.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.reversal.text() }}</dd>
+        {% endif %}
+        {% if a.erasure and a.erasure.measured %}
         <dt>Pola penghapusan</dt>
         <dd class="tnum">{% if a.erasure.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.erasure.text() }}</dd>
         {% endif %}

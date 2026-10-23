@@ -17,9 +17,11 @@ import numpy as np
 from tapak.decoder.accuse import VISIBLE_MARKS_NOTE, Attribution, CopyRef, attribute
 from tapak.decoder.ch_shift import PageFrame
 from tapak.decoder.ch_zerowidth import decode_text, extract_pdf_text
-from tapak.decoder.contradiction import contradiction_check, manipulation_note
+from tapak.decoder.contradiction import contradiction_check
 from tapak.decoder.erasure import erasure_check
+from tapak.decoder.manipulation import manipulation_note
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
+from tapak.decoder.reversal import reversal_check
 from tapak.decoder.softbits import SoftBits
 from tapak.marker.issue import (
     IssueManifest,
@@ -455,12 +457,13 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
               spending: TraceSpending | None = None) -> Attribution:
     """Fuse, accuse, explain. ``spending`` is this trace's part of eps (None: not logged, all of eps).
 
-    Two manipulation checks follow the accusation. The erasure check (``decoder/erasure.py``)
-    runs on the same observations with the bias vector only. When nobody is named, the
-    contradiction check (``decoder/contradiction.py``) asks whether the fused read was clear
-    enough that a coalition of at most c should have been named. Whatever they find becomes one
-    warning in the notes. Neither changes the verdict, a threshold or a score, and neither names
-    anyone.
+    Three manipulation checks follow the accusation. The reversal check (``decoder/reversal.py``)
+    and the erasure check (``decoder/erasure.py``) run on the same observations and fused read
+    with the bias vector only. When nobody is named, the contradiction check
+    (``decoder/contradiction.py``) asks whether the fused read was clear enough that a coalition
+    of at most c should have been named. Whatever they find becomes one warning in the notes
+    (``decoder/manipulation.py``). None of them changes the verdict, a threshold or a score, and
+    none names anyone.
     """
     fused = fuse(observations, ctx.params.length)
     per_channel = fuse_by_physical_channel(observations, ctx.params.length)
@@ -468,7 +471,8 @@ def run_trace(observations: list[SoftBits], ctx: TraceContext, notes: list[str] 
     result.notes = list(ctx.warnings) + list(notes or []) + result.notes
     result.erasure = erasure_check(observations, ctx.p)
     result.contradiction = contradiction_check(fused, ctx.params, result.threshold.eps1, bool(result.named))
-    warning = manipulation_note(result.erasure, result.contradiction)
+    result.reversal = reversal_check(observations, fused, ctx.p)
+    warning = manipulation_note(result.erasure, result.contradiction, result.reversal)
     if warning is not None:
         result.notes.append(warning)
     if ctx.plan.channel(CHANNEL_LEXICAL):  # documents without the channel keep their output unchanged

@@ -1309,6 +1309,9 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
     # Every number of the later stages is the one the berita acara prints for the same trace.
     with pymupdf.open(stream=client.get(f"/lacak/{tid}/berita-acara.pdf").content, filetype="pdf") as pdf:
         report = _compact("".join(page.get_text() for page in pdf))
+        pages = pdf.page_count
+    # A page break can fall inside a sentence: drop the running header and footer it brings in.
+    report = re.sub(rf"RAHASIABAPDigital.*?RAHASIAHalaman\d+dari{pages}", "", report)
     assert f"tahap1memakai{frac1}%darijatahitu" in report
     for st in a.stages:
         ts = st.threshold
@@ -1352,6 +1355,7 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
 
     from tapak.collusion import attack
     from tapak.decoder.erasure import ERASURE_NOTE
+    from tapak.decoder.manipulation import MANIPULATION_LEAD
     from tapak.marker.master import load_master
 
     s, manifest = _issue_small(6)
@@ -1363,8 +1367,13 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", forged, "application/pdf")})
     assert r.status_code == 200
     verdict = r.text[:r.text.index('class="verdict-actions"')]
-    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> ' + ERASURE_NOTE in verdict
-    assert r.text.count(ERASURE_NOTE) == 1
+    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>' + MANIPULATION_LEAD + ": " in verdict
+    # The first sentence (what was found) in bold, then one line each for the causes, the rate
+    # and that nobody is named.
+    assert '.</b> <span class="notice-part">Kemungkinan penyebab: ' in verdict
+    assert '<span class="notice-part notice-rate">Pada bukti jujur ' in verdict
+    assert '<span class="notice-part">Ini hanya peringatan: ' in verdict and 'skor tidak berubah.</span></p>' in verdict
+    assert ERASURE_NOTE in verdict and r.text.count(ERASURE_NOTE) == 1 and r.text.count(MANIPULATION_LEAD) == 1
     box = r.text[r.text.index('id="sah-h"'):]
     assert "Pola penghapusan" in box and "Terdeteksi" in box and "posisi terukur" in box
     for seq in (1, 4, 6):  # nobody outside the coalition (copies 2, 3 and 5) is named
@@ -1372,17 +1381,20 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     honest = client.post("/lacak", data={"dokumen": doc},
                          files={"bukti": ("bocor.pdf", pdfs[0], "application/pdf")}).text
     assert ERASURE_NOTE not in honest and "Pola penghapusan" in honest and "Terdeteksi" not in honest
+    assert "Tanda terbalik" in honest and MANIPULATION_LEAD not in honest
 
 
 def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
     """Two copies whose agreeing marks are reversed (a coalition that knows TAPAK): every mark
     still reads clearly, nobody is named, and the page shows one warning under the verdict with
-    the bound, and the check in the validity box. An honest copy is named, so the check does not
-    run and neither the warning nor the row appears."""
+    the reversed marks and the bound, and both checks in the validity box. An honest copy is
+    named, so the contradiction check does not run and neither the warning nor its row appears."""
     import numpy as np
 
     from tapak.collusion import attack
     from tapak.decoder.contradiction import CONTRADICTION_NOTE
+    from tapak.decoder.manipulation import MANIPULATION_LEAD
+    from tapak.decoder.reversal import REVERSAL_NOTE
     from tapak.marker.master import load_master
 
     s, manifest = _issue_small(6)
@@ -1395,10 +1407,17 @@ def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
     assert r.status_code == 200
     verdict = r.text[:r.text.index('class="verdict-actions"')]
     assert "Tidak cukup bukti" in verdict and 'class="who-seq"' not in verdict
-    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> ' + CONTRADICTION_NOTE in verdict
-    assert r.text.count(CONTRADICTION_NOTE) == 1 and "koalisi lebih dari 3 orang" in verdict
+    assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>' + MANIPULATION_LEAD + ": " in verdict
+    # The first sentence (what was found) in bold, then one line each for the causes, the rate
+    # and that nobody is named.
+    assert '.</b> <span class="notice-part">Kemungkinan penyebab: ' in verdict
+    assert '<span class="notice-part notice-rate">Pada bukti jujur ' in verdict
+    assert '<span class="notice-part">Ini hanya peringatan: ' in verdict and 'skor tidak berubah.</span></p>' in verdict
+    assert r.text.count(MANIPULATION_LEAD) == 1 and r.text.count(CONTRADICTION_NOTE) == 1
+    assert REVERSAL_NOTE in verdict and "koalisi lebih dari 3 orang" in verdict
     box = r.text[r.text.index('id="sah-h"'):]
     assert "Bacaan tanpa nama" in box and "Bertentangan" in box and "tidak lebih dari 10^-3" in box
+    assert "Tanda terbalik" in box and "z tanda = -" in box and "ambang -3,90" in box
     honest = client.post("/lacak", data={"dokumen": doc},
                          files={"bukti": ("salinan.pdf", pdfs[0], "application/pdf")}).text
     assert CONTRADICTION_NOTE not in honest and "Bacaan tanpa nama" not in honest

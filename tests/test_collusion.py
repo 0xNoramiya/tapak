@@ -228,8 +228,10 @@ def test_reversal_keeps_every_mark_and_escapes_the_erasure_check(ctx_v1, coaliti
     result = run_trace(obs, ctx, notes)
     assert result.erasure.z is not None and not result.erasure.flagged
     assert not result.named_seqs
-    # The reversed read is as clear as an honest one, so naming nobody contradicts the bound.
+    # The reversed read is as clear as an honest one, so naming nobody contradicts the bound,
+    # and its marks follow the opposite of the bias vector, which the reversal check sees.
     assert result.contradiction is not None and result.contradiction.flagged
+    assert result.reversal.flagged and result.reversal.z_signs < -10
 
 
 # --- geser-v2: every word group is a data unit ---------------------------------------------
@@ -365,4 +367,4 @@ def test_v2_forgery_puts_agreeing_groups_back_and_lowers_their_strengths(ctx, co
     obs2, notes2 = collect_file("bukti.pdf", flipped, ctx)
     reversed_ = run_trace(obs2, ctx, notes2)
     assert reversed_.erasure.z is not None and not reversed_.erasure.flagged
-    assert not reversed_.named_seqs
+    assert not reversed_.named_seqs and reversed_.reversal.flagged

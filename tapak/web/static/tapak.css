@@ -1069,6 +1069,9 @@ td .bar { margin-right: 8px; }
   transform: rotate(45deg);
 }
 .notice .notes { color: inherit; }
+/* the merged manipulation warning: one sentence per line after the bold finding */
+.notice .notice-part { display: block; margin-top: 6px; }
+.notice .notice-rate { color: var(--ink-muted); }
 
 /* stepper */
 .stepper { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 0; counter-reset: none; }

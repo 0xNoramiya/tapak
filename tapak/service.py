@@ -779,7 +779,9 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
     from tapak.decoder.accuse import CopyRef, attribute
     from tapak.decoder.ch_docx import decode_docx, extract_docx_text
     from tapak.decoder.ch_zerowidth import extract_pdf_text
-    from tapak.decoder.contradiction import contradiction_check, manipulation_note
+    from tapak.decoder.contradiction import contradiction_check
+    from tapak.decoder.manipulation import manipulation_note
+    from tapak.decoder.reversal import reversal_check
     from tapak.decoder.fuse import fuse, fuse_by_physical_channel
     from tapak.decoder.trace import TraceError
     from tapak.marker.docx_marker import build_docx_plan, load_docx_master
@@ -826,9 +828,11 @@ def _trace_docx(master_bytes: bytes, manifest: IssueManifest, secret: bytes,
     if len(items) > 1:
         notes.insert(0, f"{len(items)} berkas bukti digabung dalam satu atribusi")
     result.notes = notes + result.notes
-    # The text layer carries no strengths, so only the contradiction check applies here.
+    # The text layer carries no strengths and no background pilot: the erasure check does not
+    # apply here, the contradiction check and the sign statistic of the reversal check do.
     result.contradiction = contradiction_check(fused, params, result.threshold.eps1, bool(result.named))
-    warning = manipulation_note(None, result.contradiction)
+    result.reversal = reversal_check(obs, fused, p)
+    warning = manipulation_note(None, result.contradiction, result.reversal)
     if warning is not None:
         result.notes.append(warning)
     ctx = SimpleNamespace(master=SimpleNamespace(doc_hash=master.doc_hash, pdf_bytes=b""), manifest=manifest,

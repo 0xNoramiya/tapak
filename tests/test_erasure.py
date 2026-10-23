@@ -2,10 +2,11 @@
 
 The check correlates how clearly every code position was read with q = (2p - 1)^2. Honest
 evidence has strengths independent of the bias vector, so Z is standard; an erasure that
-follows the colluders' agreement makes it strongly negative. The tests cover the statistic
-on synthetic strengths, the decoders' strengths (also when no background pattern is found),
-code-blindness, the warning next to the verdict (CLI summary, berita acara, web) and the rule
-that the check never changes a verdict.
+follows the colluders' agreement makes it strongly negative. Two statistics (background rules
+"pola" and "semua") share the alarm rate. The tests cover the statistics on synthetic
+strengths, the split threshold, the decoders' strengths (also when no background pattern is
+found), code-blindness, the warning next to the verdict (CLI summary, berita acara, web) and
+the rule that the check never changes a verdict.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from tapak.decoder.erasure import (
     ERASURE_ALARM_RATE,
     ERASURE_MIN_POSITIONS,
     ERASURE_NOTE,
+    ERASURE_RULES,
     ERASURE_Z,
     SILENT_BACKGROUND_RULE,
     ErasureCheck,
@@ -27,12 +29,15 @@ from tapak.decoder.erasure import (
     background_pattern_seen,
     erasure_check,
     erasure_note,
+    erasure_statistic,
+    erasure_threshold,
     erasure_z,
     format_rate,
     position_scores,
     rank_scores,
 )
 from tapak.decoder.contradiction import CONTRADICTION_NOTE
+from tapak.decoder.manipulation import MANIPULATION_LEAD, is_manipulation_note
 from tapak.decoder.softbits import SoftBits, Strengths
 from tapak.tardos.code import random_code
 from tapak.tardos.params import TardosParams
@@ -92,19 +97,62 @@ def test_null_distribution_is_standard_and_targeted_erasure_is_flagged():
 def test_too_few_positions_are_not_checked():
     p = np.full(50, 0.3)
     check = erasure_check([_obs(np.arange(50), np.linspace(0, 1, 50))], p)
-    assert check.z is None and not check.flagged and check.positions == 50 < ERASURE_MIN_POSITIONS
+    assert check.z is None and check.z_all is None and not check.flagged and not check.measured
+    assert check.positions == check.positions_all == 50 < ERASURE_MIN_POSITIONS
     assert "tidak diperiksa" in check.text()
+    assert erasure_statistic([_obs(np.arange(50), np.linspace(0, 1, 50))], p) == (None, 50, {"latar": 50})
+
+
+def test_two_statistics_share_the_alarm_rate():
+    """The shipped check computes Z under "pola" and "semua", each with the threshold of half
+    the rate, and warns when either passes it; one rule asked for alone gets the whole rate."""
+    assert ERASURE_RULES == (SILENT_BACKGROUND_RULE, "semua") and ERASURE_ALARM_RATE == 1e-3
+    assert erasure_threshold(1) == pytest.approx(3.0902, abs=1e-4)
+    assert erasure_threshold(2) == pytest.approx(3.2905, abs=1e-4) == ERASURE_Z
+    with pytest.raises(ValueError):
+        erasure_threshold(0)
+    rng = np.random.default_rng(11)
+    p = rng.uniform(0.02, 0.98, 2400)
+    q = agreement_score(p)
+    silent = SoftBits("background", np.zeros(0, dtype=np.int64), np.zeros(0), {"pattern_found": False},
+                      Strengths(np.arange(2000), 1.0 - q[:2000] + rng.normal(0, 0.05, 2000)))  # erased high q
+    shift = _obs(np.arange(2000, 2400), rng.normal(1.0, 0.3, 400), channel="shift")
+    check = erasure_check([silent, shift], p)
+    assert check.positions == 400 and check.positions_all == 2400
+    assert check.z > -ERASURE_Z and check.z_all < -ERASURE_Z and check.flagged  # only "semua" sees it
+    assert check.threshold == -ERASURE_Z and check.alarm_rate == ERASURE_ALARM_RATE
+    z_all, n_all, units = erasure_statistic([silent, shift], p, "semua")
+    assert round(z_all, 4) == check.z_all and n_all == 2400 and units == {"latar": 2000, "geser": 400}
+    alone = erasure_check([silent, shift], p, "pola")
+    assert alone.z == check.z and alone.z_all is None and alone.threshold == -erasure_threshold(1)
+    assert not alone.flagged
+    text = check.text()
+    assert "z = " + f"{check.z:.2f}".replace(".", ",") + " dengan kekuatan baca latar dari halaman yang polanya " \
+        "ditemukan saja (400 posisi)" in text
+    assert "dengan semua kekuatan baca latar (2.400 posisi)" in text
+    assert text.endswith("ambang -3,29 untuk masing-masing")
+    # No page had the pattern and too few shift units: only the second statistic is computed.
+    few = erasure_check([silent, _obs(np.arange(2000, 2050), rng.normal(1.0, 0.3, 50), channel="shift")], p)
+    assert few.z is None and few.z_all is not None and few.measured and few.flagged
+    assert few.text().startswith("z dengan kekuatan baca latar dari halaman yang polanya ditemukan saja tidak "
+                                 "dihitung (hanya 50 posisi) dan z = ")
+    with pytest.raises(ValueError):
+        erasure_check([shift], p, ("pola", "uji", "semua"))
 
 
 def test_note_and_text_say_it_changes_nothing():
-    check = ErasureCheck(-12.345, 2987, -ERASURE_Z, ERASURE_ALARM_RATE, True, {"latar": 2987})
+    check = ErasureCheck(-12.345, 2987, -ERASURE_Z, ERASURE_ALARM_RATE, True, {"latar": 2987}, -12.345, 2987)
     thr = f"{-ERASURE_Z:.2f}".replace(".", ",")
-    assert check.text() == f"z = -12,35 (ambang {thr}; 2.987 posisi terukur)"
+    assert check.text() == f"z = -12,35 dari 2.987 posisi terukur, ambang {thr}"
     note = erasure_note(check)
-    assert note.startswith(ERASURE_NOTE) and "putusan, ambang, dan skor tidak berubah" in note
+    assert note.startswith(MANIPULATION_LEAD) and note.count(ERASURE_NOTE) == 1 and is_manipulation_note(note)
+    assert "putusan, ambang, serta skor tidak berubah" in note and "tidak ada nama yang disebut" in note
     assert "10^-3" in note and "untuk dokumen tertentu" in note and is_caveat(note) and not is_caveat("catatan biasa")
+    assert "Kemungkinan penyebab: koalisi pemegang dua salinan atau lebih menghapus tanda" in note
     assert format_rate(1e-3) == "10^-3" and format_rate(0.0025) == "0,0025"
     assert chr(0x2014) not in note and ERASURE_Z >= 3.09
+    with pytest.raises(ValueError):
+        erasure_note(dataclasses.replace(check, flagged=False))
 
 
 def test_strengths_container_and_concat():
@@ -170,7 +218,9 @@ def test_background_strengths_are_reported_without_a_pattern(ctx):
     assert not background_pattern_seen(plain.meta) and background_pattern_seen(plain.meta, "semua")
     assert position_scores([plain], ctx.params.length)[0].size == 0
     assert position_scores([plain], ctx.params.length, "semua")[0].size > 2000
-    assert erasure_check([plain], ctx.p).z is None and erasure_check([plain], ctx.p, "semua").z is not None
+    both = erasure_check([plain], ctx.p)
+    assert both.z is None and both.z_all is not None and both.measured
+    assert erasure_check([plain], ctx.p, "semua").z == both.z_all
 
 
 def test_background_rule_readings():
@@ -248,9 +298,11 @@ def test_attacked_pdf_is_flagged_and_the_verdict_is_the_accusation_alone(issued_
     obs, notes = collect_file("bukti.pdf", forged, ctx)
     result = run_trace(obs, ctx, notes)
     assert result.erasure.flagged and result.erasure.z < -5 and set(result.erasure.units) == {"geser", "latar"}
-    assert erasure_check(obs, ctx.p, "semua") == result.erasure
-    warnings = [n for n in result.notes if n.startswith(ERASURE_NOTE)]
+    assert result.erasure.z == result.erasure.z_all and result.erasure.positions == result.erasure.positions_all
+    assert erasure_check(obs, ctx.p, "semua").z == result.erasure.z
+    warnings = [n for n in result.notes if is_manipulation_note(n)]
     assert warnings == [erasure_note(result.erasure)] and not result.contradiction.flagged
+    assert not result.reversal.flagged and result.reversal.z_signs > 0  # what is left follows the bias
     assert CONTRADICTION_NOTE not in warnings[0] and result.contradiction.log10_bound > -3
     plain = attribute(fuse(obs, ctx.params.length), fuse_by_physical_channel(obs, ctx.params.length), ctx.p,
                       ctx.codewords, ctx.refs, ctx.params)
@@ -258,12 +310,13 @@ def test_attacked_pdf_is_flagged_and_the_verdict_is_the_accusation_alone(issued_
     assert result.threshold.threshold == plain.threshold.threshold
     assert result.named_seqs <= set(members)
     lines = result.summary_lines()
-    assert any(line.startswith(f"  PERHATIAN: {ERASURE_NOTE}") for line in lines)
+    assert any(line.startswith(f"  PERHATIAN: {MANIPULATION_LEAD}") and ERASURE_NOTE in line for line in lines)
     assert any("Pemeriksaan pola penghapusan disengaja: z = " in line for line in lines)
     honest, n2 = collect_file("salinan.pdf", pdfs[0], ctx)
     clean = run_trace(honest, ctx, n2)
-    assert not clean.erasure.flagged and not any(n.startswith(ERASURE_NOTE) for n in clean.notes)
-    assert clean.to_dict()["erasure"]["flagged"] is False
+    assert not clean.erasure.flagged and not any(is_manipulation_note(n) for n in clean.notes)
+    data = clean.to_dict()["erasure"]
+    assert data["flagged"] is False and data["z_all"] == data["z"]
 
 
 def test_berita_acara_and_web_show_the_warning_for_both_verdicts():
@@ -277,7 +330,7 @@ def test_berita_acara_and_web_show_the_warning_for_both_verdicts():
     att: Attribution = _synthetic(VERDICT_INSUFFICIENT, [], notes=["catatan lain", note])
     att.erasure = check
     html = render_html(att, _info())
-    assert html.count(ERASURE_NOTE) == 1 and 'class="peringatan"' in html
+    assert html.count(ERASURE_NOTE) == 1 and html.count(MANIPULATION_LEAD) == 1 and 'class="peringatan"' in html
     assert "Pemeriksaan pola penghapusan disengaja" in html and "z = -9,50" in html
     assert html.index("TIDAK CUKUP BUKTI") < html.index(ERASURE_NOTE)
     plain = _synthetic(VERDICT_INSUFFICIENT, [])

@@ -4,8 +4,8 @@ A clear read that names nobody contradicts ``detection.read_miss_ceiling``: unde
 a coalition of at most c would be named almost surely. The tests cover the bound (box corners
 and rate ceilings never understate it), the rule (a clear read without a name warns, a weak one
 does not, a named one is not checked), code-blindness, that verdicts and scores never change,
-one warning next to the erasure warning without repeated sentences, and the rendering in the
-CLI summary, the JSON, the berita acara and the web page.
+one merged warning with the erasure and reversal findings without repeated sentences, and the
+rendering in the CLI summary, the JSON, the berita acara and the web page.
 """
 
 from __future__ import annotations
@@ -26,10 +26,10 @@ from tapak.decoder.contradiction import (
     contradiction_check,
     contradiction_note,
     format_bound,
-    is_manipulation_note,
-    manipulation_note,
 )
 from tapak.decoder.erasure import ERASURE_ALARM_RATE, ERASURE_NOTE, ERASURE_Z, ErasureCheck, erasure_note
+from tapak.decoder.manipulation import MANIPULATION_LEAD, ONLY_A_WARNING, is_manipulation_note, manipulation_note
+from tapak.decoder.reversal import REVERSAL_NOTE
 from tapak.decoder.fuse import fuse, fuse_by_physical_channel
 from tapak.decoder.softbits import SoftBits
 from tapak.tardos import detection as det
@@ -173,20 +173,24 @@ def test_one_warning_for_either_or_both_checks():
     assert manipulation_note(None, None) is None and manipulation_note(calm, _check(False)) is None
     assert manipulation_note(erased, None) == erasure_note(erased) == manipulation_note(erased, _check(False))
     alone = manipulation_note(calm, _check())
-    assert alone == contradiction_note(_check()) and alone.startswith(CONTRADICTION_NOTE)
+    assert alone == contradiction_note(_check()) and alone.startswith(MANIPULATION_LEAD + ": " + CONTRADICTION_NOTE)
     for part in ("10^-3", "koalisi lebih dari 3 orang", "masalah pembacaan bukti", "dua salinan atau lebih",
-                 "tidak ada nama yang disebut", "5,1 x 10^-13"):
+                 "membalik atau mengacak", "tidak ada nama yang disebut", "5,1 x 10^-13",
+                 "bila laju salah bacaan tidak melebihi perkiraannya",
+                 "Pada bukti jujur pemeriksaan ini memberi peringatan"):
         assert part in alone
     both = manipulation_note(erased, _check())
-    assert both.startswith(ERASURE_NOTE) and both.count(CONTRADICTION_NOTE) == 1
-    assert both.count("hanya peringatan") == 1 and both.count("putusan, ambang") == 1
-    assert "Keduanya hanya peringatan" in both and "z = -9,50" in both and "Ini hanya peringatan" in alone
-    # Each rate is tied to its own check: the merged note names the warning its 10^-3 bound covers.
-    assert "peringatan bacaan jelas tanpa nama muncul dengan peluang paling besar 10^-3" in both
-    assert "pada bukti jujur peringatan ini muncul" in alone
+    assert both.startswith(MANIPULATION_LEAD + ": " + ERASURE_NOTE + "; " + CONTRADICTION_NOTE)
+    assert both.count(CONTRADICTION_NOTE) == 1 and both.count(ERASURE_NOTE) == 1
+    assert both.count("hanya peringatan") == 1 and both.count("putusan, ambang") == 1 and both.endswith(ONLY_A_WARNING)
+    assert "z = -9,50" in both and "menghapus, membalik, atau mengacak" in both
+    assert "Pada bukti jujur setiap pemeriksaan ini memberi peringatan" in both
+    assert both.count("Kemungkinan penyebab") == 1
     for note in (alone, both, erasure_note(erased)):
-        assert is_manipulation_note(note) and is_caveat(note) and EM_DASH not in note
+        assert is_manipulation_note(note) and is_caveat(note) and EM_DASH not in note and REVERSAL_NOTE not in note
     assert not is_manipulation_note("catatan biasa")
+    with pytest.raises(ValueError):
+        contradiction_note(_check(False))
 
 
 # --- on real evidence --------------------------------------------------------------------
@@ -213,12 +217,15 @@ def test_reversed_pdf_warns_without_naming_and_changes_nothing(ctx_seeded, rever
     assert result.contradiction.flagged and result.contradiction.log10_bound < -8
     assert result.contradiction.eps1 == result.threshold.eps1
     assert not result.erasure.flagged  # every reversed mark reads as clearly as an honest one
+    assert result.reversal.flagged and result.reversal.z_signs < -10  # the marks follow the opposite of the bias
     warnings = [n for n in result.notes if is_manipulation_note(n)]
-    assert len(warnings) == 1 and warnings[0].startswith(CONTRADICTION_NOTE)
-    # The same trace without the check: identical verdict, threshold, scores and other notes.
+    assert len(warnings) == 1 and CONTRADICTION_NOTE in warnings[0] and REVERSAL_NOTE in warnings[0]
+    # The same trace without the checks: identical verdict, threshold, scores and other notes.
     monkeypatch.setattr(trace_mod, "contradiction_check", lambda *a, **k: None)
+    monkeypatch.setattr(trace_mod, "reversal_check", lambda *a, **k: None)
     plain = run_trace(obs, ctx, notes)
-    assert plain.contradiction is None and not any(is_manipulation_note(n) for n in plain.notes)
+    assert plain.contradiction is None and plain.reversal is None
+    assert not any(is_manipulation_note(n) for n in plain.notes)
     a, b = result.to_dict(), plain.to_dict()
     for key in ("verdict", "candidates", "channels", "conflicts", "stages", "erasure"):
         assert a[key] == b[key]
@@ -244,10 +251,12 @@ def test_check_does_not_depend_on_codewords(ctx_seeded, reversed_pdf):
     real, other = run_trace(obs, ctx_seeded, notes), run_trace(obs, fake, notes)
     assert not real.named_seqs and not other.named_seqs
     assert real.contradiction == other.contradiction and real.contradiction.flagged
+    assert real.reversal == other.reversal and real.reversal.flagged
     uniform = dataclasses.replace(ctx_seeded, codewords=rng.integers(0, 2, ctx_seeded.codewords.shape)
                                   .astype(ctx_seeded.codewords.dtype))
     named = run_trace(obs, uniform, notes)
     assert named.named_seqs and named.contradiction is None and named.erasure == real.erasure
+    assert named.reversal == real.reversal
     fused = fuse(obs, ctx_seeded.params.length)
     assert contradiction_check(fused, ctx_seeded.params, real.threshold.eps1, False) == real.contradiction
 
@@ -273,15 +282,20 @@ def test_summary_json_berita_acara_and_web_show_one_warning(ctx_seeded, reversed
     obs, notes = collect_file("bukti.pdf", reversed_pdf, ctx_seeded)
     result = run_trace(obs, ctx_seeded, notes)
     lines = result.summary_lines()
-    warn = [i for i, line in enumerate(lines) if line.startswith(f"  PERHATIAN: {CONTRADICTION_NOTE}")]
+    warn = [i for i, line in enumerate(lines) if line.startswith(f"  PERHATIAN: {MANIPULATION_LEAD}")
+            and CONTRADICTION_NOTE in line]
     none = [i for i, line in enumerate(lines) if "Tidak ada salinan yang mencapai ambang" in line]
     assert len(warn) == 1 and none and none[0] < warn[0]  # under the verdict
     assert any(line.startswith("  Pemeriksaan bacaan jelas tanpa nama: batas ") for line in lines)
+    assert any(line.startswith("  Pemeriksaan pola tanda terbalik: z tanda = -") for line in lines)
     data = result.to_dict()["contradiction"]
     assert data["flagged"] is True and data["log10_bound"] < -8 and data["rate"] == CONTRADICTION_RATE
+    assert result.to_dict()["reversal"]["flagged"] is True
     html = render_html(result, _info(params=ctx_seeded.params, copies_issued=len(ctx_seeded.refs)))
     assert html.count(CONTRADICTION_NOTE) == 1 and html.index("TIDAK CUKUP BUKTI") < html.index(CONTRADICTION_NOTE)
-    assert "Pemeriksaan bacaan jelas tanpa nama" in html and EM_DASH not in html
+    assert html.count(MANIPULATION_LEAD) == 1 and html.count(REVERSAL_NOTE) == 1
+    assert "Pemeriksaan bacaan jelas tanpa nama" in html and "Pemeriksaan pola tanda terbalik" in html
+    assert EM_DASH not in html
     tpl = templates.env.from_string("{% for n in peringatan_terlihat(notes) %}[P]{% endfor %}"
                                     "{% if a.contradiction %}{{ a.contradiction.text() }}{% endif %}")
     out = tpl.render(notes=result.notes, a=result)

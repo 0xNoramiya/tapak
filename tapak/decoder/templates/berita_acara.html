@@ -218,9 +218,13 @@ Skor tertinggi adalah {{ best_other_score }}, di bawah ambang Z = {{ z }}.
 Sesuai aturan pada Bagian III, tidak ada nama, nomor salinan, atau identitas penerima yang
 dicantumkan dalam berita acara ini.</p>
 {% endif %}
-{% for w in erasure_warnings %}
+{% for w in manipulation_warnings %}
 <p class="peringatan">Perhatian, {{ w }}.</p>
 {% endfor %}
+{% if reversal_text %}
+<p>Pemeriksaan pola tanda terbalik (memakai vektor bias dokumen, tanpa kode penerima, dan tidak mengubah
+putusan): {{ reversal_text }}.</p>
+{% endif %}
 {% if erasure_text %}
 <p>Pemeriksaan pola penghapusan disengaja (memakai vektor bias dokumen, tanpa kode penerima, dan tidak
 mengubah putusan): {{ erasure_text }}.</p>

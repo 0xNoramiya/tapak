@@ -60,7 +60,8 @@ Erasures and reversals that depend on agreement are outside the marking assumpti
 proven miss bound (``tapak.tardos.detection``) does not cover them; ``research/sepakat``
 measures them. A reversal leaves every unit as clearly marked as in an honest copy, so the
 erasure check (``decoder/erasure.py``), which looks at how clearly units are read, cannot see
-it (``research/sepakat/balik.py``).
+it (``research/sepakat/balik.py``); the reversal check (``decoder/reversal.py``) looks at the
+direction of the marks instead (``research/balik``).
 """
 
 from __future__ import annotations

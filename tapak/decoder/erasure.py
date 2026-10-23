@@ -33,12 +33,14 @@ Under honest evidence (strengths independent of p) the q values at the measured 
 independent draws from the code's bias law, independent of the scores; then r has mean 0 and
 variance exactly 1 / (n - 1) whatever the strengths, so Z has mean 0 and variance 1, close to a
 standard normal for the hundreds to thousands of positions of a page. A deliberate erasure of
-agreeing positions makes Z strongly negative. The warning is raised when Z <= -ERASURE_Z, with
-ERASURE_Z the normal quantile for ERASURE_ALARM_RATE (1e-3, fixed before any measurement)
-times the calibration factor ERASURE_CALIBRATION, the standard deviation of Z on honest
-development evidence (single copies through photo, screenshot, print and PDF;
-``research/sepakat``), rounded up and at least 1 (measured: 1.00 over 232 evidence, so 1).
-Fewer than ERASURE_MIN_POSITIONS measured positions: no check.
+agreeing positions makes Z strongly negative. The warning is raised when Z <= -ERASURE_Z for
+one of the two statistics below, with ERASURE_Z the normal quantile for ERASURE_ALARM_RATE / 2
+(the rate, 1e-3, fixed before any measurement, split between the two) times the calibration
+factor ERASURE_CALIBRATION, the standard deviation of Z on honest development evidence (single
+copies through photo, screenshot, print and PDF; ``research/sepakat``), rounded up and at least
+1 (measured: 1.00 over 232 evidence, so 1). Until ``research/balik`` there was one statistic,
+with the quantile of the whole rate (z = -3.09). Fewer than ERASURE_MIN_POSITIONS measured
+positions: that statistic is not computed.
 
 The rate holds on average over the draw of the code. For one document it does not: part of
 the strength pattern is the same in every copy of that document (how well each slot can be
@@ -63,24 +65,40 @@ It does not stop a coalition that knows it (``research/sepakat/balik.py``). Reve
 agreeing marks instead of erasing them (background cells negated, data units mirrored about
 their master position) leaves every unit as clearly marked as in an honest copy, so Z stays
 near 0 or turns positive, and the coalition escapes all the same; the proven bound does not
-cover a reversal either (on a forwarded PDF the contradiction check of
-``decoder/contradiction.py`` flags it instead). Flattening the whole background and erasing only the agreeing shift
+cover a reversal either (the reversal check of ``decoder/reversal.py`` and, on a forwarded PDF,
+the contradiction check of ``decoder/contradiction.py`` look for it instead; randomized marks
+and a partial reversal stay outside all three). Flattening the whole background and erasing only the agreeing shift
 units also passes: the strengths of the unmarked background (thousands of positions that
 carry only noise) drowned the shift units. For the same reason the check was blind on prints,
 where the default background never reaches the paper: under geser-v2 it flagged 1 of 36
 erased prints, while the shift units alone would have flagged 19. Since
 ``research/kontradiksi`` the strengths of a background output count only when the background
-decoder saw its pattern on that page (``SILENT_BACKGROUND_RULE``). On held-out seeds (36
-coalitions of 2 and 3 copies per channel, geser-v1 and v2) erased prints are now flagged 16 of
+decoder saw its pattern on that page (``SILENT_BACKGROUND_RULE``, "pola"). On held-out seeds (36
+coalitions of 2 and 3 copies per channel, geser-v1 and v2) that rule flagged erased prints 16 of
 36 times (before: 0), but erased PDFs 29 (36), screenshots 22 (36) and photos 19 (31): there
 the background left by the attack is often not found (a random member per cell where the
 copies differ leaves no coherent pattern, and flattened cells make the decoder's noise
 estimate collapse), while its strengths showed the erased cells. Overall 86 of 144 erased
-evidence is flagged, 103 under the old rule ("semua"). The geser-v2 shift strengths are also a
+evidence was flagged, 103 under the old rule ("semua"). The geser-v2 shift strengths are also a
 weaker detector than the geser-v1 ones: where most groups of a row are back at their master
 positions, the row's offset makes them look like groups that all moved one way, so on their
 own they flagged 32 of 36 erased PDFs but only 13 of 36 screenshots and 6 of 36 photos; the
 warning there comes mostly from the background.
+
+Two statistics (``research/balik``). Each rule sees what the other misses, so the check now
+computes Z under both, "pola" and "semua" (``ERASURE_RULES``), and warns when either is at or
+below its threshold. The alarm rate is split between them: each statistic has the threshold of
+ERASURE_ALARM_RATE / 2 (5e-4, z = -3.29 times the calibration factor), so by the union bound the
+check as a whole keeps the nominal rate ERASURE_ALARM_RATE on honest evidence, under the same
+argument as before (each Z has mean 0 and variance 1 when the strengths do not depend on p).
+Where no background output missed its pattern the two statistics are the same number and the
+check is simply a little stricter. The split and the rules were fixed before any measurement
+of ``research/balik``. A caller can still ask for one rule (``rules="semua"``), which then gets
+the whole rate, as before. Measured there on held-out seeds (36 coalitions per channel, every
+agreeing mark erased): flagged on 36 of 36 PDFs, 36 of 36 screenshots, 33 of 36 photos and 10 of
+36 two-page prints, 115 of 144, against 70 ("pola" alone) and 102 ("semua" alone) at the old
+threshold on the same evidence; no alarm on 674 measured honest traces through seven media and
+128 README benchmark traces (lowest Z -2.67 under "pola", -3.04 under "semua").
 """
 
 from __future__ import annotations
@@ -97,7 +115,6 @@ from tapak.marker.plan import CHANNEL_BACKGROUND, PHYSICAL_CHANNEL
 
 ERASURE_ALARM_RATE = 1e-3
 ERASURE_CALIBRATION = 1.0
-ERASURE_Z = NormalDist().inv_cdf(1.0 - ERASURE_ALARM_RATE) * ERASURE_CALIBRATION
 ERASURE_MIN_POSITIONS = 100
 # Background strengths enter the statistic only from pages on which the background decoder saw
 # its pattern (``research/kontradiksi``, part 4: on a print the default pattern never reaches the
@@ -110,8 +127,24 @@ ERASURE_MIN_POSITIONS = 100
 #   "uji":  a presence test passed (``presence``), whatever the gain.
 SILENT_BACKGROUND_RULE = "pola"
 SILENT_BACKGROUND_RULES = ("pola", "uji", "semua")
-ERASURE_NOTE = ("pola penghapusan disengaja terdeteksi: kemungkinan koalisi yang memahami TAPAK; bukti di posisi "
-                "tempat salinan koalisi sama dihapus")
+# The shipped check computes both statistics and splits ERASURE_ALARM_RATE between them
+# (``research/balik``, fixed before any of its runs): the first is ``ErasureCheck.z``, the
+# second ``ErasureCheck.z_all``.
+ERASURE_RULES = (SILENT_BACKGROUND_RULE, "semua")
+# The finding as the merged warning states it (``decoder/manipulation.py``).
+ERASURE_NOTE = "tanda hilang justru di posisi tempat salinan koalisi kemungkinan sama (pola penghapusan)"
+
+
+def erasure_threshold(statistics: int = len(ERASURE_RULES)) -> float:
+    """The magnitude of the threshold of each of ``statistics`` statistics that share
+    ERASURE_ALARM_RATE: the normal quantile for ERASURE_ALARM_RATE / statistics times
+    ERASURE_CALIBRATION (3.29 for two, 3.09 for one)."""
+    if statistics < 1:
+        raise ValueError("jumlah statistik minimal 1")
+    return NormalDist().inv_cdf(1.0 - ERASURE_ALARM_RATE / statistics) * ERASURE_CALIBRATION
+
+
+ERASURE_Z = erasure_threshold()
 
 
 @dataclass
@@ -119,12 +152,18 @@ class ErasureCheck:
     """Outcome of the erasure check of one trace.
 
     Attributes:
-        z: the statistic (None when fewer than ``ERASURE_MIN_POSITIONS`` positions were measured).
-        positions: code positions with at least one strength.
-        threshold: alarm when z <= threshold (negative).
-        alarm_rate: nominal false-alarm probability on honest evidence.
-        flagged: True when the warning is raised.
-        units: measured units per physical channel.
+        z: the statistic under the first rule (``SILENT_BACKGROUND_RULE`` for the shipped check;
+            None when fewer than ``ERASURE_MIN_POSITIONS`` positions were measured).
+        positions: code positions with at least one strength under that rule.
+        threshold: alarm when a statistic is at or below this (negative); every statistic of
+            the check has the same threshold.
+        alarm_rate: nominal false-alarm probability of the whole check on honest evidence.
+        flagged: True when the warning is raised (either statistic at or below the threshold).
+        units: measured units per physical channel under the first rule.
+        z_all: the statistic under "semua", every background strength counted (None when it was
+            not computed or too few positions were measured).
+        positions_all: code positions with at least one strength under "semua" (0 when not
+            computed).
     """
 
     z: float | None
@@ -133,22 +172,52 @@ class ErasureCheck:
     alarm_rate: float
     flagged: bool
     units: dict[str, int] = field(default_factory=dict)
+    z_all: float | None = None
+    positions_all: int = 0
+
+    @property
+    def measured(self) -> bool:
+        """True when at least one statistic was computed."""
+        return self.z is not None or self.z_all is not None
 
     def text(self) -> str:
-        """One line for reports: 'z = -12,3 (ambang -3,09; 2.987 posisi)' or why it was not run."""
-        if self.z is None:
-            return f"tidak diperiksa: hanya {self.positions} posisi terukur (minimal {ERASURE_MIN_POSITIONS})"
-        z = f"{self.z:.2f}".replace(".", ",")
-        thr = f"{self.threshold:.2f}".replace(".", ",")
-        n = f"{self.positions:,}".replace(",", ".")
-        return f"z = {z} (ambang {thr}; {n} posisi terukur)"
+        """One line for reports: 'z = -12,30 dari 2.987 posisi terukur, ambang -3,29', both
+        statistics when they differ, or why the check was not run."""
+        thr = _num(self.threshold)
+        single = self.z_all is None or (self.positions == self.positions_all and self.z == self.z_all)
+        if single and self.z is not None:
+            return f"z = {_num(self.z)} dari {_count(self.positions)} posisi terukur, ambang {thr}"
+        if not self.measured:
+            n = max(self.positions, self.positions_all)
+            return f"tidak diperiksa: hanya {_count(n)} posisi terukur (minimal {ERASURE_MIN_POSITIONS})"
+        # The first statistic counts background strengths only from pages where the pattern was
+        # found; its positions can come from the shift units alone when no page had the pattern.
+        seen = "dengan kekuatan baca latar dari halaman yang polanya ditemukan saja"
+        first = (f"z = {_num(self.z)} {seen} ({_count(self.positions)} posisi)" if self.z is not None
+                 else f"z {seen} tidak dihitung (hanya {_count(self.positions)} posisi)")
+        second = (f"z = {_num(self.z_all)} dengan semua kekuatan baca latar ({_count(self.positions_all)} posisi)"
+                  if self.z_all is not None
+                  else f"z dengan semua kekuatan baca latar tidak dihitung (hanya {_count(self.positions_all)} posisi)")
+        return f"{first} dan {second}, ambang {thr} untuk masing-masing"
+
+
+def _num(value: float) -> str:
+    return f"{value:.2f}".replace(".", ",")
+
+
+def _count(n: int) -> str:
+    return f"{n:,}".replace(",", ".")
 
 
 def erasure_note(check: ErasureCheck) -> str:
-    """The warning shown next to the verdict for a flagged check: ``ERASURE_NOTE`` and the numbers."""
-    return (f"{ERASURE_NOTE}. Ini hanya peringatan: putusan, ambang, dan skor tidak berubah, dan pemeriksaan ini "
-            f"tidak menunjuk siapa pun ({check.text()}; peluang alarm palsu pada bukti jujur rata-rata sekitar "
-            f"{format_rate(check.alarm_rate)}, untuk dokumen tertentu dapat sampai beberapa persen)")
+    """The warning shown next to the verdict for a flagged check alone: the merged warning of
+    ``decoder/manipulation.py`` with this finding only."""
+    from tapak.decoder.manipulation import manipulation_note
+
+    note = manipulation_note(check, None, None)
+    if note is None:
+        raise ValueError("pemeriksaan pola penghapusan tidak berbunyi")
+    return note
 
 
 def format_rate(rate: float) -> str:
@@ -239,25 +308,45 @@ def erasure_z(scores: np.ndarray, q: np.ndarray) -> float:
     return float(np.sum(a * b) / den) * math.sqrt(n - 1)
 
 
-def erasure_check(observations: list[SoftBits], p: np.ndarray, rule: str = SILENT_BACKGROUND_RULE) -> ErasureCheck:
-    """Run the check on a trace's observations with the document's bias vector (no codeword).
-
-    ``rule`` decides which background outputs count (:func:`background_pattern_seen`); research
-    passes ``"semua"`` to reproduce the check as it was before.
-    """
+def erasure_statistic(observations: list[SoftBits], p: np.ndarray,
+                      rule: str = SILENT_BACKGROUND_RULE) -> tuple[float | None, int, dict[str, int]]:
+    """(Z, measured positions, units per physical channel) of one rule; Z is None when fewer
+    than ``ERASURE_MIN_POSITIONS`` positions were measured. Uses the bias vector, no codeword."""
     p = np.asarray(p, dtype=np.float64)
     pos, scores, units = position_scores(observations, p.size, rule)
-    threshold = -ERASURE_Z
     if pos.size < ERASURE_MIN_POSITIONS:
-        return ErasureCheck(None, int(pos.size), threshold, ERASURE_ALARM_RATE, False, units)
-    z = erasure_z(scores, agreement_score(p)[pos])
-    return ErasureCheck(round(z, 4), int(pos.size), threshold, ERASURE_ALARM_RATE, z <= threshold, units)
+        return None, int(pos.size), units
+    return erasure_z(scores, agreement_score(p)[pos]), int(pos.size), units
+
+
+def erasure_check(observations: list[SoftBits], p: np.ndarray,
+                  rules: str | tuple[str, ...] = ERASURE_RULES) -> ErasureCheck:
+    """Run the check on a trace's observations with the document's bias vector (no codeword).
+
+    ``rules`` are the background rules of the statistics (:func:`background_pattern_seen`), one
+    or two; they share ERASURE_ALARM_RATE (:func:`erasure_threshold`) and the warning is raised
+    when either statistic is at or below the threshold. The shipped check uses ``ERASURE_RULES``
+    ("pola" and "semua"); research passes one rule, for example ``"semua"``, to reproduce the
+    check as it was before (``z_all`` is then None).
+    """
+    if isinstance(rules, str):
+        rules = (rules,)
+    if not 1 <= len(rules) <= 2:
+        raise ValueError("pemeriksaan pola penghapusan memakai satu atau dua aturan latar")
+    threshold = -erasure_threshold(len(rules))
+    stats = [erasure_statistic(observations, p, rule) for rule in rules]
+    flagged = any(z is not None and z <= threshold for z, _, _ in stats)
+    z, positions, units = stats[0]
+    z_all, positions_all = (stats[1][0], stats[1][1]) if len(stats) == 2 else (None, 0)
+    return ErasureCheck(None if z is None else round(z, 4), positions, threshold, ERASURE_ALARM_RATE, flagged, units,
+                        None if z_all is None else round(z_all, 4), positions_all)
 
 
 __all__ = [
     "ERASURE_ALARM_RATE",
     "ERASURE_MIN_POSITIONS",
     "ERASURE_NOTE",
+    "ERASURE_RULES",
     "ERASURE_Z",
     "ErasureCheck",
     "SILENT_BACKGROUND_RULE",
@@ -265,6 +354,8 @@ __all__ = [
     "background_pattern_seen",
     "erasure_check",
     "erasure_note",
+    "erasure_statistic",
+    "erasure_threshold",
     "erasure_z",
     "format_rate",
     "position_scores",
