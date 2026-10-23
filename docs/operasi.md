@@ -432,8 +432,10 @@ $L/kandidat.py nilai sekarang,kisi_baris3                # putaran 3
 $L/kandidat.py pilih                 # aturan atas semua putaran: hasil/pilihan.json
 $L/ukur.py lacak --split uji         # set uji, sekali (2.250 gambar)
 $L/kandidat.py nilai sekarang,kisi_baris3 --split uji --acuan kisi_baris3   # sebelum dan sesudah, berpasangan
-$L/ringkas.py --split uji --json     # tabel di dokumentasi
+$L/ringkas.py --split uji --json     # tabel di dokumentasi (dev: --split dev --json)
+$L/ringkas.py --split uji --banding --json   # sebelum dan sesudah: hasil/ringkas_uji_banding.json
 $L/kuantisasi.py                     # letak glif per penggambar, 28 sampai 225 dpi
+$L/ulang.py terbit && $L/ulang.py lacak && $L/ulang.py banding && $L/ulang.py ringkas   # peninjauan: benih baru (532 gambar)
 ```
 
 Putaran penilaian menimpa `hasil/dev_kandidat.jsonl.gz` dan `hasil/dev_kandidat_ringkas.json`; ganti namanya menjadi `dev_kandidat_putaranN...` sebelum putaran berikutnya, seperti di repositori. `lacak --split uji` menolak berjalan bila dekoder pohon kerja bukan pilihan di `hasil/pilihan.json`, mencatat commit dan hash sumber dekoder di `hasil/uji_dekoder.json`, dan melewati gambar yang sudah dilacak bila diulang setelah terputus. Set dev memerlukan sekitar 1 jam dan set uji sekitar 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama; satu putaran `kandidat.py` sekitar 8 menit.

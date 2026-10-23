@@ -88,9 +88,24 @@ Dilacak sekali dengan `kisi_baris3` (commit dan hash sumber dekoder di `hasil/uj
 | Tuduhan salah | 0 | 0 |
 | Skema v1: bit baris salah yakin; putusan | 135; 582 benar | 79; 582 benar |
 
-Bit kata di bawah 56 dpi tetap terlalu yakin (bobot di atas 0,95 salah 4,4 %, terkalibrasi 0,9 %), dan baris yang tidak lolos gerbang (tangkapan yang diperkecil, MuPDF di bawah 56 dpi, sebagian Cairo setelah JPEG) tetap memakai model Gaussian.
+Bit kata di bawah 56 dpi tetap terlalu yakin (bobot di atas 0,95 salah 4,4 %, terkalibrasi 0,9 %), dan baris yang tidak lolos gerbang (tangkapan yang diskalakan ulang, juga pesan 150 dpi yang dibatasi 1600 px; MuPDF di bawah 56 dpi; Cairo di bawah 64 dpi, tempat gerbang tidak pernah terbuka pada 28 sampai 40 dpi dan jarang pada 56 dpi, PNG maupun JPEG) tetap memakai model Gaussian: pada 28 sampai 48 dpi bit baris dengan abs LLR paling sedikit 2 salah 24 sampai 27 % (MuPDF) dan 14 sampai 18 % (Cairo). Bobot pola latar setelah JPEG terlalu yakin di kelompok tertinggi: bobot di atas 0,95 salah 1,8 % pada 28 sampai 48 dpi (terkalibrasi 0,7 %), 0,9 % pada 56 sampai 84 dpi (0,2 %), dan 0,5 % dari 96 dpi (0,1 %); PNG 0,1 % (`calibration_bands` di `hasil/ringkas_uji.json`, ditambahkan saat peninjauan). Batas deteksi dengan laju (1 - w)/2 karena itu tidak berlaku untuk tangkapan layar.
 
 Batasan: penggambarannya sungguhan, tetapi bingkai, potongan, dan kompresi disimulasikan; dua dokumen contoh, halaman 1, satu rahasia kode per dokumen dan set, jadi tangkapan dalam satu sel tidak saling bebas sepenuhnya. PDF.js, PDFium, Adobe Reader, hinting, layar ponsel dan aplikasi pesan sungguhan belum diuji.
+
+## Pengulangan dengan benih baru (peninjauan)
+
+Ditambahkan saat peninjauan, setelah set uji; tidak ada pilihan dekoder yang dibuat di sini. `ulang.py` memakai fungsi `ukur.py` tanpa perubahan dengan benih riset yang belum pernah dipakai (nota dinas 7901, surat telegram 7902, benih bukti 7911, induk tanpa tanda 7999): skema v2, salinan 4 dan 13, keempat penggambar, semua resolusi dan format grid `utama` dan `tanpa_aa` (4 gambar per sel; set uji 12), dan induk tanpa tanda pada 32, 56, 96, dan 150 dpi. 532 gambar (`hasil/ulang.jsonl.gz`, angka di `hasil/ringkas_ulang.json`).
+
+| Penggambar | Semua kanal: PNG / pesan / kecil | Geser saja: PNG / pesan / kecil |
+|---|---|---|
+| MuPDF | 28 / 32 / 32 | 96 / 96 / tidak pernah |
+| Poppler Splash | 28 / 32 / 28 | 120 / 120 / tidak pernah |
+| Poppler Cairo | 28 / 28 / 28 | 96 / 96 / 84 |
+| Splash tanpa anti-aliasing | 48 / 56 (PNG / pesan) | tidak pernah |
+
+* Batas semua kanal sama dengan set uji atau lebih rendah (sel yang lebih kecil lebih jarang memuat gambar yang gagal), dan kanal latar saja memberi batas yang sama di setiap sel. Setiap kegagalan adalah registrasi yang gagal (28 dpi; Splash tanpa anti-aliasing sampai 48 dpi); setiap halaman yang ditemukan disebut, skor paling kecil 1,8 kali ambang, batas peluang tuduhan salah paling besar 10^-18,4. Tidak ada tuduhan salah dalam 532 pelacakan, termasuk 48 induk tanpa tanda (skor tertinggi 0,38 ambang).
+* Batas geser saja bergeser antarbenih, karena skornya dekat ambang: pada 84 sampai 150 dpi median 1,2 kali ambang di set uji, dan pada surat telegram benih baru (210 kelompok kata) hanya 1,05. Gambar yang sedikit di bawah ambang (0,95 sampai 0,99) memindahkan batas Splash dari 96 ke 120 dpi dan batas MuPDF yang diperkecil dari 84 dpi ke tidak pernah.
+* Sebelum dan sesudah (`hasil/ulang_kandidat.jsonl.gz`): bit baris salah yakin 100 menjadi 48 (Splash dengan dan tanpa anti-aliasing 43 menjadi 0, tangkapan yang diperkecil tetap 25), baris model kisi berbobot di atas 0,95 1.889 bit tanpa salah (0,8 sampai 0,9: 6,7 %, terkalibrasi 7,4 %), putusan geser saja benar 164 menjadi 165 (1 bertambah, 0 hilang), putusan semua kanal sama (468).
 
 ## Menjalankan
 
@@ -107,6 +122,8 @@ python research/layar/kandidat.py nilai sekarang,kisi_baris3 --split uji --acuan
 python research/layar/ringkas.py --split uji --json
 python research/layar/ringkas.py --split uji --banding --json
 python research/layar/kuantisasi.py --dpi 28,32,40,48,56,72,96,150,180,225   # letak glif per penggambar
+python research/layar/ulang.py terbit       # peninjauan: benih baru (set rev), lalu:
+python research/layar/ulang.py lacak && python research/layar/ulang.py banding && python research/layar/ulang.py ringkas
 ```
 
 Setiap putaran `kandidat.py` menulis `hasil/dev_kandidat.jsonl.gz` dan `hasil/dev_kandidat_ringkas.json`; di repositori keduanya disimpan sebagai `dev_kandidat_putaranN...`.

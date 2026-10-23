@@ -233,6 +233,20 @@ def summarize(split: str, path: Path | None = None, write_json: bool = False) ->
                               f"(terkalibrasi {100 * c['calibrated']:.1f} %)" for c in cal if c["n"])
             print(f"* {renderer or 'semua'}, {kind}: {cells}")
     print()
+    # Added in review, after the held-out run (reporting only): the top weight bins per capture
+    # format and resolution band, where confident wrong bits would weaken the detection bound.
+    print("## Kalibrasi bobot per format dan rentang resolusi (semua gambar salinan, v2 dan v1)\n")
+    out["calibration_bands"] = {}
+    for fmt in ("png", "pesan", "kecil"):
+        for band, lo, hi in (("28-48", 28, 48), ("56-84", 56, 84), ("96-150", 96, 150)):
+            sel = [(r, t) for r, t in marked if r["fmt"] == fmt and lo <= r["dpi"] <= hi]
+            for kind in KINDS:
+                cal = calibration(sel, kind)
+                out["calibration_bands"][f"{fmt}|{band}|{kind}"] = cal
+                cells = "; ".join(f"w {c['w']}: {c['n']}, salah {_pct(c['wrong'], c['n'])} "
+                                  f"(terkalibrasi {100 * c['calibrated']:.1f} %)" for c in cal if c["n"])
+                print(f"* {fmt}, {band} dpi, {kind}: {cells}")
+    print()
     if write_json:
         (HASIL / f"ringkas_{split}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n",
                                                      encoding="utf-8")
