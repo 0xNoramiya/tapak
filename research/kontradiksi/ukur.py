@@ -693,7 +693,12 @@ def jujur_jobs() -> list[tuple]:
     for i, name in enumerate(SETS["uji"]):
         if name in ("U7", "U8"):
             copies = range(1, 6) if name == "U7" else range(1, 4)
-            jobs += [(name, i, s) for s in copies] + [(name, i, (2, "acak")), (name, i, (3, "mayoritas"))]
+            jobs += [(name, i, s) for s in copies]
+            # Deviation found while running: tapak.collusion reads the pattern from the background
+            # image of a text copy, but a scanned copy carries it in the page pixels, so the two
+            # U8 coalitions cannot be forged with the research code and are left out.
+            if name == "U7":
+                jobs += [(name, i, (2, "acak")), (name, i, (3, "mayoritas"))]
             continue
         jobs += [(name, i, s) for s in range(1, 6)]
         jobs += [(name, i, (k, rule)) for k in (2, 3) for rule in STANDARD]
