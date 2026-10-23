@@ -164,6 +164,11 @@ def test_docx_trace_fuses_every_evidence_file(tmp_path, monkeypatch):
     plain = trace_evidence(s, out.manifest.doc_hash, "c.txt", extract_docx_text(docx.read_bytes()).encode("utf-8"))
     assert not plain.attribution.named_seqs and plain.attribution.contradiction is not None
     assert not plain.attribution.contradiction.flagged and plain.attribution.contradiction.observed == 0
+    # So does the sign statistic of the reversal check (no image page, so no pilot): positive on
+    # the honest copy, not computed on a text that carries no mark.
+    assert both.attribution.reversal.z_signs > 5 and both.attribution.reversal.z_pilot is None
+    assert not both.attribution.reversal.flagged
+    assert plain.attribution.reversal.z_signs is None and not plain.attribution.reversal.flagged
 
 
 def test_report_rerun_command_lists_every_evidence_file(issued, ctx):

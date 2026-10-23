@@ -51,7 +51,9 @@ check when it follows the colluders' agreement), a whole channel dropped (for ex
 background pattern image removed from a PDF, or a background that the image decoder discards
 because its bias pilot reads the reversed pattern as no pattern), or degradation that leaves too
 few clear positions for a guarantee against c colluders. Then B is large and the check is
-silent, and a reversal or randomization of what remains escapes.
+silent, and a reversal or randomization of what remains escapes this check (a reversal is
+what the reversal check of ``decoder/reversal.py`` looks for, from the direction of the marks).
+What the checks find is one merged warning (``decoder/manipulation.py``).
 
 Measured on held-out seeds (``research/kontradiksi``, part ``sadar``: 36 coalitions of 2 and 3
 copies per channel, geser-v1 and v2): reversing the agreeing marks of a forwarded PDF is flagged
@@ -75,7 +77,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from tapak.decoder.erasure import ERASURE_NOTE, ErasureCheck, erasure_note, format_rate
+from tapak.decoder.erasure import format_rate
 from tapak.decoder.fuse import FusedEstimate
 from tapak.tardos.detection import proven_read_miss_ceiling, tempered_error_rates
 from tapak.tardos.params import TardosParams
@@ -83,10 +85,8 @@ from tapak.tardos.params import TardosParams
 CONTRADICTION_RATE = 1e-3
 CONTRADICTION_TEMPERING = 0.3
 CONTRADICTION_BOXES = 64
-CONTRADICTION_NOTE = "bukti terbaca jelas, tetapi tidak ada salinan yang mencapai ambang"
-# Shared last sentence of a manipulation warning (erasure, contradiction or both).
-_ONLY_A_WARNING = ("{what} hanya peringatan: tidak ada nama yang disebut karenanya, dan putusan, ambang, serta skor "
-                   "tidak berubah")
+# The finding as the merged warning states it (``decoder/manipulation.py``).
+CONTRADICTION_NOTE = "bukti terbaca jelas, tetapi tidak ada salinan yang mencapai ambang (bacaan jelas tanpa nama)"
 
 
 @dataclass
@@ -175,50 +175,16 @@ def contradiction_check(fused: FusedEstimate, params: TardosParams, eps1: float,
                               round(effective, 1), eps1, complete)
 
 
-def _contradiction_sentences(check: ContradictionCheck) -> str:
-    c = check.coalition
-    return (f"Dengan bacaan sejelas ini, koalisi paling banyak {c} penerima yang tidak mengubah tanda di tempat "
-            f"salinannya sama hampir pasti tertangkap (peluang lolos terbukti paling besar "
-            f"{format_bound(check.log10_bound)}). Kemungkinan penyebab: tanda dibalik atau diacak oleh orang yang "
-            f"memahami TAPAK, misalnya koalisi pemegang dua salinan atau lebih; koalisi lebih dari {c} orang; atau "
-            f"masalah pembacaan bukti")
-
-
-def _contradiction_rate_text(check: ContradictionCheck, which: str = "peringatan ini") -> str:
-    return (f"pada bukti jujur {which} muncul dengan peluang paling besar {format_rate(check.rate)}, bila derau "
-            "bacaan tidak bergantung pada kode dan laju salah bacaan tidak melebihi perkiraannya")
-
-
 def contradiction_note(check: ContradictionCheck) -> str:
-    """The warning shown next to the verdict for a flagged check: ``CONTRADICTION_NOTE``, the
-    bound, the possible causes, and that nothing changes."""
-    tail = _ONLY_A_WARNING.format(what="Ini")
-    return f"{CONTRADICTION_NOTE}. {_contradiction_sentences(check)}. {tail} ({_contradiction_rate_text(check)})"
+    """The warning shown next to the verdict for a flagged check alone: the merged warning of
+    ``decoder/manipulation.py`` with this finding only (the bound, the possible causes, the rate
+    and that nothing changes)."""
+    from tapak.decoder.manipulation import manipulation_note
 
-
-def manipulation_note(erasure: ErasureCheck | None, contradiction: ContradictionCheck | None) -> str | None:
-    """One warning for whatever the two manipulation checks found, or None.
-
-    Erasure only: ``erasure_note``. Contradiction only: ``contradiction_note``. Both: one note
-    that starts with the erasure finding and states the contradiction after it, with a single
-    closing sentence, so nothing is said twice.
-    """
-    erased = erasure if erasure is not None and erasure.flagged else None
-    contradicted = contradiction if contradiction is not None and contradiction.flagged else None
-    if erased is None:
-        return None if contradicted is None else contradiction_note(contradicted)
-    if contradicted is None:
-        return erasure_note(erased)
-    tail = _ONLY_A_WARNING.format(what="Keduanya")
-    return (f"{ERASURE_NOTE} ({erased.text()}; peluang alarm palsu pada bukti jujur rata-rata sekitar "
-            f"{format_rate(erased.alarm_rate)}, untuk dokumen tertentu dapat sampai beberapa persen). Selain itu, "
-            f"{CONTRADICTION_NOTE}. {_contradiction_sentences(contradicted)}. {tail} "
-            f"({_contradiction_rate_text(contradicted, 'peringatan bacaan jelas tanpa nama')})")
-
-
-def is_manipulation_note(note: str) -> bool:
-    """True for a warning written by :func:`manipulation_note` (erasure, contradiction or both)."""
-    return note.startswith(ERASURE_NOTE) or note.startswith(CONTRADICTION_NOTE)
+    note = manipulation_note(None, check, None)
+    if note is None:
+        raise ValueError("pemeriksaan bacaan jelas tanpa nama tidak berbunyi")
+    return note
 
 
 __all__ = [
@@ -230,6 +196,4 @@ __all__ = [
     "contradiction_check",
     "contradiction_note",
     "format_bound",
-    "is_manipulation_note",
-    "manipulation_note",
 ]

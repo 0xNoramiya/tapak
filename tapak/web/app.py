@@ -261,9 +261,9 @@ templates.env.globals["geser_bawaan"] = DEFAULT_GESER
 
 def _visible_marks_caveats(notes: list[str]) -> list[str]:
     """Notes shown as warnings next to the verdict rather than among the other notes: a name
-    that rests only on marks visible on paper (word choices, variants), a deliberate erasure
-    pattern (marks removed where the colluders' copies agree), a clear read that names nobody
-    (one warning with the erasure pattern when both are found), and the shift channel of
+    that rests only on marks visible on paper (word choices, variants), the one merged warning
+    of the manipulation checks (reversed marks, a deliberate erasure pattern, a clear read that
+    names nobody; ``decoder/manipulation.py``), and the shift channel of
     scanned pages left out because Tesseract's word boxes differ from issuance (only the
     background pattern of those pages was read)."""
     from tapak.decoder.accuse import is_caveat

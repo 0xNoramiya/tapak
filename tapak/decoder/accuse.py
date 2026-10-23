@@ -36,9 +36,11 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from tapak.decoder.contradiction import ContradictionCheck, is_manipulation_note
+from tapak.decoder.contradiction import ContradictionCheck
 from tapak.decoder.erasure import ErasureCheck
 from tapak.decoder.fuse import FusedEstimate
+from tapak.decoder.manipulation import is_manipulation_note
+from tapak.decoder.reversal import ReversalCheck
 from tapak.marker.plan import OCR_SUBCHANNELS
 from tapak.tardos.accuse import log_tail_bound, scores, threshold
 from tapak.tardos.params import TardosParams
@@ -234,7 +236,10 @@ class Attribution:
     (``decoder/erasure.py``), set by ``trace.run_trace``; it never changes the verdict.
     ``contradiction`` is the check for a clear read that names nobody (``decoder/contradiction.py``),
     set by ``trace.run_trace`` only when nobody is named (None otherwise); it never changes the
-    verdict either.
+    verdict either. ``reversal`` is the code-blind check for marks read against the direction
+    every copy almost surely carries (``decoder/reversal.py``), set by ``trace.run_trace``; it
+    never changes the verdict either. What the three find is one warning in ``notes``
+    (``decoder/manipulation.py``).
     """
 
     verdict: str
@@ -246,6 +251,7 @@ class Attribution:
     stages: list[StageAttribution] = field(default_factory=list)
     erasure: ErasureCheck | None = None
     contradiction: ContradictionCheck | None = None
+    reversal: ReversalCheck | None = None
 
     @property
     def accused(self) -> list[CopyCandidate]:
@@ -313,6 +319,8 @@ class Attribution:
                 f"  Kanal {ch.display_name}: {ch.n_observed} posisi, ambang {ch.threshold:.1f}, "
                 f"menuduh {len(ch.accused_seqs)} salinan"
             )
+        if self.reversal is not None:
+            lines.append(f"  Pemeriksaan pola tanda terbalik: {self.reversal.text()}")
         if self.erasure is not None:
             lines.append(f"  Pemeriksaan pola penghapusan disengaja: {self.erasure.text()}")
         if self.contradiction is not None:
@@ -323,8 +331,9 @@ class Attribution:
 
 def is_caveat(note: str) -> bool:
     """True for a note shown as a warning next to the verdict rather than among the other notes:
-    a name resting only on marks visible on paper, a deliberate erasure pattern, or a clear read
-    that names nobody (``contradiction.manipulation_note``)."""
+    a name resting only on marks visible on paper, or the merged warning of the manipulation
+    checks (reversed marks, a deliberate erasure pattern, a clear read that names nobody;
+    ``manipulation.manipulation_note``)."""
     return VISIBLE_MARKS_NOTE in note or is_manipulation_note(note)
 
 

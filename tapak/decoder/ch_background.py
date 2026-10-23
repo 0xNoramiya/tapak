@@ -55,7 +55,10 @@ is applied, so they leave the decoy and pilot tests exactly as calibrated.
 
 Every seen bit also gets two strengths, |t_b| / sigma (sigma from the decoy) and the mean
 energy of its cells over sigma^2, before any gain, pilot or bias vector is used and also when
-no pattern is found; only the erasure check (``decoder/erasure.py``) reads them.
+no pattern is found; only the erasure check (``decoder/erasure.py``) reads them. On images the
+pilot's sum and exact variance are kept as well (``pilot_sum``, ``pilot_var``), also when no
+pattern is found: a reversed pattern makes the sum strongly negative, which the reversal check
+(``decoder/reversal.py``) reads.
 
 No codeword is consulted at any step.
 """
@@ -96,15 +99,23 @@ def pattern_z(t: np.ndarray, t_decoy: np.ndarray, sigma: float) -> float:
     return float(np.mean(d)) / se if se > 0 else 0.0
 
 
+def pilot_parts(u: np.ndarray, e: np.ndarray) -> tuple[float, float]:
+    """(sum_c e_c u_c, sum_c (e_c u_c)^2): the pilot sum and its exact variance without a pattern.
+
+    Kept apart so that the pilots of several pages can be added into one Rademacher sum
+    (``decoder/reversal.py``); :func:`pilot_z` is their ratio."""
+    a = np.asarray(e, dtype=np.float64) * np.asarray(u, dtype=np.float64)
+    return float(np.sum(a)), float(np.sum(a * a))
+
+
 def pilot_z(u: np.ndarray, e: np.ndarray) -> float:
     """z of sum_c e_c u_c against its exact spread without a pattern.
 
     Without a pattern u_c = pn_c * m_c with independent random keyed signs pn_c, so the sum
     is a Rademacher sum of variance sum_c (e_c u_c)^2, whatever the noise m_c. Positive and
     growing with sqrt(sum of per-cell SNR^2) when u_c carries s_b and e_c predicts it."""
-    a = np.asarray(e, dtype=np.float64) * np.asarray(u, dtype=np.float64)
-    var = float(np.sum(a * a))
-    return float(np.sum(a) / np.sqrt(var)) if var > 0 else 0.0
+    total, var = pilot_parts(u, e)
+    return float(total / np.sqrt(var)) if var > 0 else 0.0
 
 
 def robust_bound(t: np.ndarray, k: float = CELL_CLIP) -> float:
@@ -395,6 +406,7 @@ def decode_background(
         for s in page_slots:
             e_bit[s.ref[0]] = (2.0 * float(bias[s.positions[0]]) - 1.0) * (1 - 2 * s.whiten[0])
         e = e_bit[bits]
+        pilot_sum, pilot_var = pilot_parts(u, e)
         z_pilot = pilot_z(u, e)
         gain, var = stratum_gains(u, e, stratum, n_strata, weight)
         found = (z_decoy >= SIGNAL_Z or z_pilot >= SIGNAL_Z) and bool(np.any(gain > 0))
@@ -405,6 +417,7 @@ def decode_background(
         meta.update(mu=float(gain[best]) if found else 0.0, sigma=float(np.sqrt(var[best])),
                     snr=float(np.sqrt(np.mean(info[reported]))) if found and reported.any() else 0.0,
                     signal_z=round(max(z_decoy, z_pilot), 2), pilot_z=round(z_pilot, 2),
+                    pilot_sum=pilot_sum, pilot_var=pilot_var,
                     cells_used=int(np.count_nonzero(gain[stratum] > 0)) if found else 0)
     pos, val = [], []
     if found:  # no pattern detected: report nothing rather than noise
