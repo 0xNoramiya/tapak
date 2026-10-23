@@ -52,6 +52,7 @@ Usage (work folder as ``ukur.py``):
     python research/kalibrasi/kandidat.py pilih --sampai 2
     python research/kalibrasi/kandidat.py nilai --split dev --putaran 3
     python research/kalibrasi/kandidat.py pilih
+    python research/kalibrasi/kandidat.py periksa --split dev --terpasang   # the shipped model is the choice
     python research/kalibrasi/kandidat.py banding --split uji    # after the held-out run: the decoder before
 """
 
@@ -503,6 +504,23 @@ def periksa_job(job: dict) -> dict:
     return {"key": ukur.job_key(job), "checked": True, "same": same_soft_bits(a, b)}
 
 
+def cocok_job(job: dict) -> dict:
+    """The shipped noise model (``ch_background.NOISE_MODEL``, by name) must give exactly the output
+    of the research candidate of the same name on this evidence."""
+    if not ukur.obs_path(job).exists():
+        return {"key": ukur.job_key(job), "checked": False}
+    stored = load_obs(job)
+    if stored["reg"] is None:
+        return {"key": ukur.job_key(job), "checked": False}
+    ctx, _ = ukur.context(job["iss"])
+    measure, grid, _ = measure_of(job, stored)
+    name = B.NOISE_MODEL
+    slots = ctx.plan.channel("background")
+    a = B.background_soft_bits(measure, grid, slots, ctx.p, name)
+    b = B.background_soft_bits(measure, grid, slots, ctx.p, MODELS[name])
+    return {"key": ukur.job_key(job), "checked": True, "same": same_soft_bits(a, b)}
+
+
 def nilai_job(item: tuple) -> list[dict]:
     """Every candidate on one development evidence."""
     job, names = item
@@ -555,8 +573,8 @@ def image_jobs(split: str) -> list[dict]:
     return [j for j in ukur.jobs_for(split) if j["medium"] != "pdf"]
 
 
-def run_periksa(split: str) -> None:
-    rows = _pool(periksa_job, image_jobs(split), None, lambda it: None)
+def run_periksa(split: str, shipped: bool = False) -> None:
+    rows = _pool(cocok_job if shipped else periksa_job, image_jobs(split), None, lambda it: None)
     checked = [r for r in rows if r["checked"]]
     bad = [r["key"] for r in checked if not r["same"]]
     print(f"{len(checked)} keluaran latar diperiksa, {len(bad)} berbeda", flush=True)
@@ -740,12 +758,15 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--split", choices=("dev", "uji"), required=True)
         if name == "nilai":
             p.add_argument("--putaran", type=int, choices=sorted(ROUNDS), required=True)
+        if name == "periksa":
+            p.add_argument("--terpasang", action="store_true",
+                           help="model bawaan dekoder sama persis dengan kandidat bernama sama")
     pl = sub.add_parser("pilih")
     pl.add_argument("--sampai", type=int, choices=sorted(ROUNDS), default=None,
                     help="hanya putaran sampai nomor ini (hasil/pilihan_putaranN.json)")
     args = ap.parse_args(argv)
     if args.cmd == "periksa":
-        run_periksa(args.split)
+        run_periksa(args.split, args.terpasang)
     elif args.cmd == "nilai":
         run_nilai(args.split, args.putaran)
     elif args.cmd == "banding":

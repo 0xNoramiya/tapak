@@ -125,3 +125,64 @@ def test_decode_background_is_measure_then_soft_bits(issued, ctx):
         assert np.array_equal(direct.llr, staged.llr) and np.array_equal(direct.positions, staged.positions)
     levels = cell_levels(grid, slots, ctx.codewords[2])
     assert pattern_image(grid, levels).shape[1] > 0
+
+
+def test_same_bit_pairs_and_ink_distance_classes():
+    bits = np.array([3, 1, 3, 3, 1, 7])
+    i, j = bg.same_bit_pairs(bits)
+    pairs = {tuple(sorted(p)) for p in zip(i.tolist(), j.tolist())}
+    assert pairs == {(1, 4), (0, 2), (0, 3), (2, 3)}
+    assert bg.same_bit_pairs(np.array([0, 1, 2]))[0].size == 0
+    assert list(bg.ink_distance_classes(np.array([0.0, 0.49, 0.5, 1.2, 1.9, 2.5, 9.0]), 7)) == [0, 0, 1, 2, 3, 4, 5]
+    assert list(bg.ink_distance_classes(None, 3)) == [0, 0, 0]
+
+
+def test_pair_noise_variance_recovers_variances_over_orders_of_magnitude():
+    """Strata and distance classes whose noise differs by a factor of a thousand: the reweighted
+    pair fit finds every product without the codeword (the bits' signs cancel in the pairs)."""
+    rng = np.random.default_rng(3)
+    n_bits, per_bit = 3000, 8
+    bits = np.repeat(np.arange(n_bits), per_bit)
+    n = bits.size
+    stratum = rng.choice([0, 3, 7], size=n, p=[0.5, 0.3, 0.2])
+    cls = rng.choice([0, 5], size=n, p=[0.3, 0.7])
+    a_true = np.zeros(len(bg.SAT_EDGES))
+    a_true[[0, 3, 7]] = [1e-4, 1e-5, 1e-7]
+    b_true = np.ones(len(bg.INK_CLASS_EDGES))
+    b_true[0], b_true[5] = 3.0, 0.5
+    weight = rng.uniform(0.5, 1.0, n)
+    gain = np.where(stratum == 7, 1e-4, 4e-3)
+    s = rng.choice([-1.0, 1.0], size=n_bits)[bits]
+    v_true = a_true[stratum] * b_true[cls]
+    u = gain * s + rng.normal(size=n) * np.sqrt(v_true / weight)
+    start = a_true * 0.3  # a poor start: the fit must find its own way
+    v = bg.pair_noise_variance(u, gain, weight, stratum, cls, bits, start)
+    for j in (0, 3, 7):
+        for k in (0, 5):
+            m = (stratum == j) & (cls == k)
+            assert np.median(v[m] / v_true[m]) == pytest.approx(1.0, rel=0.1), (j, k)
+    assert np.all(bg.pair_noise_variance(u, np.zeros(n), weight, stratum, cls, bits, start) == 1.0)
+
+
+def test_ink_pair_noise_calibrates_cells_next_to_text():
+    """A page whose cells next to the ink carry an attenuated pattern (0.3 times) under four times the noise:
+    the saturation model, one noise level for all cells, is overconfident in its top weight bin,
+    the ink-distance model is not, and it reads more bits right."""
+    measure, slots, p, bits = _synthetic_page(0.3, 4.0, seed=6)
+    old = bg.background_soft_bits(measure, GRID, slots, p, "kejenuhan")
+    new = bg.background_soft_bits(measure, GRID, slots, p, bg.ink_pair_noise)
+
+    def top(sb):
+        w = np.tanh(np.abs(sb.llr) / 2)
+        wrong = (sb.llr > 0) != (bits[sb.positions] == 1)
+        m = w > 0.95
+        return int(wrong[m].sum()), float(np.sum((1 - w[m]) / 2)), int(wrong.sum())
+
+    old_k, old_e, old_wrong = top(old)
+    new_k, new_e, new_wrong = top(new)
+    assert old_k > 2 * old_e  # overconfident: 10 wrong where its weights promise 3.5
+    assert new_k <= new_e + 2  # within what its weights promise
+    assert new_wrong < old_wrong / 3  # and far fewer wrong bits (40 against 344)
+    g, v, cap = bg.ink_pair_noise(np.ones(4), np.ones(4), np.zeros(4, dtype=int), np.ones(4), None,
+                                  np.array([0, 0, 1, 1]))
+    assert cap == pytest.approx(np.log(99.0)) and g.shape == v.shape == (4,)

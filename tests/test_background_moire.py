@@ -100,19 +100,29 @@ def test_moire_photo_observations_do_not_depend_on_codewords(fixed):
 
 
 def test_filter_lowers_bit_errors_on_a_moire_photo(fixed, monkeypatch):
+    """The filter was chosen with the noise model of its time (one noise level per saturation
+    stratum, ``"kejenuhan"``), which is compared here. With the noise model of
+    ``research/kalibrasi`` this photo reads every bit right with and without the filter."""
     issued, ctx = fixed
     seq = 3
     data = _monitor_photo(issued, seq)
     x = ctx.codewords[seq - 1]
-    with_filter = collect_from_image(data, ctx)
-    result = run_trace(with_filter, ctx)
+    shipped = collect_from_image(data, ctx)
+    result = run_trace(shipped, ctx)
     assert result.verdict == VERDICT_IDENTIFIED and [c.copy.seq for c in result.accused] == [seq]
+    monkeypatch.setattr(bg, "NOISE_MODEL", "kejenuhan")
+    with_filter = collect_from_image(data, ctx)
+    real_filter = bg.suppress_periodic
     monkeypatch.setattr(bg, "suppress_periodic", lambda mod, usable, **kw: (mod, 0))
     without = collect_from_image(data, ctx)
     b_with, b_without = _background(with_filter), _background(without)
     assert b_with.meta["periodic_bins"] > 0 and b_without.meta["periodic_bins"] == 0
     assert _errors(b_with, x) < _errors(b_without, x)
     assert b_with.meta["signal_z"] > b_without.meta["signal_z"]
+    monkeypatch.setattr(bg, "NOISE_MODEL", "pasangan_irls_batas")
+    shipped_without = collect_from_image(data, ctx)
+    monkeypatch.setattr(bg, "suppress_periodic", real_filter)
+    assert _errors(_background(shipped), x) <= _errors(_background(shipped_without), x)
 
 
 def test_forwarded_pdf_pages_are_decoded_as_before(fixed, monkeypatch):
