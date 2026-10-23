@@ -40,8 +40,8 @@ The rule (``ATURAN``) is written here and committed before any candidate is scor
 development set, and it does not change between rounds. Every round re-decodes the whole
 development set (``hasil/dev_kandidat_putaranN.jsonl.gz``); ``pilih`` applies the rule to every
 candidate of every round written so far and writes ``hasil/pilihan.json`` (``--sampai N``:
-rounds up to N only, ``hasil/pilihan_putaranN.json``). Round 2 (below ``MODELS``) was added and
-committed after round 1 had been scored and before round 2 was.
+rounds up to N only, ``hasil/pilihan_putaranN.json``). Rounds 2 and 3 (below ``MODELS``) were
+each added and committed after the previous round had been scored and before they were.
 
 Usage (work folder as ``ukur.py``):
 
@@ -49,6 +49,8 @@ Usage (work folder as ``ukur.py``):
     python research/kalibrasi/kandidat.py nilai --split dev --putaran 1
     python research/kalibrasi/kandidat.py pilih --sampai 1
     python research/kalibrasi/kandidat.py nilai --split dev --putaran 2
+    python research/kalibrasi/kandidat.py pilih --sampai 2
+    python research/kalibrasi/kandidat.py nilai --split dev --putaran 3
     python research/kalibrasi/kandidat.py pilih
     python research/kalibrasi/kandidat.py banding --split uji    # after the held-out run: the decoder before
 """
@@ -328,8 +330,85 @@ MODELS.update({
     "pasangan_kali_gain_batas": lambda *a: pasangan_kali(*a, class_gain=True, cap=CELL_CAP),
     "kejenuhan_batas": kejenuhan_batas,
 })
+
+
+# --- round 3 (added after round 2 was scored; the rule ATURAN is unchanged) -------------------
+#
+# Round 2 calibrated the screenshots (every messenger and PNG bin within its Poisson limit on the
+# development set) but broke the photos (``hasil/pilihan_putaran2.json``): on an overexposed
+# development photo the noise variance of the saturation strata spans three orders of magnitude
+# (7e-5 in stratum 0, 7e-8 in stratum 7, where the old per-stratum estimate matched the truth),
+# and an unweighted least-squares fit to squared differences is ruled by the large ones, so the
+# small factors fell to the floor (1e-30) and their cells became near certain. Round 3 fits the
+# same product V_c = A_j B_k by iteratively reweighted least squares: every pair is weighted by
+# 1 / P^2, P = V_c / n_c + V_c' / n_c' from the previous iteration (the variance of a squared
+# Gaussian difference is 2 P^2, so each pair counts by its relative error); A starts from the
+# per-stratum variance of the decoder before and B from 1, and a factor whose solution is not
+# positive keeps that start (the stratum's old variance, or 1 for a class):
+#
+# * ``pasangan_irls``: gain per saturation stratum (pilot regression, as before), noise as above;
+# * ``pasangan_irls_batas``: the same with CELL_CAP on one cell's LLR term.
+
+IRLS_ITERATIONS = 10
+
+
+def reweighted_product_variance(u, gain, weight, stratum, cls, bits, start: np.ndarray,
+                                iterations: int = IRLS_ITERATIONS) -> np.ndarray:
+    """V_c = A_j B_k from the pairs of cells of one bit by iteratively reweighted least squares,
+    A started at ``start`` (one variance per saturation stratum) and B at 1; 1 for cells without gain."""
+    use = gain > 0
+    v_c = np.ones(u.size)
+    i, j = all_pairs(bits)
+    keep = use[i] & use[j]
+    i, j = i[keep], j[keep]
+    if i.size == 0:
+        return v_c
+    y = (u[i] - u[j]) ** 2 - (gain[i] - gain[j]) ** 2
+    n_s, n_k = len(B.SAT_EDGES), len(CLASS_EDGES)
+    a = np.asarray(start, dtype=np.float64).copy()
+    b = np.ones(n_k)
+    rows = np.arange(i.size)
+    for _ in range(iterations):
+        for target in ("a", "b"):
+            p = a[stratum[i]] * b[cls[i]] / weight[i] + a[stratum[j]] * b[cls[j]] / weight[j]
+            root_w = 1.0 / p  # square root of the pair weight 1 / p^2
+            if target == "a":
+                x = np.zeros((i.size, n_s))
+                np.add.at(x, (rows, stratum[i]), b[cls[i]] / weight[i])
+                np.add.at(x, (rows, stratum[j]), b[cls[j]] / weight[j])
+            else:
+                x = np.zeros((i.size, n_k))
+                np.add.at(x, (rows, cls[i]), a[stratum[i]] / weight[i])
+                np.add.at(x, (rows, cls[j]), a[stratum[j]] / weight[j])
+            cols = np.flatnonzero(x.any(axis=0))
+            sol, *_ = np.linalg.lstsq(x[:, cols] * root_w[:, None], y * root_w, rcond=None)
+            if target == "a":
+                a[cols] = np.where(sol > 0, sol, start[cols])
+            else:
+                b[cols] = np.where(sol > 0, sol, 1.0)
+        scale = float(np.mean(b[cls[use]]))
+        b /= scale
+        a *= scale
+    v_c[use] = a[stratum[use]] * b[cls[use]]
+    return v_c
+
+
+def pasangan_irls(u, e, stratum, weight, distance, bits, cap: float | None = None):
+    """Round 3: gain per saturation stratum; noise A_j B_k by the reweighted pair fit; optional cap."""
+    g_s, v_s = B.stratum_gains(u, e, stratum, len(B.SAT_EDGES), weight)
+    cls = distance_class(distance, u.size)
+    gain = g_s[stratum]
+    v_c = reweighted_product_variance(u, gain, weight, stratum, cls, bits, v_s)
+    return (gain, v_c) if cap is None else (gain, v_c, cap)
+
+
+MODELS.update({
+    "pasangan_irls": pasangan_irls,
+    "pasangan_irls_batas": lambda *a: pasangan_irls(*a, cap=CELL_CAP),
+})
 ROUNDS = {1: CANDIDATES, 2: ("kejenuhan", "pasangan_kali", "pasangan_kali_gain", "pasangan_kali_batas",
-                            "pasangan_kali_gain_batas", "kejenuhan_batas")}
+                            "pasangan_kali_gain_batas", "kejenuhan_batas"),
+          3: ("kejenuhan", "pasangan_irls", "pasangan_irls_batas")}
 ALL_CANDIDATES = tuple(dict.fromkeys(n for names in ROUNDS.values() for n in names))
 
 
