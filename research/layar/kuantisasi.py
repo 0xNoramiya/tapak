@@ -6,7 +6,7 @@ of ``ukur.py`` at ``--dpi``. The ink centroid of the page follows the glyphs; th
 jumps of the centroid over one pixel of movement is the renderer's positioning grid (4: a quarter
 pixel, 1: a whole pixel, 20: no rounding at this step). Writes ``hasil/kuantisasi.json``.
 
-    python research/layar/kuantisasi.py --dpi 48,72,96,150
+    python research/layar/kuantisasi.py --dpi 28,32,40,48,56,72,96,150,180,225
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def centroid_steps(renderer: str, dpi: float, axis: str, size: float) -> list[fl
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--dpi", default="48,72,96,150")
+    ap.add_argument("--dpi", default="28,32,40,48,56,72,96,150,180,225")
     ap.add_argument("--pt", type=float, default=11.0)
     args = ap.parse_args(argv)
     res = []

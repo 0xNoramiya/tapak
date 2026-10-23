@@ -332,6 +332,7 @@ Variabel lingkungan:
 - simulator printer, profil latar cetak, dan templat induk tepat;
 - ISP ponsel dan monitor simulasi: aliran foto bawaan tidak berubah (hash emas), setiap profil dan jenis baru deterministik, moire muncul di frekuensi yang diramalkan, uji ujung ke ujung per jenis baru;
 - kanal latar pada foto layar: penyaring komponen berkala tidak bergantung pada kode penerima dan menurunkan galat bit pada foto bermoire;
+- baris pada tangkapan layar: garis dasar pada kisi piksel utuh dan seperempat piksel terbaca dengan model kisi, LLR-nya terkalibrasi pada halaman acak, baris yang tidak pada kisi (foto, tangkapan yang diperkecil) tetap memakai model Gaussian persis seperti sebelumnya, dan tidak ada kode penerima yang masuk (juga lewat render MuPDF dan jalur gambar lengkap);
 - registri dan perusakannya, kanari DNS di bawah 5 detik, kanal semantik dengan salah ketik;
 - log jangkar: entri yang dihapus dari ujung, diganti, atau diubah, log yang hilang, jendela mati listrik, tanda tangan baris, pengakuan dan awal ulang, batas ukuran dan rotasi (rantai segmen), pemeriksaan bertahap yang sama dengan pemeriksaan penuh, log yang tidak dapat ditulis, penanda media, kode keluar 3 `tapak verify` tanpa log, isi log tanpa data dokumen, CLI, berita acara, dan web (termasuk label log yang terlalu besar, hilang, tidak terbaca, atau belum dimulai);
 - batas proses kerja `TAPAK_WORKERS`: validasi, CLI, web, demo, penerbitan yang tidak memulai proses lebih dari batasnya, dan penerbitan bersamaan dalam satu proses yang bergiliran tanpa tertukar dokumen;
@@ -415,3 +416,24 @@ $U ringkas                                      # tabel di dokumentasi
 ```
 
 Dekoder `lama` adalah dekoder commit sebelum studi ini, diekspor ke `out/riset_ponsel/dekoder_lama`; `baru` adalah dekoder sekarang. Set uji hanya dilacak sekali per dekoder, dan `lacak --split uji` menolak menimpa hasilnya tanpa `--ulang`. Satu set berisi 500 gambar; membuatnya memerlukan sekitar 20 sampai 30 menit, dan melacaknya juga sekitar 20 sampai 30 menit per dekoder, dengan 3 proses di mesin uji yang dipakai bersama.
+
+## Mengukur tangkapan layar
+
+Angka tangkapan layar di [cara kerja](cara-kerja.md#tangkapan-layar-dari-penampil-pdf) dan [batasan 5](keamanan.md#batasan) dibuat ulang dengan `research/layar/`. Halaman digambar oleh MuPDF (pymupdf) dan Poppler (`pdftoppm` dan `pdftocairo` dari paket `poppler-utils`), jadi keduanya harus terpasang. Penerbitan, gambar bukti, dan pengamatan ada di `$TAPAK_LAYAR_KERJA` (bawaan `out/riset_layar`), hasil JSONL di `research/layar/hasil/`. Protokol dan semua benih ditetapkan di `ukur.py` sebelum pengukuran.
+
+```bash
+export PYTHONPATH=. TAPAK_LAYAR_KERJA=out/riset_layar
+L=".venv/bin/python research/layar"
+$L/ukur.py terbit                    # nota dinas dan surat telegram, skema v2 dan v1, set dev dan uji
+$L/ukur.py lacak --split dev         # 1.246 gambar
+$L/kandidat.py nilai sekarang,kuantum_baris,kisi_baris   # pemilihan dekoder, set dev saja (putaran 1)
+$L/kandidat.py nilai sekarang,kisi_baris,kisi_baris2     # putaran 2
+$L/kandidat.py nilai sekarang,kisi_baris3                # putaran 3
+$L/kandidat.py pilih                 # aturan atas semua putaran: hasil/pilihan.json
+$L/ukur.py lacak --split uji         # set uji, sekali (2.250 gambar)
+$L/kandidat.py nilai sekarang,kisi_baris3 --split uji --acuan kisi_baris3   # sebelum dan sesudah, berpasangan
+$L/ringkas.py --split uji --json     # tabel di dokumentasi
+$L/kuantisasi.py                     # letak glif per penggambar, 28 sampai 225 dpi
+```
+
+Putaran penilaian menimpa `hasil/dev_kandidat.jsonl.gz` dan `hasil/dev_kandidat_ringkas.json`; ganti namanya menjadi `dev_kandidat_putaranN...` sebelum putaran berikutnya, seperti di repositori. `lacak --split uji` menolak berjalan bila dekoder pohon kerja bukan pilihan di `hasil/pilihan.json`, mencatat commit dan hash sumber dekoder di `hasil/uji_dekoder.json`, dan melewati gambar yang sudah dilacak bila diulang setelah terputus. Set dev memerlukan sekitar 1 jam dan set uji sekitar 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama; satu putaran `kandidat.py` sekitar 8 menit.

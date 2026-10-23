@@ -46,6 +46,13 @@ def _ber(pairs: list[tuple[dict, dict]], kind: str) -> tuple[int, int, int, int]
     return read, wrong, conf, len(pairs)
 
 
+def _sure(pairs: list[tuple[dict, dict]], kind: str) -> tuple[int, int]:
+    """(read with abs LLR >= 2, wrong among them) of one bit kind."""
+    read = sum((t["bits"].get(kind) or {}).get("read_llr2", 0) or 0 for _, t in pairs)
+    wrong = sum((t["bits"].get(kind) or {}).get("wrong_llr2", 0) or 0 for _, t in pairs)
+    return read, wrong
+
+
 def _pct(a: int, b: int) -> str:
     return f"{100.0 * a / b:.1f} %" if b else "-"
 
@@ -117,9 +124,9 @@ def summarize(split: str, path: Path | None = None, write_json: bool = False) ->
             continue
         print(f"## Halaman utuh, {scheme}\n")
         print("| Penggambar | Format | dpi | Gambar | Baris: terbaca/gambar, galat, salah yakin | "
-              "Kata: terbaca/gambar, galat, salah yakin | Latar: galat | Benar semua / geser / latar | "
-              "Skor/ambang semua, geser (median) |")
-        print("|---|---|---|---|---|---|---|---|---|")
+              "Baris abs LLR >= 2: terbaca/gambar, salah | Kata: terbaca/gambar, galat, salah yakin | "
+              "Latar: galat | Benar semua / geser / latar | Skor/ambang semua, geser (median) |")
+        print("|---|---|---|---|---|---|---|---|---|---|")
         for renderer in ("mupdf", "poppler", "cairo", "poppler_tanpa_aa"):
             for fmt in ("png", "pesan", "kecil"):
                 for dpi in RESOLUTIONS:
@@ -128,18 +135,43 @@ def summarize(split: str, path: Path | None = None, write_json: bool = False) ->
                         continue
                     k = len(sel)
                     rb, wb, cb, _ = _ber(sel, "baris")
+                    sb_, swb = _sure(sel, "baris")
                     rk, wk, ck, _ = _ber(sel, "kata")
                     rl, wl, _, _ = _ber(sel, "latar")
                     named = [_named(sel, w) for w in SETS]
-                    cell = {"images": k, "baris": [rb, wb, cb], "kata": [rk, wk, ck], "latar": [rl, wl],
+                    cell = {"images": k, "baris": [rb, wb, cb], "baris_llr2": [sb_, swb], "kata": [rk, wk, ck],
+                            "kata_llr2": list(_sure(sel, "kata")), "latar": [rl, wl],
                             "named": dict(zip(SETS, named)), "false": _false(sel),
                             "score_semua": _median([t["accuse"]["semua"]["score_z"] for _, t in sel]),
                             "score_geser": _median([t["accuse"]["geser"]["score_z"] for _, t in sel]),
                             "registered": sum(t["registered"] for _, t in sel)}
                     out["per_cell"][f"{scheme}|{renderer}|{fmt}|{dpi}"] = cell
                     print(f"| {renderer} | {fmt} | {dpi} | {k} | {rb / k:.1f}, {_pct(wb, rb)}, {cb} | "
-                          f"{rk / k:.1f}, {_pct(wk, rk)}, {ck} | {_pct(wl, rl)} | "
+                          f"{sb_ / k:.1f}, {swb} | {rk / k:.1f}, {_pct(wk, rk)}, {ck} | {_pct(wl, rl)} | "
                           f"{named[0]} / {named[1]} / {named[2]} | {cell['score_semua']}, {cell['score_geser']} |")
+        print()
+        print(f"### Ringkas per rentang resolusi, {scheme}\n")
+        print("| Penggambar | Format | dpi | Gambar | Baris abs LLR >= 2 terbaca/gambar, salah | Baris salah yakin | "
+              "Kata galat; salah yakin | Latar galat | Benar semua / geser / latar |")
+        print("|---|---|---|---|---|---|---|---|---|")
+        for renderer in ("mupdf", "poppler", "cairo", "poppler_tanpa_aa"):
+            for fmt in ("png", "pesan", "kecil"):
+                for band, lo, hi in (("28-48", 28, 48), ("56-84", 56, 84), ("96-150", 96, 150)):
+                    sel = [(r, t) for r, t in sel_s if r["renderer"] == renderer and r["fmt"] == fmt
+                           and lo <= r["dpi"] <= hi]
+                    if not sel:
+                        continue
+                    k = len(sel)
+                    sr, sw = _sure(sel, "baris")
+                    _, _, cb, _ = _ber(sel, "baris")
+                    rk, wk, ck, _ = _ber(sel, "kata")
+                    rl, wl, _, _ = _ber(sel, "latar")
+                    named = [_named(sel, w) for w in SETS]
+                    out.setdefault("bands", {})[f"{scheme}|{renderer}|{fmt}|{band}"] = {
+                        "images": k, "baris_llr2": [sr, sw], "baris_wrong_llr4": cb, "kata": [rk, wk, ck],
+                        "latar": [rl, wl], "named": dict(zip(SETS, named))}
+                    print(f"| {renderer} | {fmt} | {band} | {k} | {sr / k:.1f}, {sw} | {cb} | {_pct(wk, rk)}; {ck} | "
+                          f"{_pct(wl, rl)} | {named[0]} / {named[1]} / {named[2]} |")
         print()
         print(f"### Batas bawah resolusi, {scheme} (dpi terendah yang mulai dari sana setiap gambar halaman utuh "
               f"menyebut salinan)\n")
@@ -207,13 +239,95 @@ def summarize(split: str, path: Path | None = None, write_json: bool = False) ->
     return out
 
 
+def paired(split: str, before: str = "sekarang", after: str = "kisi_baris3", write_json: bool = False,
+           path: Path | None = None) -> dict:
+    """Before/after table of the shift decoder on the same displacements (``kandidat.py nilai``
+    output ``{split}_kandidat.jsonl.gz``): per renderer and format, rows read, wrong and confidently
+    wrong, and the verdicts with all channels and with the shift channel alone."""
+    import gzip
+
+    source = path or HASIL / f"{split}_kandidat.jsonl.gz"
+    rows = [json.loads(line) for line in gzip.open(source, "rt", encoding="utf-8")]
+    out: dict = {"split": split, "before": before, "after": after, "groups": {}}
+    print(f"## Sebelum ({before}) dan sesudah ({after}), set {split}, pengukuran yang sama\n")
+    print("| Penggambar | Format | Gambar | Baris terbaca/gambar (sebelum; sesudah) | Baris salah | "
+          "Salah yakin, abs LLR >= 4 | Benar geser saja | Benar semua kanal |")
+    print("|---|---|---|---|---|---|---|---|")
+    totals: dict = {}
+    for renderer in ("mupdf", "poppler", "cairo", "poppler_tanpa_aa"):
+        for fmt in ("png", "pesan", "kecil"):
+            sel = [(r, t) for r in rows if r["renderer"] == renderer and r["fmt"] == fmt and r["seq"] is not None
+                   for t in r["traces"]]
+            if not sel:
+                continue
+            cell: dict = {"images": len(sel)}
+            for name in (before, after):
+                bits = [t["candidates"][name]["bits"].get("baris") or {} for _, t in sel]
+                acc = [t["candidates"][name]["accuse"] for _, t in sel]
+                cell[name] = {"read": sum(b.get("read", 0) for b in bits), "wrong": sum(b.get("wrong", 0) or 0 for b in bits),
+                              "wrong_llr4": sum(b.get("wrong_llr4", 0) or 0 for b in bits),
+                              "geser": sum(a["geser"]["verdict"] == "benar" for a in acc),
+                              "semua": sum(a["semua"]["verdict"] == "benar" for a in acc),
+                              "false": sum(a[w]["verdict"] == "salah" for a in acc for w in SETS)}
+                tot = totals.setdefault(name, {k: 0 for k in cell[name]})
+                for k, v in cell[name].items():
+                    tot[k] += v
+            out["groups"][f"{renderer}|{fmt}"] = cell
+            b, a = cell[before], cell[after]
+            k = len(sel)
+            print(f"| {renderer} | {fmt} | {k} | {b['read'] / k:.1f}; {a['read'] / k:.1f} | {b['wrong']}; {a['wrong']} | "
+                  f"{b['wrong_llr4']}; {a['wrong_llr4']} | {b['geser']}; {a['geser']} | {b['semua']}; {a['semua']} |")
+    out["totals"] = totals
+    for scheme in ("v2", "v1"):  # geser-v1 stands for every document issued before geser-v2
+        sel = [t for r in rows if r["seq"] is not None and r["scheme"] == scheme for t in r["traces"]]
+        out[f"totals_{scheme}"] = {name: {
+            "images": len(sel),
+            "rows_read": sum((t["candidates"][name]["bits"].get("baris") or {}).get("read", 0) for t in sel),
+            "rows_wrong_llr4": sum((t["candidates"][name]["bits"].get("baris") or {}).get("wrong_llr4", 0) or 0 for t in sel),
+            "geser": sum(t["candidates"][name]["accuse"]["geser"]["verdict"] == "benar" for t in sel),
+            "semua": sum(t["candidates"][name]["accuse"]["semua"]["verdict"] == "benar" for t in sel),
+            "false": sum(t["candidates"][name]["accuse"][w]["verdict"] == "salah" for t in sel for w in SETS)}
+            for name in (before, after)}
+        print(f"Skema {scheme}: {json.dumps(out[f'totals_{scheme}'])}")
+    changed = {"geser": [0, 0], "semua": [0, 0]}  # verdicts that became correct / stopped being correct
+    for r in rows:
+        if r["seq"] is None:
+            continue
+        for t in r["traces"]:
+            for w in changed:
+                b = t["candidates"][before]["accuse"][w]["verdict"] == "benar"
+                a = t["candidates"][after]["accuse"][w]["verdict"] == "benar"
+                changed[w][0] += int(a and not b)
+                changed[w][1] += int(b and not a)
+    out["verdicts_gained_lost"] = changed
+    print(f"Putusan benar yang bertambah dan hilang: {json.dumps(changed)}")
+    unmarked = [t for r in rows if r["seq"] is None for t in r["traces"]]
+    out["unmarked_accused"] = {name: sum(t["candidates"][name]["accuse"][w]["verdict"] == "salah"
+                                         for t in unmarked for w in SETS) for name in (before, after)}
+    print(f"\nJumlah: {json.dumps(totals)}; induk tanpa tanda yang dituduh: {json.dumps(out['unmarked_accused'])}\n")
+    for name in (before, after):
+        pairs = [(r, {"bits": t["candidates"][name]["bits"]}) for r in rows if r["seq"] is not None for t in r["traces"]]
+        out[f"calibration_rows_{name}"] = calibration(pairs, "baris")
+        print(f"* kalibrasi baris, {name}: " + "; ".join(
+            f"w {c['w']}: {c['n']}, salah {_pct(c['wrong'], c['n'])} (terkalibrasi {100 * c['calibrated']:.1f} %)"
+            for c in out[f"calibration_rows_{name}"] if c["n"]))
+    if write_json:
+        (HASIL / f"ringkas_{split}_banding.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n",
+                                                             encoding="utf-8")
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--split", choices=("dev", "uji"), required=True)
     ap.add_argument("--berkas", type=Path, default=None)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--banding", action="store_true", help="tabel sebelum dan sesudah dari kandidat.py nilai")
     args = ap.parse_args(argv)
-    summarize(args.split, args.berkas, args.json)
+    if args.banding:
+        paired(args.split, write_json=args.json, path=args.berkas)
+    else:
+        summarize(args.split, args.berkas, args.json)
     return 0
 
 
