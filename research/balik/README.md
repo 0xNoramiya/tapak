@@ -16,7 +16,7 @@ Protokol, benih, media, laju, aturan rekomendasi, dan analisis ditulis di docstr
 
 * **Uji coba kering** (benih pengembangan, 158 pelacakan, 0 tuduhan salah). Tidak ada peringatan pada bukti jujur. Pada induk tanpa tanda surat telegram skema v1, z tanda -2,97 dan -3,04 (tangkapan layar dan foto dokumen yang sama): bacaan geser induk sebagian ditentukan tipografinya, jadi satu dokumen tanpa tanda punya pusat z tandanya sendiri, seperti pusat Z pola penghapusan. Laju 10^-3 karena itu berlaku rata-rata atas dokumen; protokol tidak diubah.
 * **Dijalankan sekali, dengan kode komit protokol.** Benih uji diterbitkan dari salinan kerja, lalu pelari dihentikan di awal bagian `jujur` (belum ada baris) dan dijalankan ulang dari ekspor `git archive` komit `9e85222`, supaya penyuntingan teks di salinan kerja selama pengukuran tidak menyentuh kode yang diukur. Setiap tugas memakai benihnya sendiri, jadi hasilnya sama dengan satu jalan tanpa henti. Bagian `bench` memakai gambar benchmark README yang dibuat `make bench-check` di ekspor yang sama; `bench_photos.json` di sana sama byte demi byte dengan `docs/results/bench_photos.json`.
-* **Di luar protokol:** tidak ada.
+* **Di luar protokol:** hanya [peninjauan](#peninjauan-di-luar-protokol) dengan benih baru, setelah pengukuran ini.
 
 ## Hasil (benih uji)
 
@@ -87,6 +87,16 @@ Profil latar cetak: PDF yang dibalik 6 dari 6, satu salinan lewat cetakan 2 dari
 
 **Biaya.** Pemeriksaan pola tanda terbalik: median 0,1 ms, persentil 95 0,2 ms per bukti.
 
+## Peninjauan (di luar protokol)
+
+Dijalankan setelah pengukuran di atas, tanpa mengubah aturan, laju, atau ambang apa pun (`tinjau.py`; benih baru 9871: nota dinas, N = 20, skema v2; 9872: surat telegram, N = 20, skema v1; profil latar bawaan).
+
+* **Putusan dan skor tidak berubah** (`hasil/tinjau/jejak_master.jsonl`, `hasil/tinjau/jejak.jsonl`). 44 bukti (salinan, koalisi jujur, pembalikan oleh dua dan tiga salinan, penghapusan, pola latar dibuang dengan geser diacak, pembalikan 0,45, dan induk tanpa tanda, lewat PDF, tangkapan layar, foto, dan cetakan dua halaman) dilacak dengan kode `master` dan kode cabang ini. Putusan, ambang, skor setiap salinan, kanal, tahap, pemeriksaan bacaan jelas tanpa nama, catatan lain, dan Z pola penghapusan dengan aturan "pola" identik pada 44 dari 44 pelacakan. Yang berubah hanya peringatan dan Z kedua pola penghapusan.
+* **Tanpa kode penerima.** Setiap bukti dilacak lagi dengan semua kata kode diganti kata kode acak, termasuk saat pengamatan dikumpulkan: pengamatan, pemeriksaan pola tanda terbalik, pola penghapusan, dan ambang identik pada 44 dari 44.
+* **Angka dengan benih baru.** Bukti jujur (salinan 3 dan koalisi jujur lewat empat medium, induk tanpa tanda lewat PDF dan tangkapan layar): 0 peringatan dari 20; z tanda terendah 4,9 pada bukti bertanda (cetakan dua halaman) dan -0,28 pada induk; z pilot terendah -0,30. Pembalikan oleh dua dan tiga salinan: ditandai 12 dari 12 (z tanda PDF -38,5 sampai -30,8; z pilot tangkapan layar -62,9 sampai -49,5, foto -11,3 dan -29,9; z tanda cetakan dua halaman -11,2 dan -4,8); kode `master` hanya memberi peringatan pada 4 PDF di antaranya. Penghapusan: 4 dari 4 ditandai (`master` 1 dari 4). Pola latar dibuang dengan geser diacak, dan pembalikan 0,45: 0 dari 8.
+* **Lolos dari ketiga pemeriksaan** (`hasil/tinjau/lolos.jsonl`, 30 pelacakan lewat PDF, tangkapan layar, dan foto). Tidak satu pun anggota disebut, dan 29 dari 30 tanpa peringatan: satu salinan yang membuang atau mengacak pola latarnya lalu mengacak setiap unit gesernya (12 dari 12), dua salinan yang membuang pola latar lalu mengacak geser yang sama (6 dari 6) atau menghapusnya (5 dari 6; PDF skema v2 ditandai pola penghapusan, z -6,55 dari unit geser saja), dan dua salinan yang membalik tanda yang sama dengan peluang 0,5 (6 dari 6). Yang tersisa di bukti: semua unit geser terbaca jelas (skema v2 425 sampai 439 posisi pada PDF dan 252 pada gambar, v1 97 dan 90 sampai 91), tetapi z tanda hanya -1,1 sampai +2,3, sedangkan salinan jujur lewat medium yang sama +23 sampai +39; pola latar tidak terbaca sama sekali, juga pada PDF yang diteruskan, yang pada salinan jujur selalu membawanya; skor anggota paling besar 0,39 kali Z. Semua itu terlihat tanpa kode penerima, tetapi uji yang menandai bacaan jelas tanpa arah bias harus menganggap bobot dekoder terkalibrasi, jadi alarm palsunya tidak dapat dibatasi.
+* **Tampilan.** Blok peringatan di halaman Lacak diperiksa pada lebar 390 dan 1280 px: kalimat temuan tebal, lalu kemungkinan penyebab, laju (warna redup), dan "Ini hanya peringatan" masing-masing di barisnya sendiri; tanpa gulir mendatar.
+
 ## Menjalankan
 
 Dari akar repositori (atau ekspor komitnya), paling banyak 3 proses pekerja dengan 1 utas BLAS:
@@ -103,6 +113,16 @@ python research/balik/ukur.py simetri --out research/balik/hasil/simetri.jsonl
 make bench-check   # gambar benchmark README di out/bench-check
 python research/balik/ukur.py bench --bench out/bench-check --kerja KERJA --out research/balik/hasil/bench.jsonl
 python research/balik/ukur.py ringkas research/balik/hasil/*.jsonl
+```
+
+Peninjauan (`hasil/tinjau/`, di luar ringkasan protokol; `EKSPOR_MASTER` adalah ekspor `git archive master`):
+
+```bash
+python research/balik/tinjau.py terbit --kerja KERJA
+python research/balik/tinjau.py jejak --kerja KERJA --akar EKSPOR_MASTER --out research/balik/hasil/tinjau/jejak_master.jsonl
+python research/balik/tinjau.py jejak --kerja KERJA --buta --out research/balik/hasil/tinjau/jejak.jsonl
+python research/balik/tinjau.py banding research/balik/hasil/tinjau/jejak_master.jsonl research/balik/hasil/tinjau/jejak.jsonl
+python research/balik/tinjau.py lolos --kerja KERJA --out research/balik/hasil/tinjau/lolos.jsonl
 ```
 
 Penerbitan riset (`tapak issue --benih-riset`) ditulis ke folder kerja `KERJA` (bawaan `out/balik`, tidak dicatat di git) dan dapat dibuat ulang byte demi byte dari benihnya. Satu baris JSON per bukti ada di `hasil/`.

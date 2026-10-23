@@ -190,11 +190,14 @@ class ErasureCheck:
         if not self.measured:
             n = max(self.positions, self.positions_all)
             return f"tidak diperiksa: hanya {_count(n)} posisi terukur (minimal {ERASURE_MIN_POSITIONS})"
-        first = (f"z = {_num(self.z)} dari halaman berpola ({_count(self.positions)} posisi)" if self.z is not None
-                 else f"halaman berpola tidak diperiksa ({_count(self.positions)} posisi)")
+        # The first statistic counts background strengths only from pages where the pattern was
+        # found; its positions can come from the shift units alone when no page had the pattern.
+        seen = "dengan kekuatan baca latar dari halaman yang polanya ditemukan saja"
+        first = (f"z = {_num(self.z)} {seen} ({_count(self.positions)} posisi)" if self.z is not None
+                 else f"z {seen} tidak dihitung (hanya {_count(self.positions)} posisi)")
         second = (f"z = {_num(self.z_all)} dengan semua kekuatan baca latar ({_count(self.positions_all)} posisi)"
                   if self.z_all is not None
-                  else f"semua kekuatan baca latar tidak diperiksa ({_count(self.positions_all)} posisi)")
+                  else f"z dengan semua kekuatan baca latar tidak dihitung (hanya {_count(self.positions_all)} posisi)")
         return f"{first} dan {second}, ambang {thr} untuk masing-masing"
 
 

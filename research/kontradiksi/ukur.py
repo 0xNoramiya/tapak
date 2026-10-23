@@ -362,6 +362,7 @@ def analyse(obs: list, ctx, members: set[int], x_ref: np.ndarray | None = None) 
     from tapak.decoder.contradiction import CONTRADICTION_TEMPERING, contradiction_check
     from tapak.decoder.erasure import SILENT_BACKGROUND_RULE, erasure_check
     from tapak.decoder.fuse import fuse
+    from tapak.decoder.manipulation import is_manipulation_note
     from tapak.decoder.trace import run_trace
     from tapak.tardos.detection import proven_read_miss_ceiling, tempered_error_rates
     from tapak.tardos.spending import DEFAULT_STAGE_POLICY, TraceSpending
@@ -407,7 +408,8 @@ def analyse(obs: list, ctx, members: set[int], x_ref: np.ndarray | None = None) 
         "observed": int(np.count_nonzero(fused.weights > 0)),
         "efektif": round(float(np.sum(fused.weights ** 2)), 1),
         "hapus": erasure,
-        "catatan_peringatan": sum(1 for n in res.notes if n.startswith(("pola penghapusan", "bukti terbaca jelas"))),
+        # Since research/balik the checks write one merged warning (decoder/manipulation.py).
+        "catatan_peringatan": sum(1 for n in res.notes if is_manipulation_note(n)),
         "detik_lacak": round(t_trace, 2),
         "detik_periksa": round(t_check, 3),
         "periksa_lengkap": None if alone is None else bool(alone.complete),

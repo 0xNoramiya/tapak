@@ -127,8 +127,15 @@ def test_two_statistics_share_the_alarm_rate():
     assert alone.z == check.z and alone.z_all is None and alone.threshold == -erasure_threshold(1)
     assert not alone.flagged
     text = check.text()
-    assert "dari halaman berpola (400 posisi)" in text and "dengan semua kekuatan baca latar (2.400 posisi)" in text
+    assert "z = " + f"{check.z:.2f}".replace(".", ",") + " dengan kekuatan baca latar dari halaman yang polanya " \
+        "ditemukan saja (400 posisi)" in text
+    assert "dengan semua kekuatan baca latar (2.400 posisi)" in text
     assert text.endswith("ambang -3,29 untuk masing-masing")
+    # No page had the pattern and too few shift units: only the second statistic is computed.
+    few = erasure_check([silent, _obs(np.arange(2000, 2050), rng.normal(1.0, 0.3, 50), channel="shift")], p)
+    assert few.z is None and few.z_all is not None and few.measured and few.flagged
+    assert few.text().startswith("z dengan kekuatan baca latar dari halaman yang polanya ditemukan saja tidak "
+                                 "dihitung (hanya 50 posisi) dan z = ")
     with pytest.raises(ValueError):
         erasure_check([shift], p, ("pola", "uji", "semua"))
 

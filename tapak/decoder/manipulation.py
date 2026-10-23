@@ -11,7 +11,8 @@ and the berita acara and kept in the JSON notes:
    what was found (each finding once, in the order reversal, erasure, contradiction);
 2. the possible causes, merged (what a coalition did, a larger coalition, a reading problem);
 3. the rate: on honest evidence each check sounds with probability at most about 10^-3,
-   with the numbers of the checks that sounded;
+   with the numbers of the checks that sounded (the three rates are not split, so by the union
+   bound the block itself can appear on honest evidence with probability up to about 3 x 10^-3);
 4. that it is only a warning: nobody is named because of it, and the verdict, the thresholds
    and the scores do not change.
 
@@ -26,8 +27,10 @@ from tapak.decoder.reversal import REVERSAL_MAX_COALITION, REVERSAL_NOTE, Revers
 
 # Every merged warning starts with this; ``is_manipulation_note`` recognises it.
 MANIPULATION_LEAD = "bukti kemungkinan diubah oleh orang yang memahami TAPAK"
-# The second sentence starts with this (the web page sets the first sentence in bold before it).
+# The second and third sentences start with these (the web page sets the first sentence in bold
+# and starts each later sentence on its own line).
 CAUSES_LEAD = "Kemungkinan penyebab: "
+RATE_LEAD = "Pada bukti jujur "
 ONLY_A_WARNING = ("Ini hanya peringatan: tidak ada nama yang disebut karenanya, dan putusan, ambang, serta skor tidak "
                   "berubah")
 
@@ -70,7 +73,7 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
     rates = [c.alarm_rate for c in (rev, era) if c is not None] + ([con.rate] if con is not None else [])
     rate = max(rates)
     which = "pemeriksaan ini" if len(findings) == 1 else "setiap pemeriksaan ini"
-    return (f"{MANIPULATION_LEAD}: {'; '.join(findings)}. {CAUSES_LEAD}{cause_text}. Pada bukti jujur "
+    return (f"{MANIPULATION_LEAD}: {'; '.join(findings)}. {CAUSES_LEAD}{cause_text}. {RATE_LEAD}"
             f"{which} memberi peringatan dengan peluang paling besar sekitar {format_rate(rate)}, rata-rata atas "
             f"dokumen, bila derau bacaan tidak bergantung pada kode ({'; '.join(details)}). {ONLY_A_WARNING}")
 
@@ -80,4 +83,20 @@ def is_manipulation_note(note: str) -> bool:
     return note.startswith(MANIPULATION_LEAD)
 
 
-__all__ = ["CAUSES_LEAD", "MANIPULATION_LEAD", "ONLY_A_WARNING", "is_manipulation_note", "manipulation_note"]
+def manipulation_parts(note: str) -> list[str]:
+    """The four sentences of a merged warning (what was found, the causes, the rate, that it is
+    only a warning), each ending with a full stop, so a page can set them on their own lines;
+    ``[note]`` for any other note or a warning whose sentences cannot be found."""
+    if not is_manipulation_note(note):
+        return [note]
+    cuts = [note.find(". " + lead) for lead in (CAUSES_LEAD, RATE_LEAD, ONLY_A_WARNING)]
+    if any(c < 0 for c in cuts) or cuts != sorted(cuts):
+        return [note]
+    starts = [0] + [c + 2 for c in cuts]
+    ends = [c + 1 for c in cuts] + [len(note)]
+    parts = [note[a:b].strip() for a, b in zip(starts, ends)]
+    return [part if part.endswith(".") else part + "." for part in parts]
+
+
+__all__ = ["CAUSES_LEAD", "MANIPULATION_LEAD", "ONLY_A_WARNING", "RATE_LEAD", "is_manipulation_note",
+           "manipulation_note", "manipulation_parts"]

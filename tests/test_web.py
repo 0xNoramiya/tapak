@@ -1368,7 +1368,11 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     assert r.status_code == 200
     verdict = r.text[:r.text.index('class="verdict-actions"')]
     assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>' + MANIPULATION_LEAD + ": " in verdict
-    assert '.</b> Kemungkinan penyebab: ' in verdict  # the first sentence (what was found) in bold
+    # The first sentence (what was found) in bold, then one line each for the causes, the rate
+    # and that nobody is named.
+    assert '.</b> <span class="notice-part">Kemungkinan penyebab: ' in verdict
+    assert '<span class="notice-part notice-rate">Pada bukti jujur ' in verdict
+    assert '<span class="notice-part">Ini hanya peringatan: ' in verdict and 'skor tidak berubah.</span></p>' in verdict
     assert ERASURE_NOTE in verdict and r.text.count(ERASURE_NOTE) == 1 and r.text.count(MANIPULATION_LEAD) == 1
     box = r.text[r.text.index('id="sah-h"'):]
     assert "Pola penghapusan" in box and "Terdeteksi" in box and "posisi terukur" in box
@@ -1404,7 +1408,11 @@ def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
     verdict = r.text[:r.text.index('class="verdict-actions"')]
     assert "Tidak cukup bukti" in verdict and 'class="who-seq"' not in verdict
     assert '<p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>' + MANIPULATION_LEAD + ": " in verdict
-    assert '.</b> Kemungkinan penyebab: ' in verdict  # the first sentence (what was found) in bold
+    # The first sentence (what was found) in bold, then one line each for the causes, the rate
+    # and that nobody is named.
+    assert '.</b> <span class="notice-part">Kemungkinan penyebab: ' in verdict
+    assert '<span class="notice-part notice-rate">Pada bukti jujur ' in verdict
+    assert '<span class="notice-part">Ini hanya peringatan: ' in verdict and 'skor tidak berubah.</span></p>' in verdict
     assert r.text.count(MANIPULATION_LEAD) == 1 and r.text.count(CONTRADICTION_NOTE) == 1
     assert REVERSAL_NOTE in verdict and "koalisi lebih dari 3 orang" in verdict
     box = r.text[r.text.index('id="sah-h"'):]

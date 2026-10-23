@@ -183,6 +183,26 @@ def test_merged_note_states_each_finding_once():
     assert manipulation_note(None, None, None) is None
 
 
+def test_merged_note_splits_into_its_four_sentences():
+    """The web page sets the finding in bold and each later sentence on its own line."""
+    from tapak.decoder.contradiction import ContradictionCheck
+    from tapak.decoder.erasure import ERASURE_ALARM_RATE, ERASURE_Z, ErasureCheck
+    from tapak.decoder.manipulation import CAUSES_LEAD, RATE_LEAD, manipulation_parts
+
+    rev = ReversalCheck(-45.2, 1, -8.3, 1200, -REVERSAL_Z, REVERSAL_ALARM_RATE, True)
+    era = ErasureCheck(-2.1, 900, -ERASURE_Z, ERASURE_ALARM_RATE, True, {"latar": 800}, -5.2, 2400)
+    con = ContradictionCheck(-12.3, True, 3, 1e-3, 0.3, 2987, 2950.0, 5e-8, True)
+    for checks in ((None, None, rev), (era, None, None), (None, con, None), (era, con, rev)):
+        note = manipulation_note(*checks)
+        parts = manipulation_parts(note)
+        assert len(parts) == 4 and all(p.endswith(".") for p in parts)
+        assert parts[0].startswith(MANIPULATION_LEAD + ": ") and parts[1].startswith(CAUSES_LEAD)
+        assert parts[2].startswith(RATE_LEAD) and parts[3] == ONLY_A_WARNING + "."
+        assert " ".join(parts) == note + "."
+    assert manipulation_parts("catatan biasa. Kemungkinan penyebab: x") == ["catatan biasa. Kemungkinan penyebab: x"]
+    assert manipulation_parts(MANIPULATION_LEAD + ": tanpa kalimat lain") == [MANIPULATION_LEAD + ": tanpa kalimat lain"]
+
+
 # --- on real evidence ----------------------------------------------------------------------
 
 
