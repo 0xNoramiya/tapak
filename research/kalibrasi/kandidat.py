@@ -37,13 +37,18 @@ saturation stratum (the decoder before), so no cell is dropped that was used bef
 classes: CLASS_EDGES (cells).
 
 The rule (``ATURAN``) is written here and committed before any candidate is scored on the full
-development set; ``pilih`` applies it to ``hasil/dev_kandidat.jsonl.gz`` and writes
-``hasil/pilihan.json``.
+development set, and it does not change between rounds. Every round re-decodes the whole
+development set (``hasil/dev_kandidat_putaranN.jsonl.gz``); ``pilih`` applies the rule to every
+candidate of every round written so far and writes ``hasil/pilihan.json`` (``--sampai N``:
+rounds up to N only, ``hasil/pilihan_putaranN.json``). Round 2 (below ``MODELS``) was added and
+committed after round 1 had been scored and before round 2 was.
 
 Usage (work folder as ``ukur.py``):
 
     python research/kalibrasi/kandidat.py periksa --split dev    # kejenuhan reproduces every stored output
-    python research/kalibrasi/kandidat.py nilai --split dev
+    python research/kalibrasi/kandidat.py nilai --split dev --putaran 1
+    python research/kalibrasi/kandidat.py pilih --sampai 1
+    python research/kalibrasi/kandidat.py nilai --split dev --putaran 2
     python research/kalibrasi/kandidat.py pilih
     python research/kalibrasi/kandidat.py banding --split uji    # after the held-out run: the decoder before
 """
@@ -215,12 +220,125 @@ MODELS = {
 }
 
 
+# --- round 2 (added after round 1 was scored; the rule ATURAN is unchanged) -------------------
+#
+# Round 1 failed rule 4 for every candidate on the development set (``hasil/pilihan_putaran1.json``).
+# Looking at the confidently wrong bits of the development evidence (wrong with |L| above 5.3)
+# showed one cause in the decoder before and in round 1 alike: a single cell adding 9 to 140 to
+# the LLR of its bit, always a cell in a thin stratum or stratum and class (a few hundred cells,
+# for example the cells of a screenshot whose share of white pixels is 0.5 to 0.75), whose noise
+# variance was estimated far too small (standardized residual 4 to 40). The decoder before
+# estimates it as E[n u^2] - g^2 E[n] inside the stratum, which a noisy pilot gain or a strong
+# signal (PNG) drives towards its floor; round 1 split the cells further and, with the pairs
+# restricted to one stratum, had even fewer cells per estimate. Round 2 therefore estimates the
+# noise from every pair of cells of one bit, across strata, with one factor per saturation
+# stratum and one per distance class, and adds a cap on what one cell may add:
+#
+# * ``pasangan_kali``: gain per saturation stratum (pilot regression, as before); noise variance
+#   V_c = A_j(c) B_k(c) fitted by alternating least squares to every pair (c, c') of cells of
+#   one bit with a positive gain: E[(u_c - u_c')^2 - (g_c - g_c')^2] = V_c / n_c + V_c' / n_c'
+#   (the bit's sign cancels: (u_c - u_c') = (g_c - g_c') s_b + noise, s_b^2 = 1). No codeword;
+#   the pilot enters only through the gains, as before;
+# * ``pasangan_kali_gain``: the same, with the gain of a cell g_j(c) times an attenuation
+#   factor of its distance class, from the pilot regression of u on g_j e pooled over strata
+#   (classes with at least MIN_CLASS_CELLS cells; JPEG attenuates the pattern next to text);
+# * ``pasangan_kali_batas`` and ``pasangan_kali_gain_batas``: the same, and no cell adds more
+#   than CELL_CAP = ln(99) to the LLR of its bit (the largest LLR a cell can carry when one
+#   cell in a hundred is an outlier);
+# * ``kejenuhan_batas``: the decoder before with the cap only.
+
+CELL_CAP = math.log(99.0)
+ALS_ITERATIONS = 8
+
+
+def all_pairs(bits: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Every pair of cells of the same bit (indices into the cell arrays)."""
+    return _pairs(bits, np.zeros_like(bits))
+
+
+def product_variance(u, gain, weight, stratum, cls, bits, iterations: int = ALS_ITERATIONS) -> np.ndarray:
+    """V_c = A_j B_k from the pairs of cells of one bit (cells with a positive gain only); 1 for
+    cells without gain, whose LLR term is 0 anyway."""
+    use = gain > 0
+    v_c = np.ones(u.size)
+    i, j = all_pairs(bits)
+    keep = use[i] & use[j]
+    i, j = i[keep], j[keep]
+    if i.size == 0:
+        return v_c
+    y = (u[i] - u[j]) ** 2 - (gain[i] - gain[j]) ** 2
+    n_s, n_k = int(stratum.max()) + 1, int(cls.max()) + 1
+    a = np.full(n_s, max(float(np.mean(y)) * float(np.mean(weight[use])) / 2.0, 1e-30))
+    b = np.ones(n_k)
+    rows = np.arange(i.size)
+    for _ in range(iterations):
+        for target in ("a", "b"):
+            if target == "a":
+                x = np.zeros((i.size, n_s))
+                np.add.at(x, (rows, stratum[i]), b[cls[i]] / weight[i])
+                np.add.at(x, (rows, stratum[j]), b[cls[j]] / weight[j])
+            else:
+                x = np.zeros((i.size, n_k))
+                np.add.at(x, (rows, cls[i]), a[stratum[i]] / weight[i])
+                np.add.at(x, (rows, cls[j]), a[stratum[j]] / weight[j])
+            cols = x.any(axis=0)
+            sol, *_ = np.linalg.lstsq(x[:, cols], y, rcond=None)
+            (a if target == "a" else b)[cols] = np.maximum(sol, 1e-30)
+        scale = float(np.mean(b[cls[use]]))
+        b /= scale
+        a *= scale
+    v_c[use] = a[stratum[use]] * b[cls[use]]
+    return v_c
+
+
+def class_attenuation(u, e, gain, weight, cls) -> np.ndarray:
+    """The gain of every cell times the pilot-regression attenuation of its distance class."""
+    out = gain.copy()
+    for k in range(len(CLASS_EDGES)):
+        m = (cls == k) & (gain > 0)
+        if m.sum() < MIN_CLASS_CELLS:
+            continue
+        den = float(np.sum(weight[m] * gain[m] ** 2 * e[m] ** 2))
+        if den > 0:
+            out[m] = gain[m] * max(float(np.sum(weight[m] * gain[m] * e[m] * u[m])) / den, 0.0)
+    return out
+
+
+def pasangan_kali(u, e, stratum, weight, distance, bits, class_gain: bool = False, cap: float | None = None):
+    """Round 2: noise variance A_j B_k from all pairs of cells of one bit; optional class gain and cap."""
+    g_s, _ = B.stratum_gains(u, e, stratum, len(B.SAT_EDGES), weight)
+    cls = distance_class(distance, u.size)
+    gain = g_s[stratum]
+    if class_gain:
+        gain = class_attenuation(u, e, gain, weight, cls)
+    v_c = product_variance(u, gain, weight, stratum, cls, bits)
+    return (gain, v_c) if cap is None else (gain, v_c, cap)
+
+
+def kejenuhan_batas(u, e, stratum, weight, distance, bits):
+    """The decoder before with the cell cap."""
+    g, v = B.saturation_noise(u, e, stratum, weight, distance)
+    return g, v, CELL_CAP
+
+
+MODELS.update({
+    "pasangan_kali": pasangan_kali,
+    "pasangan_kali_gain": lambda *a: pasangan_kali(*a, class_gain=True),
+    "pasangan_kali_batas": lambda *a: pasangan_kali(*a, cap=CELL_CAP),
+    "pasangan_kali_gain_batas": lambda *a: pasangan_kali(*a, class_gain=True, cap=CELL_CAP),
+    "kejenuhan_batas": kejenuhan_batas,
+})
+ROUNDS = {1: CANDIDATES, 2: ("kejenuhan", "pasangan_kali", "pasangan_kali_gain", "pasangan_kali_batas",
+                            "pasangan_kali_gain_batas", "kejenuhan_batas")}
+ALL_CANDIDATES = tuple(dict.fromkeys(n for names in ROUNDS.values() for n in names))
+
+
 def with_bits(model, grid, measure):
     """The pair models need each used cell's bit index: wrap a model so it sees them."""
     ok = (measure.frac >= B.MIN_VALID_FRACTION) & (grid.cell_bit >= 0)
     bits = grid.cell_bit[ok]
 
-    def wrapped(u, e, stratum, weight, distance):
+    def wrapped(u, e, stratum, weight, distance, cell_bits=None):
         _BITS["bits"] = bits
         return model(u, e, stratum, weight, distance)
 
@@ -266,8 +384,9 @@ def redecoded(job: dict, stored: dict, names: tuple[str, ...]) -> dict[str, list
     measure, grid, reg_meta = measure_of(job, stored)
     out = {}
     for name in names:
-        sb = B.background_soft_bits(measure, grid, ctx.plan.channel("background"), ctx.p,
-                                    with_bits(MODELS[name], grid, measure))
+        # Round 1 models take five arguments and read the bits from _BITS; later ones get them.
+        model = with_bits(MODELS[name], grid, measure) if name in ROUNDS[1] else MODELS[name]
+        sb = B.background_soft_bits(measure, grid, ctx.plan.channel("background"), ctx.p, model)
         sb.meta.update(reg_meta)
         new = list(obs)
         new[index[0]] = sb
@@ -368,12 +487,16 @@ def run_periksa(split: str) -> None:
         raise SystemExit(1)
 
 
-def run_nilai(split: str) -> None:
+def round_path(n: int) -> Path:
+    """Re-decoded development rows of round ``n`` (round 1 was first written without the number)."""
+    return ukur.HASIL / f"dev_kandidat_putaran{n}.jsonl.gz"
+
+
+def run_nilai(split: str, putaran: int) -> None:
     if split != "dev":
         raise SystemExit("kandidat hanya dinilai pada set dev")
-    out = ukur.HASIL / "dev_kandidat.jsonl.gz"
-    items = [(j, CANDIDATES) for j in image_jobs(split)]
-    _pool(nilai_job, items, out, lambda it: it["key"] if isinstance(it, dict) else ukur.job_key(it[0]))
+    items = [(j, ROUNDS[putaran]) for j in image_jobs(split)]
+    _pool(nilai_job, items, round_path(putaran), lambda it: it["key"] if isinstance(it, dict) else ukur.job_key(it[0]))
 
 
 # --- the rule --------------------------------------------------------------------------------
@@ -431,17 +554,19 @@ def _warned(r: dict) -> bool:
     return bool(r["hapus"]["ditandai"] or (r["kontradiksi"] or {}).get("ditandai") or r["balik"]["ditandai"])
 
 
-def choose(dev_rows: list[dict], cand_rows: list[dict]) -> dict:
+def choose(dev_rows: list[dict], cand_rows: list[dict], names: tuple[str, ...] = ALL_CANDIDATES) -> dict:
     """Apply ATURAN to the development rows: the base rows (``dev.jsonl``, the decoder before, for
-    PDF evidence and every candidate alike) and the re-decoded image rows."""
+    PDF evidence and every candidate alike) and the re-decoded image rows of every round. The
+    decoder before is re-decoded in every round; the first round's rows are its reference."""
     pdf_rows = [r for r in dev_rows if r["medium"] == "pdf"]
-    by_cand: dict[str, list[dict]] = {name: list(pdf_rows) for name in CANDIDATES}
+    by_cand: dict[str, dict[str, dict]] = {name: {r["key"]: r for r in pdf_rows} for name in names}
     for r in cand_rows:
-        by_cand[r["kandidat"]].append(r)
-    base = {r["key"]: r for r in by_cand["kejenuhan"]}
+        if r["kandidat"] in by_cand:
+            by_cand[r["kandidat"]].setdefault(r["key"], r)
+    base = by_cand["kejenuhan"]
     report = {}
-    for name in CANDIDATES:
-        rows = by_cand[name]
+    for name in names:
+        rows = list(by_cand[name].values())
         if len(rows) != len(base):
             raise SystemExit(f"{name}: {len(rows)} baris, {len(base)} diharapkan")
         wrong = [r["key"] for r in rows if r["salah"]]
@@ -460,7 +585,7 @@ def choose(dev_rows: list[dict], cand_rows: list[dict]) -> dict:
                         "sel_gagal_jumlah": len(fails), "benar": right,
                         "median_skor": round(float(np.median(margins)), 4) if margins else None,
                         "lolos": not wrong and not lost and not new_warn and ok4}
-    passing = [n for n in CANDIDATES if report[n]["lolos"] and n != "kejenuhan"]
+    passing = [n for n in names if report[n]["lolos"] and n != "kejenuhan"]
     chosen = "kejenuhan"
     if passing:
         chosen = min(passing, key=lambda n: (report[n]["galat_kalibrasi"], -report[n]["benar"],
@@ -468,12 +593,25 @@ def choose(dev_rows: list[dict], cand_rows: list[dict]) -> dict:
     return {"aturan": ATURAN, "kandidat": report, "dipilih": chosen}
 
 
-def run_pilih() -> None:
+def load_rounds(upto: int | None = None) -> tuple[list[dict], tuple[str, ...]]:
+    """Re-decoded development rows of every round written so far (or up to ``upto``) and the
+    candidates they hold."""
+    rows, names = [], []
+    for n in sorted(ROUNDS):
+        if (upto is not None and n > upto) or not round_path(n).exists():
+            continue
+        with gzip.open(round_path(n), "rt", encoding="utf-8") as fh:
+            rows += [json.loads(line) for line in fh if line.strip()]
+        names += [c for c in ROUNDS[n] if c not in names]
+    return rows, tuple(names)
+
+
+def run_pilih(upto: int | None = None) -> None:
     dev_rows = ukur._load(ukur.HASIL / "dev.jsonl")
-    with gzip.open(ukur.HASIL / "dev_kandidat.jsonl.gz", "rt", encoding="utf-8") as fh:
-        cand_rows = [json.loads(line) for line in fh if line.strip()]
-    res = choose(dev_rows, cand_rows)
-    (ukur.HASIL / "pilihan.json").write_text(json.dumps(res, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    cand_rows, names = load_rounds(upto)
+    res = choose(dev_rows, cand_rows, names)
+    name = "pilihan.json" if upto is None else f"pilihan_putaran{upto}.json"
+    (ukur.HASIL / name).write_text(json.dumps(res, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for name, r in res["kandidat"].items():
         print(f"{name}: lolos {r['lolos']}, tuduhan salah {len(r['tuduhan_salah'])}, putusan hilang "
               f"{len(r['putusan_hilang'])}, peringatan baru {len(r['peringatan_baru'])}, kalibrasi "
@@ -521,16 +659,20 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("periksa", "nilai", "banding"):
         p = sub.add_parser(name)
         p.add_argument("--split", choices=("dev", "uji"), required=True)
-    sub.add_parser("pilih")
+        if name == "nilai":
+            p.add_argument("--putaran", type=int, choices=sorted(ROUNDS), required=True)
+    pl = sub.add_parser("pilih")
+    pl.add_argument("--sampai", type=int, choices=sorted(ROUNDS), default=None,
+                    help="hanya putaran sampai nomor ini (hasil/pilihan_putaranN.json)")
     args = ap.parse_args(argv)
     if args.cmd == "periksa":
         run_periksa(args.split)
     elif args.cmd == "nilai":
-        run_nilai(args.split)
+        run_nilai(args.split, args.putaran)
     elif args.cmd == "banding":
         run_banding(args.split)
     else:
-        run_pilih()
+        run_pilih(args.sampai)
     return 0
 
 

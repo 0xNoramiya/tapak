@@ -65,6 +65,7 @@ No codeword is consulted at any step.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -330,20 +331,22 @@ def _clip_by_stratum(u: np.ndarray, stratum: np.ndarray, n_strata: int) -> np.nd
     return out
 
 
-CellNoiseModel = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None],
-                          tuple[np.ndarray, np.ndarray]]
-"""(u, e, stratum, weight, ink distance) -> (gain, noise variance) per used cell of an image page.
+CellNoiseModel = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray],
+                          tuple[np.ndarray, ...]]
+"""(u, e, stratum, weight, ink distance, bits) -> (gain, noise variance[, cap]) per used cell of an
+image page.
 
 u: despread cell values (clipped per saturation stratum); e: the pilot of each cell's bit;
 stratum: saturation stratum; weight: valid-pixel fraction n_c; ink distance: cells to the
-master's ink (None when not measured). The noise of cell c is taken to have variance
-v_c / n_c and the LLR of bit b is sum over its cells of 2 g_c n_c u_c / v_c. A model may use
+master's ink (None when not measured); bits: the bit index of each cell. The noise of cell c is
+taken to have variance v_c / n_c and the LLR of bit b is the sum over its cells of
+2 g_c n_c u_c / v_c, each term clipped to +/- cap when the model returns one. A model may use
 these arrays, which come from the evidence, the master, the keyed cell layout and the bias
 vector, never a codeword."""
 
 
 def saturation_noise(u: np.ndarray, e: np.ndarray, stratum: np.ndarray, weight: np.ndarray,
-                     distance: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+                     distance: np.ndarray | None = None, bits: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """The noise model before ``research/kalibrasi``: one gain and one noise variance per
     saturation stratum (``stratum_gains``), whatever the cell's distance to the ink."""
     gain, var = stratum_gains(u, e, stratum, len(SAT_EDGES), weight)
@@ -510,9 +513,13 @@ def background_soft_bits(measure: BackgroundMeasure, grid: PageGrid, slots: list
         found = (z_decoy >= SIGNAL_Z or z_pilot >= SIGNAL_Z) and bool(np.any(gain > 0))
         model = noise_model if callable(noise_model) else NOISE_MODELS[noise_model or NOISE_MODEL]
         distance = None if measure.ink_distance is None else measure.ink_distance[sel]
-        g_c, v_c = model(u, e, stratum, weight, distance)
+        noise = model(u, e, stratum, weight, distance, bits)
+        g_c, v_c = noise[0], noise[1]
         info = np.bincount(bits, weights=(g_c ** 2 / v_c) * weight, minlength=grid.n_bits)  # per-bit SNR^2
-        llr = np.bincount(bits, weights=(2.0 * g_c / v_c) * weight * u, minlength=grid.n_bits)
+        terms = (2.0 * g_c / v_c) * weight * u
+        if len(noise) > 2 and math.isfinite(noise[2]):  # no single cell adds more than the cap
+            terms = np.clip(terms, -noise[2], noise[2])
+        llr = np.bincount(bits, weights=terms, minlength=grid.n_bits)
         reported = info > 0
         best = int(np.argmax(gain / np.sqrt(var)))
         meta.update(mu=float(gain[best]) if found else 0.0, sigma=float(np.sqrt(var[best])),

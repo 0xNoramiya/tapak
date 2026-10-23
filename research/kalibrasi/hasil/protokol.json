@@ -1,0 +1,478 @@
+{
+  "n": 20,
+  "c": 3,
+  "eps": 1e-06,
+  "geser": "v2",
+  "issuances": {
+    "K1": [
+      "nota_dinas",
+      20,
+      13101,
+      "layar"
+    ],
+    "K2": [
+      "surat_telegram",
+      20,
+      13102,
+      "layar"
+    ],
+    "K3": [
+      "nota_dinas",
+      20,
+      13103,
+      "cetak"
+    ],
+    "K4": [
+      "surat_telegram",
+      20,
+      13104,
+      "cetak"
+    ],
+    "U1": [
+      "nota_dinas",
+      20,
+      13201,
+      "layar"
+    ],
+    "U2": [
+      "surat_telegram",
+      20,
+      13202,
+      "layar"
+    ],
+    "U3": [
+      "nota_dinas",
+      20,
+      13203,
+      "cetak"
+    ],
+    "U4": [
+      "surat_telegram",
+      20,
+      13204,
+      "cetak"
+    ]
+  },
+  "sets": {
+    "dev": [
+      "K1",
+      "K2",
+      "K3",
+      "K4"
+    ],
+    "uji": [
+      "U1",
+      "U2",
+      "U3",
+      "U4"
+    ]
+  },
+  "seeds": {
+    "dev": {
+      "bukti": 13111,
+      "koalisi": 13112,
+      "serangan": 13113,
+      "induk": 13119
+    },
+    "uji": {
+      "bukti": 13211,
+      "koalisi": 13212,
+      "serangan": 13213,
+      "induk": 13219
+    }
+  },
+  "grids": {
+    "dev": {
+      "layar": {
+        "pdf": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "layar_copies": [
+          3,
+          11
+        ],
+        "foto_copies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "koalisi": {
+          "k": [
+            2,
+            3
+          ],
+          "per_k": 2,
+          "rule": "acak",
+          "media": [
+            [
+              "pdf",
+              null,
+              null
+            ],
+            [
+              "pesan",
+              "mupdf",
+              56
+            ],
+            [
+              "foto",
+              null,
+              null
+            ]
+          ]
+        },
+        "induk": {
+          "reps": 2,
+          "media": [
+            [
+              "pdf",
+              null,
+              null
+            ],
+            [
+              "png",
+              "mupdf",
+              56
+            ],
+            [
+              "pesan",
+              "mupdf",
+              32
+            ],
+            [
+              "pesan",
+              "mupdf",
+              56
+            ],
+            [
+              "pesan",
+              "mupdf",
+              96
+            ],
+            [
+              "layar_sim",
+              null,
+              null
+            ],
+            [
+              "foto",
+              null,
+              null
+            ],
+            [
+              "ponsel",
+              null,
+              null
+            ],
+            [
+              "monitor",
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "cetak": {
+        "cetak_copies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "pages": [
+          1,
+          2
+        ],
+        "pdf": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "induk": {
+          "reps": 2,
+          "media": [
+            [
+              "cetak",
+              null,
+              null
+            ]
+          ]
+        }
+      }
+    },
+    "uji": {
+      "layar": {
+        "pdf": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "layar_copies": [
+          2,
+          9,
+          17
+        ],
+        "foto_copies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "koalisi": {
+          "k": [
+            2,
+            3
+          ],
+          "per_k": 4,
+          "rule": "acak",
+          "media": [
+            [
+              "pdf",
+              null,
+              null
+            ],
+            [
+              "pesan",
+              "mupdf",
+              40
+            ],
+            [
+              "pesan",
+              "mupdf",
+              56
+            ],
+            [
+              "pesan",
+              "mupdf",
+              96
+            ],
+            [
+              "foto",
+              null,
+              null
+            ]
+          ]
+        },
+        "induk": {
+          "reps": 3,
+          "media": [
+            [
+              "pdf",
+              null,
+              null
+            ],
+            [
+              "png",
+              "mupdf",
+              56
+            ],
+            [
+              "pesan",
+              "mupdf",
+              32
+            ],
+            [
+              "pesan",
+              "mupdf",
+              56
+            ],
+            [
+              "pesan",
+              "mupdf",
+              96
+            ],
+            [
+              "layar_sim",
+              null,
+              null
+            ],
+            [
+              "foto",
+              null,
+              null
+            ],
+            [
+              "ponsel",
+              null,
+              null
+            ],
+            [
+              "monitor",
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "cetak": {
+        "cetak_copies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "pages": [
+          1,
+          2
+        ],
+        "pdf": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "induk": {
+          "reps": 3,
+          "media": [
+            [
+              "cetak",
+              null,
+              null
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "media": [
+    "pdf",
+    "png",
+    "pesan",
+    "kecil",
+    "layar_sim",
+    "foto",
+    "ponsel",
+    "monitor",
+    "cetak"
+  ],
+  "resolutions": [
+    28,
+    32,
+    40,
+    48,
+    56,
+    64,
+    72,
+    84,
+    96,
+    120,
+    150
+  ],
+  "renderers": [
+    "mupdf",
+    "poppler",
+    "cairo"
+  ],
+  "screen_formats": [
+    "png",
+    "pesan",
+    "kecil"
+  ],
+  "framings": [
+    "utuh",
+    "bingkai"
+  ],
+  "photo_angles": [
+    0.0,
+    10.0,
+    20.0,
+    30.0
+  ],
+  "print_angles": [
+    10.0,
+    30.0
+  ],
+  "w_edges": [
+    0.0,
+    0.5,
+    0.8,
+    0.9,
+    0.95,
+    0.99,
+    0.999,
+    1.0
+  ],
+  "temperings": [
+    1.0,
+    0.3
+  ],
+  "trace": "pelacakan tercatat ke-1, kebijakan tahap bertahap-v1, jalur produksi (collect_file / collect_from_gray)",
+  "generators": "default_rng([benih bukti atau induk, indeks terbitan, indeks medium, indeks penggambar, dpi, indeks format, salinan atau 1000 + ulangan atau 500 + indeks koalisi, halaman])",
+  "script_sha256": "566aecb30a9b1c4fd1f59be631c21c34a95029747e31c4787879f2463ad68947"
+}
