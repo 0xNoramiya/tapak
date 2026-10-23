@@ -97,6 +97,19 @@ LONE_LEAKER_BITS = 64
 # count into an indicative word count for the issuer and the berita acara.
 BITS_PER_100_WORDS = 3.6
 LONE_LEAKER_WORDS = 1800  # LONE_LEAKER_BITS at BITS_PER_100_WORDS, rounded to 100 words
+# Issuer note for word choice on a document meant for printing (the print background profile).
+# Rows holding a point leave the shift channel, the only channel of the default profile on
+# paper. Measured in research/ocr (hasil/terbit.jsonl, hasil/ringkas_uji.json; simulated prints
+# with the default background profile): the sample nota dinas carried 314 shift positions with
+# word choice and sentence variants against 439 without, OCR gave back at most 9 bits per page,
+# and the issuance without either named the right printed copy at least as often in every cell.
+# A note only: issuance itself is unchanged.
+PRINT_NOTE = (
+    "Untuk dokumen cetak, pilihan kata mengambil lebih banyak posisi geser daripada yang dikembalikan OCR: pada "
+    "nota dinas contoh 439 menjadi 314 posisi geser (bersama varian kalimat), sedangkan OCR mengembalikan paling "
+    "banyak 9 bit per halaman; dalam uji foto cetak simulasi (profil latar bawaan), penerbitan tanpa keduanya "
+    "menyebut salinan yang benar sama sering atau lebih sering di setiap sel"
+)
 
 POLICIES = ("lokal", "kalimat")
 _STRIP = ".,;:!?\"'()[]{}"

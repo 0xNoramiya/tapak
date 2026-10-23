@@ -388,7 +388,7 @@ def test_visible_marks_caveat_is_split_from_the_notes():
     out = tpl.render(notes=notes)
     assert out.startswith("[P]salinan #3: ") and out.endswith("[C]catatan biasa") and out.count("[P]") == 1
     src = (ROOT / "tapak" / "web" / "templates" / "_hasil_lacak.html").read_text(encoding="utf-8")
-    assert src.index("peringatan_terlihat(a.notes)") < src.index('class="verdict-actions"')
+    assert src.index("{% for n in v.notes %}") < src.index('class="verdict-actions"')
 
 
 # --- word choice (opt-in lexical channel) ----------------------------------------------------
@@ -458,7 +458,7 @@ def test_word_choice_is_opt_in_and_scan_lists_points(client):
     assert 'class="lex-aside" role="group"' in r.text and "<aside" not in r.text  # no nested landmark
     assert 'id="lx-tinjau-h" tabindex="-1" data-autofocus' in r.text  # focus moves to the list
     text = _plain(r.text)
-    assert "0 bit leksikal + 0 bit semantik" in text
+    assert "0 bit pilihan kata + 0 bit varian kalimat" in text
     assert "belum mencapai 64 bit" in text and 'stamp-ok">Cukup untuk satu pembocor' not in r.text
     assert "peringatan tanda terlihat" in r.text  # a retyped-text name always carries the caveat
     assert _status(r.text).startswith(f"{len(sel.points)} dari {len(sel.points)} titik pilihan kata menunggu")
@@ -483,7 +483,7 @@ def test_word_choice_point_decisions_and_counter(client):
     assert re.search(rf'id="lx-{first}-ok"\s+aria-pressed="true"', r.text)
     assert re.search(rf'id="lx-{first}-no"\s+aria-pressed="false"', r.text)
     bits = sel.points[0].bits
-    assert f"{bits} bit leksikal + 0 bit semantik" in r.text and f"{bits} bit leksikal + 0 bit semantik." in _status(r.text)
+    assert f"{bits} bit pilihan kata + 0 bit varian kalimat" in r.text and f"{bits} bit pilihan kata + 0 bit varian kalimat." in _status(r.text)
     assert "Contoh dua salinan" in r.text and "lex-sample-row" in r.text  # two sample copies of the approved rows
     r = client.post(f"/terbitkan/{sid}/leksikal/{second}/ditolak")
     assert re.search(rf'id="lx-{second}-no"\s+aria-pressed="true"', r.text)
@@ -590,7 +590,7 @@ def test_word_choice_publish_stores_selection_and_lacak_names_the_channel(client
     bits = sel.bits
     r = client.post(f"/terbitkan/{sid}/terbitkan")
     assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
-    assert f"{bits} bit leksikal + 0 bit semantik" in _plain(r.text) and "belum mencapai 64 bit" in _plain(r.text)
+    assert f"{bits} bit pilihan kata + 0 bit varian kalimat" in _plain(r.text) and "belum mencapai 64 bit" in _plain(r.text)
     assert 'stamp-warn">Belum cukup' in r.text and "pita bias" not in r.text
     assert r.text.index('class="issued-actions"') < r.text.index('class="issued-retype"')  # actions first
     doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
@@ -600,11 +600,11 @@ def test_word_choice_publish_stores_selection_and_lacak_names_the_channel(client
     manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.plan_summary["lexical"]["bits"] == bits and manifest.lexical_digest == sel.digest
     assert manifest.retype_positions
-    # Lacak labels the channel: physical "Leksikal" in the evidence table, "Pilihan kata" per sub-channel.
+    # Lacak names the channel as Terbitkan does: "Pilihan kata" in the evidence table and per sub-channel.
     copy = client.get(f"/dokumen/{doc}/salinan/5")
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
     assert r.status_code == 200 and "Salinan #5" in r.text
-    assert "<td>Leksikal</td>" in r.text and "<td>Pilihan kata</td>" in r.text
+    assert r.text.count("<td>Pilihan kata</td>") == 2 and "Leksikal" not in r.text
 
 
 def test_word_choice_with_every_point_rejected_issues_without_the_channel(client):
@@ -622,7 +622,7 @@ def test_word_choice_with_every_point_rejected_issues_without_the_channel(client
     folder = load_settings().workspaces / doc
     manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.lexical_digest is None and not (folder / "leksikal.json").exists()
-    assert "bit leksikal" not in r.text
+    assert "bit pilihan kata" not in r.text
 
 
 def test_word_choice_decisions_are_frozen_while_issuing(client, monkeypatch):
@@ -837,6 +837,79 @@ def test_print_profile_warns_in_form_plan_and_result(client):
     doc = re.search(r"/dokumen/([0-9a-f]{16})/salinan.zip", r.text).group(1)
     manifest = IssueManifest.from_json((load_settings().workspaces / doc / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.background_settings == PRINT_BACKGROUND and profile_name(manifest.background_settings) == "cetak"
+
+
+def test_word_choice_with_the_print_profile_says_what_it_costs_on_paper(client):
+    """With the print profile the word-choice step carries the one-line note of research/ocr,
+    before the scan and, after it, under the sample copies where the shift cost is told; with
+    the screen profile it does not.
+    The numbers are the committed ones (439 to 314 shift positions, at most 9 bits per page)."""
+    from tapak.marker.lexical import PRINT_NOTE
+
+    assert "439 menjadi 314 posisi geser" in PRINT_NOTE and "paling banyak 9 bit per halaman" in PRINT_NOTE
+    assert "profil latar bawaan" in PRINT_NOTE and "sama sering atau lebih sering di setiap sel" in PRINT_NOTE
+    r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6", "latar": "cetak"})
+    sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
+    first = PRINT_NOTE.split(":")[0]
+    assert r.text.count('class="hint lex-cetak"') == 1 and first in r.text
+    r = client.post(f"/terbitkan/{sid}/leksikal")
+    lex = r.text[r.text.index('id="leksikal"'):]
+    assert lex.count('class="hint lex-cetak"') == 1 and first in lex
+    assert lex.index('class="hint lex-cetak"') > lex.index('id="lx-contoh-h"')  # with the sample copies
+    _, text = _analyse(client)  # screen profile (another session of the same master)
+    assert "lex-cetak" not in text and first not in text
+
+
+def test_verdict_notes_are_ranked_and_said_once():
+    """Under an identified verdict the warnings come in the order they change what to do: a
+    name resting on visible marks, an identity the registry does not confirm, the manipulation
+    warning (without the statistics, which the validity box lists), a skipped scanned-page shift
+    channel. A registry sentence shown there is left out of the validity box."""
+    from types import SimpleNamespace
+
+    from tapak.decoder.accuse import VISIBLE_MARKS_NOTE
+    from tapak.decoder.erasure import ErasureCheck
+    from tapak.decoder.manipulation import MANIPULATION_LEAD, manipulation_note
+    from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
+    from tapak.web.app import _verdict_notes
+
+    erasure = ErasureCheck(-9.5, 1981, -3.29, 1e-3, True)
+    warning = manipulation_note(erasure, None)
+    scan = f"{SCAN_SHIFT_SKIPPED}: kotak kata tidak dapat dibaca ulang (simulasi)"
+    visible = f"salinan #3: {VISIBLE_MARKS_NOTE}"
+    a = SimpleNamespace(notes=["catatan biasa", scan, warning, visible], erasure=erasure, contradiction=None,
+                        reversal=None)
+    unsigned = "2 entri salinan dokumen ini belum bertanda tangan; rantai tanpa tanda tangan tidak terlindungi"
+    reg = SimpleNamespace(recorded=True, chain_ok=True, copies_unsigned=2, problems=[unsigned, "log kanari: rusak"])
+    v = _verdict_notes(SimpleNamespace(registry=reg), a, True, lambda n: n)
+    firsts = [n["parts"][0] for n in v["notes"]]
+    assert firsts[0] == visible and firsts[1].startswith("2 entri salinan dokumen ini belum bertanda tangan")
+    assert firsts[2].startswith(MANIPULATION_LEAD) and firsts[3] == scan
+    assert v["notes"][2].get("manipulation") and "z = -9,50" in warning
+    assert not any("z = -9,50" in part for part in v["notes"][2]["parts"])
+    assert "untuk dokumen tertentu laju alarm palsunya dapat sampai beberapa persen" in " ".join(v["notes"][2]["parts"])
+    assert v["notes_rest"] == ["catatan biasa"] and v["problems"] == ["log kanari: rusak"]
+    # "tidak cukup bukti": no registry sentence under the verdict, the box keeps it
+    v = _verdict_notes(SimpleNamespace(registry=reg), a, False, lambda n: n)
+    firsts = [n["parts"][0] for n in v["notes"]]
+    assert firsts[-1] == scan and not any(f.startswith("2 entri salinan") for f in firsts) and unsigned in v["problems"]
+    # a document issued without a registry: the trace note moves under the verdict, once
+    note = "dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari catatan lokal"
+    a.notes = [note, "pelacakan ini tidak dicatat di registri"]
+    reg = SimpleNamespace(recorded=False, chain_ok=None, copies_unsigned=0, problems=["registri tidak ditemukan"])
+    v = _verdict_notes(SimpleNamespace(registry=reg), a, True, lambda n: n)
+    assert v["notes"][0]["parts"] == ["Dokumen ini diterbitkan tanpa registri; identitas penerima hanya berasal dari "
+                                      "catatan lokal."]
+    assert v["notes_rest"] == ["pelacakan ini tidak dicatat di registri"] and v["problems"] == ["registri tidak ditemukan"]
+
+
+def test_powers_of_ten_are_written_and_read_as_numbers():
+    from tapak.web.app import _powers
+
+    out = str(_powers("batas 9,5 x 10^-6 untuk koalisi, tidak lebih dari 10^-3 <b>"))
+    assert '9,5 \u00d7 10<sup>\u22126</sup></span><span class="sr-only">9,5 kali 10 pangkat minus 6</span>' in out
+    assert '10<sup>\u22123</sup></span><span class="sr-only">10 pangkat minus 3</span>' in out
+    assert out.endswith("&lt;b&gt;") and "x 10^" not in out
 
 
 def test_unknown_background_profile_is_a_field_error(client):
@@ -1125,7 +1198,7 @@ def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(c
     r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy.content, "application/pdf")})
     assert r.status_code == 200 and "Salinan #2" in r.text
     # the channel keeps its usual name; a sentence under the table says the scanned pages were covered
-    assert re.search(r"<tr>\s*<td>Geser</td>", r.text)
+    assert re.search(r"<tr>\s*<td>Geser kata dan baris</td>", r.text)
     note = re.search(r'<p class="hint kanal-catatan" id="kanal-catatan">(.*?)</p>', r.text, re.S).group(1)
     assert "Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan cocok" in note
     assert "dipetakan ke halaman 1 (halaman pindaian, korelasi" in _plain(r.text)
@@ -1263,7 +1336,7 @@ def test_lacak_shows_later_stages_resting_on_the_stage_one_names(client, monkeyp
     assert kicker == f"bocor_salinan{late:03d}_{rid[late]}_salinan{REDACTED}_{REDACTED}.txt"
     assert rid[outsider] not in r.text
     kanal = r.text[r.text.index('id="kanal-h"'):r.text.index('id="skor-h"')]
-    row = re.search(r"<tr>\s*<td>Teks</td>.*?</tr>", kanal, re.S).group(0)
+    row = re.search(r"<tr>\s*<td>Karakter tak terlihat dan huruf kembar</td>.*?</tr>", kanal, re.S).group(0)
     assert all(f"<b>#{seq}</b>" in row for seq in a.named_seqs) and f"#{outsider}" not in row
     assert f"{len(set(coalition) - a.named_seqs) + 1} salinan lain (nomor tidak dicantumkan)" in row
     canary = r.text[r.text.index('id="kanari-h"'):r.text.index('id="sah-h"')]
@@ -1376,12 +1449,15 @@ def test_lacak_warns_of_a_deliberate_erasure_pattern_without_changing_the_verdic
     assert ERASURE_NOTE in verdict and r.text.count(ERASURE_NOTE) == 1 and r.text.count(MANIPULATION_LEAD) == 1
     box = r.text[r.text.index('id="sah-h"'):]
     assert "Pola penghapusan" in box and "Terdeteksi" in box and "posisi terukur" in box
+    # the statistic is given once, in the validity box; the warning links to it
+    assert "posisi terukur" not in verdict and 'href="#sah-h"' in verdict
+    assert "untuk dokumen tertentu laju alarm palsunya dapat sampai beberapa persen" in verdict
     for seq in (1, 4, 6):  # nobody outside the coalition (copies 2, 3 and 5) is named
         assert f'<span class="who-seq">Salinan #{seq}</span>' not in verdict
     honest = client.post("/lacak", data={"dokumen": doc},
                          files={"bukti": ("bocor.pdf", pdfs[0], "application/pdf")}).text
     assert ERASURE_NOTE not in honest and "Pola penghapusan" in honest and "Terdeteksi" not in honest
-    assert "Tanda terbalik" in honest and MANIPULATION_LEAD not in honest
+    assert "Pola tanda terbalik" in honest and MANIPULATION_LEAD not in honest
 
 
 def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
@@ -1416,9 +1492,11 @@ def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
     assert r.text.count(MANIPULATION_LEAD) == 1 and r.text.count(CONTRADICTION_NOTE) == 1
     assert REVERSAL_NOTE in verdict and "koalisi lebih dari 3 orang" in verdict
     box = r.text[r.text.index('id="sah-h"'):]
-    assert "Bacaan tanpa nama" in box and "Bertentangan" in box and "tidak lebih dari 10^-3" in box
-    assert "Tanda terbalik" in box and "z tanda = -" in box and "ambang -3,90" in box
+    assert "Bacaan jelas tanpa nama" in box and "Terdeteksi" in box and "tidak lebih dari" in box
+    assert "10 pangkat minus 3" in box and "10<sup>\u22123</sup>" in box  # written as the verdict writes powers
+    assert "Pola tanda terbalik" in box and "z tanda = -" in box and "ambang -3,90" in box
+    assert "z tanda = -" not in verdict  # said once, in the validity box
     honest = client.post("/lacak", data={"dokumen": doc},
                          files={"bukti": ("salinan.pdf", pdfs[0], "application/pdf")}).text
-    assert CONTRADICTION_NOTE not in honest and "Bacaan tanpa nama" not in honest
+    assert CONTRADICTION_NOTE not in honest and "Bacaan jelas tanpa nama" not in honest
     assert '<span class="who-seq">Salinan #2</span>' in honest

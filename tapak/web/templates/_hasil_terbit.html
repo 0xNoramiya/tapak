@@ -29,7 +29,7 @@
       <div class="issued-retype">
         <p class="issued-retype-head"><span class="label">Tahan ketik ulang</span>
           {% if retype.enough %}<span class="stamp stamp-ok">Cukup untuk satu pembocor</span>{% else %}<span class="stamp stamp-warn">Belum cukup</span>{% endif %}
-          <b class="tnum">{{ retype.lex|num }}&nbsp;bit leksikal + {{ retype.sem|num }}&nbsp;bit semantik</b></p>
+          <b class="tnum">{{ retype.lex|num }}&nbsp;bit pilihan kata + {{ retype.sem|num }}&nbsp;bit varian kalimat</b></p>
         <p class="hint">{{ retype.verdict }}. Pilihan kata disimpan sebagai <span class="mono">leksikal.json</span> di samping dokumen induk; registri hanya mencatat digest-nya.</p>
       </div>
       {% endif %}

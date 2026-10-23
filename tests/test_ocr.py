@@ -417,10 +417,10 @@ def test_trace_lists_ocr_channels_and_leaks_no_text(visible, caplog, tmp_path, m
     assert rows["geser"].source_label == ""
     summary = "\n".join(result.summary_lines())
     assert "Kanal leksikal (OCR gambar)" in summary and "Kanal semantik (OCR gambar)" in summary
-    assert _channel_label(rows["leksikal"]) == "Leksikal (OCR gambar)"
+    assert _channel_label(rows["leksikal"]) == "Pilihan kata (OCR gambar)"
     assert [c.copy.seq for c in result.accused] == [seq]
     labels = _agreeing_labels(result.accused[0], result)
-    assert all(lab.endswith("(OCR gambar)") for lab in labels if lab.startswith(("Leksikal", "Semantik")))
+    assert all(lab.endswith("(OCR gambar)") for lab in labels if lab.startswith(("Pilihan kata", "Varian kalimat")))
     info: ReportInfo = build_report_info(ctx, "foto_salinan.png", data, obs, case_number="UJI-OCR",
                                          examiner_name="Pemeriksa Fiktif", examiner_rank="Uji")
     html = render_html(result, info)

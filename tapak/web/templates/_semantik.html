@@ -25,7 +25,7 @@
 {% else %}
 <section class="card sem" aria-labelledby="langkah3">
   <h2 id="langkah3">Kalimat aman <span class="field-optional">(opsional)</span></h2>
-  <p class="lead">Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Ini satu-satunya kanal yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.</p>
+  <p class="lead">Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Bersama pilihan kata (di bawah), hanya kanal ini yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.</p>
   {% if st.scan %}<p class="hint teks-saja">Hanya halaman teks. Halaman pindaian (halaman {{ st.plan.scan_nums }}) tidak membawa kanal ini.</p>{% endif %}
   {% if st.candidates %}
   {% set decided = namespace(n=0) %}
@@ -44,7 +44,7 @@
       {% endfor %}
     </fieldset>
     {% else %}
-    <p class="empty">Tidak ada kalimat yang aman untuk diparafrasekan. Kanal semantik tidak dipakai.</p>
+    <p class="empty">Tidak ada kalimat yang aman untuk diparafrasekan. Kanal varian kalimat tidak dipakai.</p>
     {% endif %}
     {% if held %}
     <details class="more held">
@@ -68,7 +68,7 @@
     {% endif %}
   </form>
   {% else %}
-  <p class="empty">Tidak ada kalimat pembuka, penutup, atau tembusan yang dikenali di dokumen ini. Kanal semantik tidak dipakai.</p>
+  <p class="empty">Tidak ada kalimat pembuka, penutup, atau tembusan yang dikenali di dokumen ini. Kanal varian kalimat tidak dipakai.</p>
   {% endif %}
 
   {% if st.sets %}

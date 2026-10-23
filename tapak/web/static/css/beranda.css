@@ -39,7 +39,7 @@
 /* canary rows have no thumbnail, so their link stays on the row on a phone */
 .kanari-list .list-row { flex-wrap: nowrap; }
 .kanari-list .list-actions { width: auto; padding-left: 0; }
-.kanari-dok { margin-left: 4px; color: var(--ink-muted); font-weight: 400; }
+.kanari-dok { overflow-wrap: anywhere; }
 
 /* Between phone and desktop widths the headline would run over the paper stack: keep the text
    column narrow there (tapak.css stacks the hero below 720 px). */

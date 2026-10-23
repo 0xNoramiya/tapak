@@ -96,8 +96,10 @@
         <li class="list-row">
           <div class="list-main">
             {% set w = (k.time|waktu).split(" pukul ") %}
-            <span class="list-title" title="{{ k.doc_name }}">Salinan #{{ k.seq }} <span class="kanari-dok">{{ k.doc_name }}</span></span>
-            <span class="list-meta">{{ w[0] }}{% if w|length > 1 %}, {{ w[1] }}{% endif %}</span>
+            {# as on Registri: the copy, its document under it, then when and which query #}
+            <span class="list-title">Salinan #{{ k.seq }}</span>
+            <span class="list-meta kanari-dok">{{ k.doc_name }}</span>
+            <span class="list-meta">{{ w[0] }}{% if w|length > 1 %}, <span class="nowrap">{{ w[1] }}</span>{% endif %}{% if k.qtype %} · kueri {{ k.qtype }}{% endif %}</span>
           </div>
           <div class="list-actions">
             <a class="btn btn-ghost btn-small" href="/lacak?dokumen={{ k.doc }}" aria-label="Lacak kebocoran {{ k.doc_name }}">{{ ikon("scan") }}Lacak</a>

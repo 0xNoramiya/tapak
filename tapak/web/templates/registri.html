@@ -242,7 +242,8 @@
             <td class="kanari-salinan">
               <span class="dok-teks">
                 <span class="dok-nama">Salinan #{{ k.seq }}</span>
-                <span class="dok-meta" title="{{ k.doc_name }}">{{ k.doc_name }}</span>
+                {# one opening usually sends an A and an AAAA query: the type tells the two rows apart #}
+                <span class="dok-meta">{{ k.doc_name }}{% if k.qtype %} · kueri {{ k.qtype }}{% endif %}</span>
               </span>
             </td>
             <td>{{ waktu2(k.time) }}</td>

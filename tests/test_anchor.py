@@ -793,7 +793,7 @@ def test_web_shows_the_anchor_and_refuses_after_tail_deletion(tmp_path, monkeypa
     r = client.get("/registri")
     assert "Tidak cocok" in r.text and "dihapus dari ujung rantai" in r.text and "Rantai registri rusak" in r.text
     r = client.post("/lacak", data={"dokumen": doc[:16], "teks": evidence.decode("utf-8")})
-    assert "Pelacakan tidak dapat dilakukan: pelacakan ditolak: log jangkar" in r.text and "tapak verify" in r.text
+    assert "Pelacakan ditolak: log jangkar" in r.text and "tidak dapat dilakukan: pelacakan ditolak" not in r.text and "tapak verify" in r.text
 
 
 def test_web_without_an_anchor_says_how_to_use_one(tmp_path, monkeypatch, issued_base):

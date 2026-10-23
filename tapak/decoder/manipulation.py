@@ -40,8 +40,12 @@ def _flagged(check):
 
 
 def manipulation_note(erasure: ErasureCheck | None, contradiction: ContradictionCheck | None,
-                      reversal: ReversalCheck | None = None) -> str | None:
-    """The merged warning for the checks that sounded, or None when none did (module docstring)."""
+                      reversal: ReversalCheck | None = None, statistics: bool = True) -> str | None:
+    """The merged warning for the checks that sounded, or None when none did (module docstring).
+
+    ``statistics=False`` leaves out the statistic of each check (its ``text()``), for a page that
+    shows those statistics next to the warning anyway (the web result's validity box); every
+    other word, including the per-document caveat of the erasure check, stays."""
     rev, era, con = _flagged(reversal), _flagged(erasure), _flagged(contradiction)
     if rev is None and era is None and con is None:
         return None
@@ -61,11 +65,11 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
         causes += [f"koalisi lebih dari {larger} orang", "masalah pembacaan bukti"]
     cause_text = causes[0] if len(causes) == 1 else "; ".join(causes[:-1]) + "; atau " + causes[-1]
     details = []
-    if rev is not None:
+    if rev is not None and statistics:
         details.append(f"pola tanda terbalik: {rev.text()}")
     if era is not None:
-        details.append(f"pola penghapusan: {era.text()}, untuk dokumen tertentu laju alarm palsunya dapat sampai "
-                       "beberapa persen")
+        stat = f"{era.text()}, " if statistics else ""
+        details.append(f"pola penghapusan: {stat}untuk dokumen tertentu laju alarm palsunya dapat sampai beberapa persen")
     if con is not None:
         details.append(f"bacaan jelas tanpa nama: koalisi paling banyak {con.coalition} penerima yang tidak mengubah "
                        f"tanda di tempat salinannya sama lolos dengan peluang terbukti paling besar "
@@ -73,9 +77,10 @@ def manipulation_note(erasure: ErasureCheck | None, contradiction: Contradiction
     rates = [c.alarm_rate for c in (rev, era) if c is not None] + ([con.rate] if con is not None else [])
     rate = max(rates)
     which = "pemeriksaan ini" if len(findings) == 1 else "setiap pemeriksaan ini"
+    detail_text = f" ({'; '.join(details)})" if details else ""
     return (f"{MANIPULATION_LEAD}: {'; '.join(findings)}. {CAUSES_LEAD}{cause_text}. {RATE_LEAD}"
             f"{which} memberi peringatan dengan peluang paling besar sekitar {format_rate(rate)}, rata-rata atas "
-            f"dokumen, bila derau bacaan tidak bergantung pada kode ({'; '.join(details)}). {ONLY_A_WARNING}")
+            f"dokumen, bila derau bacaan tidak bergantung pada kode{detail_text}. {ONLY_A_WARNING}")
 
 
 def is_manipulation_note(note: str) -> bool:
