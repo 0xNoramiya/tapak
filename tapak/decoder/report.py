@@ -64,7 +64,9 @@ from tapak.marker.plan import (
     CHANNEL_BACKGROUND,
     CHANNEL_HOMOGLYPH,
     CHANNEL_LEXICAL,
+    CHANNEL_LEXICAL_OCR,
     CHANNEL_SEMANTIC,
+    CHANNEL_SEMANTIC_OCR,
     CHANNEL_SHIFT,
     CHANNEL_ZW,
     PHYSICAL_CHANNEL,
@@ -96,6 +98,8 @@ SUBCHANNEL_LABELS = {
     CHANNEL_HOMOGLYPH: "Huruf kembar (homoglyph)",
     CHANNEL_SEMANTIC: "Variasi kalimat (semantik)",
     CHANNEL_LEXICAL: "Pilihan kata (leksikal)",
+    CHANNEL_SEMANTIC_OCR: "Variasi kalimat (semantik, OCR gambar)",
+    CHANNEL_LEXICAL_OCR: "Pilihan kata (leksikal, OCR gambar)",
 }
 PHYSICAL_LABELS = {
     "geser": "Geser (pergeseran kata dan baris)",
@@ -646,6 +650,8 @@ def _channel_rows(attribution: Attribution, info: ReportInfo, shown_seqs: set[in
         label = PHYSICAL_LABELS.get(name, name)
         ch = read.get(name)
         if ch is not None:
+            if ch.source_label:  # read (also) from the OCR text of an image: say so
+                label = f"{label}; dibaca dari {ch.source_label}"
             rows.append({"label": label, "status": STATUS_READ,
                          "positions": f"{format_int(ch.n_observed)} dari {m}",
                          "threshold": format_number(ch.threshold),

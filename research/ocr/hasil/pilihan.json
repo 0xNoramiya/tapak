@@ -1,0 +1,64 @@
+{
+  "totals": {
+    "psm3": {
+      "read": 701,
+      "wrong": 0,
+      "confident_wrong": 0,
+      "printed": 780,
+      "seconds": 289.9,
+      "pages": 96,
+      "score": 701
+    },
+    "psm4": {
+      "read": 721,
+      "wrong": 0,
+      "confident_wrong": 0,
+      "printed": 780,
+      "seconds": 297.5,
+      "pages": 96,
+      "score": 721
+    },
+    "psm6": {
+      "read": 738,
+      "wrong": 0,
+      "confident_wrong": 0,
+      "printed": 780,
+      "seconds": 296.4,
+      "pages": 96,
+      "score": 738
+    },
+    "psm3_300": {
+      "read": 709,
+      "wrong": 0,
+      "confident_wrong": 0,
+      "printed": 780,
+      "seconds": 470.2,
+      "pages": 96,
+      "score": 709
+    },
+    "psm6_300": {
+      "read": 728,
+      "wrong": 1,
+      "confident_wrong": 0,
+      "printed": 780,
+      "seconds": 478.4,
+      "pages": 96,
+      "score": 722
+    },
+    "psm3_rata": {
+      "read": 778,
+      "wrong": 0,
+      "confident_wrong": 0,
+      "printed": 780,
+      "seconds": 298.5,
+      "pages": 96,
+      "score": 778
+    }
+  },
+  "best_score": 778,
+  "within_2_percent": [
+    "psm3_rata"
+  ],
+  "chosen": "psm3_rata",
+  "rule": "skor = bit benar - 5 x bit salah, dijumlahkan atas semua gambar dev (bit OCR yang terbaca, dibandingkan dengan kode salinan yang bocor). Kandidat dengan skor tertinggi dipilih; bila skor kandidat lain kurang dari 2 % di bawahnya, dipilih yang total waktu OCR-nya paling kecil di antara kandidat dalam rentang 2 % itu. Ditetapkan sebelum dev dijalankan."
+}

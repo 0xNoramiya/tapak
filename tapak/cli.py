@@ -580,9 +580,11 @@ def _review_interactive(sel, path: Path, lexicon) -> int:
 def _print_attribution(result, obs, notes_extra: list[str] | None = None) -> None:
     from tapak.decoder.report import SUBCHANNEL_LABELS, channel_observations
 
-    for row in channel_observations(obs):
+    for sb, row in zip(obs, channel_observations(obs)):
         label = SUBCHANNEL_LABELS.get(row["channel"], row["channel"])
         noise = f"; {row['noise']}" if row["noise"] not in (None, "-") else ""
+        cut = sb.meta.get("slots_outside_image")
+        noise += f"; {cut} tanda di luar gambar, tidak dibaca" if cut else ""
         print(f"Kanal {label}: {row['observations']} observasi{noise}")
     for line in result.summary_lines():
         print(line)

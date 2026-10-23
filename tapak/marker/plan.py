@@ -42,6 +42,12 @@ CHANNEL_HOMOGLYPH = "homoglyph"
 CHANNEL_BACKGROUND = "background"
 CHANNEL_SEMANTIC = "semantic"
 CHANNEL_LEXICAL = "lexical"
+# Decoder-only sub-channels: the semantic and lexical marks read from the OCR text of an image
+# page (``decoder/ocr.py``). They are never planned; their slots are the semantic and lexical
+# slots, and they belong to the same physical channels (the same printed words).
+CHANNEL_SEMANTIC_OCR = "semantic_ocr"
+CHANNEL_LEXICAL_OCR = "lexical_ocr"
+OCR_SUBCHANNELS = frozenset({CHANNEL_SEMANTIC_OCR, CHANNEL_LEXICAL_OCR})
 
 # Position rule of the retype-surviving channels (semantic, lexical) of a new document that
 # opts into the lexical channel. Documents without this record keep the uniform rule.
@@ -57,6 +63,8 @@ PHYSICAL_CHANNEL = {
     CHANNEL_BACKGROUND: "latar",
     CHANNEL_SEMANTIC: "semantik",
     CHANNEL_LEXICAL: "leksikal",
+    CHANNEL_SEMANTIC_OCR: "semantik",
+    CHANNEL_LEXICAL_OCR: "leksikal",
 }
 
 

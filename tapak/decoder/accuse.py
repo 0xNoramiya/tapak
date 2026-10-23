@@ -38,6 +38,7 @@ import numpy as np
 
 from tapak.decoder.erasure import ERASURE_NOTE, ErasureCheck
 from tapak.decoder.fuse import FusedEstimate
+from tapak.marker.plan import OCR_SUBCHANNELS
 from tapak.tardos.accuse import log_tail_bound, scores, threshold
 from tapak.tardos.params import TardosParams
 from tapak.tardos.spending import TraceSpending
@@ -161,7 +162,11 @@ class ThresholdRecord:
 
 @dataclass
 class ChannelEvidence:
-    """Outcome of the accusation using one physical channel alone."""
+    """Outcome of the accusation using one physical channel alone.
+
+    ``subchannels`` lists the sub-channels that read something (for example ``lexical_ocr``
+    when word choices were read from the OCR text of an image); it only labels the row.
+    """
 
     channel: str
     n_observed: int
@@ -169,6 +174,21 @@ class ChannelEvidence:
     top_seq: int | None
     top_score: float
     accused_seqs: list[int]
+    subchannels: list[str] = field(default_factory=list)
+
+    @property
+    def source_label(self) -> str:
+        """How the channel was read when that is not the obvious way: "OCR gambar" when every
+        read came from the OCR text of an image, "teks dan OCR gambar" when both; else ""."""
+        ocr = [s for s in self.subchannels if s in OCR_SUBCHANNELS]
+        if not ocr:
+            return ""
+        return "OCR gambar" if len(ocr) == len(self.subchannels) else "teks dan OCR gambar"
+
+    @property
+    def display_name(self) -> str:
+        """Physical channel name with ``source_label`` in brackets, e.g. "leksikal (OCR gambar)"."""
+        return f"{self.channel} ({self.source_label})" if self.source_label else self.channel
 
 
 @dataclass
@@ -250,11 +270,13 @@ class Attribution:
             f"ambang Z = {t.threshold:.1f} untuk {t.budget_text()} (eps1 = {t.eps1:.2e}), "
             f"ditetapkan {t.fixed_at} sebelum skor dihitung",
         ]
+        shown = {ch.channel: ch.display_name for ch in self.channels}
         for c in self.accused:
+            agreeing = ", ".join(shown.get(k, k) for k in c.channels_agreeing) or "-"
             lines.append(
                 f"  Salinan #{c.copy.seq} ({c.copy.recipient_id}, {c.copy.nama}): skor {c.score:.1f} >= Z {t.threshold:.1f}; "
                 f"peluang tuduhan salah <= {format_upper_bound(c.log10_false_accusation)}; "
-                f"kanal yang sepakat secara independen: {len(c.channels_agreeing)} ({', '.join(c.channels_agreeing) or '-'})"
+                f"kanal yang sepakat secara independen: {len(c.channels_agreeing)} ({agreeing})"
             )
         for st in self.stages:
             ts = st.threshold
@@ -283,7 +305,7 @@ class Attribution:
                 )
         for ch in self.channels:
             lines.append(
-                f"  Kanal {ch.channel}: {ch.n_observed} posisi, ambang {ch.threshold:.1f}, "
+                f"  Kanal {ch.display_name}: {ch.n_observed} posisi, ambang {ch.threshold:.1f}, "
                 f"menuduh {len(ch.accused_seqs)} salinan"
             )
         if self.erasure is not None:
@@ -329,6 +351,7 @@ def _channel_evidence(name: str, est: FusedEstimate, p: np.ndarray, x: np.ndarra
             top_seq=refs[top].seq if top is not None else None,
             top_score=float(s[top]) if top is not None else 0.0,
             accused_seqs=[refs[i].seq for i in np.nonzero(accused)[0]],
+            subchannels=list(est.subchannels),
         ),
         s,
         accused,

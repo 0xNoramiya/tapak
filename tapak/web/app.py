@@ -58,7 +58,7 @@ MAX_UPLOAD = 40 * 1024 * 1024
 CHANNEL_NAMES = {
     "shift": "Geser kata dan baris", "background": "Pola latar", "zw": "Karakter tak terlihat",
     "homoglyph": "Huruf kembar", "semantic": "Varian kalimat", "canary": "Token kanari",
-    "lexical": "Pilihan kata",
+    "lexical": "Pilihan kata", "semantic_ocr": "Varian kalimat (OCR gambar)", "lexical_ocr": "Pilihan kata (OCR gambar)",
     "geser": "Geser", "latar": "Latar", "teks": "Teks", "semantik": "Semantik", "leksikal": "Leksikal",
 }
 EPS_CHOICES = [("1e-4", "1 dari 10.000"), ("1e-6", "1 dari 1.000.000"), ("1e-8", "1 dari 100.000.000")]
@@ -232,6 +232,24 @@ templates.env.filters["prob"] = lambda p, log10=None: format_probability_html(fl
 templates.env.filters["persen"] = lambda v: _strip_zeros(format_number(100 * float(v), 2))
 templates.env.filters["waktu"] = lambda v: format_datetime(str(v))
 templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
+
+
+def _channel_label(ch) -> str:
+    """Name of a physical channel row of a trace, with how it was read when that is not the
+    obvious way (for example "Leksikal (OCR gambar)": word choices read from the OCR text of a
+    photo). Never any OCR text."""
+    name = CHANNEL_NAMES.get(ch.channel, ch.channel)
+    return f"{name} ({ch.source_label})" if ch.source_label else name
+
+
+def _agreeing_labels(candidate, attribution) -> list[str]:
+    """The channels that independently name ``candidate``, labelled like the channel table."""
+    rows = {ch.channel: ch for ch in attribution.channels}
+    return [_channel_label(rows[k]) if k in rows else CHANNEL_NAMES.get(k, k) for k in candidate.channels_agreeing]
+
+
+templates.env.globals["channel_label"] = _channel_label
+templates.env.globals["agreeing_labels"] = _agreeing_labels
 templates.env.globals["inf"] = float("inf")
 templates.env.globals["langkah_terbit"] = ISSUE_STEPS
 templates.env.globals["peringatan_cetak"] = PRINT_BACKGROUND_WARNING
@@ -302,6 +320,12 @@ def _subchannel_summary(sb) -> str:
         parts.append("halaman tidak dikenali")
     if m.get("pattern_found") is False:
         parts.append("pola tidak terdeteksi")
+    if isinstance(m.get("slots_outside_image"), int) and m["slots_outside_image"]:
+        parts.append(f"{format_number(m['slots_outside_image'], 0)} tanda di luar gambar, tidak dibaca")
+    if m.get("ocr_failed"):
+        parts.append("OCR gagal membaca halaman")
+    elif isinstance(m.get("ocr_seconds"), (int, float)):
+        parts.append(f"dibaca dengan OCR dalam {format_number(float(m['ocr_seconds']), 1)} detik")
     if isinstance(m.get("signal_z"), (int, float)):
         parts.append(f"uji pola z = {format_number(float(m['signal_z']), 1)}")
     noise = _noise_text(sb.channel, m)

@@ -1,4 +1,5 @@
-"""Decode a photo or screenshot of a copy: registration, then channels 1 and 2.
+"""Decode a photo or screenshot of a copy: registration, then channels 1 and 2, and the
+printed words of channels 4 and 6 through local OCR (``decoder/ocr.py``).
 
 Registration and the background decoder use the supersampled master render
 (``render_page``); the shift decoder matches word groups against the exact master template
@@ -30,9 +31,14 @@ def collect_from_image(data: bytes, ctx: "TraceContext") -> list[SoftBits]:
     return collect_from_gray(load_gray(data), ctx)
 
 
-def collect_from_gray(gray: np.ndarray, ctx: "TraceContext") -> list[SoftBits]:
+def collect_from_gray(gray: np.ndarray, ctx: "TraceContext", read_text: bool = True) -> list[SoftBits]:
     """Soft bits from a grayscale page image (float32, 0..255): a photo, a screenshot or a
-    rendered page of a scanned PDF. Returns empty observations if the page is not found."""
+    rendered page of a scanned PDF. Returns empty observations if the page is not found.
+
+    Besides the shift and background channels, a page whose master page carries semantic or
+    word-choice marks is read with the local Tesseract and those marks are decoded from its
+    text (``decoder/ocr.py``; ``read_text`` False skips it). OCR text never reaches the
+    text-layer channel."""
     sizes = [(p.width, p.height) for p in ctx.master.layout.pages]
     reg = register(gray, ctx.master.pdf_bytes, sizes)
     if reg is None:
@@ -56,4 +62,13 @@ def collect_from_gray(gray: np.ndarray, ctx: "TraceContext") -> list[SoftBits]:
                                ctx.plan.channel(CHANNEL_BACKGROUND), bias=ctx.p)
         sb.meta.update(reg_meta)
         out.append(sb)
+    if read_text:
+        from tapak.decoder.ocr import ocr_unavailable_reason, page_slots, read_visible_text
+
+        if any(page_slots(ctx, reg.page)) and ocr_unavailable_reason() is not None:
+            for sb in out:  # the page carries visible-text marks that could not be read (no Tesseract)
+                sb.meta["ocr_unavailable"] = True
+        for sb in read_visible_text(gray, reg, ctx):
+            sb.meta.update(reg_meta)
+            out.append(sb)
     return out

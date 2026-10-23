@@ -34,7 +34,7 @@ point ids, form indices and counts, never text.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 
 import numpy as np
 from rapidfuzz.distance import Levenshtein
@@ -59,15 +59,23 @@ CLUSTER_MAX_LLR = 2.0
 
 
 class LexReference:
-    """Normalized master text with the character span of every point (master forms)."""
+    """Normalized master text with the character span of every point (master forms).
 
-    def __init__(self, master: MasterDocument, points: Sequence[LexPoint]) -> None:
+    ``pages`` (optional) keeps only the rows of those master pages: the reference for the OCR
+    text of one photographed page, whose contexts then end where the page ends, as they do
+    in the image. Points on other pages get no span (the reader counts them inconsistent).
+    """
+
+    def __init__(self, master: MasterDocument, points: Sequence[LexPoint],
+                 pages: Collection[int] | None = None) -> None:
         start_of = {(p.page, p.row, p.start): p for p in points}
         parts: list[str] = []
         pos = 0
         self.spans: dict[str, tuple[int, int]] = {}
         open_point: tuple[LexPoint, int] | None = None
         for row in master.layout.rows():
+            if pages is not None and row.page not in pages:
+                continue
             for k, w in enumerate(row.words):
                 key = match_key(w.text)
                 pt = start_of.get((row.page, row.index, k))

@@ -1,0 +1,199 @@
+{
+  "per_jenis": {
+    "foto, nota_dinas hal. 1": {
+      "gambar": 10,
+      "bit": "8.0 dari 8.0",
+      "galat": "0.0 % (0 dari 80)",
+      "salah_yakin": "0",
+      "detik": "3.0 (maks. 3.5)",
+      "dengan_ocr": "9 / 1 / 0",
+      "tanpa_ocr": "9 / 1 / 0"
+    },
+    "foto, nota_dinas hal. 2": {
+      "gambar": 10,
+      "bit": "6.9 dari 7.0",
+      "galat": "0.0 % (0 dari 69)",
+      "salah_yakin": "0",
+      "detik": "2.0 (maks. 2.5)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "foto, surat_telegram hal. 1": {
+      "gambar": 10,
+      "bit": "9.0 dari 9.0",
+      "galat": "0.0 % (0 dari 90)",
+      "salah_yakin": "0",
+      "detik": "2.6 (maks. 3.2)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "ponsel, nota_dinas hal. 1": {
+      "gambar": 10,
+      "bit": "8.0 dari 8.0",
+      "galat": "0.0 % (0 dari 80)",
+      "salah_yakin": "0",
+      "detik": "3.1 (maks. 3.3)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "ponsel, surat_telegram hal. 1": {
+      "gambar": 10,
+      "bit": "9.0 dari 9.0",
+      "galat": "0.0 % (0 dari 90)",
+      "salah_yakin": "0",
+      "detik": "2.7 (maks. 2.9)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "layar, nota_dinas hal. 1": {
+      "gambar": 10,
+      "bit": "8.0 dari 8.0",
+      "galat": "0.0 % (0 dari 80)",
+      "salah_yakin": "0",
+      "detik": "3.0 (maks. 3.6)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "layar, surat_telegram hal. 1": {
+      "gambar": 10,
+      "bit": "8.1 dari 8.1",
+      "galat": "0.0 % (0 dari 81)",
+      "salah_yakin": "0",
+      "detik": "2.7 (maks. 2.9)",
+      "dengan_ocr": "9 / 1 / 0",
+      "tanpa_ocr": "9 / 1 / 0"
+    },
+    "tangkapan, nota_dinas hal. 1": {
+      "gambar": 10,
+      "bit": "8.0 dari 8.0",
+      "galat": "0.0 % (0 dari 80)",
+      "salah_yakin": "0",
+      "detik": "2.9 (maks. 3.2)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "tangkapan, nota_dinas hal. 2": {
+      "gambar": 10,
+      "bit": "7.0 dari 7.0",
+      "galat": "0.0 % (0 dari 70)",
+      "salah_yakin": "0",
+      "detik": "1.9 (maks. 2.3)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "tangkapan, surat_telegram hal. 1": {
+      "gambar": 10,
+      "bit": "9.0 dari 9.0",
+      "galat": "0.0 % (0 dari 90)",
+      "salah_yakin": "0",
+      "detik": "2.6 (maks. 3.0)",
+      "dengan_ocr": "10 / 0 / 0",
+      "tanpa_ocr": "10 / 0 / 0"
+    },
+    "cetak1600, nota_dinas hal. 1": {
+      "gambar": 20,
+      "bit": "8.0 dari 8.0",
+      "galat": "0.0 % (0 dari 160)",
+      "salah_yakin": "0",
+      "detik": "2.8 (maks. 3.5)",
+      "dengan_ocr": "11 / 9 / 0",
+      "tanpa_ocr": "8 / 12 / 0"
+    },
+    "cetak1600, nota_dinas hal. 2": {
+      "gambar": 20,
+      "bit": "7.0 dari 7.0",
+      "galat": "0.0 % (0 dari 140)",
+      "salah_yakin": "0",
+      "detik": "2.0 (maks. 4.0)",
+      "dengan_ocr": "0 / 20 / 0",
+      "tanpa_ocr": "0 / 20 / 0"
+    },
+    "cetak1600, surat_telegram hal. 1": {
+      "gambar": 20,
+      "bit": "8.8 dari 9.0",
+      "galat": "0.0 % (0 dari 175)",
+      "salah_yakin": "0",
+      "detik": "2.8 (maks. 4.5)",
+      "dengan_ocr": "4 / 16 / 0",
+      "tanpa_ocr": "1 / 19 / 0"
+    },
+    "cetak1600, surat_telegram hal. 2": {
+      "gambar": 20,
+      "bit": "0.0 dari 0.0",
+      "galat": "-",
+      "salah_yakin": "0",
+      "detik": "-",
+      "dengan_ocr": "0 / 20 / 0",
+      "tanpa_ocr": "0 / 20 / 0"
+    },
+    "cetak4000, nota_dinas hal. 1": {
+      "gambar": 20,
+      "bit": "8.0 dari 8.0",
+      "galat": "0.0 % (0 dari 160)",
+      "salah_yakin": "0",
+      "detik": "4.6 (maks. 9.8)",
+      "dengan_ocr": "20 / 0 / 0",
+      "tanpa_ocr": "20 / 0 / 0"
+    },
+    "cetak4000, nota_dinas hal. 2": {
+      "gambar": 20,
+      "bit": "7.0 dari 7.0",
+      "galat": "0.0 % (0 dari 140)",
+      "salah_yakin": "0",
+      "detik": "3.6 (maks. 4.9)",
+      "dengan_ocr": "0 / 20 / 0",
+      "tanpa_ocr": "0 / 20 / 0"
+    },
+    "cetak4000, surat_telegram hal. 1": {
+      "gambar": 20,
+      "bit": "9.0 dari 9.0",
+      "galat": "0.0 % (0 dari 180)",
+      "salah_yakin": "0",
+      "detik": "4.3 (maks. 5.5)",
+      "dengan_ocr": "12 / 8 / 0",
+      "tanpa_ocr": "5 / 15 / 0"
+    },
+    "cetak4000, surat_telegram hal. 2": {
+      "gambar": 20,
+      "bit": "0.0 dari 0.0",
+      "galat": "-",
+      "salah_yakin": "0",
+      "detik": "-",
+      "dengan_ocr": "0 / 20 / 0",
+      "tanpa_ocr": "0 / 20 / 0"
+    }
+  },
+  "dua_halaman": {
+    "cetak1600, nota_dinas": {
+      "dengan_ocr": "20 / 0 / 0",
+      "tanpa_ocr": "18 / 2 / 0",
+      "arm_tanpa": "20 / 0 / 0"
+    },
+    "cetak1600, surat_telegram": {
+      "dengan_ocr": "6 / 14 / 0",
+      "tanpa_ocr": "3 / 17 / 0",
+      "arm_tanpa": "14 / 6 / 0"
+    },
+    "cetak4000, nota_dinas": {
+      "dengan_ocr": "20 / 0 / 0",
+      "tanpa_ocr": "20 / 0 / 0",
+      "arm_tanpa": "20 / 0 / 0"
+    },
+    "cetak4000, surat_telegram": {
+      "dengan_ocr": "18 / 2 / 0",
+      "tanpa_ocr": "9 / 11 / 0",
+      "arm_tanpa": "20 / 0 / 0"
+    }
+  },
+  "induk": {
+    "pelacakan": 18,
+    "dituduh": 0,
+    "bit_ocr_terbaca": 144
+  },
+  "perubahan_putusan": {
+    "hanya_dengan_ocr": 27,
+    "hanya_tanpa_ocr": 0
+  },
+  "tuduhan_salah": 0,
+  "skor_tak_bersalah_tertinggi_per_Z": 0.468
+}
