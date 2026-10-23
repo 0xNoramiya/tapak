@@ -1,0 +1,333 @@
+{
+  "n": 20,
+  "c": 3,
+  "eps": 1e-06,
+  "page": 1,
+  "issue": "tapak issue --benih-riset BENIH --no-registry --canary-domain '' --workers 3 --geser v2 atau v1, profil latar bawaan; v1 dan v2 dengan benih yang sama (kode dan id salinan sama)",
+  "benih_riset": {
+    "dev": {
+      "nota_dinas": 7501,
+      "surat_telegram": 7502
+    },
+    "uji": {
+      "nota_dinas": 7601,
+      "surat_telegram": 7602
+    }
+  },
+  "evidence_seed": {
+    "dev": 7511,
+    "uji": 7611
+  },
+  "unmarked_seed": {
+    "dev": 7599,
+    "uji": 7699
+  },
+  "renderers": {
+    "mupdf": "pymupdf Page.get_pixmap(matrix=R/72, csGRAY), anti-aliasing bawaan (8 bit)",
+    "poppler": "pdftoppm -r R -gray -png -aa yes -aaVector yes (Splash, FreeType tanpa hinting)",
+    "poppler_tanpa_aa": "pdftoppm -r R -gray -png -aa no -aaVector no",
+    "cairo": "pdftocairo -r R -gray -png (antialias bawaan)"
+  },
+  "resolutions_dpi": [
+    28,
+    32,
+    40,
+    48,
+    56,
+    64,
+    72,
+    84,
+    96,
+    120,
+    150
+  ],
+  "formats": {
+    "png": "tangkapan tanpa kompresi (PNG)",
+    "pesan": "sisi panjang paling besar 1600 px (INTER_AREA), JPEG mutu 68 sampai 72 lalu 58 sampai 62",
+    "kecil": "halaman digambar pada 1,5 R, tangkapan diperkecil ke R (INTER_AREA), lalu seperti pesan"
+  },
+  "framings": {
+    "utuh": "halaman saja",
+    "bingkai": "halaman di dalam jendela penampil (latar, bilah alat, tepi dan bayangan halaman; tema terang atau gelap diundi)",
+    "potong_atas": "jendela penampil yang memperlihatkan 55 % tinggi halaman dari atas",
+    "potong_tengah": "sama, mulai 25 % tinggi halaman"
+  },
+  "grids": {
+    "dev": {
+      "utama": {
+        "renderers": [
+          "mupdf",
+          "poppler",
+          "cairo"
+        ],
+        "resolutions": [
+          28,
+          32,
+          40,
+          48,
+          56,
+          64,
+          72,
+          84,
+          96,
+          120,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan",
+          "kecil"
+        ],
+        "copies": {
+          "v2": [
+            1,
+            8,
+            15
+          ],
+          "v1": [
+            1,
+            8
+          ]
+        },
+        "framings": [
+          "utuh",
+          "bingkai"
+        ]
+      },
+      "tanpa_aa": {
+        "renderers": [
+          "poppler_tanpa_aa"
+        ],
+        "resolutions": [
+          28,
+          32,
+          40,
+          48,
+          56,
+          64,
+          72,
+          84,
+          96,
+          120,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan"
+        ],
+        "copies": {
+          "v2": [
+            1,
+            8
+          ]
+        },
+        "framings": [
+          "utuh",
+          "bingkai"
+        ]
+      },
+      "potong": {
+        "renderers": [
+          "mupdf",
+          "poppler",
+          "cairo"
+        ],
+        "resolutions": [
+          64,
+          84,
+          96,
+          120,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan"
+        ],
+        "copies": {
+          "v2": [
+            1,
+            8
+          ]
+        },
+        "framings": [
+          "potong_atas",
+          "potong_tengah"
+        ]
+      },
+      "induk": {
+        "renderers": [
+          "mupdf",
+          "poppler",
+          "cairo"
+        ],
+        "resolutions": [
+          32,
+          56,
+          96,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan"
+        ],
+        "reps": 1,
+        "framings": [
+          "utuh"
+        ]
+      }
+    },
+    "uji": {
+      "utama": {
+        "renderers": [
+          "mupdf",
+          "poppler",
+          "cairo"
+        ],
+        "resolutions": [
+          28,
+          32,
+          40,
+          48,
+          56,
+          64,
+          72,
+          84,
+          96,
+          120,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan",
+          "kecil"
+        ],
+        "copies": {
+          "v2": [
+            2,
+            5,
+            9,
+            12,
+            16,
+            19
+          ],
+          "v1": [
+            2,
+            9,
+            16
+          ]
+        },
+        "framings": [
+          "utuh",
+          "bingkai"
+        ]
+      },
+      "tanpa_aa": {
+        "renderers": [
+          "poppler_tanpa_aa"
+        ],
+        "resolutions": [
+          28,
+          32,
+          40,
+          48,
+          56,
+          64,
+          72,
+          84,
+          96,
+          120,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan"
+        ],
+        "copies": {
+          "v2": [
+            2,
+            9,
+            16
+          ]
+        },
+        "framings": [
+          "utuh",
+          "bingkai"
+        ]
+      },
+      "potong": {
+        "renderers": [
+          "mupdf",
+          "poppler",
+          "cairo"
+        ],
+        "resolutions": [
+          64,
+          84,
+          96,
+          120,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan"
+        ],
+        "copies": {
+          "v2": [
+            2,
+            9,
+            16,
+            19
+          ]
+        },
+        "framings": [
+          "potong_atas",
+          "potong_tengah"
+        ]
+      },
+      "induk": {
+        "renderers": [
+          "mupdf",
+          "poppler",
+          "cairo"
+        ],
+        "resolutions": [
+          32,
+          56,
+          96,
+          150
+        ],
+        "formats": [
+          "png",
+          "pesan"
+        ],
+        "reps": 2,
+        "framings": [
+          "utuh"
+        ]
+      }
+    }
+  },
+  "framing_design": "salinan ke-k dalam daftar salinan grid (mulai 0): framings[k % len(framings)]",
+  "generators": "default_rng([benih bukti, indeks dokumen, indeks penggambar, R, indeks format, indeks bingkai, s (induk: 1000 + ulangan)]); skema tidak ikut, jadi gambar v1 dan v2 satu pekerjaan berbagi bingkai dan mutu JPEG",
+  "trace": "seperti make bench: tanpa registri, seluruh eps, satu tahap; collect_from_gray (jalur produksi)",
+  "accusations": {
+    "semua": "semua kanal",
+    "geser": "kanal geser saja",
+    "latar": "kanal latar saja"
+  },
+  "confident_llr": [
+    2.0,
+    4.0
+  ],
+  "floor_rule": "per penggambar, format, dan kumpulan kanal: resolusi grid terendah yang mulai dari sana setiap gambar halaman utuh (utuh dan bingkai) pada resolusi itu dan semua resolusi di atasnya menyebut salinan yang bocor; ditetapkan sebelum dijalankan",
+  "spending": "tidak dicatat (seluruh eps), satu tahap, seperti make bench",
+  "script_sha256": "0a492c16847890e439eb4bc24e1f367aea37663d8861257a14b0e92364fd5c41",
+  "versions": {
+    "pymupdf": "1.28.2",
+    "mupdf": "1.28.2",
+    "pdftoppm": "pdftoppm version 24.02.0",
+    "pdftocairo": "pdftocairo version 24.02.0",
+    "opencv": "5.0.0",
+    "numpy": "2.5.4"
+  }
+}
