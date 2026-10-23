@@ -553,11 +553,33 @@ def decode_displacements(
     sigma_floor_ratio: float = 0.05,
     joint_degree: int = JOINT_DEGREE,
     field_degree: int | None = FIELD_DEGREE,
+    grid: PixelGrid | None = None,
 ) -> SoftBits:
     """Soft bits of channel 1 from per-word displacements, under the scheme of ``settings``
     (geser-v1: relative offsets; geser-v2: word groups read jointly per row after the page field
     of ``field_degree`` is subtracted, ``joint_degree`` being the degree of the row nuisance
-    projected out)."""
+    projected out).
+
+    ``grid`` (image evidence only) says where the page lies in the image. When the rows of the
+    page sit on the image's pixel grid (a renderer rounded the baselines, see
+    :func:`rounded_rows`), the row slots of that page are decoded with the rounding model
+    instead of the Gaussian one; everything else is unchanged, and without ``grid`` (a PDF) or
+    on a page whose rows are not on the grid the result is exactly that of the Gaussian model."""
+    sb = _decode_gaussian(master, plan, disp, settings, excluded, sigma_floor_ratio, joint_degree, field_degree)
+    return sb if grid is None else _with_rounded_rows(sb, master, plan, disp, settings, excluded, grid)
+
+
+def _decode_gaussian(
+    master: MasterDocument,
+    plan: EmbeddingPlan,
+    disp: Displacements,
+    settings: ShiftSettings,
+    excluded: set[RowId] | None,
+    sigma_floor_ratio: float,
+    joint_degree: int,
+    field_degree: int | None,
+) -> SoftBits:
+    """:func:`decode_displacements` without the rounding model (every row Gaussian)."""
     if settings.scheme == SCHEME_V2:
         return _decode_v2(master, plan, disp, settings, excluded, sigma_floor_ratio, joint_degree, field_degree)
     pos, vals, kinds = signed_measurements(master, plan, disp, excluded)
@@ -597,6 +619,242 @@ def decode_displacements(
          "slots_implausible": implausible, "sigma_pt": sigmas, "fraction_clear": agree},
         strengths,
     )
+
+
+# Baselines on the evidence's pixel grid (screenshots, rasterized PDF pages). MuPDF and Poppler's
+# Splash rasterizer draw every baseline on a whole device pixel, Cairo on a quarter pixel
+# (measured in research/layar/kuantisasi.py), so in a capture that was not rescaled every text row
+# sits at the same offset from the image's pixel grid, and a row shift of 0.05 mm (0.08 to 0.3
+# pixel at 40 to 150 dpi) is either rounded away or moves the row by a whole pixel. The Gaussian
+# row model then reads the rounding of the neighbouring rows as a mark, with a confident sign now
+# and then, and drops the rows that moved a whole pixel as implausible (beyond 3 delta). The gate
+# and the model were chosen on the development set of research/layar (kandidat.py) before its
+# held-out run.
+GRID_MIN_CONTROLS = 8          # measured control rows a page needs before its pixel grid is tested
+GRID_MIN_CONCENTRATION = 0.7   # mean resultant length of the control rows' image positions modulo 1 px
+LATTICE_OFF_GRID_PX = 0.25     # a row further than this from the lattice is not a clean lattice point
+LATTICE_SPAN = 0.01            # relative range of pixel scales searched around the control rows' fit
+LATTICE_STEPS = 4001
+LATTICE_FLOOR = 0.01           # chance that a row lands on a pixel the model does not predict (|LLR| <= 4.6)
+
+
+@dataclass(frozen=True)
+class PixelGrid:
+    """Where a page lies in an evidence image.
+
+    Attributes:
+        h_page_to_img: homography from page pixel coordinates at ``dpi`` to image pixels (the
+            registration's ``h_page_to_img``).
+        dpi: analysis resolution of those page pixels.
+        effective_dpi: image pixels per inch of page at the page centre.
+    """
+
+    h_page_to_img: np.ndarray
+    dpi: float
+    effective_dpi: float
+
+    def __post_init__(self) -> None:
+        if np.asarray(self.h_page_to_img).shape != (3, 3) or self.dpi <= 0 or self.effective_dpi <= 0:
+            raise ValueError("kisi piksel memerlukan homografi 3x3 dan resolusi positif")
+
+    @property
+    def pixel_pt(self) -> float:
+        """One image pixel in page points (at the page centre)."""
+        return 72.0 / self.effective_dpi
+
+    def image_y(self, x_pt: np.ndarray, y_pt: np.ndarray) -> np.ndarray:
+        """Image row coordinate (pixels) of page points (x_pt, y_pt)."""
+        s = self.dpi / 72.0
+        x = np.asarray(x_pt, dtype=np.float64).reshape(-1) * s
+        y = np.asarray(y_pt, dtype=np.float64).reshape(-1) * s
+        hom = np.c_[x, y, np.ones_like(x)] @ np.asarray(self.h_page_to_img, dtype=np.float64).T
+        return hom[:, 1] / hom[:, 2]
+
+
+def grid_concentration(y_img: np.ndarray) -> float:
+    """Mean resultant length of image positions modulo one pixel: 1 when every position sits at
+    the same offset from the pixel grid, about 1/sqrt(n) for n positions unrelated to it, 0 for
+    no positions."""
+    y = np.asarray(y_img, dtype=np.float64).reshape(-1)
+    return float(np.abs(np.mean(np.exp(2j * np.pi * y)))) if y.size else 0.0
+
+
+def lattice_row_llrs(
+    control_pt: np.ndarray,
+    control_px: np.ndarray,
+    data_pt: np.ndarray,
+    data_px: np.ndarray,
+    delta: float,
+    span: float = LATTICE_SPAN,
+    steps: int = LATTICE_STEPS,
+    floor: float = LATTICE_FLOOR,
+) -> tuple[np.ndarray, np.ndarray, dict[str, object]] | None:
+    """Sign LLRs of data rows whose baselines a renderer rounded to whole pixels, and the mask of
+    rows the model explains; None when the control rows admit no rounding.
+
+    ``control_pt`` and ``data_pt`` are master baselines (points), ``control_px`` and ``data_px``
+    the measured image positions of those rows (pixels), ``delta`` the row shift (points). The
+    renderer drew row j at pixel n_j = round(k * y_j + phi), y_j the copy's baseline (the master's,
+    plus or minus delta on a data row), k pixels per point and phi an offset, both unknown. Every
+    control row (unmarked) confines (k, phi) to a strip; with a flat prior on the intersection of
+    the strips (k within ``span`` of the least-squares scale of the controls, ``steps`` values) a
+    data row's sign has the likelihood of the part of the region where k (y + s delta) + phi rounds
+    to the row's measured pixel. A shift rounded away leaves both signs equally likely (LLR 0); a
+    shift that moved the row a whole pixel is read, with ``floor`` the chance of a pixel the model
+    does not predict. Rows (controls or data) further than LATTICE_OFF_GRID_PX from the common
+    pixel offset are not clean lattice points: controls are left out, data rows get mask False.
+    Only the evidence, the master baselines and which rows carry no mark enter: no codeword.
+    """
+    cy = np.asarray(control_pt, dtype=np.float64).reshape(-1)
+    cz = np.asarray(control_px, dtype=np.float64).reshape(-1)
+    dy = np.asarray(data_pt, dtype=np.float64).reshape(-1)
+    dz = np.asarray(data_px, dtype=np.float64).reshape(-1)
+    if cy.shape != cz.shape or dy.shape != dz.shape or delta <= 0 or steps < 2 or span <= 0:
+        raise ValueError("baris dan posisinya harus sama panjang; delta, rentang, dan langkah positif")
+    offset = float(np.angle(np.mean(np.exp(2j * np.pi * cz))) / (2.0 * np.pi)) if cz.size else 0.0
+
+    def off_grid(z: np.ndarray) -> np.ndarray:
+        return np.abs((z - offset + 0.5) % 1.0 - 0.5)
+
+    clean = off_grid(cz) <= LATTICE_OFF_GRID_PX
+    cy, cz = cy[clean], cz[clean]
+    if cy.size < 2 or float(np.ptp(cy)) <= 0:
+        return None
+    k0 = float(np.polyfit(cy, cz, 1)[0])
+    if k0 <= 0:
+        return None
+    ks = k0 * (1.0 + np.linspace(-span, span, steps))
+    n_c = np.round(cz - offset)
+    lo = np.max(n_c[None, :] - 0.5 - cy[None, :] * ks[:, None], axis=1)
+    hi = np.min(n_c[None, :] + 0.5 - cy[None, :] * ks[:, None], axis=1)
+    total = float(np.clip(hi - lo, 0.0, None).sum())
+    if total <= 0.0:
+        return None
+    n_d = np.round(dz - offset)
+    areas = []
+    for sign in (1.0, -1.0):
+        y = dy + sign * delta
+        a = n_d[None, :] - 0.5 - y[None, :] * ks[:, None]
+        b = n_d[None, :] + 0.5 - y[None, :] * ks[:, None]
+        areas.append(np.clip(np.minimum(hi[:, None], b) - np.maximum(lo[:, None], a), 0.0, None).sum(axis=0))
+    plus, minus = areas
+    explained = (off_grid(dz) <= LATTICE_OFF_GRID_PX) & ((plus + minus) > 0)
+    llr = np.log((plus + floor * total) / (minus + floor * total))
+    feasible = ks[hi > lo]
+    info: dict[str, object] = {"controls_used": int(cy.size),
+                               "pixel_per_pt": [round(float(feasible.min()), 6), round(float(feasible.max()), 6)]}
+    return np.where(explained, llr, 0.0), explained, info
+
+
+@dataclass(frozen=True)
+class _PageRows:
+    """Row units of one page at x = x_ref: data rows (position, whitening, master baseline,
+    baseline plus measured displacement) and control rows (master baseline, baseline plus
+    displacement), in points."""
+
+    x_ref: float
+    data: list[tuple[int, int, float, float]]
+    controls: list[tuple[float, float]]
+
+
+def _page_rows(master: MasterDocument, plan: EmbeddingPlan, disp: Displacements,
+               excluded: set[RowId] | None) -> dict[int, _PageRows]:
+    """Row units of every page; a data row needs its two control neighbours measured, as in
+    :func:`signed_measurements`."""
+    layout = master.shift_layout
+    slot_of = {(s.page, s.ref[0]): s for s in plan.channel(CHANNEL_SHIFT) if len(s.ref) == 1}
+    out: dict[int, _PageRows] = {}
+    for pg in layout.pages:
+        rows = eligible_rows(layout, pg.index, excluded or set())
+        slope = row_slope(layout, disp, pg.index)
+        x_ref = 0.5 * pg.width
+        meas = [_row_displacement(layout, disp, r.id, slope, x_ref) for r in rows]
+        data_k = set(range(1, len(rows) - 1, 2))  # the data rows of shift_slot_refs
+        data = []
+        for k in sorted(data_k):
+            slot = slot_of.get((pg.index, rows[k].index))
+            if slot is None or any(m is None for m in meas[k - 1:k + 2]):
+                continue
+            base, d = meas[k]  # type: ignore[misc]
+            data.append((slot.positions[0], slot.whiten[0], base, base + d))
+        controls = [(m[0], m[0] + m[1]) for k, m in enumerate(meas) if k not in data_k and m is not None]
+        out[pg.index] = _PageRows(x_ref, data, controls)
+    return out
+
+
+def rounded_rows(
+    master: MasterDocument,
+    plan: EmbeddingPlan,
+    disp: Displacements,
+    settings: ShiftSettings,
+    excluded: set[RowId] | None,
+    grid: PixelGrid,
+) -> tuple[set[int], np.ndarray, np.ndarray, dict[str, object]] | None:
+    """Row slots of the pages whose rows sit on the image's pixel grid, decoded with
+    :func:`lattice_row_llrs`: (those pages, code positions, LLRs, model), or None when no page
+    qualifies.
+
+    The gate is code-blind: the control rows (unmarked) of a page are mapped into the image with
+    ``grid``; with at least GRID_MIN_CONTROLS of them and a :func:`grid_concentration` of at least
+    GRID_MIN_CONCENTRATION the page's baselines were rounded to the image pixels (a capture that was
+    not rescaled), and the page's rows are read with the rounding model. A rescaled capture, a photo
+    or a scan does not pass and keeps the Gaussian model, as does a page whose control rows admit
+    no rounding.
+    """
+    delta = settings.row_pt
+    pages: set[int] = set()
+    pos: list[int] = []
+    llr: list[float] = []
+    tested: list[dict[str, object]] = []
+    for page, units in _page_rows(master, plan, disp, excluded).items():
+        if len(units.controls) < GRID_MIN_CONTROLS:
+            continue
+        c_pt = np.array([c[0] for c in units.controls])
+        c_px = grid.image_y(np.full(c_pt.size, units.x_ref), np.array([c[1] for c in units.controls]))
+        conc = grid_concentration(c_px)
+        entry: dict[str, object] = {"page": page, "concentration": round(conc, 4), "control_rows": len(units.controls)}
+        tested.append(entry)
+        if conc < GRID_MIN_CONCENTRATION or not units.data:
+            continue
+        d_pt = np.array([u[2] for u in units.data])
+        d_px = grid.image_y(np.full(d_pt.size, units.x_ref), np.array([u[3] for u in units.data]))
+        found = lattice_row_llrs(c_pt, c_px, d_pt, d_px, delta)
+        if found is None:
+            entry["feasible"] = False
+            continue
+        values, explained, info = found
+        pages.add(page)
+        for (position, white, _, _), v, ok in zip(units.data, values, explained):
+            if ok and v != 0.0:
+                pos.append(position)
+                llr.append(float(v) * (1 - 2 * white))
+        entry.update(info, feasible=True, q_pt=round(grid.pixel_pt, 5), rows_explained=int(explained.sum()))
+    if not pages:
+        return None
+    return pages, np.array(pos, dtype=np.int64), np.array(llr), {"pages": tested}
+
+
+def _with_rounded_rows(sb: SoftBits, master: MasterDocument, plan: EmbeddingPlan, disp: Displacements,
+                       settings: ShiftSettings, excluded: set[RowId] | None, grid: PixelGrid) -> SoftBits:
+    """``sb`` with the row observations of the pages on the pixel grid replaced by :func:`rounded_rows`
+    (strengths unchanged: the erasure check sees the same units)."""
+    found = rounded_rows(master, plan, disp, settings, excluded, grid)
+    if found is None:
+        return sb
+    pages, pos, llr, model = found
+    slots = plan.channel(CHANNEL_SHIFT)
+    rows_out = {s.positions[0] for s in slots if len(s.ref) == 1 and s.page in pages}
+    words = {s.positions[0] for s in slots if len(s.ref) == 2}
+    if rows_out & words:  # a position shared by a word and a row slot cannot be split: keep the Gaussian rows
+        return sb
+    keep = np.array([int(p) not in rows_out for p in sb.positions], dtype=bool)
+    meta = dict(sb.meta, row_model=model)
+    meta["slots_read"] = int(keep.sum()) + len(pos)
+    sigmas = dict(meta.get("sigma_pt") or {})  # type: ignore[call-overload]
+    sigmas.pop("baris", None)  # the rows are not Gaussian any more; row_model holds their step and noise
+    meta["sigma_pt"] = sigmas
+    return SoftBits(sb.channel, np.concatenate([sb.positions[keep], pos]), np.concatenate([sb.llr[keep], llr]), meta,
+                    sb.strengths)
 
 
 def map_pages(master_layout: DocumentLayout, leaked_layout: DocumentLayout,

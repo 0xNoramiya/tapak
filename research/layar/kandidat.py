@@ -27,6 +27,17 @@ Candidates:
   (r near 0) gets LLR near 0, a shift that moved the row a whole pixel (r near +/- q, which the
   current decoder drops as implausible beyond 3 delta) is read with confidence. Every other page
   and everything else (word groups, other evidence) is decoded as ``sekarang``.
+* ``kisi_baris``: the same gate, but the rounding is modelled exactly instead of as independent
+  uniform errors. Exploring one development copy at 56 to 120 dpi showed why the uniform model
+  fails: with a line pitch that is not a whole number of pixels the neighbours' rounding drifts
+  slowly and wraps, so a data row between a wrapped and an unwrapped neighbour sits half a pixel
+  off whatever its mark, and the uniform model reads that half pixel as a confident sign. The
+  renderer drew row j at pixel round(k y_j + phi); the control rows confine (k, phi) to a small
+  region, and a data row's sign has the likelihood of the part of that region where its baseline
+  plus or minus delta rounds to its measured pixel (``ch_shift.lattice_row_llrs``, the decoder of
+  this working tree with the registration's ``PixelGrid``). On those exploration captures (MuPDF
+  and Poppler, 48 to 120 dpi) it read 61 rows with abs LLR >= 2, none wrong, where the Gaussian
+  rows had 11 of 66 wrong.
 
 Selection rule (``ATURAN``, fixed after exploring the current decoder's row offsets on part of the
 development set and before any candidate was scored on the whole development set): a candidate
@@ -36,9 +47,16 @@ verdict with all channels or with the shift channel alone, (3) confidently wrong
 (abs LLR >= 4) fall by at least half, and (4) among the rows the candidate decodes with its own
 model, in every weight bin with at least 50 bits the measured error rate is at most 1.5 times
 the calibrated rate (1 - w) / 2 plus 1 percentage point. Rows are only 19 to 21 of 250 shift
-slots of a page, so no gain in verdicts is required.
+slots of a page, so no gain in verdicts is required. If several candidates pass, the one with the
+fewest confidently wrong row bits is chosen; on a tie, the one with the most correct verdicts from
+the shift channel alone (tie-break added with ``kisi_baris``, still before any scoring).
 
-    python research/layar/kandidat.py nilai sekarang,kuantum_baris
+    python research/layar/kandidat.py nilai sekarang,kuantum_baris,kisi_baris
+    python research/layar/kandidat.py nilai sekarang,kisi_baris --split uji --acuan kisi_baris
+
+The second form is the paired before/after comparison of the held-out run: the held-out traces
+were decoded once by the chosen decoder (``--acuan``, checked against the saved observations),
+and the same displacements are decoded again by the decoder before this study (``sekarang``).
 """
 
 from __future__ import annotations
@@ -66,8 +84,9 @@ ATURAN = ("kandidat menggantikan dekoder sekarang hanya bila pada set dev: (1) t
           "benar, dengan semua kanal maupun geser saja, (3) bit baris yang salah dengan yakin (abs LLR >= 4) turun "
           "paling sedikit separuh, dan (4) di antara baris yang didekode dengan model kandidat, di setiap kelompok "
           "bobot dengan paling sedikit 50 bit, laju salah terukur paling besar 1,5 kali laju terkalibrasi (1 - w)/2 "
-          "ditambah 1 poin persentase")
-CANDIDATES = ("sekarang", "kuantum_baris")
+          "ditambah 1 poin persentase. Bila beberapa kandidat lolos, dipilih yang bit baris salah yakinnya paling "
+          "sedikit; bila sama, yang putusan benar dari kanal geser saja paling banyak")
+CANDIDATES = ("sekarang", "kuantum_baris", "kisi_baris")
 
 
 def load_trace(row: dict, scheme: str) -> dict:
@@ -97,6 +116,11 @@ def decode(candidate: str, ctx, saved: dict):
         return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded)
     if candidate == "kuantum_baris":
         return decode_quantized_rows(ctx, saved)
+    if candidate == "kisi_baris":
+        from tapak.decoder.ch_shift import PixelGrid
+
+        grid = PixelGrid(saved["h"], float(saved["reg"][1]), float(saved["reg"][2]))
+        return decode_displacements(ctx.master, ctx.plan, saved["disp"], ctx.shift, ctx.excluded, grid=grid)
     raise ValueError(candidate)
 
 
@@ -221,7 +245,7 @@ def evaluate(args: tuple[dict, list[str]]) -> dict:
     """Every candidate on one development row (all its traces)."""
     from tapak.decoder.softbits import SoftBits
 
-    row, candidates = args
+    row, candidates, reference = args
     out = {k: row.get(k) for k in ("split", "grid", "doc", "scheme", "renderer", "dpi", "fmt", "framing", "seq", "rep")}
     out["traces"] = []
     for t in row["traces"]:
@@ -239,35 +263,36 @@ def evaluate(args: tuple[dict, list[str]]) -> dict:
                 tr["candidates"][cand] = {"bits": t["bits"], "accuse": t["accuse"]}
                 continue
             sb = decode(cand, ctx, saved)
-            if cand == "sekarang" and shift_saved:
+            if cand == reference and shift_saved:
                 ref = shift_saved[0]
                 if not (np.array_equal(ref.positions, sb.positions) and np.allclose(ref.llr, sb.llr, atol=1e-9)):
                     raise RuntimeError(f"{job_key(row)}: dekode ulang tidak sama dengan pelacakan")
             obs = [sb] + background
             bits = bit_stats(obs, ctx, x)
             model = sb.meta.get("row_model")
-            bits["baris_model"] = bits["baris"] if model and "q_pt" in model else {"read": 0}
+            own = model and ("q_pt" in model or any("q_pt" in pg for pg in model.get("pages", [])))
+            bits["baris_model"] = bits["baris"] if own else {"read": 0}
             tr["candidates"][cand] = {"bits": bits, "accuse": accusations(obs, ctx, row["seq"]), "row_model": model}
         out["traces"].append(tr)
     return out
 
 
-def run_nilai(candidates: list[str]) -> None:
+def run_nilai(candidates: list[str], split: str = "dev", reference: str = "sekarang") -> None:
     import multiprocessing as mp
 
-    rows = [json.loads(line) for line in (HASIL / "dev.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    rows = [json.loads(line) for line in (HASIL / f"{split}.jsonl").read_text(encoding="utf-8").splitlines() if line]
     out_rows = []
     with ProcessPoolExecutor(max_workers=ukur.WORKERS, mp_context=mp.get_context("spawn"), initializer=ukur._init) as pool:
-        for i, r in enumerate(pool.map(evaluate, [(r, candidates) for r in rows], chunksize=4)):
+        for i, r in enumerate(pool.map(evaluate, [(r, candidates, reference) for r in rows], chunksize=4)):
             out_rows.append(r)
             if i % 100 == 0:
                 print(f"{i}/{len(rows)}", flush=True)
-    (HASIL / "dev_kandidat.jsonl").write_text(
+    (HASIL / f"{split}_kandidat.jsonl").write_text(
         "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in out_rows), encoding="utf-8")
-    report(out_rows, candidates)
+    report(out_rows, candidates, split)
 
 
-def report(rows: list[dict], candidates: list[str]) -> dict:
+def report(rows: list[dict], candidates: list[str], split: str = "dev") -> dict:
     """Numbers for the selection rule, per candidate."""
     from ringkas import calibration
 
@@ -294,8 +319,8 @@ def report(rows: list[dict], candidates: list[str]) -> dict:
         print(json.dumps({cand: {k: v for k, v in res[cand].items() if k != "named"}}, ensure_ascii=False))
         print(json.dumps({cand: named}, ensure_ascii=False))
     res["rule"] = ATURAN
-    (HASIL / "dev_kandidat_ringkas.json").write_text(json.dumps(res, indent=1, ensure_ascii=False) + "\n",
-                                                     encoding="utf-8")
+    (HASIL / f"{split}_kandidat_ringkas.json").write_text(json.dumps(res, indent=1, ensure_ascii=False) + "\n",
+                                                          encoding="utf-8")
     return res
 
 
@@ -304,8 +329,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("nilai")
     n.add_argument("candidates", nargs="?", default=",".join(CANDIDATES))
+    n.add_argument("--split", choices=("dev", "uji"), default="dev")
+    n.add_argument("--acuan", default="sekarang", help="kandidat yang sama dengan dekoder pelacakan (diperiksa)")
     args = ap.parse_args(argv)
-    run_nilai(args.candidates.split(","))
+    run_nilai(args.candidates.split(","), args.split, args.acuan)
     return 0
 
 

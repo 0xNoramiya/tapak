@@ -348,10 +348,21 @@ def evidence_type_for(name: str) -> str:
     return "teks"
 
 
+def _rounded_rows_text(meta: dict[str, Any]) -> str | None:
+    """The rounding step of rows read with the pixel-grid model (shift channel of a screenshot)."""
+    model = meta.get("row_model")
+    steps = [p["q_pt"] for p in (model or {}).get("pages", []) if isinstance(p, dict) and "q_pt" in p]
+    if not steps:
+        return None
+    return f"baris dibulatkan ke piksel, langkah {format_number(float(steps[0]), 3)} pt"
+
+
 def _noise_text(channel: str, meta: dict[str, Any]) -> str:
     sigma = meta.get("sigma_pt")
-    if isinstance(sigma, dict) and sigma:
-        return "; ".join(f"sigma {k} {format_number(float(v), 3)} pt" for k, v in sigma.items())
+    rounded = _rounded_rows_text(meta)
+    if isinstance(sigma, dict) and (sigma or rounded):
+        parts = [f"sigma {k} {format_number(float(v), 3)} pt" for k, v in sigma.items()]
+        return "; ".join(parts + ([rounded] if rounded else []))
     if isinstance(sigma, (int, float)):
         return f"sigma {format_number(float(sigma), 3)} pt"
     if "noise" in meta:
