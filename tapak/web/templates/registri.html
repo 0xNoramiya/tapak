@@ -71,13 +71,16 @@
       </div>
     </div>
     {% if report.problems %}
+    {# A problem of the anchor log is told in full in the Log jangkar card below (the same
+       sentences): here it is named and pointed to, so the page says it once. #}
+    {% set log_dirinci = anchor.problems if anchor is defined and anchor is not none and anchor.configured else [] %}
     <div class="notice notice-error integritas-catatan" role="alert">
-      <ul class="notes">{% for seq, text in report.problems %}<li>{% if seq %}<span class="mono">#{{ seq }}</span> {% endif %}{{ text }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for seq, text in report.problems %}<li>{% if seq %}<span class="mono">#{{ seq }}</span> {% endif %}{% if not seq and text.startswith("log jangkar: ") and text[13:] in log_dirinci %}log jangkar: rinciannya di bagian <a class="link" href="#jangkar-h">Log jangkar</a> di bawah{% else %}{{ text|prosa }}{% endif %}</li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% if report.warnings %}
     <div class="notice notice-warn integritas-catatan">
-      <ul class="notes">{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for w in report.warnings %}<li>{{ w|prosa }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
   </section>
@@ -137,12 +140,12 @@
       {% else %}
       <p>Pelacakan dan penerbitan ditolak sampai perbedaan ini diperiksa dengan <span class="mono nowrap">tapak verify</span>.</p>
       {% endif %}
-      <ul class="notes">{% for p in jangkar.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for p in jangkar.problems %}<li>{{ p|prosa }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% if jangkar.warnings %}
     <div class="notice notice-warn integritas-catatan">
-      <ul class="notes">{% for w in jangkar.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for w in jangkar.warnings %}<li>{{ w|prosa }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% elif jangkar.required_by is not none %}
@@ -242,7 +245,8 @@
             <td class="kanari-salinan">
               <span class="dok-teks">
                 <span class="dok-nama">Salinan #{{ k.seq }}</span>
-                <span class="dok-meta" title="{{ k.doc_name }}">{{ k.doc_name }}</span>
+                {# one opening usually sends an A and an AAAA query: the type tells the two rows apart #}
+                <span class="dok-meta">{{ k.doc_name }}{% if k.qtype %} · kueri {{ k.qtype }}{% endif %}</span>
               </span>
             </td>
             <td>{{ waktu2(k.time) }}</td>

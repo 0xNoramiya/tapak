@@ -63,6 +63,7 @@
   {% if lexicon %}
   <form class="lex-optin" hx-post="/terbitkan/{{ st.sid }}/leksikal" hx-target="#semantik" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
     <p class="hint">Teks ketikan ulang baru cukup untuk menyebut satu pembocor mulai {{ lv.lone_bits }}&nbsp;bit, sekitar {{ lv.lone_words }}&nbsp;kata isi dengan tabel ini. Dokumen yang lebih pendek tetap berakhir “tidak cukup bukti”. Tanpa pemindaian, salinan diterbitkan tanpa kanal ini.</p>
+    {% if lv.print_note %}<p class="hint lex-cetak" id="lx-cetak">{{ lv.print_note }}</p>{% endif %}
     <div class="form-actions">
       <button class="btn btn-secondary" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
@@ -165,7 +166,7 @@
             <p class="lex-total"><span class="lex-total-n">{{ bits.total|num }}</span>&nbsp;bit</p>
             {{ stamp }}
           </div>
-          <p class="lex-sum">{{ bits.lex|num }}&nbsp;bit leksikal + {{ bits.sem|num }}&nbsp;bit semantik</p>
+          <p class="lex-sum">{{ bits.lex|num }}&nbsp;bit pilihan kata + {{ bits.sem|num }}&nbsp;bit varian kalimat</p>
         </div>
         {% set m = meter(bits.total, lv.lone_bits) %}
         <div class="meter{% if not lv.enough %} meter-below{% endif %}" style="--value: {{ m.value }}; --mark: {{ m.mark }}">
@@ -173,7 +174,7 @@
           <div class="meter-legend"><span>Satu pembocor <b>{{ lv.lone_bits }}</b></span></div>
         </div>
         <p class="small lex-verdict">{{ lv.verdict }}.</p>
-        {% if lv.pending %}<p class="hint">Bila semua titik yang menunggu disetujui: {{ sel.candidate_bits|num }}&nbsp;bit leksikal.</p>
+        {% if lv.pending %}<p class="hint">Bila semua titik yang menunggu disetujui: {{ sel.candidate_bits|num }}&nbsp;bit pilihan kata.</p>
         {% elif not bits.lex %}<p class="hint">Tidak ada titik yang disetujui: salinan diterbitkan tanpa kanal pilihan kata.</p>{% endif %}
         <p class="hint lex-caveat">Nama yang hanya didukung teks ketikan ulang selalu diberi peringatan tanda terlihat: siapa pun yang pernah membaca salinan itu dapat meniru pilihan katanya, jadi nama itu memerlukan bukti pendukung.</p>
       </div>
@@ -206,6 +207,8 @@
     {% else %}
     <p class="empty">Setujui titik untuk melihat bagaimana dua salinan berbeda.</p>
     {% endif %}
+    {# the print profile: what the rows leaving the shift channel cost on paper (research/ocr) #}
+    {% if lv.print_note %}<p class="hint lex-cetak" id="lx-cetak">{{ lv.print_note }}</p>{% endif %}
   </div>
   {% endif %}
 </section>

@@ -524,6 +524,7 @@ def test_cli_scan_review_issue_and_trace(tmp_path, capsys, monkeypatch):
     assert _run(tmp_path, "issue", str(SAMPLE), str(recipients), "--leksikal", str(lexfile)) == 0
     out = capsys.readouterr().out
     assert f"{sel.bits} bit pilihan kata" in out and "belum mencapai 64 bit" in out and "Tahan ketik ulang" in out
+    assert lx.PRINT_NOTE not in out  # the screen profile: no note about paper
     assert f"dari {lx.format_count(sel.body_words)} kata isi" in out
     folder = next((tmp_path / "data" / "dokumen").glob("*/manifest.json")).parent
     assert (folder / "leksikal.json").exists()
@@ -534,3 +535,21 @@ def test_cli_scan_review_issue_and_trace(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "TIDAK CUKUP BUKTI" in out and "Pilihan kata (leksikal)" in out and "diketik ulang" in out
     assert _run(tmp_path, "verify") == 0
+
+
+def test_cli_issue_with_word_choice_and_the_print_profile_prints_the_paper_note(tmp_path, capsys, monkeypatch):
+    """--leksikal with --latar cetak (a document meant for paper) prints the one-line note of
+    research/ocr after the retype line; issuance itself is the same."""
+    monkeypatch.delenv("TAPAK_CANARY_DOMAIN", raising=False)
+    recipients = tmp_path / "penerima.csv"
+    with open(RECIPIENTS, newline="", encoding="utf-8") as src, open(recipients, "w", newline="", encoding="utf-8") as dst:
+        csv.writer(dst).writerows(list(csv.reader(src))[:4])
+    assert _run(tmp_path, "keys", "init") == 0
+    lexfile = tmp_path / "leksikal.json"
+    assert _run(tmp_path, "leksikal", "scan", str(SAMPLE), "-o", str(lexfile)) == 0
+    assert _run(tmp_path, "leksikal", "review", str(lexfile), "--semua", "--setujui", "--ya") == 0
+    capsys.readouterr()
+    assert _run(tmp_path, "issue", str(SAMPLE), str(recipients), "--leksikal", str(lexfile), "--latar", "cetak") == 0
+    out = capsys.readouterr().out
+    assert f"Catatan: {lx.PRINT_NOTE}." in out
+    assert out.index("Tahan ketik ulang") < out.index(lx.PRINT_NOTE)

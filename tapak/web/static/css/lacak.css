@@ -140,6 +140,10 @@
 .fact b { font-size: var(--fs-h2); line-height: 1.3; font-variant-numeric: tabular-nums; }
 .fact i { font-style: normal; font-size: var(--fs-sm); color: var(--ink-muted); }
 .lacak .verdict .verdict-note { max-width: none; }
+/* the warnings under the verdict read as one block, most consequential first */
+.verdict-notes { display: flex; flex-direction: column; gap: 8px; }
+/* several names: said as part of the verdict, not as a warning */
+.verdict-kolusi { font-size: var(--fs-ui); max-width: 72ch; }
 
 /* later stages of a staged trace: under the stage-1 names, on a sunken well and a size smaller,
    so they read as resting on those names (each also states its basis) */
@@ -165,6 +169,8 @@
 .lacak .tnum { font-variant-numeric: tabular-nums; }
 .kanal-tabel td { vertical-align: middle; }
 .kanal-tabel td.num .bar { margin-right: 12px; }
+/* the same bar as the plan's coverage column on Terbitkan: one share-of-code bar on every page */
+.kanal-tabel .bar, .kanal-tabel .bar::before { height: 8px; border-radius: 4px; }
 .kanal-n { display: inline-block; min-width: 5ch; text-align: right; }
 /* a few positions of a long code still show as a dot, not a hairline */
 .kanal-catatan { margin: 12px 0 16px; }
@@ -236,10 +242,13 @@
 .lacak-kanari .card-head { flex-wrap: nowrap; align-items: center; margin-bottom: 12px; }
 .lacak-kanari .card-head > div { flex: 1 1 auto; }
 .lacak-kanari .list { margin-bottom: 16px; }
-.lacak-kanari .list-title { white-space: normal; }
 .lacak-kanari .hint + details.more { margin-top: 16px; }
 .lacak-sah { display: flex; flex-direction: column; gap: 20px; }
 .lacak-sah > h2, .lacak-sah > .kv { margin: 0; }
+/* the aside is narrow and several values run to a sentence: each label sits above its value */
+.lacak-sah .kv { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+.lacak-sah .kv dd + dt { margin-top: 12px; }
+.lacak-sah .kv dd > .stamp { margin-right: 4px; }
 .lacak-hash, .lacak-catatan { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .lacak-catatan .notice .notes { padding-left: 16px; }
 

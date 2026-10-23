@@ -55,11 +55,14 @@ from tapak.marker.raster import GATE_MAX_DIFF as RASTER_GATE_MAX_DIFF
 
 HERE = Path(__file__).resolve().parent
 MAX_UPLOAD = 40 * 1024 * 1024
+# One name per channel on every page: the physical channels of a trace (geser, latar, teks,
+# semantik, leksikal) carry the names of the sub-channels they are made of, as on Terbitkan.
 CHANNEL_NAMES = {
     "shift": "Geser kata dan baris", "background": "Pola latar", "zw": "Karakter tak terlihat",
     "homoglyph": "Huruf kembar", "semantic": "Varian kalimat", "canary": "Token kanari",
     "lexical": "Pilihan kata", "semantic_ocr": "Varian kalimat (OCR gambar)", "lexical_ocr": "Pilihan kata (OCR gambar)",
-    "geser": "Geser", "latar": "Latar", "teks": "Teks", "semantik": "Semantik", "leksikal": "Leksikal",
+    "geser": "Geser kata dan baris", "latar": "Pola latar", "teks": "Karakter tak terlihat dan huruf kembar",
+    "semantik": "Varian kalimat", "leksikal": "Pilihan kata",
 }
 EPS_CHOICES = [("1e-4", "1 dari 10.000"), ("1e-6", "1 dari 1.000.000"), ("1e-8", "1 dari 100.000.000")]
 # Progress header of Terbitkan. Step 3 covers both text reviews (safe sentences and word choice).
@@ -236,8 +239,8 @@ templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
 
 def _channel_label(ch) -> str:
     """Name of a physical channel row of a trace, with how it was read when that is not the
-    obvious way (for example "Leksikal (OCR gambar)": word choices read from the OCR text of a
-    photo). Never any OCR text."""
+    obvious way (for example "Pilihan kata (OCR gambar)": word choices read from the OCR text of
+    a photo). Never any OCR text."""
     name = CHANNEL_NAMES.get(ch.channel, ch.channel)
     return f"{name} ({ch.source_label})" if ch.source_label else name
 
@@ -274,17 +277,151 @@ def _visible_marks_caveats(notes: list[str]) -> list[str]:
 
 templates.env.globals["peringatan_terlihat"] = _visible_marks_caveats
 
-
-def _warning_parts(note: str) -> list[str]:
-    """The sentences of the merged manipulation warning (what was found, the causes, the rate,
-    that nobody is named), so the page sets the first in bold and each of the others on its own
-    line; ``[note]`` for any other note."""
-    from tapak.decoder.manipulation import manipulation_parts
-
-    return manipulation_parts(note)
+# Registry sentences that say why a name is not (yet) confirmed: the problem reported by
+# service.check_registry and what it means for the name. Shown under an identified verdict and
+# then left out of the validity box, so the page says it once.
+REGISTRY_NO_KEY = "kunci publik tidak tersedia"
+REGISTRY_UNRECORDED = "dokumen ini diterbitkan tanpa registri"
 
 
-templates.env.globals["bagian_peringatan"] = _warning_parts
+def _clause(text: str) -> str:
+    """A finding that follows "Perhatian:" under the verdict: lower case kept, as the decoder
+    writes it (and as the merged manipulation warning starts), with a final period."""
+    text = text.strip()
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+def _lead(text: str, sep: str) -> list[str]:
+    """``text`` cut at the first ``sep`` into its finding (set in bold under the verdict) and
+    the rest (a sentence on its own line); ``[text]`` as one finding when ``sep`` does not occur."""
+    head, found, tail = text.partition(sep)
+    return [_clause(head), _sentence(tail)] if found and tail.strip() else [_clause(text)]
+
+
+# A pair of channels as the decoder writes it in a note ("kanal geser|latar saling bertentangan").
+_CHANNEL_PAIR = re.compile(r"\bkanal (\w+)\|(\w+)\b")
+
+
+def _page_note(note: str) -> str:
+    """A trace note in the words of this page: a channel pair is named as the channel table
+    names its channels (one name per channel), not with the decoder's keys."""
+    def pair(m: re.Match) -> str:
+        a, b = (CHANNEL_NAMES.get(k, k).lower() for k in (m[1], m[2]))
+        return f"kanal {a} dan kanal {b}"
+
+    return _CHANNEL_PAIR.sub(pair, note)
+
+
+def _verdict_notes(outcome, attribution, identified: bool, redact) -> dict[str, object]:
+    """Everything said under the verdict, in the order it changes what the operator does, and
+    what is left for the validity box.
+
+    Under an identified verdict: a name that rests only on marks visible on paper (it needs
+    supporting evidence), then why the recipient's identity is not confirmed by the registry,
+    then the merged manipulation warning, then a shift channel of scanned pages left out. Under
+    "tidak cukup bukti" only the last two apply. The merged warning is shown without the
+    statistic of each check: the validity box lists those, each with its own row.
+
+    Every warning starts with its finding, set in bold, and gives the rest on its own lines, so
+    a warning ranked higher never reads lighter than one below it. For the registry the finding
+    is what it means for the name; the registry problem behind it follows.
+
+    Returns ``notes`` (each a list of sentences: the first is the finding, the others go on
+    their own lines; ``manipulation`` marks the merged warning), ``notes_rest`` (the trace notes
+    for the validity box, without one the verdict already says) and ``problems`` (the registry
+    problems for the validity box).
+    """
+    from tapak.decoder.accuse import NO_MARKS_NOTE, VISIBLE_MARKS_NOTE
+    from tapak.decoder.manipulation import is_manipulation_note, manipulation_note, manipulation_parts
+    from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
+
+    a, r = attribution, outcome.registry
+    shown = _visible_marks_caveats(a.notes)
+    rest = [n for n in a.notes if n not in shown]
+    if not identified and not a.threshold.n_observed:
+        rest = [n for n in rest if n != NO_MARKS_NOTE]  # the verdict says "Tidak ada tanda yang terbaca"
+    problems = list(r.problems)
+    ranked: list[tuple[int, dict[str, object]]] = []
+    for n in shown:
+        if VISIBLE_MARKS_NOTE in n:
+            ranked.append((0, {"parts": _lead(redact(n), ". ")}))
+        elif is_manipulation_note(n):
+            short = manipulation_note(a.erasure, a.contradiction, a.reversal, statistics=False) or n
+            ranked.append((2, {"parts": manipulation_parts(short), "manipulation": True}))
+        elif n.startswith(SCAN_SHIFT_SKIPPED):
+            ranked.append((3, {"parts": _lead(redact(n), ": ")}))
+    if identified:
+        parts = None
+        if not r.recorded:
+            note = next((n for n in rest if n.startswith(REGISTRY_UNRECORDED)), None)
+            if note is not None:
+                rest.remove(note)
+                parts = [_clause(note)]
+            else:
+                parts = ["identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.",
+                         "Dokumen ini tidak tercatat di registri."]
+        elif r.chain_ok is not True:
+            p = next((p for p in problems if p.startswith(REGISTRY_NO_KEY)), None)
+            if p is not None:
+                problems.remove(p)
+            parts = ["identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.",
+                     _sentence(p or "registri tidak diverifikasi karena kunci publik tidak tersedia")]
+        elif r.copies_unsigned:
+            prefix = f"{r.copies_unsigned} entri salinan dokumen ini belum bertanda tangan"
+            p = next((p for p in problems if p.startswith(prefix)), None)
+            if p is not None:
+                problems.remove(p)
+            parts = ["identitas penerima belum dilindungi tanda tangan registri.", _sentence(p or prefix)]
+        if parts:
+            ranked.append((1, {"parts": parts}))
+    ranked.sort(key=lambda item: item[0])  # stable: notes of one kind keep their order
+    return {"notes": [note for _, note in ranked], "notes_rest": [_page_note(n) for n in rest], "problems": problems}
+
+
+_POWER = re.compile(r"(?:(\d+(?:,\d+)?) x )?10\^(-?)(\d+)")
+
+
+def _powers(text: object) -> Markup:
+    """Escaped text with every power of ten written as the verdict writes it: '9,5 x 10^-6'
+    becomes 9,5, a multiplication sign and 10 with a superscript exponent (a true minus sign),
+    and a screen reader hears '9,5 kali 10 pangkat minus 6' (a superscript is not announced)."""
+    out, last = [], 0
+    raw = str(text)
+    for m in _POWER.finditer(raw):
+        out.append(str(escape(raw[last:m.start()])))
+        mant, minus, exp = m.group(1), m.group(2), m.group(3)
+        sign = "\u2212" if minus else ""
+        seen = (f"{mant} \u00d7 " if mant else "") + f"10<sup>{sign}{exp}</sup>"
+        heard = (f"{mant} kali " if mant else "") + f"10 pangkat {'minus ' if minus else ''}{exp}"
+        out.append(f'<span class="nowrap" aria-hidden="true">{seen}</span><span class="sr-only">{heard}</span>')
+        last = m.end()
+    out.append(str(escape(raw[last:])))
+    return Markup("".join(out))
+
+
+templates.env.filters["pangkat"] = _powers
+
+# A TAPAK command in running text ("tapak verify --jangkar", "tapak jangkar mulai"): in the
+# monospace face commands have everywhere else on these pages, and a flag is never broken after
+# its dashes ("tapak verify --" at the end of a line, "jangkar" on the next). Lines may still
+# break between words, so a long command fits a phone. At most two subcommand words, then any
+# flags: "tapak jangkar mulai --ulang --alasan", but not the prose after a command ("tapak
+# registry sign lebih dulu").
+_COMMAND = re.compile(r"\btapak(?:(?: [a-z][a-z-]*){1,2}(?: --?[a-z][a-z-]*)*|(?: --?[a-z][a-z-]*)+)")
+
+
+def _command(m: re.Match) -> str:
+    words = (f'<span class="nowrap">{w}</span>' if "-" in w else w for w in m[0].split(" "))
+    return f'<span class="mono">{" ".join(words)}</span>'
+
+
+def _prose(text: object) -> Markup:
+    """Escaped running text as :func:`_powers` writes it, with every TAPAK command set as one."""
+    return Markup(_COMMAND.sub(_command, str(_powers(text))))
+
+
+templates.env.filters["prosa"] = _prose
+templates.env.filters["kalimat"] = _sentence
 
 
 def _fap(candidate, n_copies: int):
@@ -393,17 +530,19 @@ def _beda(original: object, variant: object) -> Markup:
 templates.env.filters["beda"] = _beda
 
 
-def _meter(value: float, mark: float | None = None) -> dict[str, float | None]:
+def _meter(value: float, mark: float | None = None, peak: float | None = None) -> dict[str, float | None]:
     """Positions (0..1) of a score and its threshold on one scale for a .meter.
 
     The scale runs from 0 to 15 % past the larger of the two, so neither touches the end;
-    negative scores sit at 0 and an infinite threshold has no mark (None).
+    negative scores sit at 0 and an infinite threshold has no mark (None). ``peak`` (the highest
+    score of a group) puts several meters on one scale, so their thresholds line up and their
+    fills compare, as in the score ranking.
     """
     import math
 
     v = max(float(value), 0.0)
     m = float(mark) if mark is not None and math.isfinite(float(mark)) else None
-    top = max(v, m or 0.0) * 1.15 or 1.0
+    top = max(v, m or 0.0, float(peak or 0.0)) * 1.15 or 1.0
     return {"value": round(v / top, 4), "mark": None if m is None else round(max(m, 0.0) / top, 4)}
 
 
@@ -1105,7 +1244,9 @@ def _lexical_view(st: Staging) -> dict[str, object]:
     sel = st.lexical
     bits = _retype_bits(st)
     view: dict[str, object] = {"sel": sel, "bits": bits, "lexicon": None, "lexicon_title": "", "lexicon_error": "",
-                               "lone_bits": lx.LONE_LEAKER_BITS, "lone_words": lx.format_count(lx.LONE_LEAKER_WORDS)}
+                               "lone_bits": lx.LONE_LEAKER_BITS, "lone_words": lx.format_count(lx.LONE_LEAKER_WORDS),
+                               # the print profile marks a document meant for paper: say what word choice costs there
+                               "print_note": _keep_units(_sentence(lx.PRINT_NOTE)) if st.latar == "cetak" else ""}
     try:
         lexicon = view["lexicon"] = lx.load_lexicon(sel.lexicon if sel is not None else lx.DEFAULT_LEXICON)
         # "naskah_dinas_v1" reads "naskah dinas" (the version is shown on its own)
@@ -1121,7 +1262,7 @@ def _lexical_view(st: Staging) -> dict[str, object]:
     else:
         status = ((f"{pending} dari {total} titik pilihan kata menunggu tinjauan Anda. " if pending
                    else "Semua titik pilihan kata sudah ditinjau. ")
-                  + f"{bits['lex']} bit leksikal + {bits['sem']} bit semantik. "
+                  + f"{bits['lex']} bit pilihan kata + {bits['sem']} bit varian kalimat. "
                   + ("Cukup untuk satu pembocor." if enough else "Belum cukup untuk satu pembocor."))
     view.update(
         groups=_rule_groups(sel, view["lexicon"]), pending=pending, total=total,
@@ -1506,7 +1647,10 @@ async def lacak_run(
     try:
         outcome = await run_in_threadpool(run)
     except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
-        return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {_public_text(exc)}")
+        text = _public_text(exc)
+        # a refusal already says so ("pelacakan ditolak ..."): not "tidak dapat dilakukan: pelacakan ditolak"
+        message = _sentence(text) if text.startswith("pelacakan ditolak") else f"Pelacakan tidak dapat dilakukan: {text}"
+        return _page(request, "_galat.html", message=message)
     tid = secrets.token_hex(8)
     with _LOCK:
         _TRACES[tid] = outcome
@@ -1533,9 +1677,10 @@ async def lacak_run(
         elif any(ch.channel == "geser" for ch in a.channels):
             shift_scan = ("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
                           "cocok dengan catatan penerbitan.")
-    return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid,
-                 identified=a.verdict == VERDICT_IDENTIFIED, redact=redact, tahap_lanjut=later,
-                 eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan)
+    identified = a.verdict == VERDICT_IDENTIFIED
+    return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid, identified=identified, redact=redact,
+                 tahap_lanjut=later, eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan,
+                 v=_verdict_notes(outcome, a, identified, redact))
 
 
 def _eps_label(eps: float) -> str:

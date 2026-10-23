@@ -390,7 +390,7 @@ Ketiga pemeriksaan manipulasi menulis satu blok di bawah putusan, di halaman Lac
 
 1. satu kalimat utama: bukti kemungkinan diubah oleh orang yang memahami TAPAK, dan apa yang ditemukan, setiap temuan sekali (pola tanda terbalik, pola penghapusan, bacaan jelas tanpa nama); halaman Lacak menebalkan kalimat ini dan menaruh setiap kalimat berikutnya di barisnya sendiri;
 2. kemungkinan penyebab, digabung: koalisi pemegang dua salinan atau lebih yang menghapus, membalik, atau mengacak tanda di tempat salinannya sama (atau satu salinan yang membalik semua tandanya); koalisi lebih besar dari yang dicakup batasnya; atau masalah pembacaan bukti;
-3. lajunya: pada bukti jujur setiap pemeriksaan memberi peringatan dengan peluang paling besar sekitar 10^-3, rata-rata atas dokumen, dengan nilai pemeriksaan yang berbunyi; ketiga laju itu tidak dibagi, jadi blok ini sendiri dapat muncul pada bukti jujur dengan peluang sampai sekitar 3 x 10^-3 (batas gabungan);
+3. lajunya: pada bukti jujur setiap pemeriksaan memberi peringatan dengan peluang paling besar sekitar 10^-3, rata-rata atas dokumen, dengan nilai pemeriksaan yang berbunyi (halaman Lacak menulis nilai itu sekali, di kotak keabsahan, dan blok ini menautkannya); ketiga laju itu tidak dibagi, jadi blok ini sendiri dapat muncul pada bukti jujur dengan peluang sampai sekitar 3 x 10^-3 (batas gabungan);
 4. bahwa ini hanya peringatan: tidak ada nama yang disebut karenanya, dan putusan, ambang, serta skor tidak berubah.
 
 Teks itu tidak pernah memuat nama, nomor salinan, atau identitas penerima.
@@ -432,7 +432,7 @@ Penyamaran membuat salinan berbeda di setiap posisi, sehingga kesamaan tidak ter
 | Penerbitan 20 salinan dokumen 2 halaman | sekitar 4 sampai 5 detik (hasil pindai 300 dpi: sekitar 30 detik) |
 | Kanari DNS, pembukaan disimulasikan (kueri langsung ke pendengar lokal) | tercatat dalam sekitar 0,1 detik (syarat: di bawah 5 detik) |
 | Registri: verifikasi hanya dengan kunci publik, setiap perubahan baris terdeteksi | lulus |
-| `make demo` (skenario lengkap) | sekitar 18 sampai 20 detik di mesin uji yang dipakai bersama, termasuk sekitar 5 detik untuk templat induk tepat pada pelacakan foto; sejak varian kalimat pada foto dibaca dengan OCR, sekitar 3 detik lebih lama |
+| `make demo` (skenario lengkap) | sekitar 30 detik di mesin uji yang dipakai bersama saat sibuk (23 Oktober 2026, beban sekitar 7 pada 8 CPU, paling banyak 3 proses kerja: 32 dan 33 detik), dengan pelacakan foto sekitar 17 detik, termasuk templat induk tepat dan OCR varian kalimat pada foto; sebelumnya, saat mesin lebih sepi dan sebelum varian kalimat pada foto dibaca dengan OCR, 18 sampai 20 detik |
 
 ## Kanal pilihan kata (opsional)
 

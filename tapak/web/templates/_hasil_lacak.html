@@ -7,9 +7,9 @@
 {% set named_seqs = a.named_seqs %}
 {% set later = a.stages|selectattr("accused")|list %}
 {# A stage score is set against its own threshold (stage weights differ, so Z1 does not apply). #}
-{% macro meter_block(score, score_label, below, z=none, z_label="Ambang Z") -%}
+{% macro meter_block(score, score_label, below, z=none, z_label="Ambang Z", peak=none) -%}
 {% set zz = t.threshold if z is none else z %}
-{% set m = meter(score, zz) %}
+{% set m = meter(score, zz, peak) %}
 <div class="meter{% if below %} meter-below{% endif %}{% if m.mark is not none and m.mark < 0.2 %} mark-start{% elif m.mark is not none and m.mark > 0.8 %} mark-end{% endif %}" style="--value: {{ m.value }}; --mark: {{ m.mark if m.mark is not none else 0 }}">
   <div class="meter-track"><div class="meter-fill"></div>{% if m.mark is not none %}<div class="meter-mark"></div>{% endif %}</div>
   <div class="meter-legend"><span>{{ score_label }} <b>{{ score|num(1) }}</b></span><span>{{ z_label }} <b>{{ zz|num(1) if zz != inf else "tak hingga" }}</b></span></div>
@@ -27,6 +27,8 @@
   </div>
 
   {% if identified %}
+    {# several names: one scale for all their meters, so the threshold ticks line up #}
+    {% set peak1 = a.accused|map(attribute="score")|max %}
     {% for c in a.accused %}
     <div class="who">
       <div class="who-id">
@@ -35,7 +37,7 @@
         <p class="who-meta"><span class="mono">{{ c.copy.recipient_id }}</span>{% if c.copy.jabatan %} · {{ c.copy.jabatan }}{% endif %}{% if c.copy.satuan %} · {{ c.copy.satuan }}{% endif %}</p>
       </div>
       <div class="facts">
-        {{ meter_block(c.score, "Skor", false) }}
+        {{ meter_block(c.score, "Skor", false, peak=peak1) }}
         {# a screen reader hears the superscript exponent as "10 minus 133": it gets the spoken form #}
         <span class="fact"><small>Peluang tuduhan salah</small> <b aria-hidden="true">≤ {{ fap(c, a.candidates|length) }}</b><b class="sr-only">paling besar {{ fap_lisan(c, a.candidates|length) }}</b></span>
         <span class="fact"><small>Kanal sepakat</small> <b>{{ c.channels_agreeing|length }}</b>{% if c.channels_agreeing %} <i>{{ agreeing_labels(c, a)|join(", ") }}{% if c.channels_agreeing|length > 1 %}, masing-masing secara independen{% endif %}</i>{% endif %}</span>
@@ -43,12 +45,13 @@
     </div>
     {% endfor %}
     {# Later stages run only after stage 1 named someone, and their names rest on the copies named
-       before them: they sit under the stage-1 names, smaller, each with its stage and its basis. #}
+       before them: they sit under the stage-1 names, smaller, each with its stage and its basis.
+       Which positions a stage weighs is told once, under the stage table in Bukti per kanal. #}
     {% if later and a.accused %}
     <div class="lanjut" role="group" aria-labelledby="lanjut-label">
       <div class="lanjut-head">
         <p class="label" id="lanjut-label">Pelacakan bertahap</p>
-        <p class="hint">Tahap lanjutan hanya berjalan karena tahap 1 menuduh salinan di atas. Tahap itu menilai ulang salinan lain pada posisi kode yang bitnya tidak dimiliki salinan yang sudah dituduh, dengan ambang dan jatah peluang tuduhan salahnya sendiri. Skor tahap memakai bobot tahap itu, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
+        <p class="hint">Tahap lanjutan hanya berjalan karena tahap 1 menuduh salinan di atas. Tahap itu memakai ambang dan jatah peluang tuduhan salahnya sendiri, dan skornya memakai bobot tahap itu, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
       </div>
       {% for st in later %}{% for c in st.accused %}
       <div class="who who-lanjut">
@@ -58,26 +61,15 @@
           <p class="who-dasar">{{ st.basis_text() }}</p>
         </div>
         <div class="facts">
-          {{ meter_block(c.score, "Skor tahap " ~ st.stage, false, st.threshold.threshold, "Ambang Z" ~ st.stage) }}
+          {{ meter_block(c.score, "Skor tahap " ~ st.stage, false, st.threshold.threshold, "Ambang Z" ~ st.stage, st.accused|map(attribute="score")|max) }}
           <span class="fact"><small>Peluang tuduhan salah</small> <b aria-hidden="true">≤ {{ fap(c, a.candidates|length) }}</b><b class="sr-only">paling besar {{ fap_lisan(c, a.candidates|length) }}</b></span>
         </div>
       </div>
       {% endfor %}{% endfor %}
     </div>
     {% endif %}
-    {% for n in peringatan_terlihat(a.notes) %}{% set bagian = bagian_peringatan(redact(n)) %}
-    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {% if bagian|length > 1 %}<b>{{ bagian[0] }}</b>{% for s in bagian[1:] %} <span class="notice-part{% if loop.index == 2 %} notice-rate{% endif %}">{{ s }}</span>{% endfor %}{% else %}{{ bagian[0] }}{% endif %}</p>
-    {% endfor %}
-    {% if a.named|length > 1 %}<p class="notice verdict-note">{% if later %}Lebih dari satu salinan dituduh, di tahap 1 dan di tahap lanjutan{% else %}Lebih dari satu salinan melewati ambang{% endif %}: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
-    {# A name is only as good as the record behind it: say so next to the name, not only in the aside. #}
-    {% set r = o.registry %}
-    {% if not r.recorded %}
-    <p class="notice notice-warn verdict-note">Dokumen ini tidak tercatat di registri. Identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.</p>
-    {% elif r.chain_ok is not sameas true %}
-    <p class="notice notice-warn verdict-note">Registri tidak diverifikasi karena kunci publik tidak tersedia. Identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.</p>
-    {% elif r.copies_unsigned %}
-    <p class="notice notice-warn verdict-note">{{ r.copies_unsigned|num }} entri salinan dokumen ini belum bertanda tangan. Identitas penerima belum dilindungi tanda tangan registri.</p>
-    {% endif %}
+    {# part of the verdict, not a warning: several names fit a coalition #}
+    {% if a.named|length > 1 %}<p class="verdict-kolusi">{% if later %}Lebih dari satu salinan dituduh, di tahap 1 dan di tahap lanjutan{% else %}Lebih dari satu salinan melewati ambang{% endif %}: pola ini sesuai dengan kolusi (bukti disusun dari beberapa salinan).</p>{% endif %}
   {% else %}
     <div class="who who-none">
       {% if a.candidates and t.n_observed and z_ok %}
@@ -89,9 +81,18 @@
       <p class="verdict-text">Tidak ada tanda yang terbaca pada bukti ini. Nama tidak disebutkan.</p>
       {% endif %}
     </div>
-    {% for n in peringatan_terlihat(a.notes) %}{% set bagian = bagian_peringatan(redact(n)) %}
-    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> {% if bagian|length > 1 %}<b>{{ bagian[0] }}</b>{% for s in bagian[1:] %} <span class="notice-part{% if loop.index == 2 %} notice-rate{% endif %}">{{ s }}</span>{% endfor %}{% else %}{{ bagian[0] }}{% endif %}</p>
+  {% endif %}
+
+  {# Warnings, ranked by how much they change what the operator does next (app._verdict_notes).
+     Each starts with its finding in bold, so rank and weight agree; each is said here only, and
+     the validity box keeps the numbers behind them. In the merged manipulation warning the
+     third sentence is the rate, set quieter, with the link to those numbers. #}
+  {% if v.notes %}
+  <div class="verdict-notes">
+    {% for n in v.notes %}
+    <p class="notice notice-warn verdict-note"><b>Perhatian:</b> <b>{{ n.parts[0]|prosa }}</b>{% for s in n.parts[1:] %} <span class="notice-part{% if n.manipulation and loop.index == 2 %} notice-rate{% endif %}">{{ s|prosa }}{% if n.manipulation and loop.index == 2 %} <a class="link" href="#sah-h">Angka setiap pemeriksaan</a> ada di Keabsahan dan catatan.{% endif %}</span>{% endfor %}</p>
     {% endfor %}
+  </div>
   {% endif %}
 
   <div class="verdict-actions">
@@ -155,7 +156,7 @@
                 <td class="num">{{ st.threshold.n_observed|num }}</td>
                 <td class="num">{{ zs|num(1) if zs != inf else "tak hingga" }}</td>
                 <td class="num">{{ (st.threshold.stage_spent / t.spent)|persen }}&nbsp;%</td>
-                <td>{% for c in st.accused %}<b>#{{ c.copy.seq }}</b>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">tidak ada</span>{% endfor %}</td>
+                <td>{% for c in st.accused %}<b>#{{ c.copy.seq }}</b>{% if not loop.last %}, {% endif %}{% else %}<span class="muted nowrap">tidak ada</span>{% endfor %}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -231,7 +232,7 @@
         <li class="list-row">
           <div class="list-main">
             <span class="list-title">{% if k.seq in named_seqs %}Salinan #{{ k.seq }}{% else %}<span class="muted">Salinan lain</span>{% endif %}</span>
-            <span class="list-meta">{{ k.time|waktu }} · resolver <span class="mono">{{ k.src_ip }}</span></span>
+            <span class="list-meta">{{ k.time|waktu }} · resolver <span class="mono">{{ k.src_ip }}</span>{% if k.qtype %} · kueri {{ k.qtype }}{% endif %}</span>
           </div>
         </li>
         {% endfor %}
@@ -252,22 +253,25 @@
       {% set r = o.registry %}
       <dl class="kv">
         <dt>Registri</dt>
-        <dd>{% if r.chain_ok and r.copies_unsigned %}<span class="stamp stamp-warn">Utuh, belum bertanda tangan</span>{% elif r.chain_ok %}<span class="stamp stamp-ok">Rantai utuh</span>{% elif r.chain_ok is sameas false %}<span class="stamp stamp-danger">Rantai rusak</span>{% else %}<span class="stamp stamp-neutral">Tidak diverifikasi</span>{% endif %}</dd>
+        {# the same words as the registry stamp in the sidebar and on Registri #}
+        <dd>{% if r.chain_ok and r.copies_unsigned %}<span class="stamp stamp-warn">Utuh, belum bertanda tangan</span>{% elif r.chain_ok %}<span class="stamp stamp-ok">Utuh</span>{% elif r.chain_ok is sameas false %}<span class="stamp stamp-danger">Rusak</span>{% elif not r.recorded %}<span class="stamp stamp-neutral">Tidak tercatat</span>{% else %}<span class="stamp stamp-neutral">Tanpa kunci</span>{% endif %}</dd>
         <dt>Entri</dt>
         <dd class="tnum">{% if r.chain_ok is none %}-{% else %}{{ r.entries|num }}{% if r.copies_unsigned %}, {{ r.copies_unsigned|num }} salinan belum bertanda tangan{% endif %}{% endif %}</dd>
         <dt>Komitmen</dt>
         <dd class="tnum">{{ r.copies_confirmed|num }} dari {{ r.copies_total|num }} salinan cocok</dd>
+        {# the manipulation checks, named as in the warning under the verdict; their statistics
+           are given here only #}
         {% if a.reversal and (a.reversal.z_pilot is not none or a.reversal.z_signs is not none) %}
-        <dt>Tanda terbalik</dt>
-        <dd class="tnum">{% if a.reversal.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.reversal.text() }}</dd>
+        <dt>Pola tanda terbalik</dt>
+        <dd class="tnum">{% if a.reversal.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.reversal.text()|pangkat }}</dd>
         {% endif %}
         {% if a.erasure and a.erasure.measured %}
         <dt>Pola penghapusan</dt>
-        <dd class="tnum">{% if a.erasure.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.erasure.text() }}</dd>
+        <dd class="tnum">{% if a.erasure.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.erasure.text()|pangkat }}</dd>
         {% endif %}
         {% if a.contradiction %}
-        <dt>Bacaan tanpa nama</dt>
-        <dd class="tnum">{% if a.contradiction.flagged %}<span class="stamp stamp-warn">Bertentangan</span> {% endif %}{{ a.contradiction.text() }}</dd>
+        <dt>Bacaan jelas tanpa nama</dt>
+        <dd class="tnum">{% if a.contradiction.flagged %}<span class="stamp stamp-warn">Terdeteksi</span> {% endif %}{{ a.contradiction.text()|pangkat }}</dd>
         {% endif %}
         {% if o.trace_entry is not none %}
         <dt>Pelacakan</dt>
@@ -276,7 +280,7 @@
         {% set jangkar = o.anchor_line() %}
         {% if jangkar %}
         <dt>Log jangkar</dt>
-        <dd>{{ jangkar[:1]|upper }}{{ jangkar[1:] }}.</dd>
+        <dd>{{ jangkar|kalimat|prosa }}</dd>
         {% endif %}
       </dl>
       {% if o.trace_entry is not none and o.trace_entry_hash %}
@@ -295,18 +299,20 @@
           <button type="button" class="copy-btn" data-copy-target="#sha-bukti" aria-label="Salin SHA-256 bukti">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
         </div>
       </div>
-      {# notes shown as warnings next to the verdict are not repeated here #}
-      {% set other_notes = a.notes|reject("in", peringatan_terlihat(a.notes))|list %}
-      {% if other_notes or r.problems %}
+      {# what the verdict area already says (app._verdict_notes) is not repeated here #}
+      {% if v.notes_rest or v.problems %}
       <div class="lacak-catatan">
         <span class="label">Catatan</span>
-        {% if other_notes %}
+        {% if v.notes_rest %}
         <ul class="notes">
-          {% for n in other_notes %}<li>{{ redact(n) }}</li>{% endfor %}
+          {% for n in v.notes_rest %}<li>{{ redact(n)|prosa }}</li>{% endfor %}
         </ul>
         {% endif %}
-        {% if r.problems %}
-        <div class="notice notice-warn"><ul class="notes">{% for p in r.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+        {# one registry problem is a sentence beside the warning icon, not a one-item list #}
+        {% if v.problems|length == 1 %}
+        <p class="notice notice-warn">{{ v.problems[0]|kalimat|prosa }}</p>
+        {% elif v.problems %}
+        <div class="notice notice-warn"><ul class="notes">{% for p in v.problems %}<li>{{ p|prosa }}</li>{% endfor %}</ul></div>
         {% endif %}
       </div>
       {% endif %}

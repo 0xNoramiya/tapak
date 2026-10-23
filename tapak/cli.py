@@ -312,6 +312,11 @@ def _cmd_issue(args: argparse.Namespace) -> int:
         sem_bits = m.plan_summary.get("semantic", {}).get("positions", 0)
         print(f"Tahan ketik ulang: {lex_bits} bit pilihan kata + {sem_bits} bit semantik, posisi pita bias "
               f"0,3 sampai 0,7. {capacity_verdict(lex_bits + sem_bits, lexical.body_words, lex_bits)}")
+        from tapak.marker.background import PRINT_BACKGROUND
+        from tapak.marker.lexical import PRINT_NOTE
+
+        if m.background_settings == PRINT_BACKGROUND:  # a document meant for paper (--latar cetak)
+            print(f"Catatan: {PRINT_NOTE}.")
     if is_docx:
         print("Gerbang visual: tidak berlaku untuk DOCX (Word yang menata ulang dokumen)")
     else:

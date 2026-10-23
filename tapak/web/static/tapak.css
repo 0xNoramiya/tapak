@@ -82,7 +82,9 @@
                            its request runs; tapak.js reads the text out through #status-global)
      .code-row > .code (mono block, give it an id) + .copy-btn data-copy-target="#id"
    Jinja helpers (app.py): ikon(name, size) and logo() from _ikon.html; filter beda(variant);
-     meter(value, mark); pratinjau_url(manifest) (None for DOCX masters); registry_status();
+     filter pangkat (writes '9,5 x 10^-6' as on the verdict, with a spoken form for screen readers);
+     meter(value, mark, peak) (peak: one scale for a group of meters); pratinjau_url(manifest)
+     (None for DOCX masters); registry_status();
      thumbnails: /dokumen/<16-hex>/pratinjau.png and /terbitkan/<sid>/pratinjau.png
    Data hooks (tapak.js)
      data-autofocus        focus target after an htmx swap
@@ -1129,7 +1131,8 @@ img.thumb { height: auto; }
 .list-row:first-child { border-top: 0; padding-top: 0; }
 .list-row:last-child { padding-bottom: 0; }
 .list-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.list-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a long name wraps: a cut name could only be read from a tooltip, out of reach of keyboard and touch */
+.list-title { font-weight: 500; overflow-wrap: anywhere; }
 .list-meta { font-size: var(--fs-sm); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .list-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; }
 .list-more { margin-top: 16px; }
