@@ -622,17 +622,18 @@ def _decode_gaussian(
 
 
 # Baselines on the evidence's pixel grid (screenshots, rasterized PDF pages). PDF renderers put
-# every baseline on a grid of device pixels: MuPDF and Poppler's Splash on whole pixels (MuPDF on
-# half pixels for glyphs below about 8 pixels per em, 11 pt text below 56 dpi), Cairo on quarter
-# pixels (measured in research/layar/kuantisasi.py). In a capture that was not rescaled every text
-# row then sits at the same offset from that grid, and a row shift of 0.05 mm (0.08 to 0.3 pixel at
-# 40 to 150 dpi) is either rounded away or moves the row by one grid step. The Gaussian row model
-# reads the rounding of the neighbouring rows as a mark, with a confident sign now and then, and
-# drops rows that moved a whole pixel as implausible (beyond 3 delta). The gate and the model were
-# chosen on the development set of research/layar (kandidat.py) before its held-out run.
+# every baseline on a grid of device pixels: MuPDF and Poppler's Splash on whole pixels, Cairo on
+# quarter pixels (measured in research/layar/kuantisasi.py; MuPDF uses uneven half pixels for glyphs
+# below about 8 pixels per em, 11 pt text below 56 dpi, which is no clean grid and is not tested).
+# In a capture that was not rescaled every text row then sits at the same offset from that grid,
+# and a row shift of 0.05 mm (0.08 to 0.3 pixel at 40 to 150 dpi) is either rounded away or moves
+# the row by one grid step. The Gaussian row model reads the rounding of the neighbouring rows as a
+# mark, with a confident sign now and then, and drops rows that moved a whole pixel as implausible
+# (beyond 3 delta). The gate, the grid steps and the model were chosen on the development set of
+# research/layar (kandidat.py, candidate kisi_baris3) before its held-out run.
 GRID_MIN_CONTROLS = 8          # measured control rows a page needs before its pixel grid is tested
 GRID_MIN_CONCENTRATION = 0.7   # mean resultant length of the control rows' positions modulo one grid step
-GRID_PITCHES_PX = (1.0, 0.5, 0.25)  # grid steps tested, in image pixels, coarsest first
+GRID_PITCHES_PX = (1.0, 0.25)  # grid steps tested, in image pixels, coarsest first
 LATTICE_OFF_GRID_PX = 0.25     # a row further than this (in grid steps) is not a clean lattice point
 LATTICE_SPAN = 0.01            # relative range of pixel scales searched around the control rows' fit
 LATTICE_STEPS = 4001
@@ -798,8 +799,8 @@ def rounded_rows(
     qualifies.
 
     The gate is code-blind: the control rows (unmarked) of a page are mapped into the image with
-    ``grid``; with at least GRID_MIN_CONTROLS of them, the first grid step of GRID_PITCHES_PX (whole,
-    half or quarter pixel) at which their positions have a :func:`grid_concentration` of at least
+    ``grid``; with at least GRID_MIN_CONTROLS of them, the first grid step of GRID_PITCHES_PX (whole
+    or quarter pixel) at which their positions have a :func:`grid_concentration` of at least
     GRID_MIN_CONCENTRATION is the step the renderer rounded the baselines to (a capture that was not
     rescaled), and the page's rows are read with the rounding model on that grid. A rescaled
     capture, a photo or a scan does not pass and keeps the Gaussian model, as does a page whose

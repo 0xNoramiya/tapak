@@ -60,14 +60,23 @@ The protocol and every seed are fixed here, before any run (``PROTOCOL``):
 
 The registration and the word displacements of every image are kept (``obs/``) so decoder
 candidates can be compared on the development set without registering again
-(``research/layar/kandidat.py``). Evidence images, issuances and observations go to
+(``research/layar/kandidat.py``). The held-out set is traced once with the decoder chosen there
+(``kandidat.py pilih`` writes ``hasil/pilihan.json``; ``lacak --split uji`` refuses to start when
+the working tree's decoder is not that choice) and records the decoder's git HEAD and source
+hashes in ``hasil/uji_dekoder.json`` first. The same held-out displacements are then decoded once
+more with the decoder before this study (Gaussian rows) for the paired before/after comparison:
+``kandidat.py nilai sekarang,kisi_baris3 --split uji --acuan kisi_baris3``, which also checks that
+re-decoding reproduces the traced observations. Evidence images, issuances and observations go to
 ``$TAPAK_LAYAR_KERJA`` (default ``out/riset_layar``; large, not committed); the JSON lines quoted
 in the docs go to ``research/layar/hasil/``. Process pools are capped at 3 workers, BLAS and
 OpenCV at one thread each (shared machine). Usage, from the repository root:
 
     python research/layar/ukur.py terbit          # issuances of both splits and schemes
     python research/layar/ukur.py lacak --split dev
+    python research/layar/kandidat.py nilai ...   # decoder candidates, development set only
+    python research/layar/kandidat.py pilih
     python research/layar/ukur.py lacak --split uji   # once, at the end
+    python research/layar/kandidat.py nilai sekarang,kisi_baris3 --split uji --acuan kisi_baris3
     python research/layar/ukur.py ringkas --split uji
 """
 
@@ -624,10 +633,26 @@ def run_lacak(split: str, again: bool) -> None:
     if split == "uji" and out.exists() and not again and len(_load(out)) >= len(jobs_for("uji")):
         raise SystemExit(f"{out} sudah lengkap: set uji dilacak sekali (pakai --ulang untuk menimpa)")
     if split == "uji":
+        check_chosen_decoder()
         mark = HASIL / "uji_dekoder.json"
         if not mark.exists():
             mark.write_text(json.dumps(decoder_fingerprint(), indent=2) + "\n", encoding="utf-8")
     _pool(trace_job, jobs_for(split), out)
+
+
+CHOSEN_GRID_PITCHES = {"kisi_baris": (1.0,), "kisi_baris2": (1.0, 0.5, 0.25), "kisi_baris3": (1.0, 0.25)}
+
+
+def check_chosen_decoder() -> None:
+    """Stop unless the working tree decodes rows as the development choice (hasil/pilihan.json) says."""
+    from tapak.decoder import ch_shift
+
+    path = HASIL / "pilihan.json"
+    if not path.exists():
+        raise SystemExit("hasil/pilihan.json belum ada: jalankan kandidat.py pilih pada set dev lebih dulu")
+    chosen = json.loads(path.read_text(encoding="utf-8"))["chosen"]
+    if chosen is None or CHOSEN_GRID_PITCHES.get(chosen) != tuple(ch_shift.GRID_PITCHES_PX):
+        raise SystemExit(f"dekoder pohon kerja bukan pilihan dev ({chosen}); set uji tidak dijalankan")
 
 
 def decoder_fingerprint() -> dict:

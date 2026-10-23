@@ -66,8 +66,11 @@ slots of a page, so no gain in verdicts is required. If several candidates pass,
 fewest confidently wrong row bits is chosen; on a tie, the one with the most correct verdicts from
 the shift channel alone (tie-break added with ``kisi_baris``, still before any scoring).
 
-    python research/layar/kandidat.py nilai sekarang,kuantum_baris,kisi_baris
-    python research/layar/kandidat.py nilai sekarang,kisi_baris --split uji --acuan kisi_baris
+    python research/layar/kandidat.py nilai sekarang,kuantum_baris,kisi_baris   # round 1
+    python research/layar/kandidat.py nilai sekarang,kisi_baris,kisi_baris2     # round 2
+    python research/layar/kandidat.py nilai sekarang,kisi_baris3                # round 3
+    python research/layar/kandidat.py pilih     # the rule over every round (hasil/pilihan.json)
+    python research/layar/kandidat.py nilai sekarang,kisi_baris3 --split uji --acuan kisi_baris3
 
 The second form is the paired before/after comparison of the held-out run: the held-out traces
 were decoded once by the chosen decoder (``--acuan``, checked against the saved observations),
@@ -349,6 +352,47 @@ def report(rows: list[dict], candidates: list[str], split: str = "dev") -> dict:
     return res
 
 
+def check_rule(cand: dict, now: dict) -> dict:
+    """The four conditions of ATURAN for one candidate's summary against the current decoder's."""
+    lost = [g for g, c in cand["named"].items()
+            if c["semua"] < now["named"][g]["semua"] or c["geser"] < now["named"][g]["geser"]]
+    bins = []
+    for b in cand["calibration_model_rows"]:
+        if b["n"] >= 50 and b["w"] != "0":
+            bins.append({**b, "limit": round(1.5 * b["calibrated"] + 0.01, 4),
+                         "ok": b["rate"] <= 1.5 * b["calibrated"] + 0.01})
+    conf, conf_now = cand["confident_wrong"]["baris"], now["confident_wrong"]["baris"]
+    out = {"1_no_false_accusation": cand["false"] == 0, "2_groups_losing_verdicts": lost,
+           "3_confident_wrong_rows": [conf_now, conf], "3_halved": conf <= conf_now / 2,
+           "4_model_row_bins": bins, "4_calibrated": all(b["ok"] for b in bins) and bool(bins)}
+    out["passes"] = bool(out["1_no_false_accusation"] and not lost and out["3_halved"] and out["4_calibrated"])
+    return out
+
+
+def run_pilih() -> dict:
+    """Apply ATURAN to every scoring round on the development set; writes hasil/pilihan.json."""
+    rounds = sorted(HASIL.glob("dev_kandidat_putaran*_ringkas.json"))
+    checked: dict = {}
+    for path in rounds:
+        res = json.loads(path.read_text(encoding="utf-8"))
+        for cand, summary in res.items():
+            if cand in ("rule", "sekarang"):
+                continue
+            checked[cand] = {"round": path.name, **check_rule(summary, res["sekarang"])}
+    passing = [c for c, v in checked.items() if v["passes"]]
+
+    def shift_named(c: str) -> int:
+        res = json.loads((HASIL / checked[c]["round"]).read_text(encoding="utf-8"))
+        return sum(g["geser"] for g in res[c]["named"].values())
+
+    # tie-break: fewest confidently wrong row bits, then most correct verdicts from the shift channel
+    chosen = min(passing, key=lambda c: (checked[c]["3_confident_wrong_rows"][1], -shift_named(c))) if passing else None
+    out = {"rule": ATURAN, "candidates": checked, "passing": passing, "chosen": chosen}
+    (HASIL / "pilihan.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(json.dumps({c: v["passes"] for c, v in checked.items()}), "dipilih:", chosen)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -356,8 +400,12 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("candidates", nargs="?", default=",".join(CANDIDATES))
     n.add_argument("--split", choices=("dev", "uji"), default="dev")
     n.add_argument("--acuan", default="sekarang", help="kandidat yang sama dengan dekoder pelacakan (diperiksa)")
+    sub.add_parser("pilih")
     args = ap.parse_args(argv)
-    run_nilai(args.candidates.split(","), args.split, args.acuan)
+    if args.cmd == "pilih":
+        run_pilih()
+    else:
+        run_nilai(args.candidates.split(","), args.split, args.acuan)
     return 0
 
 

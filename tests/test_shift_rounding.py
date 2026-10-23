@@ -30,13 +30,14 @@ def _grid(render_dpi: float, phase: float, dpi: float = 100.0) -> PixelGrid:
     return PixelGrid(np.array([[k, 0.0, 0.0], [0.0, k, phase], [0.0, 0.0, 1.0]]), dpi, render_dpi)
 
 
-def _rounded(disp: dict, master, render_dpi: float, phase: float) -> dict:
-    """Displacements of a capture whose renderer put every baseline on a whole pixel at render_dpi."""
+def _rounded(disp: dict, master, render_dpi: float, phase: float, step: float = 1.0) -> dict:
+    """Displacements of a capture whose renderer put every baseline on a grid of ``step`` pixels
+    at render_dpi (1: MuPDF and Splash, 0.25: Cairo)."""
     k = render_dpi / 72.0
     out = {}
     for wid, (dx, dy) in disp.items():
         y = master.shift_layout.word(wid).glyphs[0].y
-        out[wid] = (dx, (np.round((y + dy) * k + phase) - phase) / k - y)
+        out[wid] = (dx, (np.round(((y + dy) * k + phase) / step) * step - phase) / k - y)
     return out
 
 
@@ -184,6 +185,27 @@ def test_rounded_rows_read_whole_pixel_moves_of_an_issued_copy(scheme, issued, c
     # wrong sign where the control rows leave the pixel boundary uncertain.
     assert confident >= 10 and confident - correct <= max(1, 0.05 * confident)
     assert some >= 10 and some_wrong <= 0.35 * some  # an LLR of 1 promises at most 27 % wrong
+
+
+def test_quarter_pixel_baselines_are_read_on_a_quarter_pixel_grid(issued, ctx):
+    """Cairo puts baselines on quarter pixels: the whole-pixel test fails, the quarter-pixel one
+    passes, and the rows are read on that grid with the copy's bits."""
+    folder, manifest = issued
+    seq = 5
+    exact = measure_vector((folder / manifest.copies[seq - 1].file).read_bytes(), ctx.master)
+    x = ctx.codewords[seq - 1]
+    confident = wrong = 0
+    for render_dpi, phase in ((56.0, 0.13), (84.0, 0.62)):
+        disp = _rounded(exact, ctx.master, render_dpi, phase, step=0.25)
+        pages, pos, llr, model = rounded_rows(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded,
+                                              _grid(render_dpi, phase))
+        used = [p for p in model["pages"] if "q_pt" in p]
+        assert used and all(p["pitch_px"] == 0.25 for p in used)
+        assert used[0]["q_pt"] == pytest.approx(0.25 * 72.0 / render_dpi, rel=1e-4)
+        conf = np.abs(llr) >= 2
+        confident += int(conf.sum())
+        wrong += int(((llr[conf] > 0).astype(int) != x[pos[conf]]).sum())
+    assert confident >= 10 and wrong <= max(1, 0.05 * confident)
 
 
 def test_rows_off_the_pixel_grid_keep_the_gaussian_model(issued, ctx):
