@@ -174,6 +174,22 @@ def test_rescue_registers_a_chrome_crop_the_earlier_stages_miss(sample_pdf):
     assert not reg.valid[: int((y0 - 30) * reg.dpi / dpi)].any()
 
 
+def test_rescue_skips_a_degenerate_initial_pose(sample_pdf):
+    """A singular homography from SIFT or Tesseract (found by the held-out run) is skipped, not
+    inverted; the sanity check calls a singular map insane."""
+    dpi = 48.0
+    page = render_page(sample_pdf, 0, dpi, supersample=1)
+    img, _, _ = _in_chrome(page[180:405], dark=True)
+    singular = np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0], [0.0, 0.0, 1.0]])
+    log: dict = {}
+    reg = rescue_register(img, sample_pdf, [A4, A4], [(0.9, 0, singular, "fitur")], log)
+    assert reg is not None and log["outcome"] == "terdaftar"
+    assert all(t["origin"] != "fitur" for t in log["tries"])
+    points = np.array([[[10.0, 10.0]], [[100.0, 50.0]]])
+    assert np.isnan(rectify.local_scales(singular, points, 100.0)).all()
+    assert not rectify.pose_is_sane(np.eye(3), 100.0, singular, 100.0, points)
+
+
 def test_rescue_refuses_what_it_cannot_verify(sample_pdf):
     rng = np.random.default_rng(3)
     noise = cv2.GaussianBlur(rng.uniform(0, 255, (400, 300)).astype(np.float32), (0, 0), 2)

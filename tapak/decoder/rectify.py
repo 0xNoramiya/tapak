@@ -645,10 +645,21 @@ def pose_agreement(image_ink: np.ndarray, mask: np.ndarray | None, master_ink: n
     return (float((a * b).sum() / den) if den > 1e-12 else -1.0), n
 
 
+def _invertible(h: np.ndarray) -> bool:
+    """False for a singular (degenerate) homography, which numpy cannot invert."""
+    try:
+        np.linalg.inv(np.asarray(h, dtype=np.float64))
+    except np.linalg.LinAlgError:
+        return False
+    return True
+
+
 def local_scales(h_page_to_img: np.ndarray, points_img: np.ndarray, dpi: float) -> np.ndarray:
     """Image pixels per page point (square root of the local area scale) of a page-to-image map
     (page pixels at ``dpi``) at the page points that land on the given image points (n, 1, 2)."""
     h = np.asarray(h_page_to_img, dtype=np.float64)
+    if not _invertible(h):  # a degenerate map has no local scale
+        return np.full(len(points_img), np.nan)
     q = cv2.perspectiveTransform(np.asarray(points_img, dtype=np.float64), np.linalg.inv(h)).reshape(-1, 2)
     out = []
     for x, y in q:
@@ -732,8 +743,9 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
                 return True
         return False
 
+    # A degenerate (singular) initial pose, which SIFT or Tesseract matches can give, is skipped.
     for _, page, h0, method in sorted(prior, key=lambda c: c[0], reverse=True)[:RESCUE_PRIOR]:
-        if not same(page, h0):
+        if _invertible(h0) and not same(page, h0):
             pool.append((method, page, h0))
     poses = template_poses(ink, mask, pdf_bytes, len(page_sizes), probe)
     per_page: dict[int, tuple[float, int, np.ndarray]] = {}
@@ -749,7 +761,7 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
         picked += [p for p in list(per_page.values())[:RESCUE_PAGES]
                    if 1.0 / RESCUE_RIVAL_SCALE <= eff(p) / max(e0, 1e-6) <= RESCUE_RIVAL_SCALE]
     for _, page, h0 in picked:
-        if not same(page, h0):
+        if _invertible(h0) and not same(page, h0):
             pool.append(("templat", page, h0))
     if mask is not None:
         ys, xs = np.nonzero(mask)
