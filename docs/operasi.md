@@ -438,4 +438,24 @@ $L/kuantisasi.py                     # letak glif per penggambar, 28 sampai 225 
 $L/ulang.py terbit && $L/ulang.py lacak && $L/ulang.py banding && $L/ulang.py ringkas   # peninjauan: benih baru (532 gambar)
 ```
 
-Putaran penilaian menimpa `hasil/dev_kandidat.jsonl.gz` dan `hasil/dev_kandidat_ringkas.json`; ganti namanya menjadi `dev_kandidat_putaranN...` sebelum putaran berikutnya, seperti di repositori. `lacak --split uji` menolak berjalan bila dekoder pohon kerja bukan pilihan di `hasil/pilihan.json`, mencatat commit dan hash sumber dekoder di `hasil/uji_dekoder.json`, dan melewati gambar yang sudah dilacak bila diulang setelah terputus. Set dev memerlukan sekitar 1 jam dan set uji sekitar 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama; satu putaran `kandidat.py` sekitar 8 menit.
+Putaran penilaian menimpa `hasil/dev_kandidat.jsonl.gz` dan `hasil/dev_kandidat_ringkas.json`; ganti namanya menjadi `dev_kandidat_putaranN...` sebelum putaran berikutnya, seperti di repositori.
+
+## Mengukur registrasi
+
+Angka registrasi potongan, halaman beresolusi rendah, dan foto sebagian halaman di [cara kerja](cara-kerja.md#registrasi-bukti-gambar) dan [batasan 5](keamanan.md#batasan) dibuat ulang dengan `research/registrasi/` ([README studi](../research/registrasi/README.md)). Studi ini memakai penggambar `research/layar`, jadi `poppler-utils` harus terpasang. Penerbitan, gambar bukti, dan potongan foto ada di `$TAPAK_REGISTRASI_KERJA` (bawaan `out/riset_registrasi`), hasil JSONL di `research/registrasi/hasil/`. Protokol dan benih ditetapkan di `ukur.py`, aturan pemilihan pengaturan verifikasi di `pilih.py`, sebelum set uji dibuat.
+
+```bash
+export PYTHONPATH=. TAPAK_REGISTRASI_KERJA=out/riset_registrasi
+R=".venv/bin/python research/registrasi"
+$R/ukur.py terbit --split dev                     # nota dinas dan surat telegram, skema v2
+$R/ukur.py lacak --split dev --berkas research/registrasi/hasil/dev_sebelum.jsonl   # jalur lama (dilacak sebelum tahap penyelamat ada)
+$R/pilih.py kumpul --hanya-gagal research/registrasi/hasil/dev_sebelum.jsonl       # registrasi saja: hasil/pilih_dev.jsonl
+$R/pilih.py pilih                                 # aturan pemilihan: hasil/pilihan.json
+$R/ukur.py lacak --split dev --berkas research/registrasi/hasil/dev_periksa.jsonl \
+    --hanya-gagal research/registrasi/hasil/dev_sebelum.jsonl                     # pemeriksaan dekode pada set dev
+$R/ukur.py terbit --split uji
+$R/ukur.py lacak --split uji                      # set uji, sekali
+$R/ringkas.py --split uji --json                  # angka di dokumentasi: hasil/ringkas_uji.json
+```
+
+Baris kedua dijalankan dengan kode sebelum tahap penyelamat ada; dengan kode sekarang ia memberi pelacakan sesudah (dengan tahap penyelamat) dan sebelum (tanpa tahap itu) untuk gambar yang sama. `pilih.py kumpul` dan `pilih.py banding` menerima `TAPAK_REG_VARIAN` (JSON pengaturan `rectify.py`) untuk membandingkan rancangan pada set dev; `lacak --split uji` menolak berjalan bila variabel itu diatur atau bila `rectify.py` tidak memuat pengaturan di `hasil/pilihan.json`. `lacak --split uji` menolak berjalan bila dekoder pohon kerja bukan pilihan di `hasil/pilihan.json`, mencatat commit dan hash sumber dekoder di `hasil/uji_dekoder.json`, dan melewati gambar yang sudah dilacak bila diulang setelah terputus. Set dev memerlukan sekitar 1 jam dan set uji sekitar 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama; satu putaran `kandidat.py` sekitar 8 menit.

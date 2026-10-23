@@ -92,7 +92,7 @@ Nama hanya muncul bersama skor, ambang, dan peluang tuduhan salahnya. Bila tidak
 ```
             +---------------- Terbitkan -----------------+          +------------------ Lacak -------------------+
  PDF induk  |  layout   rencana penandaan (kunci)        |  salinan | foto / tangkapan layar / PDF / DOCX / teks |
- + penerima |  model -> geser, latar, teks, semantik,    |--------->|  rectify (kontur, SIFT, Tesseract) + ECC   |
+ + penerima |  model -> geser, latar, teks, semantik,    |--------->|  rectify: kontur/SIFT/Tesseract/templat+ECC|
             |           pilihan kata, kanari -> render   |          |  ch_shift  ch_background  ch_zerowidth     |
             |           ulang + gerbang -> 20 salinan    |          |  ch_semantic  ch_lexical  ch_docx          |
             +----------------------+---------------------+          |        -> fuse (LLR) -> accuse (Chernoff)  |
@@ -112,7 +112,7 @@ tapak/
   marker/       layout, master (font), plan, pdf_shift, background, pdf_zerowidth, semantic, lexical,
                 canary, docx_marker, render (gambar ulang + gerbang visual), raster (halaman pindaian),
                 issue (paralel)
-  decoder/      rectify, lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_lexical,
+  decoder/      rectify (dengan tahap penyelamat), lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_lexical,
                 ch_docx, image, ocr (teks terlihat pada bukti gambar), fuse, accuse, erasure (pola penghapusan),
                 contradiction (bacaan jelas tanpa nama), trace, report (berita acara)
   assets/       font DejaVu, leksikon pilihan kata (leksikon/naskah_dinas_v1.json, draf)
@@ -133,6 +133,7 @@ research/ketik/ pengukuran kanal pilihan kata (kapasitas, galat baca, atribusi)
 research/pindaian/ pengukuran induk hasil pindai (protokol, hasil, potongan gambar)
 research/ponsel/ pengukuran foto ponsel dan foto layar simulasi (protokol, pemilihan dekoder, hasil)
 research/layar/ tangkapan layar dari penggambar PDF sungguhan (protokol, letak glif, pemilihan dekoder, hasil)
+research/registrasi/ registrasi potongan, halaman beresolusi rendah, dan foto sebagian halaman (protokol, tahap yang gagal, pemilihan, hasil)
 research/ocr/   OCR bukti gambar untuk varian kalimat dan pilihan kata (protokol, pemilihan pengaturan, hasil)
 research/sepakat/ koalisi yang memahami TAPAK: serangan, pemeriksaan pola penghapusan, penyamaran
 research/kontradiksi/ pemeriksaan bacaan jelas tanpa nama dan pemeriksaan pola penghapusan pada cetakan
@@ -690,6 +691,23 @@ Batas bawah adalah resolusi terendah yang mulai dari sana setiap tangkapan halam
 * **Tidak ada tuduhan salah** dalam 2.346 pelacakan set uji dan 1.294 pelacakan set pengembangan, termasuk 192 dan 96 pelacakan induk tanpa tanda (skor tertinggi 0,35 dan 0,39 ambang). Skor tak bersalah tertinggi 0,64 ambang. Peringatan pola penghapusan muncul pada 3 dari 2.154 pelacakan salinan jujur.
 
 Yang belum diuji: PDF.js, PDFium, Adobe Reader, pengaturan hinting Okular (`pdftoppm` 24.02 tidak menyediakannya), layar dan aplikasi pesan sungguhan, dan halaman selain halaman 1 dua dokumen contoh. Satu rahasia kode per dokumen dan set, jadi tangkapan dalam satu sel tidak saling bebas sepenuhnya.
+
+## Registrasi bukti gambar
+
+Registrasi (`tapak/decoder/rectify.py`) menemukan halaman induk pada foto atau tangkapan layar dan memetakannya ke bingkai halaman itu. Dekoder geser dan latar membaca halaman yang sudah diluruskan, jadi bukti yang tidak ditemukan tidak membawa bit sama sekali. Semua langkahnya hanya memakai bukti, PDF induk, dan ukuran halaman, tidak pernah kode penerima.
+
+1. **Pose awal.** Garis tepi halaman (kontur OpenCV); bila tidak ada pose yang meyakinkan, pencocokan fitur SIFT terhadap render induk 100 dpi; bila masih tidak ada, kata Tesseract dicocokkan dengan kata induk (`lines.py`). Setiap pose awal dinilai cepat pada 30 dpi untuk setiap halaman.
+2. **ECC.** Dua kandidat terbaik diperhalus dengan ECC (korelasi tinta, kasar ke halus) terhadap induk pada resolusi analisis (100 sampai 300 dpi). Halaman dengan korelasi tertinggi dipakai bila korelasinya paling sedikit 0,75.
+3. **Tahap penyelamat** (`rescue_register`, sejak `research/registrasi`), hanya bila langkah 1 dan 2 tidak menemukan halaman:
+   * jendela penampil (bilah alat, latar jendela, tepi dan bayangan halaman) dikenali dari baris dan kolom yang tidak memuat kertas, lalu diganti warna kertas, sehingga tidak lagi menarik ECC ke tinta palsu (`paper_mask`);
+   * pose awal tambahan dari pencocokan templat banyak skala: tinta bukti dicari di tinta setiap halaman induk dengan korelasi silang ternormalisasi atas skala dan geseran, kasar (30 dpi) lalu halus (45 dpi) (`template_poses`);
+   * ECC hanya pada bagian halaman yang terlihat, dengan peta afin untuk tangkapan layar (tanpa perspektif, jadi potongan yang hanya memuat kaki halaman tidak memiringkan pose), dan pada resolusi bukti itu sendiri bila bukti di bawah 100 dpi;
+   * verifikasi: pose ditolak bila ECC mengubah skalanya lebih dari 25 % atau skala lokalnya menyebar lebih dari 1,6 kali, dan bila korelasi tinta bukti dengan induk pada pose itu, dihitung pada resolusi bukti setelah rata-rata lokal setiap baris dibuang (`pose_agreement`), di bawah 0,65. Pembuangan rata-rata baris penting: dokumen lain dengan font, tepi, dan jarak baris yang sama mencapai korelasi biasa sampai 0,91, tetapi setelah itu paling besar 0,58, sedangkan pose yang benar paling sedikit 0,70 (set pengembangan);
+   * pose yang menang tipis (kurang dari 0,05) atas pose lain di halaman lain atau di tempat lain pada halaman yang sama dianggap ambigu dan ditolak, misalnya potongan yang hanya memuat kaki halaman yang sama di dua halaman.
+
+   Kedua ambang verifikasi dipilih pada set pengembangan dengan aturan yang ditetapkan lebih dulu: di antara pasangan ambang yang tidak menerima satu pun pose salah (termasuk induk tanpa tanda dan bukti dokumen lain), pasangan yang menerima pose benar paling banyak, lalu dinaikkan satu langkah. Piksel jendela penampil tidak ikut didekode. Registrasi lewat tahap ini bermetode `penyelamat:<asal pose awal>` di catatan hasil. Bukti yang ditemukan langkah 1 dan 2 didekode persis seperti sebelumnya, jadi benchmark README tidak berubah.
+
+(Hasil set uji diisi.)
 
 ## Keputusan desain yang menyimpang dari spesifikasi awal
 
