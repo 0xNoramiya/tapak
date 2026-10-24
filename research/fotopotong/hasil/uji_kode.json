@@ -1,0 +1,68 @@
+{
+  "protokol": {
+    "crops": {
+      "utuh": [
+        0.0,
+        1.0
+      ],
+      "atas30": [
+        0.08,
+        0.38
+      ],
+      "tengah40": [
+        0.3,
+        0.7
+      ],
+      "bawah40": [
+        0.55,
+        0.95
+      ],
+      "paragraf": null
+    },
+    "scales": [
+      1.0,
+      0.5,
+      0.35
+    ],
+    "splits": {
+      "dev": [
+        "K1",
+        "K2"
+      ],
+      "uji": [
+        "U1",
+        "U2"
+      ]
+    },
+    "media": [
+      "foto",
+      "ponsel"
+    ],
+    "silang": "satu dari setiap empat potongan (urutan tugas), terhadap dokumen lain dari split yang sama",
+    "jpeg": "mutu 58 sampai 62 (default_rng([SEED, indeks tugas]))",
+    "seed": 14001,
+    "lacak": "set uji saja: semua potongan yang diregistrasi, seluruh eps, satu tahap"
+  },
+  "sha256": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "accuse.py": "22b97fede2f26487aef9b098c679593a259f61155f9b7cb880c6afed26cd4547",
+    "ch_background.py": "db610ec74ef5f6ef6e0fd09c3d26731c8961aa356315996f1a97081e01cf8420",
+    "ch_docx.py": "ef13c7fc4b9279e6ecbfd31b2da82bba4f0200b8ecc9945bd36dff0dc9b242e8",
+    "ch_lexical.py": "938d68eda6c0adef84ef32948757ebf88c69c7c98458f73e59f040be92899b13",
+    "ch_semantic.py": "111cca76e56342845c748698dc95c7f44cc9b950ef5ca00d552f3e93a7f95e30",
+    "ch_shift.py": "6c1dc1464e081bf24c64ab78e6d50823611850fd1640df4885e755132f80c276",
+    "ch_zerowidth.py": "29a47b2f5ba9921030d29611bbe9dfa0f3e9f87e6703f17e0ce39b3c384deaf6",
+    "contradiction.py": "dffaf2adac766cae822e537ac794e1870a10a849aba863f9f4f999e389ae129b",
+    "erasure.py": "74667921c416cdfacf37525374b9ac51482058a59481e3fb51e66dcbc3c966be",
+    "fuse.py": "3b70980724ec5297ff2fd85cb54f6fcb2f8acb8d364430eac52655df31d04c11",
+    "image.py": "727bb9731f67f3cbd35f250bd746d96d530d3ca51bf19608dc066bdd8635a482",
+    "lines.py": "5fd7745321a6007a397e4f8076847fc36b7864bb9d700bd4375ed87c2b806436",
+    "manipulation.py": "2c1bbf71817f5a1ecf94b753bed335e2a42914aaac9574dc3415cf41acd08052",
+    "ocr.py": "b0409af839e6e3975a146bfc853a1d8d4e33d3454e67fb09607db2221434efa5",
+    "rectify.py": "4bde380d901be59fcc307fe7615bd7e89c35fdb57e037ed42c014a5170fed0e1",
+    "report.py": "5de261049c6abb15f94edf1dd07012ba0b480cf7d9888174ff61e89483e8003c",
+    "reversal.py": "12dc9ffcd4f165486c05844c8bb1e27429434c195dd967777b1ddf6162c529da",
+    "softbits.py": "a7526461500b7e1f2b802b67bcc290090942c2c929e20ef0d86eb90498b81cbb",
+    "trace.py": "2db81d77f0ea45fdd55888a831bd6dd10135057bb530fa7a5d25fde543d1c4c1"
+  }
+}

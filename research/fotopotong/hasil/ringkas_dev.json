@@ -1,0 +1,231 @@
+{
+  "split": "dev",
+  "potongan": 900,
+  "sebelum": {
+    "tabel": {
+      "utuh|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "utuh|0.5": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "utuh|0.35": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "atas30|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "atas30|0.5": {
+        "n": 48,
+        "ditemukan": 47,
+        "benar": 46,
+        "kasar": 1,
+        "salah": 0
+      },
+      "atas30|0.35": {
+        "n": 48,
+        "ditemukan": 45,
+        "benar": 44,
+        "kasar": 1,
+        "salah": 0
+      },
+      "tengah40|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "tengah40|0.5": {
+        "n": 48,
+        "ditemukan": 47,
+        "benar": 47,
+        "kasar": 0,
+        "salah": 0
+      },
+      "tengah40|0.35": {
+        "n": 48,
+        "ditemukan": 43,
+        "benar": 43,
+        "kasar": 0,
+        "salah": 0
+      },
+      "bawah40|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "bawah40|0.5": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "bawah40|0.35": {
+        "n": 48,
+        "ditemukan": 45,
+        "benar": 45,
+        "kasar": 0,
+        "salah": 0
+      },
+      "paragraf|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "paragraf|0.5": {
+        "n": 48,
+        "ditemukan": 42,
+        "benar": 42,
+        "kasar": 0,
+        "salah": 0
+      },
+      "paragraf|0.35": {
+        "n": 48,
+        "ditemukan": 38,
+        "benar": 38,
+        "kasar": 0,
+        "salah": 0
+      }
+    },
+    "pose_salah": 0,
+    "silang_diterima": 0
+  },
+  "sesudah": {
+    "tabel": {
+      "utuh|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "utuh|0.5": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "utuh|0.35": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "atas30|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "atas30|0.5": {
+        "n": 48,
+        "ditemukan": 47,
+        "benar": 46,
+        "kasar": 1,
+        "salah": 0
+      },
+      "atas30|0.35": {
+        "n": 48,
+        "ditemukan": 45,
+        "benar": 44,
+        "kasar": 1,
+        "salah": 0
+      },
+      "tengah40|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "tengah40|0.5": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "tengah40|0.35": {
+        "n": 48,
+        "ditemukan": 46,
+        "benar": 46,
+        "kasar": 0,
+        "salah": 0
+      },
+      "bawah40|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "bawah40|0.5": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "bawah40|0.35": {
+        "n": 48,
+        "ditemukan": 46,
+        "benar": 46,
+        "kasar": 0,
+        "salah": 0
+      },
+      "paragraf|1.0": {
+        "n": 48,
+        "ditemukan": 48,
+        "benar": 48,
+        "kasar": 0,
+        "salah": 0
+      },
+      "paragraf|0.5": {
+        "n": 48,
+        "ditemukan": 45,
+        "benar": 45,
+        "kasar": 0,
+        "salah": 0
+      },
+      "paragraf|0.35": {
+        "n": 48,
+        "ditemukan": 41,
+        "benar": 41,
+        "kasar": 0,
+        "salah": 0
+      }
+    },
+    "pose_salah": 0,
+    "silang_diterima": 0
+  },
+  "jejak_dicoba": 191,
+  "detik": {
+    "median": 2.66,
+    "p95": 64.07249999999998
+  }
+}

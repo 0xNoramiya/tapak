@@ -1,0 +1,141 @@
+{
+ "tolak": [
+  {
+   "bukti": "lain_p1_atas40_48",
+   "detik": 34.7,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p1_bawah25_48_bingkai_jpeg",
+   "detik": 26.4,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p2_atas40_48",
+   "detik": 14.34,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p2_bawah25_48_bingkai_jpeg",
+   "detik": 14.79,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p1_atas40_120",
+   "detik": 18.26,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p1_bawah25_120_bingkai_jpeg",
+   "detik": 21.65,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p2_atas40_120",
+   "detik": 18.54,
+   "diterima": false
+  },
+  {
+   "bukti": "lain_p2_bawah25_120_bingkai_jpeg",
+   "detik": 19.23,
+   "diterima": false
+  },
+  {
+   "bukti": "nota_dinas_p1_kosong_bawah_84",
+   "detik": 6.3,
+   "diterima": true
+  },
+  {
+   "bukti": "nota_dinas_p2_tepi_kiri_84",
+   "detik": 0.47,
+   "diterima": false
+  },
+  {
+   "bukti": "surat_telegram_p2_kaki_84",
+   "detik": 1.84,
+   "diterima": false
+  }
+ ],
+ "biasa": [
+  {
+   "bukti": "foto_nota_dinas_p1_0000_s002.bin",
+   "detik": 6.17,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "foto_surat_telegram_p1_0150_s005.bin",
+   "detik": 4.9,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "induk_rendah_surat_telegram_p2_0082_induk.bin",
+   "detik": 2.99,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "paragraf_surat_telegram_p1_0146_s002.bin",
+   "detik": 2.85,
+   "metode": "penyelamat:templat"
+  },
+  {
+   "bukti": "potong_nota_dinas_p1_0056_s012.bin",
+   "detik": 1.82,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_nota_dinas_p1_0206_s016.bin",
+   "detik": 1.46,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_nota_dinas_p2_0356_s019.bin",
+   "detik": 2.47,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_nota_dinas_p2_0506_s002.bin",
+   "detik": 1.78,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_surat_telegram_p1_0656_s005.bin",
+   "detik": 2.21,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_surat_telegram_p1_0806_s009.bin",
+   "detik": 1.51,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_surat_telegram_p1_0956_s012.bin",
+   "detik": 3.07,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "potong_surat_telegram_p2_1106_s016.bin",
+   "detik": 36.37,
+   "metode": null
+  },
+  {
+   "bukti": "potong_surat_telegram_p2_1256_s019.bin",
+   "detik": 3.02,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "rendah_nota_dinas_p2_0126_s012.bin",
+   "detik": 2.62,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "rendah_surat_telegram_p1_0276_s016.bin",
+   "detik": 2.74,
+   "metode": "fitur"
+  },
+  {
+   "bukti": "rendah_surat_telegram_p2_0426_s019.bin",
+   "detik": 6.66,
+   "metode": "penyelamat:templat"
+  }
+ ]
+}
