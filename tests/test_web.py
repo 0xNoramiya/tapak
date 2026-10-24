@@ -49,7 +49,7 @@ def _issue(client) -> str:
 
 
 def test_pages_render(client):
-    for path in ("/terbitkan", "/lacak", "/registri"):
+    for path in ("/beranda", "/terbitkan", "/lacak", "/registri", "/demo"):
         r = client.get(path)
         assert r.status_code == 200 and "RAHASIA" in r.text and "TAPAK" in r.text
     assert client.get("/healthz").json() == {"status": "ok"}
@@ -256,10 +256,10 @@ def test_false_accusation_bound_has_a_spoken_form():
 
 def test_beranda_preview_and_preselect(client):
     """Home page, page-1 thumbnails, the Lacak preselect and the sidebar registry status."""
-    r = client.get("/")
+    r = client.get("/beranda")
     assert r.status_code == 200 and "Beranda" in r.text and 'href="/terbitkan"' in r.text
     doc = _issue(client)
-    r = client.get("/")
+    r = client.get("/beranda")
     assert "nota_dinas.pdf" in r.text and f"/dokumen/{doc}/pratinjau.png" in r.text
     png = client.get(f"/dokumen/{doc}/pratinjau.png")
     assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
@@ -361,7 +361,7 @@ def test_registri_checks_canary_log_and_lists_use_small_thumbnails(client):
     for qtype in ("A", "AAAA"):  # one opening, two queries
         record_event(s.canary_db, f"{token}.c.kanari.tapak.test", token, qtype, "198.51.100.7", 5353)
     assert "Log utuh" in client.get("/registri").text
-    home = client.get("/").text
+    home = client.get("/beranda").text
     assert "dari 1 salinan" in home and "?ukuran=kecil" in home
     con = sqlite3.connect(s.canary_db)
     for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'").fetchall():
@@ -1540,3 +1540,80 @@ def test_lacak_warns_of_a_clear_read_that_names_nobody(client):
                          files={"bukti": ("salinan.pdf", pdfs[0], "application/pdf")}).text
     assert CONTRADICTION_NOTE not in honest and "Bacaan jelas tanpa nama" not in honest
     assert '<span class="who-seq">Salinan #2</span>' in honest
+
+
+def test_landing_page_tells_the_numbers_of_the_result_files(client):
+    """The product page at /: every number comes from tapak/web/landing.json, which
+    docs/figures/fig_landing.py writes from the result files of the repository."""
+    import json
+    import sys
+
+    from tapak.web.app import landing_numbers
+
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "TAPAK tahu salinan siapa" in r.text and 'href="/demo"' in r.text and 'href="/beranda"' in r.text
+    assert "\u2014" not in r.text  # no em dashes in user-facing text
+    data = landing_numbers()
+    assert f"{data['uji']['n']:,}".replace(",", ".") in r.text and r.text.count("<svg") >= 3
+    assert data["uji"]["tuduhan_salah"] == 0 and all(m["salah"] == 0 for m in data["media"])
+    sys.path.insert(0, str(ROOT / "docs" / "figures"))
+    import fig_landing
+
+    media, bounds = fig_landing.media_and_bounds()
+    assert media == data["media"] and bounds == data["batas"] and fig_landing.honest_traces() == data["uji"]
+    p = data["pemisahan"]
+    assert sum(p["tak_bersalah"]) == p["n_tak_bersalah"] and sum(p["anggota"]) == p["n_anggota"]
+    assert p["maks_tak_bersalah"] < 1.0 < p["min_anggota"]
+    for name in ("landing-bukti.webp", "landing-ba.webp", "landing-kanal-light.webp", "landing-kanal-dark.webp"):
+        assert client.get(f"/static/img/{name}").status_code == 200
+    assert json.loads(json.dumps(data)) == data
+
+
+def test_demo_refuses_steps_out_of_order(client, tmp_path):
+    r = client.get("/demo")
+    assert r.status_code == 200 and "Terbitkan 20 salinan" in r.text and "Terbuka setelah" in r.text
+    assert "Terbitkan" in client.post("/demo/bocorkan", data={"salinan": "13", "cara": "foto"}).text
+    assert "tidak ditemukan" in client.post("/demo/lacak", data={"bukti": "0123456789abcdef"}).text
+    assert client.get("/demo/bukti/0123456789abcdef").status_code == 404
+    assert client.get("/demo/salinan/1/pratinjau.png").status_code == 404
+    csv = client.get("/demo/contoh-penerima.csv")
+    assert csv.status_code == 200 and csv.text.startswith("recipient_id,nama,jabatan,satuan")
+
+
+def test_demo_settings_stay_in_their_sandbox(tmp_path):
+    from tapak.config import Settings
+    from tapak.web.demo_web import demo_settings, issue_demo, size_label
+
+    base = Settings(data_dir=tmp_path / "data", key_dir=tmp_path / "keys")
+    s = demo_settings(base)
+    assert s.data_dir == tmp_path / "data" / "demo" / "data" and s.key_dir == tmp_path / "data" / "demo" / "keys"
+    assert s.registry_path != base.registry_path and s.anchor_log is None
+    (tmp_path / "data" / "demo").mkdir(parents=True)  # a folder the demo did not create
+    with pytest.raises(FileExistsError):
+        issue_demo(base)
+    assert size_label(412_345) == "412 KB" and size_label(1_234_567) == "1,2 MB" and size_label(10) == "1 KB"
+
+
+@pytest.mark.slow
+def test_demo_issues_leaks_and_traces_in_its_sandbox(client, tmp_path):
+    """The four demo steps end to end: the leaked copy is named, the berita acara is a PDF, and
+    the operator's own registry is never written."""
+    r = client.post("/demo/terbitkan")
+    assert r.status_code == 200 and "Selesai" in r.text and "Bocorkan salinan" in r.text
+    for path in ("/demo/salinan/1/pratinjau.png", "/demo/selisih.png"):
+        png = client.get(path)
+        assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
+    for cara, seq in (("pdf", 13), ("teks", 4)):
+        r = client.post("/demo/bocorkan", data={"salinan": str(seq), "cara": cara})
+        lid = re.search(r"/demo/bukti/([0-9a-f]{16})", r.text).group(1)
+        assert client.get(f"/demo/bukti/{lid}").status_code == 200
+        assert client.get(f"/demo/bukti/{lid}?unduh=1").headers["content-disposition"].startswith("attachment")
+        r = client.post("/demo/lacak", data={"bukti": lid})
+        assert r.status_code == 200 and f"TAPAK menunjuk salinan #{seq}" in r.text
+        tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
+        assert client.get(f"/lacak/{tid}/berita-acara.pdf").content.startswith(b"%PDF")
+    bad = client.post("/demo/bocorkan", data={"salinan": "99", "cara": "faks"})
+    assert "Pilih penerima" in bad.text and "Pilih cara" in bad.text
+    assert not (tmp_path / "data" / "registry.db").exists()
+    assert (tmp_path / "data" / "demo" / "data" / "registry.db").exists()

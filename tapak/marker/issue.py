@@ -416,7 +416,9 @@ _RENDER_TURN = threading.Lock()
 def _worker_init(pdf_bytes: bytes, secret: bytes, settings: IssueSettings,
                  semantic: SemanticSelection | None = None, lexical: LexicalSelection | None = None,
                  scan_boxes: ScanBoxes | None = None) -> None:
-    if mp.parent_process() is not None:  # a pool worker (this also runs in-process when serial)
+    # A pool worker (this also runs in-process when serial, and then possibly in a server thread
+    # of a server that is itself a child process, such as a reloading development server).
+    if mp.parent_process() is not None and threading.current_thread() is threading.main_thread():
         import signal
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C is handled by the parent, which stops the pool

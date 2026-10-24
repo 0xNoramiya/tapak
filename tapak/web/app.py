@@ -12,6 +12,7 @@ import difflib
 import html
 import io
 import itertools
+import json
 import re
 import secrets
 import shutil
@@ -21,6 +22,7 @@ from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import os
@@ -560,6 +562,15 @@ def _asset_version() -> str:
 
 templates.env.globals["asset_v"] = _asset_version
 
+
+def _size_label(n: int) -> str:
+    from tapak.web.demo_web import size_label
+
+    return size_label(n)
+
+
+templates.env.globals["size_label"] = _size_label
+
 _REGISTRY_STATUS: dict[str, object] = {}
 
 
@@ -758,7 +769,22 @@ async def _read_field(f: UploadFile | None, errors: dict[str, str], key: str, to
         return b""
 
 
+LANDING_DATA = Path(__file__).resolve().parent / "landing.json"
+
+
+@lru_cache(maxsize=1)
+def landing_numbers() -> dict[str, object]:
+    """The numbers behind the landing page (``landing.json``, written by docs/figures/fig_landing.py)."""
+    return json.loads(LANDING_DATA.read_text(encoding="utf-8"))
+
+
 @app.get("/", response_class=HTMLResponse)
+def landing(request: Request) -> HTMLResponse:
+    """The product page: what TAPAK does, for whom, and the numbers behind it."""
+    return _page(request, "landing.html", angka=landing_numbers())
+
+
+@app.get("/beranda", response_class=HTMLResponse)
 def beranda(request: Request) -> HTMLResponse:
     """Overview: issued documents, registry state and recent canary queries."""
     from tapak.service import list_workspaces
@@ -1651,15 +1677,20 @@ async def lacak_run(
         # a refusal already says so ("pelacakan ditolak ..."): not "tidak dapat dilakukan: pelacakan ditolak"
         message = _sentence(text) if text.startswith("pelacakan ditolak") else f"Pelacakan tidak dapat dilakukan: {text}"
         return _page(request, "_galat.html", message=message)
+    return _page(request, "_hasil_lacak.html", **_trace_view(outcome))
+
+
+def _trace_view(outcome: object) -> dict[str, object]:
+    """Template values of a trace result (``_hasil_lacak.html``); the outcome is kept for its
+    berita acara under the returned ``tid``."""
+    from tapak.decoder.report import make_redactor
+    from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
+
     tid = secrets.token_hex(8)
     with _LOCK:
         _TRACES[tid] = outcome
         while len(_TRACES) > 50:
             _TRACES.pop(next(iter(_TRACES)))
-    from tapak.decoder.report import make_redactor
-
-    from tapak.decoder.trace import SCAN_SHIFT_SKIPPED
-
     a = outcome.attribution
     # As in the berita acara: file names and notes never identify a copy that is not named at
     # some stage. A copy named at a later stage is shown with its stage (tahap_lanjut).
@@ -1678,9 +1709,8 @@ async def lacak_run(
             shift_scan = ("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
                           "cocok dengan catatan penerbitan.")
     identified = a.verdict == VERDICT_IDENTIFIED
-    return _page(request, "_hasil_lacak.html", o=outcome, a=a, tid=tid, identified=identified, redact=redact,
-                 tahap_lanjut=later, eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan,
-                 v=_verdict_notes(outcome, a, identified, redact))
+    return dict(o=outcome, a=a, tid=tid, identified=identified, redact=redact, tahap_lanjut=later,
+                eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan, v=_verdict_notes(outcome, a, identified, redact))
 
 
 def _eps_label(eps: float) -> str:
@@ -1708,6 +1738,158 @@ def berita_acara(tid: str) -> Response:
         raise HTTPException(500, f"Berita acara tidak dapat dibuat: {exc}") from exc
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="berita_acara_{tid}.pdf"'})
+
+
+# --- Demo ----------------------------------------------------------------------------------
+
+_DEMO_LOCK = threading.Lock()   # one sandbox issuance at a time
+_DEMO_LEAKS: dict[str, dict[str, object]] = {}  # leak id -> name, bytes, copy, medium (newest 20)
+
+
+def _demo_state(request: Request, leak_id: str = "", result: dict[str, object] | None = None,
+                seconds: float | None = None, **kw: object) -> dict[str, object]:
+    """Template values of the guided demo (``_demo_alur.html``): the sandbox issuance, the
+    simulated leak and the trace result, whichever exist so far."""
+    from tapak.web.demo_web import MEDIA, demo_manifest
+
+    m = demo_manifest(settings())
+    leak = _DEMO_LEAKS.get(leak_id) if leak_id else None
+    if leak is not None and m is not None and leak["doc"] != m.doc_hash:
+        leak = None  # a leak of an earlier sandbox issuance
+    return dict(m=m, media=MEDIA, leak=leak, leak_id=leak_id if leak else "", hasil=result, issue_seconds=seconds,
+                **kw)
+
+
+@app.get("/demo", response_class=HTMLResponse)
+def demo_page(request: Request) -> HTMLResponse:
+    """The guided demo: issue the sample to 20 fictional recipients, leak one copy, trace it."""
+    return _page(request, "demo.html", title="Demo", active="demo", **_demo_state(request))
+
+
+@app.post("/demo/terbitkan", response_class=HTMLResponse)
+async def demo_issue(request: Request) -> HTMLResponse:
+    """Step 1: a fresh sandbox issuance of the sample nota dinas."""
+    from tapak.web.demo_web import issue_demo
+
+    def run() -> float:
+        if not _DEMO_LOCK.acquire(blocking=False):
+            raise RuntimeError("penerbitan demo lain sedang berjalan; coba lagi sebentar lagi")
+        try:
+            return issue_demo(settings())[1]
+        finally:
+            _DEMO_LOCK.release()
+
+    try:
+        seconds = await run_in_threadpool(run)
+    except (RuntimeError, ValueError, FileExistsError, FileNotFoundError) as exc:
+        return _page(request, "_galat.html", message=f"Demo tidak dapat diterbitkan: {_public_text(exc)}")
+    with _LOCK:
+        _DEMO_LEAKS.clear()
+    return _page(request, "_demo_alur.html", **_demo_state(request, seconds=seconds, fokus="langkah-2"))
+
+
+@app.get("/demo/contoh-penerima.csv")
+def demo_recipients_csv() -> Response:
+    """The fictional sample recipient list, as an example of the CSV the Terbitkan page takes."""
+    from tapak.demo import samples_dir
+
+    return Response((samples_dir() / "recipients.csv").read_bytes(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="contoh_penerima.csv"'})
+
+
+@app.get("/demo/salinan/{seq}/pratinjau.png")
+def demo_copy_preview(seq: int) -> Response:
+    """Page 1 of a sandbox copy, small."""
+    from tapak.web.demo_web import copy_bytes, demo_manifest, page_png
+
+    m = demo_manifest(settings())
+    if m is None or not 1 <= seq <= len(m.copies):
+        raise HTTPException(404, "Salinan demo tidak ditemukan")
+    return Response(page_png(copy_bytes(settings(), m, seq), 60), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.get("/demo/selisih.png")
+def demo_difference() -> Response:
+    """Where sandbox copies 1 and 2 differ (top half of page 1), amplified 40 times."""
+    from tapak.web.demo_web import demo_manifest, difference_png
+
+    m = demo_manifest(settings())
+    if m is None or len(m.copies) < 2:
+        raise HTTPException(404, "Salinan demo tidak ditemukan")
+    return Response(difference_png(settings(), m, 1, 2), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/demo/bocorkan", response_class=HTMLResponse)
+async def demo_leak(request: Request, salinan: int = Form(0), cara: str = Form("")) -> HTMLResponse:
+    """Step 2: leak one sandbox copy through a simulated medium."""
+    from tapak.web.demo_web import MEDIA, demo_manifest, leak
+
+    m = demo_manifest(settings())
+    errors: dict[str, str] = {}
+    if m is None:
+        return _page(request, "_galat.html", message="Terbitkan salinan demo lebih dulu (langkah 1).")
+    if not 1 <= salinan <= len(m.copies):
+        errors["salinan"] = "Pilih penerima yang membocorkan salinannya."
+    if cara not in MEDIA:
+        errors["cara"] = "Pilih cara salinan itu bocor."
+    if errors:
+        return _page(request, "_demo_alur.html", **_demo_state(request, errors=errors, pilih=salinan, pilih_cara=cara))
+
+    def run() -> tuple[str, bytes]:
+        import numpy as np
+
+        return leak(settings(), m, salinan, cara, np.random.default_rng(secrets.randbits(64)))
+
+    name, data = await run_in_threadpool(run)
+    lid = secrets.token_hex(8)
+    with _LOCK:
+        _DEMO_LEAKS[lid] = {"name": name, "data": data, "seq": salinan, "cara": cara, "doc": m.doc_hash}
+        while len(_DEMO_LEAKS) > 20:
+            _DEMO_LEAKS.pop(next(iter(_DEMO_LEAKS)))
+    return _page(request, "_demo_alur.html", **_demo_state(request, leak_id=lid, fokus="langkah-3"))
+
+
+@app.get("/demo/bukti/{lid}")
+def demo_evidence(lid: str, unduh: int = 0) -> Response:
+    """A simulated leak: a preview image, or with ``unduh=1`` the file itself."""
+    from tapak.web.demo_web import evidence_preview
+
+    item = _DEMO_LEAKS.get(lid)
+    if item is None:
+        raise HTTPException(404, "Bukti demo tidak ditemukan; buat bukti baru di langkah 2")
+    name, data = str(item["name"]), bytes(item["data"])  # type: ignore[arg-type]
+    if unduh:
+        return Response(data, media_type="application/octet-stream",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+    body, kind = evidence_preview(name, data)
+    return Response(body, media_type=kind, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/demo/lacak", response_class=HTMLResponse)
+async def demo_trace(request: Request, bukti: str = Form("")) -> HTMLResponse:
+    """Step 3: trace the simulated leak in the sandbox, like evidence on the Lacak page."""
+    from tapak.decoder.trace import TraceError
+    from tapak.service import trace_evidence
+    from tapak.web.demo_web import demo_manifest, demo_settings
+
+    m = demo_manifest(settings())
+    item = _DEMO_LEAKS.get(bukti)
+    if m is None or item is None or item["doc"] != m.doc_hash:
+        return _page(request, "_galat.html", message="Bukti demo tidak ditemukan. Buat bukti baru di langkah 2.")
+
+    def run() -> object:
+        with _TRACE_SLOTS:
+            return trace_evidence(demo_settings(settings()), m.doc_hash, str(item["name"]), bytes(item["data"]))
+
+    t0 = time.perf_counter()
+    try:
+        outcome = await run_in_threadpool(run)
+    except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
+        return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {_public_text(exc)}")
+    view = _trace_view(outcome)
+    view["detik"] = time.perf_counter() - t0
+    return _page(request, "_demo_alur.html", **_demo_state(request, leak_id=bukti, result=view, fokus="langkah-3-hasil"))
 
 
 # --- Registri ------------------------------------------------------------------------------

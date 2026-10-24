@@ -1,0 +1,76 @@
+/* Demo (demo.html, _demo_alur.html). Uses the tokens and components of tapak.css. */
+
+.demo-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+@container main (min-width: 980px) {
+  .demo-layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  .demo-guide { position: sticky; top: calc(var(--banner-h) + 24px); }
+}
+.demo-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* the steps column is the container the Lacak result (lacak.css) sizes itself by */
+.demo-main { container-type: inline-size; container-name: main; }
+
+/* the four steps: numbered cards on a rail */
+.demo-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.demo-step { display: flex; flex-direction: column; gap: 16px; }
+.demo-step > p { max-width: 70ch; }
+.demo-step-head { display: flex; align-items: center; gap: 14px; }
+.demo-step-head > div { flex: 1; min-width: 0; }
+.demo-step-head h2 { font-size: var(--fs-h2); }
+.demo-step-head h2 { color: var(--ink-muted); font-weight: 500; }
+.demo-step-title { color: var(--ink); font-weight: 600; }
+.demo-step-num {
+  flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  font-family: var(--font-mono); font-weight: 500; font-size: var(--fs-ui);
+  background: var(--surface-sunken); color: var(--ink-muted); box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.demo-step.is-current { box-shadow: 0 0 0 2px var(--accent-line); }
+.demo-step.is-current .demo-step-num { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.demo-step.is-done .demo-step-num { background: var(--accent-soft); color: var(--accent-text); box-shadow: none; }
+.demo-step.is-locked { background: var(--surface-sunken); }
+.demo-step.is-locked .demo-step-title { color: var(--ink-muted); }
+
+/* step 1: two copies that look the same, and what differs between them */
+.demo-compare { display: flex; flex-wrap: wrap; gap: 20px; }
+.demo-compare figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.demo-compare .thumb { width: 160px; }
+.demo-compare figcaption { font-size: var(--fs-sm); color: var(--ink-muted); }
+.demo-diff .thumb { width: 220px; }
+.demo-penerima { max-height: 320px; overflow: auto; margin-top: 12px; }
+.demo-ulang { margin-top: -4px; }
+
+/* step 2: the leak */
+.demo-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.demo-media .choice-title { display: inline-flex; align-items: center; gap: 8px; }
+.demo-leak-form { display: flex; flex-direction: column; gap: 20px; margin-top: 16px; }
+.demo-leak-form .btn { align-self: flex-start; }
+.demo-evidence { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.demo-evidence-img { display: block; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--r-2); padding: 12px; }
+.demo-evidence-img img { margin-inline: auto; max-height: 460px; width: auto; max-width: 100%; border-radius: var(--r-1);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.12), 0 8px 24px -8px oklch(0 0 0 / 0.25); }
+.demo-evidence figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--fs-sm); color: var(--ink-muted); }
+.demo-evidence figcaption .label { flex-basis: 100%; }
+
+/* step 3: the reveal, then the full result as on Lacak */
+.demo-reveal:focus { outline: none; }
+.demo-result { display: flex; flex-direction: column; gap: 24px; }
+
+/* the guide beside the steps */
+.demo-guide h2 { font-size: var(--fs-h2); margin-bottom: 16px; }
+.demo-guide-steps { margin: 0 0 16px; padding: 0; list-style: none; counter-reset: langkah; display: flex; flex-direction: column; gap: 14px; }
+.demo-guide-steps li { counter-increment: langkah; position: relative; padding-left: 34px; font-size: var(--fs-ui); line-height: 1.55; color: var(--ink-muted); }
+.demo-guide-steps li::before {
+  content: counter(langkah); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--ink);
+}
+.demo-guide-steps b { color: var(--ink); }
+.demo-guide-steps .link.small { display: inline-block; margin-top: 4px; }
+
+/* the plain reading of the verdict, above the full result */
+.demo-explain { margin: 12px 0 0; display: grid; gap: 8px; }
+.demo-explain > div { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 4px 16px; }
+.demo-explain dt { color: var(--ink-muted); font-size: var(--fs-ui); }
+.demo-explain dd { margin: 0; font-size: var(--fs-ui); }
+@container main (max-width: 560px) { .demo-explain > div { grid-template-columns: minmax(0, 1fr); } }
+.rincian-teknis > summary { margin-bottom: 8px; }
+.rincian-teknis[open] { display: flex; flex-direction: column; gap: 16px; }

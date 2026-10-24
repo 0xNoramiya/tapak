@@ -101,6 +101,8 @@
   </div>
 </section>
 
+{# ringkas (the demo): the evidence per channel, the ranking and the validity checks fold away #}
+{% if ringkas %}<details class="more rincian-teknis"><summary><span>Rincian teknis untuk pemeriksa</span></summary>{% endif %}
 <div class="split">
   <div class="stack">
     <section class="card" aria-labelledby="kanal-h">
@@ -319,3 +321,4 @@
     </section>
   </div>
 </div>
+{% if ringkas %}</details>{% endif %}
