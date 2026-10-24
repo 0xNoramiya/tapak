@@ -53,6 +53,7 @@ Usage (work folder as ``ukur.py``):
     python research/kalibrasi/kandidat.py nilai --split dev --putaran 3
     python research/kalibrasi/kandidat.py pilih
     python research/kalibrasi/kandidat.py periksa --split dev --terpasang   # the shipped model is the choice
+    python research/kalibrasi/kandidat.py diagnosa --split dev   # residual variance and gain per ink class
     python research/kalibrasi/kandidat.py banding --split uji    # after the held-out run: the decoder before
 """
 
@@ -521,6 +522,62 @@ def cocok_job(job: dict) -> dict:
     return {"key": ukur.job_key(job), "checked": True, "same": same_soft_bits(a, b)}
 
 
+def diagnosa_job(job: dict) -> dict | None:
+    """Why the decoder before is overconfident (research only, with the copy's codeword): per
+    ink-distance class, the cells, the sum and sum of squares of the standardized residual
+    (u_c - g_c s_b) sqrt(n_c / v_c) under the decoder before, and the sums of u_c s_b and g_c."""
+    if job["part"] != "salinan" or not ukur.obs_path(job).exists():
+        return None
+    stored = load_obs(job)
+    if stored["reg"] is None:
+        return None
+    ctx, _ = ukur.context(job["iss"])
+    measure, grid, _ = measure_of(job, stored)
+    x = ctx.codewords[job["seq"] - 1]
+    ok = (measure.frac >= B.MIN_VALID_FRACTION) & (grid.cell_bit >= 0)
+    bits = grid.cell_bit[ok]
+    stratum = B.saturation_strata(measure.share[ok])
+    u = B._clip_by_stratum((grid.pn * measure.means)[ok], stratum, len(B.SAT_EDGES))
+    weight = measure.frac[ok]
+    e_bit, s_bit = np.zeros(grid.n_bits), np.zeros(grid.n_bits)
+    for s in ctx.plan.channel("background"):
+        if s.page == grid.page:
+            sign = 1 - 2 * s.whiten[0]
+            e_bit[s.ref[0]] = (2.0 * float(ctx.p[s.positions[0]]) - 1.0) * sign
+            s_bit[s.ref[0]] = (2.0 * float(x[s.positions[0]]) - 1.0) * sign
+    g, v = B.saturation_noise(u, e_bit[bits], stratum, weight)
+    s = s_bit[bits]
+    use = g > 0
+    z = (u - g * s) * np.sqrt(weight / v)
+    cls = B.ink_distance_classes(measure.ink_distance[ok], u.size)
+    out = {"key": ukur.job_key(job), **_row_of(job), "kelas": []}
+    for k in range(len(B.INK_CLASS_EDGES)):
+        m = use & (cls == k)
+        out["kelas"].append([int(m.sum()), float(np.sum(z[m])), float(np.sum(z[m] ** 2)), float(np.sum(u[m] * s[m])),
+                             float(np.sum(g[m]))])
+    return out
+
+
+def run_diagnosa(split: str) -> None:
+    """Per medium class and ink-distance class: residual variance and pattern gain of the decoder
+    before (``hasil/diagnosa_<split>.json``)."""
+    rows = [r for r in _pool(diagnosa_job, image_jobs(split), None, lambda it: None) if r]
+    acc: dict = {}
+    for r in rows:
+        c = medium_class(r)
+        a = acc.setdefault(c, np.zeros((len(B.INK_CLASS_EDGES), 5)))
+        a += np.asarray(r["kelas"])
+    out = {}
+    for c, a in sorted(acc.items()):
+        out[c] = [{"jarak_sel": B.INK_CLASS_EDGES[k], "sel": int(n),
+                   "varians_residu": round(float(ss / n - (s1 / n) ** 2), 3) if n else None,
+                   "penguatan_relatif": round(float(us / gs), 3) if gs > 0 else None}
+                  for k, (n, s1, ss, us, gs) in enumerate(a)]
+        print(c, " | ".join(f"{d['jarak_sel']}: var {d['varians_residu']} gain {d['penguatan_relatif']}" for d in out[c]))
+    (ukur.HASIL / f"diagnosa_{split}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n",
+                                                        encoding="utf-8")
+
+
 def nilai_job(item: tuple) -> list[dict]:
     """Every candidate on one development evidence."""
     job, names = item
@@ -753,7 +810,7 @@ def run_banding(split: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("periksa", "nilai", "banding"):
+    for name in ("periksa", "nilai", "banding", "diagnosa"):
         p = sub.add_parser(name)
         p.add_argument("--split", choices=("dev", "uji"), required=True)
         if name == "nilai":
@@ -771,6 +828,8 @@ def main(argv: list[str] | None = None) -> int:
         run_nilai(args.split, args.putaran)
     elif args.cmd == "banding":
         run_banding(args.split)
+    elif args.cmd == "diagnosa":
+        run_diagnosa(args.split)
     else:
         run_pilih(args.sampai)
     return 0
