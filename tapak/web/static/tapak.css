@@ -1318,3 +1318,6 @@ mark.diff {
   .btn:active, .copy-btn:active, .segmented > button:active { transform: none !important; }
   .top-progress::after, .busy-bar::after { width: 100%; transform: none; opacity: 0.6; }
 }
+
+/* the sidebar's way back to the product page (/) */
+.sidebar-produk { display: inline-block; margin-top: 12px; color: var(--ink-muted); }

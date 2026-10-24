@@ -39,7 +39,7 @@ tapak-verify-registry = "tapak.registry.verify:main"
 include = ["tapak*"]
 
 [tool.setuptools.package-data]
-tapak = ["assets/fonts/*", "assets/leksikon/*", "web/templates/*", "web/static/*", "web/static/fonts/*", "web/static/css/*", "web/static/img/*", "decoder/templates/*"]
+tapak = ["assets/fonts/*", "assets/leksikon/*", "web/templates/*", "web/static/*", "web/static/fonts/*", "web/static/css/*", "web/static/img/*", "web/landing.json", "decoder/templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

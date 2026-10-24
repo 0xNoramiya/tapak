@@ -22,15 +22,16 @@
   <div class="top-progress" aria-hidden="true"></div>
   <div class="shell">
     <header class="sidebar">
-      <a class="brand" href="/" aria-label="TAPAK, beranda">
+      <a class="brand" href="/beranda" aria-label="TAPAK, beranda">
         {{ logo() }}
         <span class="brand-name">TAPAK</span>
         <span class="brand-sub">Tanda Atribusi Penerima <span class="nowrap">Anti-Kolusi</span></span>
       </a>
       <nav class="nav" aria-label="Menu utama">
         <ul>
-          {% for href, key, label, icon in [("/", "beranda", "Beranda", "home"), ("/terbitkan", "terbitkan", "Terbitkan", "files"),
-                                            ("/lacak", "lacak", "Lacak", "scan"), ("/registri", "registri", "Registri", "ledger")] %}
+          {% for href, key, label, icon in [("/beranda", "beranda", "Beranda", "home"), ("/terbitkan", "terbitkan", "Terbitkan", "files"),
+                                            ("/lacak", "lacak", "Lacak", "scan"), ("/registri", "registri", "Registri", "ledger"),
+                                            ("/demo", "demo", "Demo", "play")] %}
           <li><a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ ikon(icon) }}<span>{{ label }}</span></a></li>
           {% endfor %}
         </ul>
@@ -40,6 +41,7 @@
           <span class="status-dot" aria-hidden="true"></span><span><b>Luring</b>, semua diproses di perangkat ini</span>
         </p>
         {% include "_status_registri.html" %}
+        <a class="link small sidebar-produk" href="/">Halaman produk TAPAK</a>
       </div>
     </header>
     <div class="main-col">

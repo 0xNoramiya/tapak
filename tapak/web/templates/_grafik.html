@@ -1,0 +1,102 @@
+{# Landing page charts, drawn as inline SVG or plain HTML from tapak/web/landing.json
+   (docs/figures/fig_landing.py). Colours come from CSS custom properties, so every chart follows
+   the light and dark theme. Each chart carries its own text alternative. #}
+
+{# Horizontal bars: share of evidence that named the right copy, per kind of evidence. #}
+{% macro batang_media(rows) -%}
+<ul class="ld-bars">
+  {% for m in rows %}
+  {% set share = m.benar / m.n %}
+  <li class="ld-bar-row" style="--v: {{ '%.4f'|format(share) }}">
+    <span class="ld-bar-label">{{ m.label }}</span>
+    <span class="ld-bar-track" aria-hidden="true"><span class="ld-bar-fill"></span></span>
+    <span class="ld-bar-value"><b class="tnum">{{ m.benar|num }}</b> dari <span class="tnum">{{ m.n|num }}</span>
+      <span class="ld-bar-pct tnum">({{ (100 * share)|round(0)|int }}%)</span></span>
+  </li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+{# Histogram of accusation scores over the threshold: innocents and coalition members, each as
+   its share of its own group, with the threshold and the empty gap between the groups. #}
+{% macro pemisahan(p) -%}
+{% set W, H, L, R, T, B = 520, 268, 8, 512, 34, 214 %}
+{% set x0, x1 = p.tepi[0], p.tepi[-1] %}
+{% set sx = (R - L) / (x1 - x0) %}
+{% set ns = namespace(top=0) %}
+{% for c in p.tak_bersalah %}{% set ns.top = [ns.top, c / p.n_tak_bersalah]|max %}{% endfor %}
+{% for c in p.anggota %}{% set ns.top = [ns.top, c / p.n_anggota]|max %}{% endfor %}
+{% set sy = (B - T - 18) / ns.top %}
+{% set zx = L + (1.0 - x0) * sx %}
+<figure class="ld-chart ld-hist">
+  <svg viewBox="0 0 {{ W }} {{ H }}" role="img" aria-labelledby="hist-t hist-d">
+    <title id="hist-t">Skor tuduhan dibagi ambang: orang tak bersalah dan anggota persekongkolan</title>
+    <desc id="hist-d">Skor {{ p.n_tak_bersalah|num }} penerima tak bersalah paling tinggi {{ (100 * p.maks_tak_bersalah)|round(0)|int }} persen dari ambang.
+      Skor {{ p.n_anggota|num }} anggota persekongkolan paling rendah {{ (100 * p.min_anggota)|round(0)|int }} persen dari ambang.
+      Tidak ada skor di antara keduanya.</desc>
+    {# the empty gap between the highest innocent and the lowest member #}
+    {% set gx0, gx1 = L + (p.maks_tak_bersalah - x0) * sx, L + (p.min_anggota - x0) * sx %}
+    <rect class="ld-hist-gap" x="{{ gx0|round(1) }}" y="{{ T }}" width="{{ (gx1 - gx0)|round(1) }}" height="{{ B - T }}"/>
+    <text class="ld-hist-gaplabel" x="{{ ((gx0 + gx1) / 2)|round(1) }}" y="{{ T - 12 }}" text-anchor="middle">celah kosong</text>
+    {% for i in range(p.tak_bersalah|length) %}
+      {% set bx = L + (p.tepi[i] - x0) * sx %}
+      {% set hi = p.tak_bersalah[i] / p.n_tak_bersalah * sy %}
+      {% set ha = p.anggota[i] / p.n_anggota * sy %}
+      {% if hi > 0 %}<rect class="ld-hist-safe" x="{{ (bx + 1)|round(1) }}" y="{{ (B - hi)|round(1) }}" width="{{ (sx * 0.1 - 2)|round(1) }}" height="{{ [hi, 1.5]|max|round(1) }}"/>{% endif %}
+      {% if ha > 0 %}<rect class="ld-hist-hot" x="{{ (bx + 1)|round(1) }}" y="{{ (B - ha)|round(1) }}" width="{{ (sx * 0.1 - 2)|round(1) }}" height="{{ [ha, 1.5]|max|round(1) }}"/>{% endif %}
+    {% endfor %}
+    <line class="ld-hist-axis" x1="{{ L }}" y1="{{ B }}" x2="{{ R }}" y2="{{ B }}"/>
+    <line class="ld-hist-z" x1="{{ zx|round(1) }}" y1="{{ T - 4 }}" x2="{{ zx|round(1) }}" y2="{{ B + 6 }}"/>
+    {% for v in [0, 1, 2, 3] %}
+      {% set tx = L + (v - x0) * sx %}
+      <line class="ld-hist-tick" x1="{{ tx|round(1) }}" y1="{{ B }}" x2="{{ tx|round(1) }}" y2="{{ B + 5 }}"/>
+      <text class="ld-hist-ticklabel" x="{{ tx|round(1) }}" y="{{ B + 22 }}" text-anchor="middle">{{ v }}&#215;</text>
+    {% endfor %}
+    <text class="ld-hist-zlabel" x="{{ (zx + 6)|round(1) }}" y="{{ B + 40 }}">ambang tuduhan</text>
+    <text class="ld-hist-key ld-hist-key-safe" x="{{ (L + (0.0 - x0) * sx)|round(1) }}" y="{{ T + 6 }}" text-anchor="middle">tak bersalah</text>
+    <text class="ld-hist-key ld-hist-key-hot" x="{{ (L + (2.0 - x0) * sx)|round(1) }}" y="{{ T + 6 }}" text-anchor="middle">pelaku</text>
+  </svg>
+  <figcaption class="ld-chart-legend">
+    <span><i class="ld-swatch ld-swatch-safe"></i>{{ p.n_tak_bersalah|num }} skor penerima tak bersalah, tertinggi <b class="tnum">{{ (100 * p.maks_tak_bersalah)|round(0)|int }}%</b> dari ambang</span>
+    <span><i class="ld-swatch ld-swatch-hot"></i>{{ p.n_anggota|num }} skor anggota persekongkolan, terendah <b class="tnum">{{ (100 * p.min_anggota)|round(0)|int }}%</b> dari ambang</span>
+  </figcaption>
+</figure>
+{%- endmacro %}
+
+{# Log scale of the false-accusation bound per benchmark set: the requirement (eps) as a line,
+   each set as its range from the worst trace to the median. #}
+{% macro skala_batas(rows, eps_log=-6) -%}
+{% set W, L, R, T, ROW = 520, 130, 506, 40, 38 %}
+{% set H = T + ROW * rows|length + 46 %}
+{% set lo, hi = 0, -100 %}
+{% set sx = (R - L) / (lo - hi) %}
+<figure class="ld-chart ld-log">
+  <svg viewBox="0 0 {{ W }} {{ H }}" role="img" aria-labelledby="log-t log-d">
+    <title id="log-t">Batas peluang salah tuduh per jenis bukti, skala logaritmik</title>
+    <desc id="log-d">Nama baru disebut bila batasnya di bawah 10 pangkat minus 6.
+      {% for b in rows %}{{ b.label }}: median 10 pangkat {{ b.median|round(0)|int }}, terburuk 10 pangkat {{ b.terburuk|round(0)|int }}. {% endfor %}</desc>
+    {% set ex = L + (lo - eps_log) * sx %}
+    <rect class="ld-log-zone" x="{{ L }}" y="{{ T - 14 }}" width="{{ (ex - L)|round(1) }}" height="{{ ROW * rows|length + 14 }}"/>
+    {% for v in [0, -20, -40, -60, -80, -100] %}
+      {% set tx = L + (lo - v) * sx %}
+      <line class="ld-log-grid" x1="{{ tx|round(1) }}" y1="{{ T - 14 }}" x2="{{ tx|round(1) }}" y2="{{ T + ROW * rows|length }}"/>
+      <text class="ld-log-ticklabel" x="{{ tx|round(1) }}" y="{{ T + ROW * rows|length + 20 }}" text-anchor="middle">{% if v == 0 %}1{% else %}10<tspan dy="-6" font-size="0.75em">&#8722;{{ -v }}</tspan>{% endif %}</text>
+    {% endfor %}
+    <line class="ld-log-eps" x1="{{ ex|round(1) }}" y1="{{ T - 22 }}" x2="{{ ex|round(1) }}" y2="{{ T + ROW * rows|length }}"/>
+    <text class="ld-log-epslabel" x="{{ (ex + 6)|round(1) }}" y="{{ T - 12 }}">syarat menyebut nama</text>
+    {% for b in rows %}
+      {% set y = T + ROW * loop.index0 + ROW / 2 %}
+      {% set xw, xm = L + (lo - b.terburuk) * sx, L + (lo - b.median) * sx %}
+      <text class="ld-log-label" x="{{ L - 14 }}" y="{{ (y + 4)|round(1) }}" text-anchor="end">{{ b.label }}</text>
+      <line class="ld-log-range" x1="{{ xw|round(1) }}" y1="{{ y|round(1) }}" x2="{{ xm|round(1) }}" y2="{{ y|round(1) }}"/>
+      <circle class="ld-log-worst" cx="{{ xw|round(1) }}" cy="{{ y|round(1) }}" r="4"/>
+      <circle class="ld-log-median" cx="{{ xm|round(1) }}" cy="{{ y|round(1) }}" r="6.5"/>
+    {% endfor %}
+    <text class="ld-log-axislabel" x="{{ R }}" y="{{ H - 4 }}" text-anchor="end">makin ke kanan, makin kecil &#8594;</text>
+  </svg>
+  <figcaption class="ld-chart-legend">
+    <span><i class="ld-dot ld-dot-median"></i>median per jenis bukti</span>
+    <span><i class="ld-dot ld-dot-worst"></i>bukti terlemah yang tetap disebut</span>
+  </figcaption>
+</figure>
+{%- endmacro %}

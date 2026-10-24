@@ -72,6 +72,8 @@ Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](
   <img alt="Halaman Lacak untuk foto sintetis salinan #13: skor, ambang, batas peluang tuduhan salah, dan bukti per kanal" src="docs/img/ui-lacak-light.png" width="100%">
 </picture>
 
+Halaman produk di `/` menjelaskan TAPAK untuk instansi pemerintah dengan angka dan grafik dari berkas hasil di repositori. **Demo** terpandu di `/demo` menerbitkan nota dinas contoh untuk 20 penerima fiktif, membocorkan satu salinan (foto ponsel, tangkapan layar, potongan halaman, PDF, atau teks), lalu melacaknya sampai berita acara, di ruang kerja terpisah yang tidak menyentuh registri Anda.
+
 Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Di sini hanya pola latar yang sendirian menunjuk salinan #13 (kanal sepakat: 1), dan pola itu tidak ada pada foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar (layar atau cetak) dan skema geser (v2 atau v1), meminta peninjauan setiap varian dan setiap titik pilihan kata (opsional), lalu menghasilkan ZIP salinan.
 
 ## Mulai cepat
@@ -84,7 +86,7 @@ sudo apt-get install -y \
   libpango-1.0-0 libharfbuzz-subset0
 make setup  # sekali, perlu jaringan
 make demo   # skenario lengkap, sekitar 30 detik
-make web    # http://127.0.0.1:8000
+make web    # halaman produk http://127.0.0.1:8000, demo terpandu di /demo
 make test   # seluruh pengujian
 ```
 
