@@ -6,7 +6,8 @@ reads them and writes ``tapak/web/landing.json``, which the page draws its chart
 * ``pemisahan``: the accusation scores of fig_hasil.py (N=100, c=3, eps=1e-6, 1000 trials,
   seed 2026, every collusion strategy) binned over the threshold, innocents and members apart;
 * ``media``: verdicts per kind of evidence, from the README benchmark
-  (docs/results/bench_photos.json) and the held-out run of research/registrasi;
+  (docs/results/bench_photos.json) and the held-out runs of research/registrasi and
+  research/fotopotong;
 * ``batas``: the false-accusation bound of the README benchmark per set (median and worst);
 * ``uji``: honest held-out traces of the studies and how many named someone else.
 
@@ -80,16 +81,31 @@ def media_and_bounds() -> tuple[list, list]:
         after = reg[key]["sesudah"]
         media.append({"label": label, "benar": after["disebut"], "n": reg[key]["n"], "salah": after["tuduhan_salah"],
                       "sumber": "research/registrasi/hasil/ringkas_uji.json"})
+    crops = [r for r in _jsonl("research/fotopotong/hasil/uji.jsonl") if not r["silang"] and r["scale"] < 1.0]
+    media.append({"label": "Foto ponsel dipotong lalu diperkecil", "n": len(crops),
+                  "benar": sum(1 for r in crops if (r.get("lacak_sesudah") or {}).get("verdict") == "benar"),
+                  "salah": sum(1 for r in crops if (r.get("lacak_sesudah") or {}).get("verdict") == "salah"),
+                  "sumber": "research/fotopotong/hasil/uji.jsonl"})
     return media, bounds
 
 
+def _jsonl(rel: str) -> list[dict]:
+    return [json.loads(x) for x in (ROOT / rel).read_text(encoding="utf-8").splitlines() if x.strip()]
+
+
 def honest_traces() -> dict:
-    kal = [json.loads(x) for x in (ROOT / "research" / "kalibrasi" / "hasil" / "uji.jsonl").read_text().splitlines()
-           if x.strip()]
+    """Held-out traces of the studies (each run once after its rules were fixed) and how many
+    named someone who did not leak."""
+    kal = _jsonl("research/kalibrasi/hasil/uji.jsonl")
+    geser = _jsonl("research/geser/hasil/uji.jsonl")
+    crops = [r["lacak_sesudah"] for r in _jsonl("research/fotopotong/hasil/uji.jsonl") if r.get("lacak_sesudah")]
     reg = json.loads((ROOT / "research" / "registrasi" / "hasil" / "ringkas_uji.json").read_text())
     reg_wrong = sum(v["sesudah"]["tuduhan_salah"] for v in reg["per_jenis"].values())
-    return {"n": len(kal) + reg["traces"], "tuduhan_salah": sum(bool(r["salah"]) for r in kal) + reg_wrong,
-            "sumber": ["research/kalibrasi/hasil/uji.jsonl", "research/registrasi/hasil/ringkas_uji.json"]}
+    return {"n": len(kal) + reg["traces"] + len(geser) + len(crops),
+            "tuduhan_salah": sum(bool(r["salah"]) for r in kal + geser) + reg_wrong
+            + sum(1 for v in crops if v["verdict"] == "salah"),
+            "sumber": ["research/kalibrasi/hasil/uji.jsonl", "research/registrasi/hasil/ringkas_uji.json",
+                       "research/geser/hasil/uji.jsonl", "research/fotopotong/hasil/uji.jsonl"]}
 
 
 def example_and_pictures() -> dict | None:

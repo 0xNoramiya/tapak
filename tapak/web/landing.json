@@ -149,7 +149,7 @@
   },
   {
    "label": "Cetakan difoto, satu halaman",
-   "benar": 9,
+   "benar": 10,
    "n": 16,
    "salah": 0,
    "sumber": "docs/results/bench_photos.json"
@@ -181,41 +181,50 @@
    "n": 240,
    "salah": 0,
    "sumber": "research/registrasi/hasil/ringkas_uji.json"
+  },
+  {
+   "label": "Foto ponsel dipotong lalu diperkecil",
+   "n": 800,
+   "benar": 561,
+   "salah": 0,
+   "sumber": "research/fotopotong/hasil/uji.jsonl"
   }
  ],
  "batas": [
   {
    "label": "Foto layar",
    "median": -89.3,
-   "terburuk": -6.0
+   "terburuk": -6.7
   },
   {
    "label": "Foto ISP ponsel",
    "median": -82.0,
-   "terburuk": -57.9
+   "terburuk": -57.8
   },
   {
    "label": "Foto monitor",
    "median": -81.0,
-   "terburuk": -7.1
+   "terburuk": -6.5
   },
   {
    "label": "Cetak, 2 halaman",
-   "median": -13.1,
-   "terburuk": -10.7
+   "median": -14.5,
+   "terburuk": -11.1
   },
   {
    "label": "Cetak, 1 halaman",
-   "median": -8.7,
-   "terburuk": -6.3
+   "median": -9.1,
+   "terburuk": -6.5
   }
  ],
  "uji": {
-  "n": 4456,
+  "n": 6148,
   "tuduhan_salah": 0,
   "sumber": [
    "research/kalibrasi/hasil/uji.jsonl",
-   "research/registrasi/hasil/ringkas_uji.json"
+   "research/registrasi/hasil/ringkas_uji.json",
+   "research/geser/hasil/uji.jsonl",
+   "research/fotopotong/hasil/uji.jsonl"
   ]
  },
  "contoh": {
@@ -223,11 +232,11 @@
   "penerima": "Lettu Czi Made Fiktif13",
   "jabatan": "Kasdim",
   "satuan": "Yonif 9901/Contoh",
-  "skor": 1257.2,
-  "ambang": 283.4,
-  "log10_tuduhan_salah": -84.6,
+  "skor": 1277.2,
+  "ambang": 298.3,
+  "log10_tuduhan_salah": -85.3,
   "n_salinan": 20,
-  "detik": 25.1,
+  "detik": 12.5,
   "sumber": "out/figures-work/alur/demo/foto_bocor.jpg (fig_alur.py), dilacak ulang di salinan folder"
  }
 }
