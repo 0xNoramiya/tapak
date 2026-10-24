@@ -1,0 +1,812 @@
+{
+ "rule": "Pada set dev, untuk setiap gambar yang tahap registrasi sebelumnya tidak menemukan halamannya: tahap penyelamat memilih percobaan dengan kecocokan tertinggi; pose itu salah bila halaman atau dokumennya salah, tidak ada kata induk yang terlihat, atau persentil ke-95 galatnya pada titik tengah kata lebih dari 5 piksel gambar. RESCUE_AMBIGUITY dan RESCUE_MIN_AGREEMENT dipilih dari kisi 0,00 sampai 0,30 dan 0,30 sampai 0,95 (langkah 0,05): di antara pasangan yang tidak menerima satu pun pose salah (termasuk induk tanpa tanda dan bukti dokumen lain), pasangan yang menerima pose benar paling banyak; bila sama, ambang dan margin yang lebih kecil. Lalu keduanya dinaikkan satu langkah kisi sebagai cadangan.",
+ "rows_with_rescue": 450,
+ "best_safe": {
+  "ambiguity": 0.0,
+  "min_agreement": 0.6,
+  "accepted": 260,
+  "wrong": 0,
+  "right": 260,
+  "precise": 219
+ },
+ "chosen": {
+  "RESCUE_MIN_AGREEMENT": 0.65,
+  "RESCUE_AMBIGUITY": 0.05,
+  "dev_at_choice": {
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  }
+ },
+ "table": [
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.3,
+   "accepted": 267,
+   "wrong": 7,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.35,
+   "accepted": 264,
+   "wrong": 4,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.4,
+   "accepted": 261,
+   "wrong": 1,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.45,
+   "accepted": 261,
+   "wrong": 1,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.5,
+   "accepted": 261,
+   "wrong": 1,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.55,
+   "accepted": 261,
+   "wrong": 1,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.6,
+   "accepted": 260,
+   "wrong": 0,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.65,
+   "accepted": 260,
+   "wrong": 0,
+   "right": 260,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.7,
+   "accepted": 255,
+   "wrong": 0,
+   "right": 255,
+   "precise": 214
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.75,
+   "accepted": 249,
+   "wrong": 0,
+   "right": 249,
+   "precise": 208
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.8,
+   "accepted": 244,
+   "wrong": 0,
+   "right": 244,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.85,
+   "accepted": 244,
+   "wrong": 0,
+   "right": 244,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.9,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.0,
+   "min_agreement": 0.95,
+   "accepted": 192,
+   "wrong": 0,
+   "right": 192,
+   "precise": 163
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.3,
+   "accepted": 264,
+   "wrong": 5,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.35,
+   "accepted": 262,
+   "wrong": 3,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.4,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.45,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.5,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.55,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.6,
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.65,
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.7,
+   "accepted": 254,
+   "wrong": 0,
+   "right": 254,
+   "precise": 214
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.75,
+   "accepted": 248,
+   "wrong": 0,
+   "right": 248,
+   "precise": 208
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.8,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.85,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.9,
+   "accepted": 242,
+   "wrong": 0,
+   "right": 242,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.05,
+   "min_agreement": 0.95,
+   "accepted": 192,
+   "wrong": 0,
+   "right": 192,
+   "precise": 163
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.3,
+   "accepted": 264,
+   "wrong": 5,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.35,
+   "accepted": 262,
+   "wrong": 3,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.4,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.45,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.5,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.55,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.6,
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.65,
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.7,
+   "accepted": 254,
+   "wrong": 0,
+   "right": 254,
+   "precise": 214
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.75,
+   "accepted": 248,
+   "wrong": 0,
+   "right": 248,
+   "precise": 208
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.8,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.85,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.9,
+   "accepted": 242,
+   "wrong": 0,
+   "right": 242,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.1,
+   "min_agreement": 0.95,
+   "accepted": 192,
+   "wrong": 0,
+   "right": 192,
+   "precise": 163
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.3,
+   "accepted": 263,
+   "wrong": 4,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.35,
+   "accepted": 261,
+   "wrong": 2,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.4,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.45,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.5,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.55,
+   "accepted": 260,
+   "wrong": 1,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.6,
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.65,
+   "accepted": 259,
+   "wrong": 0,
+   "right": 259,
+   "precise": 219
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.7,
+   "accepted": 254,
+   "wrong": 0,
+   "right": 254,
+   "precise": 214
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.75,
+   "accepted": 248,
+   "wrong": 0,
+   "right": 248,
+   "precise": 208
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.8,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.85,
+   "accepted": 243,
+   "wrong": 0,
+   "right": 243,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.9,
+   "accepted": 242,
+   "wrong": 0,
+   "right": 242,
+   "precise": 203
+  },
+  {
+   "ambiguity": 0.15,
+   "min_agreement": 0.95,
+   "accepted": 192,
+   "wrong": 0,
+   "right": 192,
+   "precise": 163
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.3,
+   "accepted": 259,
+   "wrong": 1,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.35,
+   "accepted": 259,
+   "wrong": 1,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.4,
+   "accepted": 259,
+   "wrong": 1,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.45,
+   "accepted": 259,
+   "wrong": 1,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.5,
+   "accepted": 259,
+   "wrong": 1,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.55,
+   "accepted": 259,
+   "wrong": 1,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.6,
+   "accepted": 258,
+   "wrong": 0,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.65,
+   "accepted": 258,
+   "wrong": 0,
+   "right": 258,
+   "precise": 218
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.7,
+   "accepted": 253,
+   "wrong": 0,
+   "right": 253,
+   "precise": 213
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.75,
+   "accepted": 247,
+   "wrong": 0,
+   "right": 247,
+   "precise": 207
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.8,
+   "accepted": 242,
+   "wrong": 0,
+   "right": 242,
+   "precise": 202
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.85,
+   "accepted": 242,
+   "wrong": 0,
+   "right": 242,
+   "precise": 202
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.9,
+   "accepted": 241,
+   "wrong": 0,
+   "right": 241,
+   "precise": 202
+  },
+  {
+   "ambiguity": 0.2,
+   "min_agreement": 0.95,
+   "accepted": 191,
+   "wrong": 0,
+   "right": 191,
+   "precise": 162
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.3,
+   "accepted": 258,
+   "wrong": 1,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.35,
+   "accepted": 258,
+   "wrong": 1,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.4,
+   "accepted": 258,
+   "wrong": 1,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.45,
+   "accepted": 258,
+   "wrong": 1,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.5,
+   "accepted": 258,
+   "wrong": 1,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.55,
+   "accepted": 258,
+   "wrong": 1,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.6,
+   "accepted": 257,
+   "wrong": 0,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.65,
+   "accepted": 257,
+   "wrong": 0,
+   "right": 257,
+   "precise": 217
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.7,
+   "accepted": 252,
+   "wrong": 0,
+   "right": 252,
+   "precise": 212
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.75,
+   "accepted": 246,
+   "wrong": 0,
+   "right": 246,
+   "precise": 206
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.8,
+   "accepted": 241,
+   "wrong": 0,
+   "right": 241,
+   "precise": 201
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.85,
+   "accepted": 241,
+   "wrong": 0,
+   "right": 241,
+   "precise": 201
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.9,
+   "accepted": 240,
+   "wrong": 0,
+   "right": 240,
+   "precise": 201
+  },
+  {
+   "ambiguity": 0.25,
+   "min_agreement": 0.95,
+   "accepted": 190,
+   "wrong": 0,
+   "right": 190,
+   "precise": 161
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.3,
+   "accepted": 256,
+   "wrong": 1,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.35,
+   "accepted": 256,
+   "wrong": 1,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.4,
+   "accepted": 256,
+   "wrong": 1,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.45,
+   "accepted": 256,
+   "wrong": 1,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.5,
+   "accepted": 256,
+   "wrong": 1,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.55,
+   "accepted": 256,
+   "wrong": 1,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.6,
+   "accepted": 255,
+   "wrong": 0,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.65,
+   "accepted": 255,
+   "wrong": 0,
+   "right": 255,
+   "precise": 215
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.7,
+   "accepted": 250,
+   "wrong": 0,
+   "right": 250,
+   "precise": 210
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.75,
+   "accepted": 244,
+   "wrong": 0,
+   "right": 244,
+   "precise": 204
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.8,
+   "accepted": 239,
+   "wrong": 0,
+   "right": 239,
+   "precise": 199
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.85,
+   "accepted": 239,
+   "wrong": 0,
+   "right": 239,
+   "precise": 199
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.9,
+   "accepted": 238,
+   "wrong": 0,
+   "right": 238,
+   "precise": 199
+  },
+  {
+   "ambiguity": 0.3,
+   "min_agreement": 0.95,
+   "accepted": 189,
+   "wrong": 0,
+   "right": 189,
+   "precise": 160
+  }
+ ],
+ "rectify_now": {
+  "RESCUE_MIN_AGREEMENT": 0.65,
+  "RESCUE_AMBIGUITY": 0.05
+ }
+}

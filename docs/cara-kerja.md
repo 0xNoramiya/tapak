@@ -92,7 +92,7 @@ Nama hanya muncul bersama skor, ambang, dan peluang tuduhan salahnya. Bila tidak
 ```
             +---------------- Terbitkan -----------------+          +------------------ Lacak -------------------+
  PDF induk  |  layout   rencana penandaan (kunci)        |  salinan | foto / tangkapan layar / PDF / DOCX / teks |
- + penerima |  model -> geser, latar, teks, semantik,    |--------->|  rectify (kontur, SIFT, Tesseract) + ECC   |
+ + penerima |  model -> geser, latar, teks, semantik,    |--------->|  rectify: kontur/SIFT/Tesseract/templat+ECC|
             |           pilihan kata, kanari -> render   |          |  ch_shift  ch_background  ch_zerowidth     |
             |           ulang + gerbang -> 20 salinan    |          |  ch_semantic  ch_lexical  ch_docx          |
             +----------------------+---------------------+          |        -> fuse (LLR) -> accuse (Chernoff)  |
@@ -112,7 +112,7 @@ tapak/
   marker/       layout, master (font), plan, pdf_shift, background, pdf_zerowidth, semantic, lexical,
                 canary, docx_marker, render (gambar ulang + gerbang visual), raster (halaman pindaian),
                 issue (paralel)
-  decoder/      rectify, lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_lexical,
+  decoder/      rectify (dengan tahap penyelamat), lines (Tesseract), ch_shift, ch_background, ch_zerowidth, ch_semantic, ch_lexical,
                 ch_docx, image, ocr (teks terlihat pada bukti gambar), fuse, accuse, erasure (pola penghapusan),
                 contradiction (bacaan jelas tanpa nama), reversal (pola tanda terbalik), manipulation (satu
                 peringatan untuk ketiganya), trace, report (berita acara)
@@ -137,6 +137,7 @@ research/ketik/ pengukuran kanal pilihan kata (kapasitas, galat baca, atribusi)
 research/pindaian/ pengukuran induk hasil pindai (protokol, hasil, potongan gambar)
 research/ponsel/ pengukuran foto ponsel dan foto layar simulasi (protokol, pemilihan dekoder, hasil)
 research/layar/ tangkapan layar dari penggambar PDF sungguhan (protokol, letak glif, pemilihan dekoder, hasil)
+research/registrasi/ registrasi potongan, halaman beresolusi rendah, dan foto sebagian halaman (protokol, tahap yang gagal, pemilihan, hasil)
 research/ocr/   OCR bukti gambar untuk varian kalimat dan pilihan kata (protokol, pemilihan pengaturan, hasil)
 research/sepakat/ koalisi yang memahami TAPAK: serangan, pemeriksaan pola penghapusan, penyamaran
 research/kontradiksi/ pemeriksaan bacaan jelas tanpa nama dan pemeriksaan pola penghapusan pada cetakan
@@ -425,7 +426,7 @@ Penyamaran membuat salinan berbeda di setiap posisi, sehingga kesamaan tidak ter
 | Kumpulan foto sintetis (`make photos` lalu `make bench`): 32 foto layar bersudut 0 sampai 30 derajat dan 8 tangkapan layar dari 4 salinan (halaman 1), dikompresi JPEG dua kali seperti WhatsApp. Satu penerbitan 20 salinan dengan skema geser bawaan v2; rahasia kode dan id salinan dari benih riset 2026, benih foto 2026, jadi hasilnya terulang persis ([operasi](operasi.md#benchmark-foto)) | 40 dari 40 benar, 0 tuduhan salah. Foto dengan 95 % kertas jenuh putih (pola latar terhapus) disebut lewat kanal geser saja, dengan skor tipis di atas ambang (batas peluang tuduhan salah 9,3 x 10^-7); 39 lainnya paling besar 4,0 x 10^-26. Dua foto dengan 88 dan 90 % kertas jenuh gagal dengan dekoder latar lama dan kini benar ([batasan 4](keamanan.md#batasan-4)). Skema v1 (benchmark sebelumnya): 39 dari 40, foto 95 % itu "tidak cukup bukti" |
 | Foto kertas cetak (`make photos-cetak` lalu `make bench`, dilaporkan terpisah): halaman 1 dan 2 dari 4 salinan yang sama, dicetak printer laser simulasi dengan profil latar bawaan, 16 foto (10 dan 30 derajat, 1600 px) dan 8 pasangan dua halaman | satu halaman 9 dari 16 benar (halaman 1: 8 dari 8; halaman 2, yang lebih pendek: 1 dari 8), dua halaman 8 dari 8, 0 tuduhan salah; batas peluang tuduhan salah paling besar 5,3 x 10^-7 (satu halaman) dan 2,2 x 10^-11 (dua halaman). Skema v1: satu halaman 0 dari 16, dua halaman 8 dari 8 dengan skor hanya 1,02 sampai 1,19 kali ambang. Satu rahasia kode dan printer simulasi; dengan rahasia lain angkanya dapat lebih rendah ([batasan 3](keamanan.md#batasan-3)) |
 | Foto ponsel dan foto layar simulasi (`make photos-ponsel`, `make photos-layar`, dilaporkan terpisah; [rincian](#foto-ponsel-dan-foto-layar-simulasi)): adegan `make photos` lewat ISP ponsel, dan salinan di monitor simulasi 93 sampai 227 ppi dengan ISP ponsel, 32 foto masing-masing dari 4 salinan yang sama (halaman 1, 0 sampai 30 derajat) | ISP ponsel 32 dari 32 benar, monitor 32 dari 32, 0 tuduhan salah; batas peluang tuduhan salah paling besar 1,2 x 10^-41 dan 7,3 x 10^-8. Yang terlemah adalah laptop 13 inci dari 45 cm (halaman mengisi 26 % bingkai), yang gagal dengan skema v1 (monitor 31 dari 32) |
-| Tangkapan layar yang digambar MuPDF, Poppler Splash, dan Poppler Cairo pada 28 sampai 150 dpi, PNG, lewat aplikasi pesan, dan diperkecil (kedua dokumen contoh, N = 20, set uji tertahan, 2.250 gambar; [rincian](#tangkapan-layar-dari-penampil-pdf)) | Halaman utuh disebut sampai 28 sampai 40 dpi (Splash tanpa anti-aliasing 48 sampai 56 dpi), lewat pola latar; kanal geser saja dari 72 sampai 120 dpi (tidak pernah pada tangkapan Poppler yang diperkecil dan pada Splash tanpa anti-aliasing). Model kisi baris: bit baris salah yakin 470 menjadi 243, putusan geser saja 516 menjadi 542. 0 tuduhan salah dalam 2.346 pelacakan |
+| Tangkapan layar yang digambar MuPDF, Poppler Splash, dan Poppler Cairo pada 28 sampai 150 dpi, PNG, lewat aplikasi pesan, dan diperkecil (kedua dokumen contoh, N = 20, set uji tertahan, 2.250 gambar; [rincian](#tangkapan-layar-dari-penampil-pdf)) | Halaman utuh disebut sampai 28 sampai 40 dpi (Splash tanpa anti-aliasing 48 sampai 56 dpi), lewat pola latar; kanal geser saja dari 72 sampai 120 dpi (tidak pernah pada tangkapan Poppler yang diperkecil dan pada Splash tanpa anti-aliasing). Model kisi baris: bit baris salah yakin 470 menjadi 243, putusan geser saja 516 menjadi 542. 0 tuduhan salah dalam 2.346 pelacakan. Sejak [tahap penyelamat registrasi](#registrasi-bukti-gambar) halaman utuh disebut mulai 24 dpi |
 | 10 foto sintetis bersudut sampai 30 derajat (uji lambat `tests/test_image_decoder.py`) | 10 dari 10 benar |
 | Halaman gabungan digital: setengah atas salinan A, setengah bawah salinan B (2 pasangan) | penerima A dan B dituduh, tidak ada orang lain |
 | Teks salinan disalin-tempel (MuPDF dan poppler) | kode utuh, salinan teridentifikasi |
@@ -737,10 +738,38 @@ Batas bawah adalah resolusi terendah yang mulai dari sana setiap tangkapan halam
 * **Baris, sebelum dan sesudah** (pengukuran yang sama, didekode dua kali): bit baris salah yakin 470 menjadi 243; MuPDF PNG 50 menjadi 25 dan pesan 53 menjadi 31, Splash 116 menjadi 0, Splash tanpa anti-aliasing 33 menjadi 0, Cairo PNG 52 menjadi 31 dan pesan 57 menjadi 47, tangkapan yang diperkecil tetap 109. Baris yang dibaca model kisi: 8.458 berbobot di atas 0,95 dengan 2 salah, 209 berbobot 0,8 sampai 0,9 dengan 8,6 % salah (terkalibrasi 7,6 %). Putusan kanal geser saja benar 542 kali (lama 516; 27 bertambah, 1 hilang), putusan semua kanal sama (2.041), dan tidak ada tuduhan salah pada keduanya. Pada salinan skema v1 (dokumen lama) putusannya sama dan bit baris salah yakin turun dari 135 menjadi 79.
 * **Kelompok kata** dari 56 dpi ke atas mendekati terkalibrasi (bobot di atas 0,95 salah 0,4 %, terkalibrasi 0,2 %), di bawah 56 dpi terlalu yakin (4,4 % dan 0,9 %). Tangkapan Poppler yang digambar pada 180 dan 225 dpi lalu diperkecil ke 120 dan 150 dpi kehilangan geser kata (bit salah 16 sampai 17 %, geser saja menyebut 4 dari 24) karena Splash meninggalkan subpiksel pada kerapatan itu.
 * **Bobot yang terlalu yakin.** Baris yang tidak lolos gerbang tetap memakai model Gaussian: tangkapan yang diskalakan ulang (diperkecil, juga pesan 150 dpi yang dibatasi 1600 px), MuPDF di bawah 56 dpi, dan Cairo di bawah 64 dpi (gerbang tidak pernah terbuka pada 28 sampai 40 dpi dan jarang pada 56 dpi). Pada 28 sampai 48 dpi bit baris v2 dengan abs LLR paling sedikit 2 salah 24 sampai 27 % (MuPDF) dan 14 sampai 18 % (Cairo); Splash 0 %. Bobot pola latar setelah JPEG juga terlalu yakin di kelompok tertinggi: bobot di atas 0,95 salah 1,8 % pada 28 sampai 48 dpi (terkalibrasi 0,7 %), 0,9 % pada 56 sampai 84 dpi (0,2 %), dan 0,5 % dari 96 dpi (0,1 %). Batas deteksi dengan laju (1 - w)/2 tidak berlaku untuk tangkapan layar ([batasan 12](keamanan.md#batasan)); batas tuduhan salah tidak bergantung padanya.
-* **Jendela sebagian.** Jendela dari atas halaman ditemukan dan disebut pada 120 dari 120 tangkapan; jendela dari tengah halaman hanya ditemukan pada 60 dari 120 (registrasi gagal), dan setiap yang ditemukan disebut.
+* **Jendela sebagian.** Jendela dari atas halaman ditemukan dan disebut pada 120 dari 120 tangkapan; jendela dari tengah halaman hanya ditemukan pada 60 dari 120 (registrasi gagal), dan setiap yang ditemukan disebut. Angka bagian ini diukur sebelum [tahap penyelamat registrasi](#registrasi-bukti-gambar), yang kini menemukan halaman utuh mulai 24 dpi dan sebagian besar potongan dari tengah dan bawah halaman.
 * **Tidak ada tuduhan salah** dalam 2.346 pelacakan set uji dan 1.294 pelacakan set pengembangan, termasuk 192 dan 96 pelacakan induk tanpa tanda (skor tertinggi 0,35 dan 0,39 ambang). Skor tak bersalah tertinggi 0,64 ambang. Peringatan pola penghapusan muncul pada 3 dari 2.154 pelacakan salinan jujur.
 
 Yang belum diuji: PDF.js, PDFium, Adobe Reader, pengaturan hinting Okular (`pdftoppm` 24.02 tidak menyediakannya), layar dan aplikasi pesan sungguhan, dan halaman selain halaman 1 dua dokumen contoh. Satu rahasia kode per dokumen dan set, jadi tangkapan dalam satu sel tidak saling bebas sepenuhnya.
+
+## Registrasi bukti gambar
+
+Registrasi (`tapak/decoder/rectify.py`) menemukan halaman induk pada foto atau tangkapan layar dan memetakannya ke bingkai halaman itu. Dekoder geser dan latar membaca halaman yang sudah diluruskan, jadi bukti yang tidak ditemukan tidak membawa bit sama sekali. Semua langkahnya hanya memakai bukti, PDF induk, dan ukuran halaman, tidak pernah kode penerima.
+
+1. **Pose awal.** Garis tepi halaman (kontur OpenCV); bila tidak ada pose yang meyakinkan, pencocokan fitur SIFT terhadap render induk 100 dpi; bila masih tidak ada, kata Tesseract dicocokkan dengan kata induk (`lines.py`). Setiap pose awal dinilai cepat pada 30 dpi untuk setiap halaman.
+2. **ECC.** Dua kandidat terbaik diperhalus dengan ECC (korelasi tinta, kasar ke halus) terhadap induk pada resolusi analisis (100 sampai 300 dpi). Halaman dengan korelasi tertinggi dipakai bila korelasinya paling sedikit 0,75.
+3. **Tahap penyelamat** (`rescue_register`, sejak `research/registrasi`), hanya bila langkah 1 dan 2 tidak menemukan halaman:
+   * jendela penampil (bilah alat, latar jendela, tepi dan bayangan halaman) dikenali dari baris dan kolom yang tidak memuat kertas, lalu diganti warna kertas, sehingga tidak lagi menarik ECC ke tinta palsu (`paper_mask`);
+   * pose awal tambahan dari pencocokan templat banyak skala: tinta bukti dicari di tinta setiap halaman induk dengan korelasi silang ternormalisasi atas skala dan geseran, kasar (30 dpi) lalu halus (45 dpi) (`template_poses`);
+   * ECC hanya pada bagian halaman yang terlihat, dengan peta afin untuk tangkapan layar (tanpa perspektif, jadi potongan yang hanya memuat kaki halaman tidak memiringkan pose), dan pada resolusi bukti itu sendiri bila bukti di bawah 100 dpi;
+   * verifikasi: pose ditolak bila ECC mengubah skalanya lebih dari 25 % atau skala lokalnya menyebar lebih dari 1,6 kali, dan bila korelasi tinta bukti dengan induk pada pose itu, dihitung pada resolusi bukti setelah rata-rata lokal setiap baris dibuang (`pose_agreement`), di bawah 0,65. Pembuangan rata-rata baris penting: dokumen lain dengan font, tepi, dan jarak baris yang sama mencapai korelasi biasa sampai 0,91, tetapi setelah itu paling besar 0,58, sedangkan pose yang benar paling sedikit 0,70 (set pengembangan);
+   * pose yang menang tipis (kurang dari 0,05) atas pose lain di halaman lain atau di tempat lain pada halaman yang sama dianggap ambigu dan ditolak, misalnya potongan yang hanya memuat kaki halaman yang sama di dua halaman.
+
+   Kedua ambang verifikasi dipilih pada set pengembangan dengan aturan yang ditetapkan lebih dulu: di antara pasangan ambang yang tidak menerima satu pun pose salah (termasuk induk tanpa tanda dan bukti dokumen lain), pasangan yang menerima pose benar paling banyak, lalu dinaikkan satu langkah. Piksel jendela penampil tidak ikut didekode. Registrasi lewat tahap ini bermetode `penyelamat:<asal pose awal>` di catatan hasil. Bukti yang ditemukan langkah 1 dan 2 didekode persis seperti sebelumnya, jadi benchmark README tidak berubah.
+
+**Hasil** (`research/registrasi/`, [README studi](../research/registrasi/README.md); set uji 2.535 gambar baru, kedua dokumen contoh, halaman 1 dan 2, skema v2, dijalankan sekali; sebelum dan sesudah pada gambar yang sama):
+
+| Bukti | Disebut, sebelum -> sesudah |
+|---|---|
+| Halaman utuh 24 sampai 48 dpi, keempat penggambar, PNG, pesan, dan diperkecil | 314 -> 440 dari 440 (setiap sel mulai 24 dpi) |
+| Potongan layar dari tengah halaman, 25 sampai 85 % tingginya | 227 -> 317 dari 400 |
+| Potongan layar dari bawah halaman | 207 -> 394 dari 400 |
+| Potongan layar dari atas halaman | 480 dari 480, tidak berubah |
+| Satu paragraf | 130 -> 161 dari 240 (ditemukan 146 -> 237) |
+| Foto ponsel sebagian halaman | 168 -> 171 dari 208 |
+
+437 salinan baru disebut dan tidak ada yang hilang. Tidak ada tuduhan salah dalam 3.432 pelacakan, termasuk induk tanpa tanda dan 271 pelacakan terhadap dokumen yang lain, dan tidak ada peringatan baru pada bukti jujur. Dari 520 registrasi tahap penyelamat, 9 salah dokumen: potongan yang hanya memuat kaki halaman, yang sama persis di kedua dokumen contoh, diregistrasi pada dokumen yang lain; tidak ada bit pola latar yang terbaca dan jawabannya "tidak cukup bukti". Waktu per pelacakan naik dari median 6,6 menjadi 9,0 detik (bila tahap penyelamat berjalan median 14 detik, persentil ke-95 80 detik, di mesin yang dipakai bersama). Yang tetap tidak ditemukan: bagian halaman tanpa teks induk, dan sebagian besar foto ponsel sebagian halaman yang gagal (pencocokan templat tidak mencari perspektif).
 
 ## Kalibrasi bobot pola latar
 
