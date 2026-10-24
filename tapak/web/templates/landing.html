@@ -61,7 +61,7 @@
       <div class="ld-hero-visual" aria-label="Contoh: foto bocoran dilacak sampai ke salinan #{{ c.salinan }}" role="img">
         <figure class="ld-chat" aria-hidden="true">
           <figcaption class="ld-chat-head"><span class="ld-chat-dot"></span>Diteruskan ke grup<span class="ld-chat-time">21.47</span></figcaption>
-          <span class="ld-chat-photo"><img src="/static/img/landing-bukti.webp" alt="" width="675" height="900"><span class="ld-scan"></span></span>
+          <span class="ld-chat-photo"><img src="/static/img/landing-bukti.webp" alt="" width="690" height="900"><span class="ld-scan"></span></span>
         </figure>
         <div class="ld-result" aria-hidden="true">
           <div class="ld-result-head">
@@ -127,6 +127,40 @@
           <h3>Menebak merusak satuan</h3>
           <p>Penyelidikan manual memakan waktu berminggu-minggu. Satu tuduhan keliru merusak kepercayaan dan karier orang yang tidak bersalah.</p>
         </article>
+      </div>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------------ compared #}
+  <section class="ld-section ld-section-tight" id="banding" aria-labelledby="banding-h">
+    <div class="ld-wrap">
+      <h2 id="banding-h" class="ld-h2 ld-h2-sm">Dibanding cara yang biasa dipakai</h2>
+      <div class="ld-matrix-wrap ld-compare">
+        <table class="ld-matrix">
+          <caption class="sr-only">Cara melacak kebocoran dan apa yang dapat dilakukannya</caption>
+          <thead>
+            <tr><th scope="col">Pertanyaan</th>
+              {% for h in ["Watermark nama terlihat", "Metadata dan log akses", "Pengamanan jaringan (DLP)", "TAPAK"] %}<th scope="col"{% if loop.last %} class="ld-compare-us"{% endif %}><span>{{ h }}</span></th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set rows = [
+              ("Masih bekerja bila dokumen difoto?", ["y", "n", "n", "y"]),
+              ("Masih bekerja bila namanya dipotong atau ditutup?", ["n", "n", "n", "y"]),
+              ("Menunjuk penerima, bukan sekadar perangkat atau akun?", ["y", "h", "h", "y"]),
+              ("Bertahan bila beberapa penerima menggabungkan salinan?", ["n", "n", "n", "y"]),
+              ("Menyebut peluang salah tuduhnya?", ["n", "n", "n", "y"]),
+              ("Berjalan tanpa layanan awan?", ["y", "h", "h", "y"]),
+            ] %}
+            {% for q, cells in rows %}
+            <tr>
+              <th scope="row"><span class="ld-matrix-name">{{ q }}</span></th>
+              {% for v in cells %}<td{% if loop.last %} class="ld-compare-us"{% endif %}><span class="ld-cell ld-cell-{{ v }}" aria-hidden="true"></span><span class="sr-only">{{ {"y": "ya", "h": "sebagian", "n": "tidak"}[v] }}</span></td>{% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="ld-matrix-key" aria-hidden="true"><span><i class="ld-cell ld-cell-y"></i>ya</span><span><i class="ld-cell ld-cell-h"></i>sebagian atau bergantung pemasangan</span><span><i class="ld-cell ld-cell-n"></i>tidak</span></p>
       </div>
     </div>
   </section>
