@@ -49,6 +49,7 @@ Dijalankan sekali dengan kode komit pilihan (`5f258a5`, hash sumber dekoder di `
 * **Bacaan gabungan, bobot di atas 0,99**: foto dasar 76 / 53.454 (terkalibrasi 0,04 %) menjadi 16 / 52.049 (0,03 % terhadap 0,04 %), foto cetakan 80 / 118.008 menjadi 22 / 117.241 (0,02 % terhadap 0,03 %), tangkapan simulator 6 menjadi 0.
 * **Putusan.** 1 bertambah (foto dasar 39 menjadi 40 dari 40), 0 hilang; skor median praktis sama (rasio 0,9997 sampai 1,002). Tidak ada peringatan dari ketiga pemeriksaan pada pelacakan jujur, sebelum maupun sesudah.
 * **Tuduhan salah:** 0 dari 520, termasuk 36 induk tanpa tanda lewat setiap medium; skor tak bersalah tertinggi 0,61 kali ambang (sebelumnya juga 0,61).
+* **Benchmark README** (128 pelacakan `make bench-check` dari awal dengan kode gabungan, `docs/results/bench_photos.json` dibuat ulang): foto cetakan satu halaman 9 menjadi 10 dari 16 (halaman 2 salinan 13 pada 30 derajat kini disebut), putusan lain sama (foto layar 40 dari 40, cetakan dua halaman 8 dari 8, ISP ponsel 32 dari 32, monitor 32 dari 32), 0 tuduhan salah. Batas peluang tuduhan salah bergeser sedikit; yang terburuk per set: cetakan satu halaman 5,3 x 10^-7 menjadi 2,9 x 10^-7, dua halaman 2,2 x 10^-11 menjadi 8,9 x 10^-12, foto layar 10^-6,0 menjadi 10^-6,7 (foto jenuh), monitor 10^-7,1 menjadi 10^-6,5.
 * **Batas deteksi terhadap laju lolos tahap 1.** Di setiap kelas, laju lolos terukur tidak melampaui rata-rata batas per bacaan (misalnya salinan foto cetakan 10 dari 80, batas rata-rata 0,125; koalisi 3 salinan lewat foto 1 dari 6, batas 0,28).
 
 ## Yang tersisa
@@ -70,5 +71,7 @@ $G/kandidat.py pilih          # aturan: hasil/pilihan.json
 $G/ukur.py terbit && $G/ukur.py lacak     # set uji, sekali, dengan model pilihan
 $G/ringkas.py --json          # hasil/ringkas_uji.json
 ```
+
+`bench.py` melacak keempat set foto benchmark README dengan kedua model kata dan mencatat hitungan kalibrasinya (perintah di docstring-nya); angka benchmark di atas berasal dari `make bench-check`, karena jalannya terlalu lama di mesin yang dipakai bersama dan dihentikan.
 
 `ukur.py lacak` menolak berjalan bila model kata bawaan dekoder (`ch_shift.IMAGE_WORD_MODEL`) bukan pilihan di `hasil/pilihan.json`, mencatat hash sumber dekoder di `hasil/uji_dekoder.json` sebelum pelacakan pertama, dan melewati bukti yang sudah tercatat bila diulang setelah terputus.
