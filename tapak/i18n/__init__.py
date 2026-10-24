@@ -88,9 +88,10 @@ def translate_text(text: str) -> str:
     return _english_sentence(text) or text
 
 
-def _english_sentence(text: str) -> str | None:
+def _english_sentence(text: str, split: bool = True) -> str | None:
     """English for a library sentence, also as a page shows it (capitalised, with a final full
-    stop); None when the catalog does not know it. Exact entries win over rules."""
+    stop); None when the catalog does not know it. Exact entries win over rules; with ``split``
+    a sentence no rule matches is tried as clauses joined with "; "."""
     core, stop = (text[:-1], ".") if text.endswith(".") and not text.endswith("..") else (text, "")
     candidates = [(text, "", False), (core, stop, False), (core[:1].lower() + core[1:], stop, core[:1].isupper())]
 
@@ -107,11 +108,42 @@ def _english_sentence(text: str) -> str | None:
             if m:
                 return finish(template.format(**{k: _value(v, flags[k]) for k, v in m.groupdict().items()}), end,
                               capital)
-    if "; " in core:  # clauses joined by the library ("...; kanal semantik dilewati")
-        clauses = [_english_sentence(c) for c in core.split("; ")]
-        if all(clauses):
-            return "; ".join(clauses) + stop  # type: ignore[arg-type]
+    clauses = _clauses(core) if split else []
+    if len(clauses) > 1:  # clauses joined by the library ("...; kanal semantik dilewati")
+        found = _joined(clauses, strict=True)
+        return None if found is None else found + stop
     return None
+
+
+def _clauses(text: str) -> list[str]:
+    """``text`` split at the "; " that are not inside parentheses."""
+    out, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        depth += (ch == "(") - (ch == ")")
+        if depth == 0 and text.startswith("; ", i):
+            out.append(text[start:i])
+            start = i + 2
+    return [*out, text[start:]]
+
+
+def _joined(clauses: list[str], strict: bool) -> str | None:
+    """English for clauses the library joined with "; ", the longest run the catalog knows as
+    one sentence first (a clause may hold "; " itself). A clause it does not know makes the
+    whole None when ``strict``, else it stays as written with its numbers rewritten."""
+    out, i = [], 0
+    while i < len(clauses):
+        for j in range(len(clauses), i, -1):
+            found = _english_sentence("; ".join(clauses[i:j]), split=False) if j - i < len(clauses) else None
+            if found:
+                out.append(found)
+                i = j
+                break
+        else:
+            if strict:
+                return None
+            out.append(number_text(clauses[i]))
+            i += 1
+    return "; ".join(out)
 
 
 def _value(value: str, flag: str) -> str:
@@ -119,9 +151,10 @@ def _value(value: str, flag: str) -> str:
     translated items (l, c), or as it is with its numbers rewritten."""
     if flag == "t":
         return _english_sentence(value) or number_text(value)
-    if flag in ("l", "c"):
-        sep = "; " if flag == "l" else ", "
-        return sep.join(_english_sentence(item) or number_text(item) for item in value.split(sep))
+    if flag == "l":
+        return _english_sentence(value) or _joined(_clauses(value), strict=False)  # type: ignore[return-value]
+    if flag == "c":
+        return ", ".join(_english_sentence(item) or number_text(item) for item in value.split(", "))
     return number_text(value)
 
 

@@ -1429,6 +1429,176 @@ EN: dict[str, str | tuple[str, str]] = {
     "llama.cpp lokal":
         "the llama_cpp library is not installed; install llama-cpp-python, or clear the model path and run a local "
         "llama.cpp server",
+    # errors of the core library (a page shows the message of a refused request)
+    "kata kode harus berukuran (jumlah salinan, m)": "the code words must have the shape (number of copies, m)",
+    "jatah eps pelacakan tidak berasal dari eps dokumen ini": "the trace\u2019s eps share does not come from this document\u2019s eps",
+    "kelompok terlalu sedikit untuk derajat gangguan ini": "too few groups for this degree of noise",
+    "sigma harus positif": "sigma must be positive",
+    "derajat kebebasan harus positif": "the degrees of freedom must be positive",
+    "sigma dan delta harus positif": "sigma and delta must be positive",
+    "satu LLR per kelompok": "one LLR per group",
+    "baris dan posisinya harus sama panjang; delta, rentang, dan langkah positif":
+        "the lines and their positions must have the same length; delta, range and step must be positive",
+    "kisi piksel memerlukan homografi 3x3 dan resolusi positif": "a pixel grid needs a 3x3 homography and a positive resolution",
+    "pemeriksaan bacaan jelas tanpa nama tidak berbunyi": "the check for clear readings that name no one did not fire",
+    "jumlah statistik minimal 1": "at least 1 statistic is needed",
+    "pemeriksaan pola penghapusan tidak berbunyi": "the erasure pattern check did not fire",
+    "pemeriksaan pola penghapusan memakai satu atau dua aturan latar": "the erasure pattern check uses one or two background rules",
+    "tidak ada bacaan untuk digabung": "no readings to merge",
+    "berkas gambar tidak dapat dibaca": "the image file cannot be read",
+    "gambar terlalu besar; maksimum 60 megapiksel": "the image is too large; at most 60 megapixels",
+    "gambar terlalu besar (maksimum 60 megapiksel) atau rusak": "the image is too large (at most 60 megapixels) or damaged",
+    "hasil atribusi tidak konsisten: putusan tidak sesuai dengan daftar salinan yang dituduh":
+        "inconsistent attribution result: the verdict does not match the list of accused copies",
+    "nilai harus positif dan terhingga": "the value must be positive and finite",
+    "hasil atribusi tidak konsisten: status tuduhan suatu salinan tidak sesuai dengan skornya dan ambang Z":
+        "inconsistent attribution result: a copy\u2019s accusation status does not match its score and the threshold Z",
+    "gagal membuat berita acara: sumber lokal tidak tersedia atau ditolak (hanya fon dan templat bawaan yang boleh "
+    "dipakai)":
+        "the forensic report could not be made: a local resource is missing or was refused (only the bundled fonts "
+        "and templates may be used)",
+    "bobot dan p harus berukuran sama": "the weights and p must have the same size",
+    "pemeriksaan pola tanda terbalik tidak berbunyi": "the reversed-sign pattern check did not fire",
+    "varians pilot tidak sah": "invalid pilot variance",
+    "posisi dan kekuatan harus sama panjang": "positions and strengths must have the same length",
+    "posisi dan llr harus sama panjang": "positions and LLRs must have the same length",
+    "folder samples/templates tidak ditemukan; jalankan dari akar repositori TAPAK":
+        "the samples/templates folder was not found; run from the root of the TAPAK repository",
+    "benih riset harus bilangan bulat tidak negatif": "the research seed must be a non-negative integer",
+    "alamat server LLM harus memakai http atau https": "the LLM server address must use http or https",
+    "alamat server LLM tidak boleh memuat nama pengguna, '@', atau garis miring terbalik":
+        "the LLM server address may not contain a user name, '@' or a backslash",
+    "pengodean PNG gagal": "PNG encoding failed",
+    "dasar +/- amplitudo harus tetap di antara 0 dan 255": "base +/- amplitude must stay between 0 and 255",
+    "pengaturan sel tidak sah": "invalid cell settings",
+    "URL kanari harus ASCII": "the canary URL must be ASCII",
+    "berkas PDF tidak dapat dibaca": "the PDF file cannot be read",
+    "berkas DOCX tidak dapat dibaca": "the DOCX file cannot be read",
+    "indeks karakter di luar kata": "character index outside the word",
+    "paling banyak 4 bit per kata": "at most 4 bits per word",
+    "panjang codeword tidak sama dengan m pada rencana penandaan": "the code word length differs from the m of the marking plan",
+    "berkas bukan dokumen Word (DOCX) yang valid": "the file is not a valid Word (DOCX) document",
+    "dokumen tidak memiliki teks yang dapat ditandai": "the document has no text that can be marked",
+    "rencana penandaan tidak cocok dengan dokumen ini": "the marking plan does not match this document",
+    "n_max tidak diketahui": "n_max is unknown",
+    "vektor bias diperlukan untuk aturan posisi ketik ulang": "a bias vector is needed for the retype position rule",
+    "jumlah bit harus genap, paling banyak 8": "the number of bits must be even, at most 8",
+    "kumpulan posisi harus sepanjang kode": "the position set must be as long as the code",
+    "tidak ada posisi kode yang memenuhi aturan posisi": "no code position satisfies the position rule",
+    "id unit semantik ganda": "duplicate semantic unit id",
+    "varian, hasil kesetaraan, dan status harus sama panjang": "variants, equivalence results and statuses must have the same length",
+    "unit semantik harus berurutan sesuai urutan baca dan tidak bertumpang tindih":
+        "semantic units must follow the reading order and must not overlap",
+    "gambar halaman harus berupa array grayscale dua dimensi (uint8 atau float32)":
+        "the page image must be a two-dimensional grayscale array (uint8 or float32)",
+    "gambar halaman terlalu kecil": "the page image is too small",
+    "pengodean JPEG gagal": "JPEG encoding failed",
+    "berkas bukan JPEG yang valid": "the file is not a valid JPEG",
+    "sudut pandang harus di antara 0 dan 80 derajat": "the viewing angle must be between 0 and 80 degrees",
+    "pose kamera tidak valid: halaman berada di belakang kamera": "invalid camera pose: the page is behind the camera",
+    "lapisan teks dan latar harus berukuran sama": "the text and background layers must have the same size",
+    "resolusi render harus lebih dari 0 dpi": "the render resolution must be above 0 dpi",
+    "halaman tidak muat di layar; perkecil page_height_frac": "the page does not fit on the screen; lower page_height_frac",
+    "resolusi layar harus lebih dari 0 dpi": "the screen resolution must be above 0 dpi",
+    "benih acak harus bilangan bulat tidak negatif": "the random seed must be a non-negative integer",
+    "jumlah gambar per salinan tidak boleh negatif": "the number of images per copy cannot be negative",
+    "foto cetak tidak dapat digabung dengan ISP ponsel atau foto layar":
+        "print photos cannot be combined with the phone ISP or with screen photos",
+    "raster harus 'am' atau 'dispersed'": "raster must be 'am' or 'dispersed'",
+    "resolusi printer atau keluaran tidak sah": "invalid printer or output resolution",
+    "skala cetak harus di antara 0 dan 1": "the print scale must be between 0 and 1",
+    "profil netral tidak memiliki langkah ISP": "the neutral profile has no ISP steps",
+    "supersample harus di antara 1 dan 6": "supersample must be between 1 and 6",
+    "jarak kamera harus lebih dari 0 cm": "the camera distance must be above 0 cm",
+    "log jangkar cocok dengan registri; tidak ada entri yang perlu diakui":
+        "the anchor log matches the registry; no entries need acknowledging",
+    "alasan wajib diisi (--alasan): tulis singkat apa yang terjadi dan siapa yang memeriksa, tanpa isi dokumen dan "
+    "tanpa nama penerima":
+        "a reason is required (--alasan): write briefly what happened and who checked it, without document text and "
+        "without recipient names",
+    "registri belum memakai log jangkar; jalankan tapak jangkar mulai tanpa --ulang":
+        "the registry does not use an anchor log yet; run tapak jangkar mulai without --ulang",
+    "created_at harus memiliki zona waktu": "created_at must have a time zone",
+    "isi entri harus berupa objek JSON (dict)": "the entry payload must be a JSON object (dict)",
+    "recipient_id wajib diisi": "recipient_id is required",
+    "canary_token harus berupa teks atau None": "canary_token must be text or None",
+    "dokumen ini tidak tercatat di registri; pelacakan tidak dapat dicatat":
+        "this document is not in the registry; the trace cannot be recorded",
+    "pohon Merkle membutuhkan minimal satu entri": "a Merkle tree needs at least one entry",
+    "daun pohon Merkle harus hash SHA-256 (64 karakter heksadesimal)":
+        "the leaves of a Merkle tree must be SHA-256 hashes (64 hexadecimal characters)",
+    "indeks di luar daftar entri": "index outside the list of entries",
+    "berkas kunci publik harus berbeda dari berkas kunci privat": "the public key file must differ from the private key file",
+    "benih kunci penanda tangan harus 32 byte": "the signing key seed must be 32 bytes",
+    "y dan p harus berukuran sama": "y and p must have the same size",
+    "bobot harus di antara 0 dan 1": "the weight must be between 0 and 1",
+    "eps1 harus di antara 0 dan 1": "eps1 must be between 0 and 1",
+    "n tidak boleh negatif": "n cannot be negative",
+    "batas bias harus di antara 0 dan 0,5": "the bias cutoff must be between 0 and 0.5",
+    "kata kode harus vektor biner 1 dimensi": "a code word must be a 1-dimensional binary vector",
+    "panjang kode minimal 1": "the code length must be at least 1",
+    "ukuran koalisi minimal 1": "the coalition size must be at least 1",
+    "ambang z harus positif dan berhingga": "the z threshold must be positive and finite",
+    "target delta harus di antara 0 dan 1": "the delta target must be between 0 and 1",
+    "faktor peredam harus di antara 0 dan 1": "the damping factor must be between 0 and 1",
+    "laju bit salah harus di antara 0 dan 0,5": "the bit error rate must be between 0 and 0.5",
+    "target delta tidak tercapai sampai m = 10^8": "the delta target is not reached up to m = 10^8",
+    "bobot, laju bit salah, dan peluang harus sama panjang dan tidak kosong":
+        "weights, bit error rates and probabilities must have the same length and must not be empty",
+    "peluang harus tidak negatif dan berjumlah 1": "the probabilities must be non-negative and sum to 1",
+    "jumlah kotak minimal 1": "at least 1 bin is needed",
+    "ukuran koalisi c minimal 1": "the coalition size c must be at least 1",
+    "peluang tuduhan salah eps harus di antara 0 dan 1": "the false accusation probability eps must be between 0 and 1",
+    "jumlah penerima maksimum n_max minimal 1": "the maximum number of recipients n_max must be at least 1",
+    "jatah eps pelacakan harus di antara 0 dan 1": "the trace\u2019s eps share must be between 0 and 1",
+    "bagian tahap 1 harus di antara 0 dan 1": "the share of stage 1 must be between 0 and 1",
+    "jumlah tahap maksimum harus bilangan bulat mulai dari 1": "the maximum number of stages must be a whole number from 1",
+    "kebijakan satu tahap harus memberi seluruh jatah ke tahap 1": "a one-stage policy must give the whole share to stage 1",
+    "jatah eps pelacakan tidak sesuai jadwal 6 / (pi^2 k^2)": "the trace\u2019s eps share does not follow the schedule 6 / (pi^2 k^2)",
+    "kata kode salinan yang sudah dituduh harus berukuran (a, m)":
+        "the code words of the copies already accused must have the shape (a, m)",
+    "bobot dekoder dan p harus berukuran sama": "the decoder weights and p must have the same size",
+    "tahap lanjutan memerlukan sedikitnya satu salinan yang sudah dituduh": "a follow-up stage needs at least one copy already accused",
+    "sedikitnya satu tahap diperlukan": "at least one stage is needed",
+    # schema checks of registry entries (registry/chain.py), after "entri pelacakan: " and the like
+    "isi entri pelacakan bukan objek JSON": "the trace entry\u2019s payload is not a JSON object",
+    "doc_hash entri pelacakan bukan SHA-256 heksadesimal": "the trace entry\u2019s doc_hash is not a hexadecimal SHA-256",
+    "evidence_sha256 harus daftar SHA-256 heksadesimal yang tidak kosong":
+        "evidence_sha256 must be a non-empty list of hexadecimal SHA-256 hashes",
+    "trace_no harus bilangan bulat mulai dari 1": "trace_no must be a whole number from 1",
+    "eps entri pelacakan harus di antara 0 dan 1": "the trace entry\u2019s eps must be between 0 and 1",
+    "created_at entri pelacakan bukan waktu ISO 8601 dengan zona waktu":
+        "the trace entry\u2019s created_at is not an ISO 8601 time with a time zone",
+    "stage_policy dan stage_eps entri pelacakan harus hadir bersama":
+        "the trace entry\u2019s stage_policy and stage_eps must be present together",
+    "stage_policy entri pelacakan bukan kebijakan tahap yang dikenal":
+        "the trace entry\u2019s stage_policy is not a known stage policy",
+    "isi entri log jangkar bukan objek JSON": "the anchor log entry\u2019s payload is not a JSON object",
+    "peristiwa log jangkar tidak dikenal": "unknown anchor log event",
+    "log_id entri log jangkar bukan 32 karakter heksadesimal": "the anchor log entry\u2019s log_id is not 32 hexadecimal characters",
+    "released entri log jangkar harus daftar [nomor entri, hash]":
+        "the anchor log entry\u2019s released must be a list of [entry number, hash]",
+    "released entri log jangkar harus terurut dan tanpa pasangan ganda":
+        "the anchor log entry\u2019s released must be sorted and without duplicate pairs",
+    "released hanya diisi, dan wajib diisi, pada pengakuan (ack)": "released is filled in on an acknowledgement (ack), and only there",
+    "reason_sha256 entri log jangkar bukan SHA-256 heksadesimal":
+        "the anchor log entry\u2019s reason_sha256 is not a hexadecimal SHA-256",
+    "alasan wajib dicatat untuk memulai ulang log jangkar dan untuk pengakuan":
+        "a reason must be recorded to restart the anchor log and for an acknowledgement",
+    "created_at entri log jangkar bukan waktu ISO 8601 dengan zona waktu":
+        "the anchor log entry\u2019s created_at is not an ISO 8601 time with a time zone",
+    "skema geser tidak dikenal": "unknown shift scheme",
+    "kolom halaman pindaian tidak sesuai skema": "the scanned page fields do not match the schema",
+    "daftar halaman pindaian tidak sah": "invalid list of scanned pages",
+    "resolusi halaman pindaian tidak sah": "invalid resolution of the scanned pages",
+    "daftar halaman berlapis OCR tidak sah": "invalid list of pages with an OCR layer",
+    "keterangan mesin OCR tidak sah": "invalid OCR engine description",
+    "boxes_sha256 bukan SHA-256 heksadesimal": "boxes_sha256 is not a hexadecimal SHA-256",
+    "aturan posisi ketik ulang tidak dikenal": "unknown retype position rule",
+    "lexicon_version tidak sah": "invalid lexicon_version",
+    "leksikon wajib memiliki id dan version": "the lexicon must have an id and a version",
+    "leksikon tidak memiliki aturan": "the lexicon has no rules",
+    "aturan harus berupa objek": "a rule must be an object",
     # ---------------------------------------------------------------- berita acara (decoder/report.py,
     # decoder/templates/berita_acara.html): an English rendition; the Indonesian form is official
     "Berita Acara Pemeriksaan Digital %(no)s": "Digital Examination Report %(no)s",
@@ -1853,8 +2023,10 @@ EN: dict[str, str | tuple[str, str]] = {
 }
 
 # ---------------------------------------------------------------- sentences of the core library
-# (Indonesian template, English template). A placeholder matches any text; {x:t} is translated
-# itself, {x:l} is a "; " list and {x:c} a ", " list whose items are translated one by one.
+# (Indonesian template, English template). A placeholder matches any text, except that a plain
+# one starting or ending the template holds no "; ", so a rule never leaves the clauses the
+# library joins before or after it untranslated; {x:t} is translated itself, {x:l} is a "; "
+# list and {x:c} a ", " list whose items are translated one by one.
 # Numbers in the other placeholders are rewritten the English way. Tried in order, on the whole
 # sentence first; a sentence no rule matches is split at "; " and its clauses tried one by one.
 RULES: list[tuple[str, str]] = [
@@ -2129,9 +2301,9 @@ RULES: list[tuple[str, str]] = [
     ("entri dokumen: {why:t}", "document entry: {why}"),
     ("entri log jangkar: {why:t}", "anchor log entry: {why}"),
     ("nomor pelacakan ke-{n}, seharusnya ke-{m} untuk dokumen {doc} (nomor ganda atau terlewat: catatan pelacakan tidak "
-     "dapat dipercaya)",
-     "trace number {n}, should be {m} for document {doc} (a duplicate or skipped number: the trace record cannot be "
-     "trusted)"),
+     "ditulis TAPAK)",
+     "trace number {n}, should be {m} for document {doc} (a duplicate or skipped number: TAPAK did not write this "
+     "trace record)"),
     ("jangkar #{n} tidak ditemukan: entri ini tidak ada lagi di registri (entri di ujung rantai dihapus?)",
      "anchor #{n} not found: this entry is no longer in the registry (entries at the end of the chain deleted?)"),
     ("log jangkar: {why:t}", "anchor log: {why}"),
@@ -2149,13 +2321,13 @@ RULES: list[tuple[str, str]] = [
     ("ditandatangani kunci lain ({key}...), bukan kunci publik yang diperiksa",
      "signed with another key ({key}...), not the public key checked"),
     ("{n} entri ({span}) belum bertanda tangan, jadi tidak terlindungi dari pemalsuan (minta pemegang kunci menjalankan "
-     "sign-pending)",
+     "sign-pending, atau pakai --izinkan-belum-bertanda-tangan bila penandatanganan memang ditunda)",
      "{n} entries ({span}) are not signed yet, so they are not protected against forgery (ask the key holder to run "
-     "sign-pending)"),
+     "sign-pending, or use --izinkan-belum-bertanda-tangan if signing is deferred on purpose)"),
     ("{n} entri ({span}) belum bertanda tangan; entri itu hanya dilindungi rantai hash, yang dapat dihitung ulang oleh "
-     "siapa pun yang dapat menulis registri",
-     "{n} entries ({span}) are not signed yet; they are protected only by the hash chain, which anyone who can write "
-     "the registry can recompute"),
+     "siapa pun",
+     "{n} entries ({span}) are not signed yet; they are protected only by the hash chain, which anyone can "
+     "recompute"),
     ("akar Merkle tidak dapat diperiksa: {why:t}", "the Merkle roots cannot be checked: {why}"),
     ("kolom entri pelacakan tidak sesuai skema: kurang {missing}, berlebih {extra}",
      "the trace entry\u2019s fields do not match the schema: missing {missing}, extra {extra}"),
@@ -2187,7 +2359,7 @@ RULES: list[tuple[str, str]] = [
     ("baris yang tertinggal untuk entri {span} dilengkapi", "the missing lines for entries {span} were added"),
     ("entri baru {span} dicatat di log", "new entries {span} written to the log"),
     ("log memuat {n} pengakuan pemulihan, terakhir {when} ({m} entri dilepas; lihat tapak verify)",
-     "the log holds {n} recovery acknowledgements, the last {when} ({m} entries released; see tapak verify)"),
+     "recovery acknowledgements in the log: {n}, the last {when} ({m} entries released; see tapak verify)"),
     ("{n} entri pelacakan di antaranya hilang dari registri, jadi nomor dan jatah eps pelacakan itu dapat terpakai lagi "
      "dan batas tuduhan salah gabungan untuk dokumennya tidak lagi terjamin",
      "{n} trace entries among them are gone from the registry, so those trace numbers and eps shares can be used "
@@ -2299,6 +2471,297 @@ RULES: list[tuple[str, str]] = [
     ("cara bocor tidak dikenal: {m}", "unknown kind of leak: {m}"),
     ("{name} harus bilangan bulat positif (jumlah proses kerja paling banyak), bukan {v}",
      "{name} must be a positive whole number (the largest number of worker processes), not {v}"),
+
+    # errors of the core library (a page shows the message of a refused request)
+    ("waktu harus berupa datetime atau teks ISO 8601: {v}", "the time must be a datetime or ISO 8601 text: {v}"),
+    ("waktu bukan format ISO 8601 yang sah: {v}", "the time is not valid ISO 8601: {v}"),
+    ("paling banyak {n} kelompok per baris", "at most {n} groups per line"),
+    ("aturan latar tidak dikenal: {r}", "unknown background rule: {r}"),
+    ("kanal {ch}: posisi kekuatan di luar [0, {m})", "channel {ch}: strength position outside [0, {m})"),
+    ("kanal {ch}: posisi di luar [0, {m})", "channel {ch}: position outside [0, {m})"),
+    ("gambar terlalu besar ({w}x{h} piksel); maksimum 60 megapiksel",
+     "the image is too large ({w}x{h} pixels); at most 60 megapixels"),
+    ("putusan tidak dikenal: {v}", "unknown verdict: {v}"),
+    ("sumber eksternal ditolak: {u}", "external resource refused: {u}"),
+    ("berkas di luar folder aset ditolak: {f}", "file outside the asset folder refused: {f}"),
+    ("jenis barang bukti tidak dikenal: {v}; pilihan: {c}", "unknown kind of evidence: {v}; choices: {c}"),
+    ("hasil atribusi tidak konsisten: tahap {n} tidak bersandar pada salinan yang dituduh pada tahap sebelumnya",
+     "inconsistent attribution result: stage {n} does not build on the copies accused in the stage before"),
+    ("hasil atribusi tidak konsisten: tahap {n} menilai ulang salinan yang sudah dituduh",
+     "inconsistent attribution result: stage {n} scores copies that were already accused"),
+    ("hasil atribusi tidak konsisten: tahap {n} berjalan setelah tahap yang tidak menuduh siapa pun",
+     "inconsistent attribution result: stage {n} ran after a stage that accused no one"),
+    ("hasil atribusi tidak konsisten: status tuduhan tahap {n} tidak sesuai dengan skor dan ambang tahap itu",
+     "inconsistent attribution result: the accusation status of stage {n} does not match that stage\u2019s scores and "
+     "threshold"),
+    ("{f} bukan folder demo TAPAK dan tidak kosong; pilih folder lain",
+     "{f} is not a TAPAK demo folder and is not empty; choose another folder"),
+    ("font {name} tidak disertakan; tersedia: {names}", "font {name} is not bundled; available: {names}"),
+    ("rahasia kode harus 32 byte: {f}", "the code secret must be 32 bytes: {f}"),
+    ("folder kunci sudah berisi rahasia kode lain ({f}); benih riset tidak pernah menimpanya. Pakai folder kunci "
+     "tersendiri untuk penerbitan riset",
+     "the key folder already holds another code secret ({f}); a research seed never overwrites it. Use a separate key "
+     "folder for research issuances"),
+    ("rahasia kode tidak ditemukan: {f}", "code secret not found: {f}"),
+    ("server LLM harus berada di mesin ini (127.0.0.1, ::1, atau localhost), bukan {h}",
+     "the LLM server must run on this machine (127.0.0.1, ::1 or localhost), not {h}"),
+    ("{var} harus berupa jumlah detik antara 1 dan 3600, bukan {v}", "{var} must be a number of seconds between 1 and 3600, not {v}"),
+    ("alamat server LLM tidak valid: {u}", "invalid LLM server address: {u}"),
+    ("{why:t}; pastikan TAPAK_LLM_URL menunjuk ke llama-server (GET {p} harus menjawab)",
+     "{why}; make sure TAPAK_LLM_URL points to llama-server (GET {p} must answer)"),
+    ("penyedia LLM tidak dikenal: {n} (pilihan: mock, llamacpp)", "unknown LLM provider: {n} (choices: mock, llamacpp)"),
+    ("domain kanari tidak valid: {d}", "invalid canary domain: {d}"),
+    ("token kanari tidak valid: {t}", "invalid canary token: {t}"),
+    ("jenis berkas tidak didukung untuk kanari: {k}", "file type not supported for a canary: {k}"),
+    ("recipient_id tidak valid untuk nama berkas: {r} (hanya huruf, angka, titik, garis bawah, dan tanda hubung)",
+     "recipient_id cannot be used in a file name: {r} (letters, digits, dots, underscores and hyphens only)"),
+    ("recipient_id ganda: {r}", "duplicate recipient_id: {r}"),
+    ("dokumen tidak memiliki teks yang dapat ditandai (font belum terverifikasi: {fonts})",
+     "the document has no text that can be marked (fonts not yet verified: {fonts})"),
+    ("kebijakan tidak dikenal: {p}", "unknown policy: {p}"),
+    ("jumlah bentuk titik {p} tidak sesuai dengan rencana penyematan",
+     "the number of forms of point {p} does not match the embedding plan"),
+    ("skema geser tidak dikenal: {s}", "unknown shift scheme: {s}"),
+    ("besar geser harus di antara 0 dan {n} mm", "the shift must be between 0 and {n} mm"),
+    ("skema {s}: geser kata paling besar {n} mm", "scheme {s}: a word shifts at most {n} mm"),
+    ("aturan posisi ketik ulang tidak dikenal: {r}", "unknown retype position rule: {r}"),
+    ("kalimat asli unit {u} tidak dapat ditata ulang pada baris yang sama",
+     "the original sentence of unit {u} cannot be laid out again on the same lines"),
+    ("unit ganda dalam himpunan varian: {u}", "duplicate unit in the variant sets: {u}"),
+    ("unit {u} tidak memiliki himpunan varian", "unit {u} has no variant set"),
+    ("himpunan varian tidak cocok dengan unit {u} (dibuat untuk kalimat lain)",
+     "the variant set does not match unit {u} (it was made for another sentence)"),
+    ("jumlah varian unit {u} tidak sesuai dengan rencana penyematan",
+     "the number of variants of unit {u} does not match the embedding plan"),
+    ("varian {u}:v{i} tidak muat pada baris aslinya", "variant {u}:v{i} does not fit on its original lines"),
+    ("sisi panjang gambar minimal {n} piksel", "the long side of the image must be at least {n} pixels"),
+    ("resolusi render harus di antara {a} dan {b} dpi", "the render resolution must be between {a} and {b} dpi"),
+    ("manifest.json tidak ditemukan di {f}", "manifest.json not found in {f}"),
+    ("nama berkas salinan tidak valid di manifest: {f}", "invalid copy file name in the manifest: {f}"),
+    ("berkas salinan tidak ditemukan: {f}", "copy file not found: {f}"),
+    ("berkas salinan tidak cocok dengan manifest (sha256 berbeda): {f}",
+     "the copy file does not match the manifest (different sha256): {f}"),
+    ("manifest.json rusak atau tidak dikenali di {f}", "manifest.json is damaged or not recognised in {f}"),
+    ("daftar bilangan bulat tidak valid: {v}", "invalid list of integers: {v}"),
+    ("daftar sudut tidak valid: {v}", "invalid list of angles: {v}"),
+    ("profil ISP tidak dikenal: {n}; pilih 'netral' atau 'ponsel'", "unknown ISP profile: {n}; choose 'netral' or 'ponsel'"),
+    ("langkah ISP tidak dikenal: {s}; pilih salah satu dari {c}", "unknown ISP step: {s}; choose one of {c}"),
+    ("monitor tidak dikenal: {m}; pilih dari {c}", "unknown monitor: {m}; choose from {c}"),
+    ("alasan terlalu panjang ({n} karakter, paling banyak {most})", "the reason is too long ({n} characters, at most {most})"),
+    ("penanda media {f} tidak dapat dibaca atau rusak. Periksa media itu; pindahkan penandanya (simpan sebagai bukti) "
+     "hanya bila media ini memang media log jangkar",
+     "the media marker {f} cannot be read or is damaged. Check that medium; move its marker away (keep it as "
+     "evidence) only if this medium really holds the anchor log"),
+    ("folder {f} tidak memuat penanda media log jangkar ({m}). Penyimpanan terpisahnya mungkin belum dipasang, dan "
+     "folder ini hanya titik kait kosong di disk lokal: pasang dulu penyimpanannya, lalu ulangi. Bila log memang "
+     "dipindah ke media baru, atau media lama dipakai sebelum ada penanda, ulangi dengan --tandai-media",
+     "folder {f} holds no anchor log media marker ({m}). Its separate storage may not be mounted, and the folder may "
+     "be only an empty mount point on the local disk: mount the storage first, then try again. If the log really "
+     "moved to new media, or old media was in use before markers existed, try again with --tandai-media"),
+    ("rantai registri rusak di entri #{n} ({why:t}); log jangkar tidak dimulai di atas registri yang rusak. Periksa "
+     "dengan tapak verify",
+     "the registry chain is broken at entry #{n} ({why}); an anchor log is not started on top of a broken registry. "
+     "Check it with tapak verify"),
+    ("log jangkar di {f} sudah dimulai dan tercatat di registri (entri #{n}); tidak perlu dimulai lagi",
+     "the anchor log at {f} is already started and recorded in the registry (entry #{n}); it need not be started "
+     "again"),
+    ("log jangkar di {f} dimulai dengan --ulang tetapi belum tercatat di registri; ulangi perintah yang sama untuk "
+     "menyelesaikannya",
+     "the anchor log at {f} was started with --ulang but is not recorded in the registry yet; repeat the same "
+     "command to finish it"),
+    ("log jangkar di {f} dimulai tanpa --ulang tetapi belum tercatat di registri; ulangi perintah yang sama untuk "
+     "menyelesaikannya",
+     "the anchor log at {f} was started without --ulang but is not recorded in the registry yet; repeat the same "
+     "command to finish it"),
+    ("alasan berbeda dengan yang tertulis di log jangkar {f}, yang mulainya belum tercatat di registri; ulangi "
+     "perintah yang sama untuk menyelesaikannya",
+     "the reason differs from the one written in the anchor log {f}, whose start is not recorded in the registry "
+     "yet; repeat the same command to finish it"),
+    ("folder {f} untuk log jangkar tidak ada. Pasang dulu penyimpanan terpisahnya; TAPAK tidak membuat folder ini, "
+     "agar log tidak diam-diam tertulis di disk lokal",
+     "the anchor log folder {f} does not exist. Mount its separate storage first; TAPAK does not create this "
+     "folder, so that the log is never written to the local disk unnoticed"),
+    ("berkas {f} sudah ada dan tidak ditimpa. Bila itu segmen dari rotasi yang terputus (belum tercatat di "
+     "registri), pindahkan dulu ke tempat lain (simpan sebagai bukti), lalu jalankan perintah ini lagi",
+     "file {f} already exists and is not overwritten. If it is a segment of an interrupted rotation (not recorded "
+     "in the registry yet), move it elsewhere first (keep it as evidence), then run this command again"),
+    ("{why:t}; penulisan registri ditolak sebelum entri baru dicatat. Perbaiki izin atau penyimpanannya",
+     "{why}; the registry write was refused before the new entry was recorded. Fix the permissions or the storage"),
+    ("entri {span} tercatat tanpa pemeriksaan log jangkar", "entries {span} were recorded without an anchor log check"),
+    ("log jangkar sudah ada di {f} dan tidak ditimpa. Bila log itu rusak atau milik registri lain, pindahkan dulu ke "
+     "tempat lain (simpan sebagai bukti), lalu jalankan tapak jangkar mulai lagi",
+     "an anchor log already exists at {f} and is not overwritten. If that log is damaged or belongs to another "
+     "registry, move it elsewhere first (keep it as evidence), then run tapak jangkar mulai again"),
+    ("{why:t}. log jangkar sudah ada di {f} dan tidak ditimpa. Bila log itu rusak atau milik registri lain, "
+     "pindahkan dulu ke tempat lain (simpan sebagai bukti), lalu jalankan tapak jangkar mulai lagi",
+     "{why}. An anchor log already exists at {f} and is not overwritten. If that log is damaged or belongs to "
+     "another registry, move it elsewhere first (keep it as evidence), then run tapak jangkar mulai again"),
+    ("registri memakai log jangkar sejak entri #{n} (log terakhir id {log}), jadi log jangkar pernah ada. Log yang "
+     "hilang tidak dimulai ulang diam-diam: periksa dulu registri dengan tapak verify (dengan jangkar dari berita "
+     "acara atau akar Merkle bila ada), lalu mulai log baru secara sadar dengan tapak jangkar mulai --ulang --alasan "
+     "'...'",
+     "the registry has used an anchor log since entry #{n} (last log id {log}), so an anchor log existed. A missing "
+     "log is not restarted silently: first check the registry with tapak verify (with the anchor from a forensic "
+     "report or a Merkle root if there is one), then start a new log on purpose with tapak jangkar mulai --ulang "
+     "--alasan '...'"),
+    ("{why:t}. Pengakuan memerlukan log jangkar yang terbaca; bila log hilang, mulai log baru dengan tapak jangkar "
+     "mulai --ulang --alasan '...'",
+     "{why}. An acknowledgement needs a readable anchor log; if the log is missing, start a new log with tapak "
+     "jangkar mulai --ulang --alasan '...'"),
+    ("pengakuan tercatat di registri sebagai entri #{n}, tetapi barisnya tidak dapat ditulis ke log jangkar "
+     "({why:t}); jalankan perintah ini lagi setelah log dapat ditulis",
+     "the acknowledgement is recorded in the registry as entry #{n}, but its line cannot be written to the anchor "
+     "log ({why}); run this command again once the log can be written"),
+    ("entri {span} sudah tercatat di registri, tetapi baris log jangkarnya tidak dapat ditulis ke {f} ({why:t}); "
+     "baris itu dilengkapi otomatis pada penulisan berikutnya setelah log jangkar dapat ditulis lagi",
+     "entries {span} are recorded in the registry, but their anchor log lines cannot be written to {f} ({why}); "
+     "those lines are added automatically on the next write once the anchor log can be written again"),
+    ("baris log jangkar untuk entri {span} yang tertinggal tidak dapat ditulis ke {f} ({why:t}); penulisan registri "
+     "ditolak sampai log jangkar dapat ditulis lagi",
+     "the anchor log lines of the entries {span} left behind cannot be written to {f} ({why}); registry writes are "
+     "refused until the anchor log can be written again"),
+    ("waktu tanpa zona waktu: {v}", "time without a time zone: {v}"),
+    ("salinan {seqs} dokumen ini sudah tercatat di registri", "copies {seqs} of this document are already recorded in the registry"),
+    ("entri #{n} rusak (nomor urut, hash atau rantai tidak cocok); penandatanganan dibatalkan, jalankan "
+     "tapak-verify-registry",
+     "entry #{n} is damaged (the sequence number, hash or chain do not match); signing cancelled, run "
+     "tapak-verify-registry"),
+    ("ada {n} entri belum bertanda tangan ({span}); entri baru tidak ditandatangani agar entri lama tidak ikut "
+     "tertanda tangan tanpa diperiksa. Periksa dengan 'sign-pending --daftar', lalu tanda tangani dengan "
+     "'sign-pending --sampai'",
+     "{n} entries are not signed yet ({span}); the new entry is not signed, so that the old ones are not signed along "
+     "with it unchecked. Check them with 'sign-pending --daftar', then sign them with 'sign-pending --sampai'"),
+    ("waktu entri baru ({t}) lebih awal dari entri #{n} ({u})", "the new entry\u2019s time ({t}) is earlier than entry #{n} ({u})"),
+    ("entri #{a} belum bertanda tangan padahal entri #{b} sesudahnya sudah (tanda tangan dihapus?); "
+     "penandatanganan dibatalkan",
+     "entry #{a} is unsigned although entry #{b} after it is signed (signature deleted?); signing cancelled"),
+    ("pemicu hanya-tambah registri {f} tidak utuh ({which:l}): berkas pernah disunting di luar TAPAK. Jalankan "
+     "tapak-verify-registry, lalu buka dengan repair_triggers=True untuk memasang ulang pemicu",
+     "the append-only triggers of registry {f} are not intact ({which}): the file was edited outside TAPAK. Run "
+     "tapak-verify-registry, then open it with repair_triggers=True to reinstall the triggers"),
+    ("pemicu {name} hilang", "trigger {name} is missing"),
+    ("pemicu {name} diubah", "trigger {name} was changed"),
+    ("pemicu tak dikenal {name} pada tabel entri", "unknown trigger {name} on the entries table"),
+    ("tanda tangan entri #{n} tidak sah; penandatanganan dibatalkan", "the signature of entry #{n} is invalid; signing cancelled"),
+    ("berkas registri tidak ditemukan: {f}", "registry file not found: {f}"),
+    ("{f} sudah ada dan berbeda dari registri; berkas akar tidak pernah ditulis ulang (registri atau berkas akar "
+     "telah diubah)",
+     "{f} already exists and differs from the registry; a root file is never rewritten (the registry or the root "
+     "file was changed)"),
+    ("kunci publik tidak boleh ditulis ke berkas berakhiran .key: {f}", "a public key may not be written to a file ending in .key: {f}"),
+    ("berkas kunci privat tidak boleh berakhiran .pub: {f}", "a private key file may not end in .pub: {f}"),
+    ("berkas kunci terlalu besar: {f}", "the key file is too large: {f}"),
+    ("kunci penanda tangan harus berisi 64 karakter heksadesimal: {f}", "the signing key must hold 64 hexadecimal characters: {f}"),
+    ("berkas kunci sudah ada, tidak ditimpa: {f}", "the key file already exists and is not overwritten: {f}"),
+    ("berkas kunci berisi karakter yang tidak sah: {f}", "the key file holds invalid characters: {f}"),
+    ("kunci penanda tangan registri tidak ditemukan: {f}", "registry signing key not found: {f}"),
+    ("jangkar harus berbentuk NOMOR:HASH (hash 64 karakter heksadesimal): {v}",
+     "the anchor must have the form NUMBER:HASH (a hash of 64 hexadecimal characters): {v}"),
+    ("dokumen {d} tidak ditemukan di {f}", "document {d} not found in {f}"),
+    ("konstanta panjang kode tidak dikenal: {c} (pilih skoric atau tardos)", "unknown code length constant: {c} (choose skoric or tardos)"),
+    ("nomor pelacakan harus bilangan bulat mulai dari 1, bukan {k}", "the trace number must be a whole number from 1, not {k}"),
+    ("kebijakan tahap tidak dikenal: {n} (pilihan: {c})", "unknown stage policy: {n} (choices: {c})"),
+    ("nomor pelacakan harus bilangan bulat, bukan {k}", "the trace number must be a whole number, not {k}"),
+    ("tahap {n} tidak ada dalam kebijakan pelacakan ini", "stage {n} is not part of this trace policy"),
+
+    # problems of the anchor log (registry/anchor.py), on the registry page and in refusals
+    ("folder {f} bukan titik kait penyimpanan lain (perangkatnya sama dengan folder induknya). Itu wajar untuk berkas "
+     "dengan chattr +a di disk yang sama. Bila log seharusnya berada di penyimpanan terpisah yang dipasang di folder "
+     "ini, penyimpanan itu belum terpasang dan log ini tertulis di disk lokal: periksa dulu",
+     "folder {f} is not the mount point of other storage (it is on the same device as its parent folder). That is "
+     "normal for a file with chattr +a on the same disk. If the log should be on separate storage mounted at this "
+     "folder, that storage is not mounted and this log is being written to the local disk: check that first"),
+    ("penanda media log jangkar ({m}, id {id}) tidak ada di samping log di {f} atau berbeda. Penyimpanan terpisahnya "
+     "mungkin belum dipasang dan berkas ini salinan di disk lokal, atau log dipindah tanpa penandanya. Pasang "
+     "penyimpanannya, atau pindahkan penanda bersama log",
+     "the anchor log media marker ({m}, id {id}) is missing next to the log in {f}, or differs. The separate storage "
+     "may not be mounted and this file is a copy on the local disk, or the log was moved without its marker. Mount "
+     "the storage, or move the marker together with the log"),
+    ("{why:t}. Sampai saat itu pelacakan dan penulisan registri ditolak; jangan menghapus atau memotong log ini",
+     "{why}. Until then traces and registry writes are refused; do not delete or truncate this log"),
+    ("{why:t}; pelacakan dan penulisan registri ditolak selama log jangkar tidak dapat dibaca. Perbaiki izin atau "
+     "penyimpanannya; jangan menghapus atau mengganti log ini",
+     "{why}; traces and registry writes are refused while the anchor log cannot be read. Fix the permissions or the "
+     "storage; do not delete or replace this log"),
+    ("segmen log jangkar ini tidak menjangkarkan ujung registri #{n} yang diikat baris awalnya, jadi entri sebelum "
+     "rotasi tidak terlindungi (segmen disunting atau dipalsukan)",
+     "this anchor log segment does not anchor registry head #{n}, which its start line binds, so the entries before "
+     "the rotation are not protected (the segment was edited or forged)"),
+    ("log jangkar ini (id {id}) belum tercatat di registri: log tidak dimulai dengan tapak jangkar mulai, atau mulai "
+     "terputus. Jalankan tapak jangkar mulai untuk menyelesaikannya",
+     "this anchor log (id {id}) is not recorded in the registry: it was not started with tapak jangkar mulai, or its "
+     "start was interrupted. Run tapak jangkar mulai to finish it"),
+    ("baris awal log jangkar tidak cocok dengan entri registri #{n} yang memulainya",
+     "the anchor log\u2019s start line does not match registry entry #{n}, which started it"),
+    ("baris awal segmen log jangkar ini mengikat ujung registri #{a}, padahal rotasinya tercatat di entri #{b}; rotasi "
+     "selalu tercatat tepat sesudah ujung yang diikatnya (segmen atau registri disunting)",
+     "the start line of this anchor log segment binds registry head #{a}, but its rotation is recorded at entry #{b}; "
+     "a rotation is always recorded right after the head it binds (the segment or the registry was edited)"),
+    ("baris awal segmen log jangkar ini meneruskan log id {id}, padahal registri mencatat log lain sebagai log yang "
+     "dipakai sebelum entri #{n}",
+     "the start line of this anchor log segment continues log id {id}, but the registry records another log as the "
+     "one in use before entry #{n}"),
+    ("log jangkar ini sudah diteruskan ke segmen baru (tapak jangkar rotasi, log id {id}) di entri registri #{n}. "
+     "Periksa dulu rantai segmennya dengan tapak verify --log-jangkar BERKAS_SEGMEN_BARU --segmen-lama {f}; bila "
+     "lulus, arahkan TAPAK_ANCHOR_LOG atau --log-jangkar ke segmen baru itu dan simpan berkas ini sebagai segmen lama",
+     "this anchor log was continued in a new segment (tapak jangkar rotasi, log id {id}) at registry entry #{n}. "
+     "First check the segment chain with tapak verify --log-jangkar BERKAS_SEGMEN_BARU --segmen-lama {f}; if it "
+     "passes, point TAPAK_ANCHOR_LOG or --log-jangkar to the new segment and keep this file as an old segment"),
+    ("log jangkar ini sudah diganti log lain yang dimulai ulang di entri registri #{n}. Arahkan TAPAK_ANCHOR_LOG atau "
+     "--log-jangkar ke log baru itu hanya bila awal ulang itu memang dilakukan operator dengan sengaja, dan periksa "
+     "dulu masalah lain yang ditunjukkan log ini dengan tapak verify",
+     "this anchor log was replaced by another log, started again at registry entry #{n}. Point TAPAK_ANCHOR_LOG or "
+     "--log-jangkar to the new log only if an operator really restarted it on purpose, and first check the other "
+     "problems this log shows with tapak verify"),
+    ("baris awal segmen log jangkar ini menyebut pengakuan di entri {span}, tetapi registri tidak mencatat pengakuan "
+     "itu untuk log sebelumnya",
+     "the start line of this anchor log segment names acknowledgements at entries {span}, but the registry records "
+     "none for the previous log"),
+    ("registri {f} tidak dapat dibaca untuk dibandingkan dengan log jangkar",
+     "registry {f} cannot be read to compare it with the anchor log"),
+    ("{why:t}; pelacakan dan penerbitan ditolak sebelum entri baru dicatat. Perbaiki izin atau penyimpanannya",
+     "{why}; traces and issuances are refused before a new entry is recorded. Fix the permissions or the storage"),
+    ("{n} entri terakhir registri belum tercatat di log jangkar (ditulis proses tanpa log jangkar, misalnya tapak "
+     "canary-dns --anchor, atau penulisan terputus); dilengkapi sekarang",
+     "the registry\u2019s last {n} entries were not in the anchor log yet (written by a process without the anchor "
+     "log, such as tapak canary-dns --anchor, or by an interrupted write); added now"),
+    ("PENGHAPUSAN DARI UJUNG TIDAK DIPERIKSA: registri memakai log jangkar sejak entri #{n}, tetapi log itu tidak "
+     "diberikan (--log-jangkar BERKAS). Entri yang dihapus dari ujung rantai, misalnya pelacakan terakhir, tidak "
+     "terlihat tanpa log itu (--jangkar dan --merkle-dir hanya sampai titik yang dicatat), jadi hasil di bawah hanya "
+     "berlaku untuk entri yang masih ada",
+     "DELETION FROM THE END NOT CHECKED: the registry has used an anchor log since entry #{n}, but that log was not "
+     "given (--log-jangkar BERKAS). Entries deleted from the end of the chain, such as the last trace, are invisible "
+     "without it (--jangkar and --merkle-dir reach only the point they recorded), so the result below holds only for "
+     "the entries still there"),
+    ("{n} pengakuan pemulihan melepas {m} entri yang tidak ada lagi di registri (terakhir entri #{seq}, {when})",
+     "{n} recovery acknowledgements released {m} entries no longer in the registry (the last at entry #{seq}, "
+     "{when})"),
+    ("{n} di antaranya entri pelacakan, jadi nomor dan jatah eps pelacakan itu dapat terpakai lagi",
+     "{n} of them trace entries, so those trace numbers and eps shares can be used again"),
+
+    # schema checks of registry entries (registry/chain.py)
+    ("stage_eps tidak sesuai kebijakan {p} untuk eps_share pelacakan ini",
+     "stage_eps does not follow policy {p} for this trace\u2019s eps_share"),
+    ("kolom entri log jangkar tidak sesuai skema: kurang {missing}, berlebih {extra}",
+     "the anchor log entry\u2019s fields do not match the schema: missing {missing}, extra {extra}"),
+    ("kolom pilihan kata tidak lengkap: kurang {missing}", "the word-choice fields are incomplete: missing {missing}"),
+    ("{key} bukan SHA-256 heksadesimal", "{key} is not a hexadecimal SHA-256"),
+    ("{key} harus berupa daftar nomor posisi", "{key} must be a list of position numbers"),
+
+    # a font of the master that cannot be reused (marker/master.py) and checks of the lexicon file (marker/lexical.py)
+    ("font {f} tidak dapat dipakai ulang; memakai DejaVu Sans", "font {f} cannot be reused; using DejaVu Sans"),
+    ("id aturan tidak sah: {r}", "invalid rule id: {r}"),
+    ("id aturan ganda: {r}", "duplicate rule id: {r}"),
+    ("{r}: perlu sedikitnya dua bentuk huruf kecil dengan satu spasi",
+     "{r}: needs at least two lower-case forms with single spaces"),
+    ("{r}: bentuk ganda", "{r}: duplicate forms"),
+    ("{r}: tingkat harus A atau B", "{r}: the tier must be A or B"),
+    ("{r}: bentuk '{a}' dan '{b}' berbeda kurang dari {n} karakter", "{r}: forms '{a}' and '{b}' differ by fewer than {n} characters"),
+    ("{r}: bentuk '{a}' dan '{b}' hanya berbeda satu kata yang dihilangkan", "{r}: forms '{a}' and '{b}' differ only by one dropped word"),
+    ("bentuk '{f}' ada di aturan {a} dan {b}", "form '{f}' is in rules {a} and {b}"),
+    ("{r}: bentuk '{f}' memuat kata terlindungi ({why:t})", "{r}: form '{f}' holds a protected word ({why})"),
+    ("{r}: match harus berisi bentuk dari aturan ini", "{r}: match must hold forms of this rule"),
+    ("{r}: ekspresi {k} tidak sah", "{r}: invalid expression {k}"),
 ]
 
 _PLACEHOLDER = re.compile(r"\{(\w+)(?::([tlcn]))?\}")
@@ -2310,7 +2773,12 @@ def _compile(template: str) -> tuple[re.Pattern[str], dict[str, str]]:
     for m in _PLACEHOLDER.finditer(template):
         regex.append(re.escape(template[pos:m.start()]))
         flags[m[1]] = m[2] or ""
-        regex.append(rf"(?P<{m[1]}>[\d.,]+)" if m[2] == "n" else rf"(?P<{m[1]}>.+?)")
+        if m[2] == "n":
+            regex.append(rf"(?P<{m[1]}>[\d.,]+)")
+        elif m.start() in (0, len(template) - len(m[0])) and m[2] not in ("t", "l"):
+            regex.append(rf"(?P<{m[1]}>(?:(?!; ).)+?)")
+        else:
+            regex.append(rf"(?P<{m[1]}>.+?)")
         pos = m.end()
     regex.append(re.escape(template[pos:]))
     return re.compile("".join(regex), re.S), flags

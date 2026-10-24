@@ -91,6 +91,30 @@ def test_rules_use_only_their_placeholders_and_compile():
      "Possible causes: a coalition holding two or more copies erased marks where their copies agree."),
     ("Mode halaman: 1 halaman teks, 2 halaman pindaian (halaman 2, 3; 300 dan 600 dpi)",
      "Page modes: 1 text, 2 scanned (pages 2, 3; 300 and 600 dpi)"),
+    # a placeholder inside a rule may hold "; " (the OCR engine names its language data)...
+    ("Kotak kata: tesseract 5.3.0; ind.traineddata sha256:69786901; hanya hash daftar kotaknya yang dicatat "
+     "(c4de30064f23f7ec...)",
+     "Word boxes: tesseract 5.3.0; ind.traineddata sha256:69786901; only the hash of the box list is recorded "
+     "(c4de30064f23f7ec...)"),
+    # ...but one starting or ending it does not swallow the clauses joined before or after it
+    ("cocok dengan registri sampai entri #12; 2 entri terakhir (#13..#14) belum tercatat di log dan dilengkapi pada "
+     "penulisan berikutnya",
+     "matches the registry up to entry #12; the last 2 entries (#13..#14) are not in the log yet and are added on the "
+     "next write"),
+    # "; " inside parentheses, and a clause that holds "; " itself
+    ("cocok dengan registri sampai entri #12; log memuat 1 pengakuan pemulihan, terakhir 2026-10-24 (3 entri dilepas; "
+     "lihat tapak verify)",
+     "matches the registry up to entry #12; recovery acknowledgements in the log: 1, the last 2026-10-24 (3 entries "
+     "released; see tapak verify)"),
+    ("cocok dengan registri sampai entri #12; log ini dimulai ulang di entri #5 (2026-10-24) setelah log sebelumnya "
+     "hilang atau dipindah; entri yang dihapus dari ujung registri sebelum itu tidak terlihat oleh log ini (periksa "
+     "dengan log lama atau jangkar berita acara, tapak verify --jangkar)",
+     "matches the registry up to entry #12; this log was started again at entry #5 (2026-10-24) after the earlier log "
+     "was lost or moved; entries deleted from the end of the registry before that are invisible to this log (check "
+     "with the old log or a forensic report anchor, tapak verify --jangkar)"),
+    ("3 entri (#4..#6) belum bertanda tangan; entri itu hanya dilindungi rantai hash, yang dapat dihitung ulang oleh "
+     "siapa pun",
+     "3 entries (#4..#6) are not signed yet; they are protected only by the hash chain, which anyone can recompute"),
 ])
 def test_library_sentences_read_in_english(indonesian, english):
     token = i18n.use("en")
@@ -111,6 +135,83 @@ def test_unknown_sentences_and_indonesian_requests_stay_as_written():
     finally:
         i18n.reset(token)
     assert i18n.current() == "id" and i18n.gettext("Salinan #%(n)s", n=4) == "Salinan #4"
+
+
+# Modules whose messages reach only the terminal (the command line, research scripts, the DNS
+# listener), which stays Indonesian.
+TERMINAL_ONLY = {"cli.py", "benchmark.py", "collusion.py", "samplegen.py", "tardos/simulate.py", "tardos/attacks.py",
+                 "canary_dns/__main__.py", "canary_dns/server.py"}
+
+
+def _message_texts(node: ast.expr, fill: str, names: dict[str, ast.expr]) -> list[str] | None:
+    """Every text an exception message can take, its values filled in with ``fill``: a literal,
+    an f-string (a conditional of two literals gives both texts), a sum of those, or a local
+    variable holding one. None when the message is built some other way."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, ast.Name) and node.id in names:
+        return _message_texts(names[node.id], fill, names)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _message_texts(node.left, fill, names), _message_texts(node.right, fill, names)
+        return None if left is None or right is None else [a + b for a in left for b in right]
+    if not isinstance(node, ast.JoinedStr):
+        return None
+    texts = [""]
+    for part in node.values:
+        if isinstance(part, ast.Constant):
+            options = [part.value]
+        elif (isinstance(part.value, ast.IfExp) and all(isinstance(b, ast.Constant) and isinstance(b.value, str)
+                                                         for b in (part.value.body, part.value.orelse))):
+            options = [part.value.body.value, part.value.orelse.value]
+        else:
+            options = _message_texts(part.value, fill, names) if isinstance(part.value, ast.Name) else None
+            options = options or [fill]
+        texts = [t + o for t in texts for o in options]
+    return texts
+
+
+def _raised_messages(path: Path):
+    """(line, [texts with "7" filled in, texts with "x"]) for each exception raised with a message
+    in a module, SystemExit (the terminal) aside."""
+    tree = ast.parse(path.read_text())
+    functions = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    module = [n for s in tree.body if not isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+              for n in ast.walk(s)]
+    for nodes in [module, *(list(ast.walk(f)) for f in functions)]:
+        names = {n.targets[0].id: n.value for n in nodes
+                 if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)}
+        for node in nodes:
+            if not (isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call) and node.exc.args):
+                continue
+            if isinstance(node.exc.func, ast.Name) and node.exc.func.id == "SystemExit":
+                continue
+            samples = [_message_texts(node.exc.args[0], fill, names) for fill in ("7", "x")]
+            if samples[0] is not None:
+                yield node.lineno, samples
+
+
+def test_library_errors_read_in_english():
+    """A refused request shows the library's error message, so every message a page can show
+    has English (an exact entry or a rule)."""
+    def english(text: str) -> bool:
+        found = i18n.translate_text(text)
+        return found != text and not STOPWORDS.search(found)
+
+    token = i18n.use("en")
+    missing, seen = [], 0
+    try:
+        for path in sorted((ROOT / "tapak").rglob("*.py")):
+            rel = path.relative_to(ROOT / "tapak").as_posix()
+            if rel in TERMINAL_ONLY or rel.startswith("i18n/"):
+                continue
+            for line, samples in _raised_messages(path):
+                seen += 1
+                if not any(all(english(t) for t in texts) for texts in samples):
+                    missing.append(f"tapak/{rel}:{line}: {samples[0][0]!r}")
+    finally:
+        i18n.reset(token)
+    assert seen > 200
+    assert not missing, "\n".join(sorted(set(missing)))
 
 
 def test_numbers_and_dates_follow_the_language():
