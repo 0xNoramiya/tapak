@@ -76,8 +76,18 @@ Dijalankan sekali dengan kode komit protokol (`7cc56a5`, hash sumber dekoder di 
 * **Bagian halaman tanpa teks induk** tidak dapat diregistrasi: 80 potongan dari bagian kosong halaman 2 surat telegram (juga foto: 16).
 * **Paragraf pendek** kini hampir selalu ditemukan (237 dari 240), tetapi hanya 161 yang disebut: dua sampai empat baris membawa terlalu sedikit sel pola latar.
 * **Foto ponsel sebagian halaman** hampir tidak terbantu (3 bertambah): pencocokan templat hanya mencari skala dan geseran, sedangkan foto berperspektif, dan masker kertas hanya untuk tangkapan layar.
-* **Kaki halaman yang sama di dokumen lain.** Potongan yang hanya memuat kaki halaman dapat diregistrasi pada dokumen lain dengan kaki halaman yang sama (9 dari 271 pelacakan dokumen lain). Tidak ada yang disebut, karena pola latar berkunci per dokumen, tetapi jawabannya "tidak cukup bukti", bukan "halaman tidak ditemukan". Uji dokumen lain hanya memakai dua dokumen contoh dengan templat yang sama; formulir dengan banyak halaman berpola sama belum diuji.
+* **Kaki halaman yang sama di dokumen lain.** Potongan yang hanya memuat kaki halaman dapat diregistrasi pada dokumen lain dengan kaki halaman yang sama (9 dari 271 pelacakan dokumen lain). Tidak ada yang disebut, karena pola latar berkunci per dokumen, tetapi jawabannya "tidak cukup bukti", bukan "halaman tidak ditemukan". Jalur lama (SIFT) juga menerima potongan kaki halaman saja pada dokumen lain ([peninjauan](#peninjauan-di-luar-protokol)). Uji dokumen lain hanya memakai dua dokumen contoh dengan templat yang sama; formulir dengan banyak halaman berpola sama belum diuji.
 * **Waktu.** Bukti yang tetap tidak ditemukan kini memerlukan lebih lama (sampai sekitar 3 menit di mesin yang sibuk), karena tahap penyelamat mencoba setiap halaman.
+
+## Peninjauan (di luar protokol)
+
+Setelah set uji, `tinjau.py` mencoba membuat registrasi menerima pose atau halaman yang salah (`hasil/tinjau.jsonl`, 55 gambar, masing-masing diregistrasi terhadap kedua induk set uji dan dilacak bila diterima):
+
+* **Dokumen tak terkait** yang fiktif, dengan font, tepi, dan ukuran kertas yang sama (potongan atas, tengah, bawah, satu paragraf, dan halaman utuh pada 48 dan 120 dpi, polos atau berjendela lalu JPEG): ditolak 80 dari 80.
+* **Gambar bukan dokumen** (derau, gradasi, papan catur): ditolak 6 dari 6. **Tepi kiri halaman saja**: ditolak 8 dari 8.
+* **Kaki halaman saja**: jalur lama (SIFT) menerima 4 dari 8, selalu pada halaman 2, juga pada dokumen yang lain; tahap penyelamat tidak menerima satu pun. Perilaku ini sudah ada sebelum studi ini.
+* **Pita kosong di atas kaki halaman**: tahap penyelamat menerima 2 dari 4 terhadap induknya sendiri, pada halaman asalnya, dan menolak 4 dari 4 terhadap dokumen yang lain.
+* Tidak ada yang disebut. Penolakan memerlukan median 41 detik (paling lama 106 detik) di mesin yang dipakai bersama.
 
 ## Menjalankan
 
@@ -90,4 +100,5 @@ python research/registrasi/pilih.py pilih                                       
 python research/registrasi/ukur.py terbit --split uji
 python research/registrasi/ukur.py lacak --split uji                            # sekali, di akhir
 python research/registrasi/ringkas.py --split uji --json
+python research/registrasi/tinjau.py                                            # peninjauan: hasil/tinjau.jsonl
 ```
