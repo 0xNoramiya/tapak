@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -325,9 +326,37 @@ def _prep(img: np.ndarray) -> np.ndarray:
     return cv2.GaussianBlur(ink, (0, 0), 1.0)
 
 
+class _ArrayCache(_ByteBudgetCache):
+    """``_ByteBudgetCache`` of plain arrays (or tuples of arrays), sized by their bytes."""
+
+    @staticmethod
+    def _size(entry) -> int:
+        parts = entry if isinstance(entry, tuple) else (entry,)
+        return sum(a.nbytes for a in parts if isinstance(a, np.ndarray))
+
+
+# Master ink and master SIFT features are the same for every trace of a document; the
+# illumination blur behind ``_prep`` (a Gaussian of a thirtieth of the page) is most of the
+# cost of a registration that has to try every page, so each master page is prepared once.
+MASTER_CACHE_BYTES = 200_000_000
+_MASTER_CACHE = _ArrayCache(MASTER_CACHE_BYTES)
+
+
+def master_ink(pdf_bytes: bytes, page: int, dpi: float) -> np.ndarray:
+    """``_prep(render_page(pdf_bytes, page, dpi))``, cached and read only (the same values)."""
+    key = ("ink", pdf_bytes, page, float(dpi))
+    ink = _MASTER_CACHE.get(key)
+    if ink is None:
+        ink = _prep(_render_cached(pdf_bytes, page, float(dpi), 4))
+        ink.setflags(write=False)
+        _MASTER_CACHE.put(key, ink)
+    return ink
+
+
 def ecc_refine(template: np.ndarray, image: np.ndarray, h_init: np.ndarray,
                levels: tuple[tuple[float, int], ...] = ((0.25, 60), (0.5, 40), (1.0, 15)),
-               mask: np.ndarray | None = None, affine: bool = False) -> tuple[np.ndarray, float]:
+               mask: np.ndarray | None = None, affine: bool = False,
+               template_ink: np.ndarray | None = None, image_ink: np.ndarray | None = None) -> tuple[np.ndarray, float]:
     """Refine a page-to-image homography with ECC, coarse to fine. Returns (H, correlation).
 
     ``levels`` lists (scale, maximum iterations); the finest level starts close to the
@@ -336,11 +365,14 @@ def ecc_refine(template: np.ndarray, image: np.ndarray, h_init: np.ndarray,
     the pose; the correlation is then measured over those pixels only. ``affine`` (the rescue
     stage, for screen captures, which have no perspective) refines an affine map instead of a
     homography, so a page part with little text cannot tilt the pose. Without them (the
-    default) nothing changes.
+    default) nothing changes. ``template_ink`` and ``image_ink``, when given, are ``_prep`` of
+    ``template`` and ``image`` computed beforehand (``master_ink``): the same result, without
+    preparing the same images again for every page and pose.
     """
     h = h_init.astype(np.float64)
     cc = -1.0
-    t_full, i_full = _prep(template), _prep(image)
+    t_full = _prep(template) if template_ink is None else template_ink
+    i_full = _prep(image) if image_ink is None else image_ink
     for lv, iters in levels:
         # The analysis dpi is chosen close to the image resolution, so both are scaled alike.
         t = cv2.resize(t_full, None, fx=lv, fy=lv, interpolation=cv2.INTER_AREA) if lv != 1.0 else t_full
@@ -377,22 +409,54 @@ def quick_score(image_ink: np.ndarray, h_page_to_img: np.ndarray, template_ink: 
     return float((a * b).sum() / den) if den > 0 else -1.0
 
 
-def feature_homography(template: np.ndarray, image: np.ndarray) -> np.ndarray | None:
-    """Page-to-image homography from SIFT features + RANSAC, or None."""
-    det = cv2.SIFT_create(nfeatures=4000)
-    t8 = np.clip(template, 0, 255).astype(np.uint8)
+Features = tuple[np.ndarray, np.ndarray | None]  # SIFT keypoint positions (n, 2) and descriptors
+
+
+def sift_features(img8: np.ndarray) -> Features:
+    """SIFT keypoint positions (n, 2) and descriptors (at most 4000 features) of a uint8 image."""
+    k, d = cv2.SIFT_create(nfeatures=4000).detectAndCompute(img8, None)
+    return np.float32([p.pt for p in k]).reshape(-1, 2), d
+
+
+def evidence_features(image: np.ndarray) -> tuple[Features, float]:
+    """SIFT features of an evidence image as ``feature_homography`` reads it (long side at most
+    1600 px), and that scale."""
     scale = min(1.0, 1600.0 / max(image.shape))
     i8 = cv2.resize(np.clip(image, 0, 255).astype(np.uint8), None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-    k1, d1 = det.detectAndCompute(t8, None)
-    k2, d2 = det.detectAndCompute(i8, None)
-    if d1 is None or d2 is None or len(k1) < 20 or len(k2) < 20:
+    return sift_features(i8), scale
+
+
+def master_features(pdf_bytes: bytes, page: int, dpi: float) -> Features:
+    """SIFT features of ``render_page(pdf_bytes, page, dpi)``, cached (read only)."""
+    key = ("sift", pdf_bytes, page, float(dpi))
+    feats = _MASTER_CACHE.get(key)
+    if feats is None:
+        feats = sift_features(np.clip(_render_cached(pdf_bytes, page, float(dpi), 4), 0, 255).astype(np.uint8))
+        for a in feats:
+            if a is not None:
+                a.setflags(write=False)
+        _MASTER_CACHE.put(key, feats)
+    return feats
+
+
+def feature_homography(template: np.ndarray, image: np.ndarray, template_features: Features | None = None,
+                       image_features: tuple[Features, float] | None = None) -> np.ndarray | None:
+    """Page-to-image homography from SIFT features + RANSAC, or None.
+
+    ``template_features`` (``master_features``) and ``image_features`` (``evidence_features``),
+    when given, are the features of ``template`` and ``image`` computed beforehand: the same
+    result, without detecting the evidence's features again for every page."""
+    p1, d1 = sift_features(np.clip(template, 0, 255).astype(np.uint8)) if template_features is None \
+        else template_features
+    (p2, d2), scale = evidence_features(image) if image_features is None else image_features
+    if d1 is None or d2 is None or len(p1) < 20 or len(p2) < 20:
         return None
     matches = cv2.BFMatcher(cv2.NORM_L2).knnMatch(d1, d2, k=2)
     good = [m for m, n in (p for p in matches if len(p) == 2) if m.distance < 0.8 * n.distance]
     if len(good) < 25:
         return None
-    src = np.float32([k1[m.queryIdx].pt for m in good])
-    dst = np.float32([k2[m.trainIdx].pt for m in good]) / scale
+    src = np.float32([p1[m.queryIdx] for m in good])
+    dst = np.float32([p2[m.trainIdx] for m in good]) / scale
     h, inliers = cv2.findHomography(src, dst, cv2.RANSAC, 4.0)
     if h is None or inliers is None or inliers.sum() < 20:
         return None
@@ -455,6 +519,12 @@ RESCUE_MIN_PIXELS = 400       # evidence pixels the verification needs
 RESCUE_HP_PT = 16.0           # verification: each row's local mean along x (Gaussian, this many pt) is taken off
 RESCUE_SCALE_CHANGE = 1.25    # ECC may change the initial pose's scale by at most this factor ...
 RESCUE_SCALE_SPREAD = 1.6     # ... and leave local scales over the page part within this ratio (no blow-up)
+RESCUE_FOOTPRINT = True       # a tilted initial pose is also refined against the master cut to its footprint ...
+RESCUE_FOOTPRINT_MARGIN = 0.15  # ... enlarged by this share of its size on every side; tilted: rotated by more
+RESCUE_TILT_DEG = 1.0         # than this, or foreshortened (local scales over the page part differing by more ...
+RESCUE_TILT_SPREAD = 1.02     # ... than this ratio): the perspective of a photo, which an affine map cannot follow
+RESCUE_FOOTPRINT_SPAN = 4.0   # a footprint pose whose page-centre resolution is this far off the initial pose's is not sane
+RESCUE_MAX_BLUR = 16.0        # verification: master pixels per evidence pixel at the page centre, at most
 
 
 def _paper_levels(image: np.ndarray) -> tuple[float, np.ndarray, float]:
@@ -571,7 +641,7 @@ def template_poses(ink: np.ndarray, mask: np.ndarray | None, pdf_bytes: bytes, n
     for page in range(n_pages):
         masters = []
         for d in (d0, d1):
-            m = _prep(render_page(pdf_bytes, page, d))
+            m = master_ink(pdf_bytes, page, d)
             pad = int(round(TEMPLATE_PAD * max(m.shape)))
             masters.append((np.pad(m, pad).astype(np.float32), pad))
         (coarse, pad0), (fine, pad1) = masters
@@ -618,11 +688,16 @@ def pose_agreement(image_ink: np.ndarray, mask: np.ndarray | None, master_ink: n
     the correlation: lines of text that merely lie at the same heights (another document or
     paragraph set in the same font and margins) then agree little, words that line up agree
     fully. Returns (correlation, pixels measured); (-1, pixels) when fewer than
-    ``RESCUE_MIN_PIXELS`` or either side is flat.
+    ``RESCUE_MIN_PIXELS`` or either side is flat, and (-1, 0) when the pose puts the page centre
+    at less than 1 / ``RESCUE_MAX_BLUR`` of the analysis resolution.
     """
     hh, ww = image_ink.shape
     eff = effective_dpi(h_page_to_img, master_ink.shape[1], master_ink.shape[0], dpi)
     k = dpi / max(eff, 1e-6)  # master pixels per evidence pixel
+    if not np.isfinite(k) or k > RESCUE_MAX_BLUR:
+        # a pose that puts the page centre at a tiny fraction of its own resolution (a homography
+        # run off far from the page part) cannot be verified; its blur would not fit in memory
+        return -1.0, 0
     t = cv2.GaussianBlur(master_ink, (0, 0), float(np.sqrt(k * k - 1.0))) if k > 1.05 else master_ink
     warped = cv2.warpPerspective(t, h_page_to_img, (ww, hh), flags=cv2.INTER_LINEAR, borderValue=0)
     inside = cv2.warpPerspective(np.ones(t.shape, dtype=np.uint8), h_page_to_img, (ww, hh),
@@ -689,6 +764,56 @@ def pose_is_sane(h_init: np.ndarray, dpi_init: float, h_found: np.ndarray, dpi_f
     return 1.0 / RESCUE_SCALE_CHANGE <= change <= RESCUE_SCALE_CHANGE and float(s1.max() / s1.min()) <= RESCUE_SCALE_SPREAD
 
 
+def rescue_threads(jobs: int) -> int:
+    """Threads for the rescue tries: the available CPUs (at most 4, and at most
+    ``TAPAK_WORKERS``), never more than the tries."""
+    from tapak.config import pool_size
+
+    return pool_size(jobs, min(4, jobs) if jobs else 1)
+
+
+def _tilted(h_page_to_img: np.ndarray, points_img: np.ndarray, dpi: float) -> bool:
+    """True when a pose looks like a photo taken at an angle over the page part (``points_img``,
+    see ``_visible_box``): rotated by more than RESCUE_TILT_DEG, or foreshortened so that its
+    local scales differ by more than RESCUE_TILT_SPREAD. A screen capture has neither, and a
+    downscaled photo can look as flat as one (``is_screen_capture``)."""
+    h = np.asarray(h_page_to_img, dtype=np.float64)
+    if not _invertible(h):
+        return False
+    scales = local_scales(h, points_img, dpi)
+    if not np.all(np.isfinite(scales)) or np.any(scales <= 0):
+        return False
+    q = cv2.perspectiveTransform(np.asarray(points_img[:1], dtype=np.float64), np.linalg.inv(h)).reshape(2)
+    ends = np.array([[[q[0], q[1]]], [[q[0] + 10.0, q[1]]]])
+    a, b = cv2.perspectiveTransform(ends, h).reshape(2, 2)
+    angle = abs(np.degrees(np.arctan2(b[1] - a[1], b[0] - a[0])))
+    return bool(min(angle, 180.0 - angle) > RESCUE_TILT_DEG or scales.max() / scales.min() > RESCUE_TILT_SPREAD)
+
+
+def _footprint(h_page_to_img: np.ndarray, image_shape: tuple[int, int], template_shape: tuple[int, int],
+               margin: float) -> tuple[int, int, int, int] | None:
+    """Box (x0, y0, x1, y1) of master pixels that the image covers under a pose, enlarged by
+    ``margin`` of its size on every side and clipped to the master; None when the pose cannot be
+    inverted, sends the image corners behind the camera, or covers less than RESCUE_MIN_SIDE /
+    4 pixels across."""
+    if not _invertible(h_page_to_img):
+        return None
+    hh, ww = image_shape
+    corners = np.array([[[0.0, 0.0]], [[ww - 1.0, 0.0]], [[ww - 1.0, hh - 1.0]], [[0.0, hh - 1.0]]])
+    inv = np.linalg.inv(np.asarray(h_page_to_img, dtype=np.float64))
+    hom = np.c_[corners.reshape(4, 2), np.ones(4)] @ inv.T
+    if np.any(hom[:, 2] <= 0):
+        return None
+    pts = hom[:, :2] / hom[:, 2:3]
+    m = margin * max(float(np.ptp(pts[:, 0])), float(np.ptp(pts[:, 1])))
+    th, tw = template_shape
+    x0, y0 = max(0, int(np.floor(pts[:, 0].min() - m))), max(0, int(np.floor(pts[:, 1].min() - m)))
+    x1, y1 = min(tw, int(np.ceil(pts[:, 0].max() + m))), min(th, int(np.ceil(pts[:, 1].max() + m)))
+    if min(x1 - x0, y1 - y0) < RESCUE_MIN_SIDE // 4:
+        return None
+    return x0, y0, x1, y1
+
+
 def _visible_box(mask: np.ndarray | None, shape: tuple[int, int]) -> np.ndarray:
     """Image points (5, 1, 2) of the page part: its centre and four corners (of the mask's box,
     or of the image)."""
@@ -713,7 +838,13 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
        of each of the ``RESCUE_PAGES`` best pages at a resolution within ``RESCUE_RIVAL_SCALE`` of
        the best pose's, so another page is tried as a rival where a confusion is possible).
     3. Each is refined with ECC restricted to the page part (``ecc_refine`` with the mask),
-       coarse levels only where the part is at least ``RESCUE_MIN_SIDE`` pixels across.
+       coarse levels only where the part is at least ``RESCUE_MIN_SIDE`` pixels across. A tilted
+       initial pose (``_tilted``: a photo taken at an angle) is also refined with a homography
+       against the master cut to its footprint (``RESCUE_FOOTPRINT``; origin "<origin>:jejak"):
+       on small, low-resolution photos of part of a page, which can look as flat as a screen
+       capture, the affine or whole-page ECC drifted off initial poses that were right to
+       within a pixel. The tries run side by side (``rescue_threads``) and are kept
+       in a fixed order, so the threads do not change the outcome.
     4. Each refined pose is verified: ``pose_is_sane`` (ECC did not blow the pose up) and
        ``pose_agreement`` (row-detrended correlation with the master). The best is kept only when it agrees
        with the master to at least ``RESCUE_MIN_AGREEMENT`` and no rival (another page, or a
@@ -769,8 +900,9 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
     else:
         part = (image.shape[1], image.shape[0])
 
-    tries = []
-    for origin, page, h0 in pool:
+    def attempt(job: tuple[str, int, np.ndarray, bool]) -> dict:
+        """Refine one initial pose and verify the result (the whole master, or its footprint)."""
+        origin, page, h0, footprint = job
         w_pt, h_pt = page_sizes[page]
         wp, hp = w_pt * probe / 72.0, h_pt * probe / 72.0
         eff0 = effective_dpi(h0, wp, hp, probe)
@@ -782,34 +914,52 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
         side = min(part) * edpi / max(eff0, 1e-6)
         levels = tuple((lv, it) for lv, it in RESCUE_LEVELS if lv == 1.0 or side * lv >= RESCUE_MIN_SIDE)
         template = render_page(pdf_bytes, page, edpi)
+        template_ink = master_ink(pdf_bytes, page, edpi)
         h0e = h0 @ np.diag([1 / s, 1 / s, 1.0])
-        if screen:  # an affine start: drop the perspective terms of the initial pose
+        if screen and not footprint:  # an affine start: drop the perspective terms of the initial pose
             h0e = h0e / h0e[2, 2]
             h0e[2, :2] = 0.0
-        h_e, cc = ecc_refine(template, work, h0e, levels, mask=mask, affine=screen)
+        if footprint:
+            # A small photo of part of a page: ECC against the whole page can drift off a pose
+            # that was already right, so the master is cut to where the photo lies under the
+            # initial pose (enlarged by RESCUE_FOOTPRINT_MARGIN) and the pose refined there.
+            cut = _footprint(h0e, work.shape, template.shape, RESCUE_FOOTPRINT_MARGIN)
+            if cut is None:
+                return {"origin": f"{origin}:jejak", "page": page, "dpi": dpi, "ecc_dpi": edpi, "cc": -1.0,
+                        "sane": False, "agreement": -1.0, "pixels": 0, "h": h0e / h0e[2, 2]}
+            x0, y0, x1, y1 = cut
+            shift = np.array([[1.0, 0.0, x0], [0.0, 1.0, y0], [0.0, 0.0, 1.0]])
+            h_c, cc = ecc_refine(template[y0:y1, x0:x1], work, h0e @ shift, levels, mask=mask, image_ink=ink)
+            h_e = h_c @ np.linalg.inv(shift)
+            origin = f"{origin}:jejak"
+        else:
+            h_e, cc = ecc_refine(template, work, h0e, levels, mask=mask, affine=screen, template_ink=template_ink,
+                                 image_ink=ink)
         sane = cc > 0 and pose_is_sane(h0e, edpi, h_e, edpi, box)
-        agree, n = pose_agreement(ink, mask, _prep(template), h_e, edpi) if sane else (-1.0, 0)
+        if sane and footprint:
+            # fitted on part of the page, a homography can run off far from it: the page centre's
+            # resolution must stay within RESCUE_FOOTPRINT_SPAN of the initial pose's
+            e = effective_dpi(h_e, w_pt * edpi / 72.0, h_pt * edpi / 72.0, edpi)
+            sane = bool(np.isfinite(e) and eff0 / RESCUE_FOOTPRINT_SPAN <= e <= eff0 * RESCUE_FOOTPRINT_SPAN)
+        agree, n = pose_agreement(ink, mask, template_ink, h_e, edpi) if sane else (-1.0, 0)
         h = h_e @ _resize_map(edpi / dpi, edpi / dpi)
-        t = {"origin": origin, "page": page, "dpi": dpi, "ecc_dpi": edpi, "cc": float(cc), "sane": bool(sane),
-             "agreement": agree, "pixels": n, "h": h / h[2, 2]}
-        tries.append(t)
-        log["tries"].append(t)
-    if not tries or max(t["agreement"] for t in tries) <= -1.0:
-        log["outcome"] = "tanpa_pose"
-        return None
-    best = max(tries, key=lambda t: t["agreement"])
-    log.update(page=best["page"], h=best["h"], dpi=best["dpi"], agreement=best["agreement"], origin=best["origin"])
-    p_best = cv2.perspectiveTransform(centre, np.linalg.inv(best["h"]))[0, 0] * 72.0 / best["dpi"]
-    rivals = [t["agreement"] for t in tries if t is not best and t["agreement"] > -1.0 and (
-        t["page"] != best["page"]
-        or np.linalg.norm(cv2.perspectiveTransform(centre, np.linalg.inv(t["h"]))[0, 0] * 72.0 / t["dpi"] - p_best)
-        > RESCUE_DISTINCT_PT)]
-    log["rival"] = max(rivals) if rivals else None
-    if best["agreement"] < RESCUE_MIN_AGREEMENT:
-        log["outcome"] = "tidak_terverifikasi"
-        return None
-    if rivals and max(rivals) >= best["agreement"] - RESCUE_AMBIGUITY:
-        log["outcome"] = "ambigu"
+        return {"origin": origin, "page": page, "dpi": dpi, "ecc_dpi": edpi, "cc": float(cc), "sane": bool(sane),
+                "agreement": agree, "pixels": n, "h": h / h[2, 2]}
+
+    jobs = [(origin, page, h0, False) for origin, page, h0 in pool]
+    if RESCUE_FOOTPRINT:
+        jobs += [(origin, page, h0, True) for origin, page, h0 in pool if _tilted(h0, box, probe)]
+    # The tries are independent: they run side by side (OpenCV releases the GIL), and their
+    # results are kept in the order above, so the outcome does not depend on the threads.
+    with ThreadPoolExecutor(max_workers=rescue_threads(len(jobs))) as ex:
+        tries = list(ex.map(attempt, jobs))
+    log["tries"].extend(tries)
+    best, outcome, rival = rescue_decision(tries, centre)
+    log["rival"] = rival
+    if best is not None:
+        log.update(page=best["page"], h=best["h"], dpi=best["dpi"], agreement=best["agreement"], origin=best["origin"])
+    if outcome != "terdaftar":
+        log["outcome"] = outcome
         return None
     log["outcome"] = "terdaftar"
     page, h, dpi = best["page"], best["h"], best["dpi"]
@@ -821,6 +971,28 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
         valid &= shown.astype(bool)
     return Registration(page=page, dpi=dpi, h_page_to_img=h, correlation=best["cc"], method=f"penyelamat:{best['origin']}",
                         rectified=rect, valid=valid, effective_dpi=effective_dpi(h, size[0], size[1], dpi))
+
+
+def rescue_decision(tries: list[dict], centre: np.ndarray) -> tuple[dict | None, str, float | None]:
+    """The verdict of the rescue stage on its tries: (best try or None, outcome, best rival's
+    agreement or None). The best try is the one that agrees most with the master; it is refused
+    below RESCUE_MIN_AGREEMENT ("tidak_terverifikasi") and when a rival (another page, or a pose
+    putting the visible ``centre`` RESCUE_DISTINCT_PT away) comes within RESCUE_AMBIGUITY of it
+    ("ambigu"); "tanpa_pose" when no try was verified at all, else "terdaftar"."""
+    if not tries or max(t["agreement"] for t in tries) <= -1.0:
+        return None, "tanpa_pose", None
+    best = max(tries, key=lambda t: t["agreement"])
+    p_best = cv2.perspectiveTransform(centre, np.linalg.inv(best["h"]))[0, 0] * 72.0 / best["dpi"]
+    rivals = [t["agreement"] for t in tries if t is not best and t["agreement"] > -1.0 and (
+        t["page"] != best["page"]
+        or np.linalg.norm(cv2.perspectiveTransform(centre, np.linalg.inv(t["h"]))[0, 0] * 72.0 / t["dpi"] - p_best)
+        > RESCUE_DISTINCT_PT)]
+    rival = max(rivals) if rivals else None
+    if best["agreement"] < RESCUE_MIN_AGREEMENT:
+        return best, "tidak_terverifikasi", rival
+    if rival is not None and rival >= best["agreement"] - RESCUE_AMBIGUITY:
+        return best, "ambigu", rival
+    return best, "terdaftar", rival
 
 
 def _rescue(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, float]],
@@ -853,7 +1025,7 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
     log: dict = {} if diag is None else diag
     log.update(quad=None, candidates=[], refined=[], outcome=None)
     img_ink = _prep(image)
-    lo = [(_prep(render_page(pdf_bytes, p, score_dpi))) for p in range(len(page_sizes))]
+    lo = [master_ink(pdf_bytes, p, score_dpi) for p in range(len(page_sizes))]
 
     def corners_h(page: int, quad: np.ndarray) -> np.ndarray:
         w_pt, h_pt = page_sizes[page]
@@ -873,15 +1045,18 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
         for page in range(len(page_sizes)):
             add(page, corners_h(page, quad), "kontur")
     if not cands or max(c[0] for c in cands) < 0.6:
+        feats = evidence_features(image)  # once for every page
         for page in range(len(page_sizes)):
-            fh = feature_homography(render_page(pdf_bytes, page, probe_dpi), image)
+            fh = feature_homography(render_page(pdf_bytes, page, probe_dpi), image,
+                                    master_features(pdf_bytes, page, probe_dpi), feats)
             if fh is not None:
                 add(page, fh, "fitur")
     if not cands or max(c[0] for c in cands) < 0.4:
-        from tapak.decoder.lines import tesseract_homography
+        from tapak.decoder.lines import ocr_words, tesseract_homography
 
+        words = ocr_words(image)  # once for every page
         for page in range(len(page_sizes)):
-            th = tesseract_homography(image, pdf_bytes, page, probe_dpi)
+            th = tesseract_homography(image, pdf_bytes, page, probe_dpi, words=words)
             if th is not None:
                 add(page, th, "tesseract")
     if not cands:
@@ -894,7 +1069,8 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
         wp, hp = w_pt * probe_dpi / 72.0, h_pt * probe_dpi / 72.0
         dpi = float(np.clip(round(effective_dpi(h0, wp, hp, probe_dpi) / 10) * 10, DPI_MIN, DPI_MAX))
         s = dpi / probe_dpi
-        h, cc = ecc_refine(render_page(pdf_bytes, page, dpi), image, h0 @ np.diag([1 / s, 1 / s, 1.0]))
+        h, cc = ecc_refine(render_page(pdf_bytes, page, dpi), image, h0 @ np.diag([1 / s, 1 / s, 1.0]),
+                           template_ink=master_ink(pdf_bytes, page, dpi), image_ink=img_ink)
         log["refined"].append({"method": method, "page": page, "dpi": dpi, "cc": cc, "h": h})
         if best is None or cc > best[0]:
             best = (cc, page, h, method, dpi)

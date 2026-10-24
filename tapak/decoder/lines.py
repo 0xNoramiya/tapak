@@ -88,11 +88,13 @@ def ocr_words(image: np.ndarray, lang: str = "ind+eng") -> list[tuple[str, float
     return parse_words(tsv) if tsv is not None else []
 
 
-def tesseract_homography(image: np.ndarray, pdf_bytes: bytes, page: int, dpi: float) -> np.ndarray | None:
-    """Page-to-image homography from OCR word matches, or None."""
+def tesseract_homography(image: np.ndarray, pdf_bytes: bytes, page: int, dpi: float,
+                         words: list[tuple[str, float, float, float]] | None = None) -> np.ndarray | None:
+    """Page-to-image homography from OCR word matches, or None. ``words``, when given, is
+    ``ocr_words(image)`` read beforehand (once for every page of a registration)."""
     from tapak.marker.layout import extract_layout
 
-    words = ocr_words(image)
+    words = ocr_words(image) if words is None else words
     if len(words) < 8:
         return None
     layout = extract_layout(pdf_bytes)
