@@ -56,9 +56,12 @@ from tapak.decoder.accuse import (
     ThresholdRecord,
     is_caveat,
 )
-from tapak.decoder.manipulation import is_manipulation_note
+from tapak.decoder.manipulation import is_manipulation_note, manipulation_parts
 from tapak.decoder.softbits import SoftBits
+from tapak import i18n
 from tapak.fonts import FONT_DIR, font_path
+from tapak.i18n import N_
+from tapak.i18n import gettext as _
 from tapak.marker.layout import sha256_hex
 from tapak.marker.plan import (
     CHANNEL_BACKGROUND,
@@ -91,23 +94,24 @@ REDACTED = "[disamarkan]"
 # Anonymous score rows shown below the accused rows (or alone, without a verdict).
 RUNNER_UP_ROWS = 3
 
+# Labels are Indonesian (the CLI prints them as they are); the berita acara translates them.
 SUBCHANNEL_LABELS = {
-    CHANNEL_SHIFT: "Pergeseran kata dan baris",
-    CHANNEL_BACKGROUND: "Pola latar halus",
-    CHANNEL_ZW: "Karakter tak terlihat (zero-width)",
-    CHANNEL_HOMOGLYPH: "Huruf kembar (homoglyph)",
-    CHANNEL_SEMANTIC: "Variasi kalimat (semantik)",
-    CHANNEL_LEXICAL: "Pilihan kata (leksikal)",
-    CHANNEL_SEMANTIC_OCR: "Variasi kalimat (semantik, OCR gambar)",
-    CHANNEL_LEXICAL_OCR: "Pilihan kata (leksikal, OCR gambar)",
+    CHANNEL_SHIFT: N_("Pergeseran kata dan baris"),
+    CHANNEL_BACKGROUND: N_("Pola latar halus"),
+    CHANNEL_ZW: N_("Karakter tak terlihat (zero-width)"),
+    CHANNEL_HOMOGLYPH: N_("Huruf kembar (homoglyph)"),
+    CHANNEL_SEMANTIC: N_("Variasi kalimat (semantik)"),
+    CHANNEL_LEXICAL: N_("Pilihan kata (leksikal)"),
+    CHANNEL_SEMANTIC_OCR: N_("Variasi kalimat (semantik, OCR gambar)"),
+    CHANNEL_LEXICAL_OCR: N_("Pilihan kata (leksikal, OCR gambar)"),
 }
 PHYSICAL_LABELS = {
-    "geser": "Geser (pergeseran kata dan baris)",
-    "latar": "Latar (pola latar halus)",
-    "teks": "Teks (karakter tak terlihat dan huruf kembar)",
-    "semantik": "Semantik (variasi kalimat)",
-    "leksikal": ("Leksikal (pilihan kata; bertahan saat diketik ulang, tetapi terlihat di kertas sehingga dapat "
-                 "ditiru; satu pembocor, tidak tahan kolusi)"),
+    "geser": N_("Geser (pergeseran kata dan baris)"),
+    "latar": N_("Latar (pola latar halus)"),
+    "teks": N_("Teks (karakter tak terlihat dan huruf kembar)"),
+    "semantik": N_("Semantik (variasi kalimat)"),
+    "leksikal": N_("Leksikal (pilihan kata; bertahan saat diketik ulang, tetapi terlihat di kertas sehingga dapat "
+                   "ditiru; satu pembocor, tidak tahan kolusi)"),
 }
 _DIGITAL_SUBCHANNELS = {CHANNEL_ZW, CHANNEL_HOMOGLYPH}
 
@@ -525,15 +529,34 @@ def make_redactor(hidden: Iterable[CopyRef], shown_seqs: set[int]) -> Callable[[
 def _seq_list_text(seqs: list[int], shown_seqs: set[int]) -> str:
     """'#7', '#7; 2 salinan lain (nomor tidak dicantumkan)' or '2 salinan (nomor ...)'."""
     if not seqs:
-        return "tidak ada"
+        return _("tidak ada")
     named = [f"#{s}" for s in seqs if s in shown_seqs]
     others = len(seqs) - len(named)
     if others:
-        named.append(f"{others} salinan{' lain' if named else ''} (nomor tidak dicantumkan)")
+        named.append(_("%(n)s salinan lain (nomor tidak dicantumkan)", n=others) if named
+                     else _("%(n)s salinan (nomor tidak dicantumkan)", n=others))
     return "; ".join(named)
 
 
 # --- view model: the only data the template sees ----------------------------------------
+# Numbers and dates of the view follow the language of the berita acara (tapak.i18n): Indonesian
+# unless an English rendition is asked for.
+
+
+def _num(value: float, decimals: int = 1) -> str:
+    return i18n.localize(format_number(value, decimals))
+
+
+def _int(value: int) -> str:
+    return i18n.localize(format_int(value))
+
+
+def _prob(p: float, log10_value: float | None = None, round_up: bool = True) -> Markup:
+    return Markup(i18n.localize(format_probability_html(p, log10_value, round_up)))
+
+
+def _pct(value: float) -> str:
+    return i18n.localize(_strip_zeros(format_number(value, 2)))
 
 
 def _log10_false_accusation(c: CopyCandidate, n_copies: int, share: float = 1.0) -> float:
@@ -554,11 +577,10 @@ def _log10_false_accusation(c: CopyCandidate, n_copies: int, share: float = 1.0)
 def _score_cells(c: CopyCandidate, z: float, n_copies: int, n_read: int, share: float = 1.0) -> dict[str, Any]:
     """Score, Z, probability bound (rounded up) and agreeing channels of one copy."""
     return {
-        "score": format_number(c.score),
-        "threshold": format_number(z),
-        "probability": format_probability_html(c.false_accusation_probability,
-                                               _log10_false_accusation(c, n_copies, share)),
-        "channels": f"{len(c.channels_agreeing)} dari {n_read}"
+        "score": _num(c.score),
+        "threshold": _num(z),
+        "probability": _prob(c.false_accusation_probability, _log10_false_accusation(c, n_copies, share)),
+        "channels": _("%(n)s dari %(total)s", n=len(c.channels_agreeing), total=n_read)
                     + (f": {', '.join(c.channels_agreeing)}" if c.channels_agreeing else ""),
     }
 
@@ -611,26 +633,26 @@ def _stage_views(attribution: Attribution) -> list[dict[str, Any]]:
         views.append({
             "stage": st.stage,
             "basis": ", ".join(f"#{s}" for s in st.basis),
-            "positions": format_int(t.n_observed),
-            "z": format_number(t.threshold),
+            "positions": _int(t.n_observed),
+            "z": _num(t.threshold),
             "z_finite": math.isfinite(t.threshold),
-            "eps_stage": format_probability_html(t.stage_spent, round_up=False),
-            "eps1": format_probability_html(t.eps1, round_up=False),
-            "fraction": _strip_zeros(format_number(100 * t.stage_spent / t.spent, 2)),
-            "fixed_at": format_datetime(t.fixed_at),
+            "eps_stage": _prob(t.stage_spent, round_up=False),
+            "eps1": _prob(t.eps1, round_up=False),
+            "fraction": _pct(100 * t.stage_spent / t.spent),
+            "fixed_at": i18n.format_datetime(t.fixed_at),
             "fixed_at_raw": t.fixed_at,
-            "best_other_score": format_number(others[0].score) if others else None,
+            "best_other_score": _num(others[0].score) if others else None,
             "rows": [
                 {
                     "seq": f"#{c.copy.seq}",
                     "recipient_id": c.copy.recipient_id,
                     "nama": c.copy.nama,
                     "jabatan": ", ".join(x for x in (c.copy.jabatan, c.copy.satuan) if x),
-                    "score": format_number(c.score),
-                    "threshold": format_number(t.threshold),
-                    "probability": format_probability_html(
-                        c.false_accusation_probability, _log10_false_accusation(c, n_copies, t.stage_share)),
-                    "basis_text": st.basis_text(),
+                    "score": _num(c.score),
+                    "threshold": _num(t.threshold),
+                    "probability": _prob(c.false_accusation_probability,
+                                         _log10_false_accusation(c, n_copies, t.stage_share)),
+                    "basis_text": i18n.translate_text(st.basis_text()),
                 }
                 for c in st.accused
             ],
@@ -655,24 +677,24 @@ def _channel_rows(attribution: Attribution, info: ReportInfo, shown_seqs: set[in
     planned = {PHYSICAL_CHANNEL.get(name, name) for name in info.plan_summary}
     examined = {PHYSICAL_CHANNEL.get(str(o["channel"]), str(o["channel"]))
                 for o in info.channel_observations}
-    m = format_int(info.params.length)
+    m = _int(info.params.length)
     rows = []
     for name in _in_label_order(planned | set(read), PHYSICAL_LABELS):
-        label = PHYSICAL_LABELS.get(name, name)
+        label = _(PHYSICAL_LABELS.get(name, name))
         ch = read.get(name)
         if ch is not None:
             if ch.source_label:  # read (also) from the OCR text of an image: say so
-                label = f"{label}; dibaca dari {ch.source_label}"
+                label = _("%(label)s; dibaca dari %(source)s", label=label, source=i18n.translate_text(ch.source_label))
             rows.append({"label": label, "status": STATUS_READ,
-                         "positions": f"{format_int(ch.n_observed)} dari {m}",
-                         "threshold": format_number(ch.threshold),
+                         "positions": _("%(n)s dari %(total)s", n=_int(ch.n_observed), total=m),
+                         "threshold": _num(ch.threshold),
                          "accused": _seq_list_text(ch.accused_seqs, shown_seqs)})
         elif name in examined:
-            rows.append({"label": label, "status": STATUS_UNREAD, "positions": f"0 dari {m}",
-                         "threshold": "-", "accused": "tidak terbaca"})
+            rows.append({"label": label, "status": STATUS_UNREAD, "positions": _("%(n)s dari %(total)s", n=0, total=m),
+                         "threshold": "-", "accused": _("tidak terbaca")})
         else:
             rows.append({"label": label, "status": STATUS_NOT_EXAMINED, "positions": "-",
-                         "threshold": "-", "accused": "tidak diperiksa untuk jenis bukti ini"})
+                         "threshold": "-", "accused": _("tidak diperiksa untuk jenis bukti ini")})
     return rows
 
 
@@ -680,14 +702,15 @@ def _subchannel_rows(info: ReportInfo) -> list[dict[str, Any]]:
     rows = []
     for obs in info.channel_observations:
         read, total = obs.get("slots_read"), obs.get("slots_total")
-        slots = "-" if read is None else format_int(int(read))
+        slots = "-" if read is None else _int(int(read))
         if read is not None and total is not None:
-            slots += f" dari {format_int(int(total))}"
+            slots = _("%(n)s dari %(total)s", n=slots, total=_int(int(total)))
+        noise = obs.get("noise") or "-"
         rows.append({
-            "label": SUBCHANNEL_LABELS.get(str(obs["channel"]), str(obs["channel"])),
-            "observations": format_int(int(obs.get("observations", 0))),
+            "label": _(SUBCHANNEL_LABELS.get(str(obs["channel"]), str(obs["channel"]))),
+            "observations": _int(int(obs.get("observations", 0))),
             "slots": slots,
-            "noise": obs.get("noise") or "-",
+            "noise": "; ".join(i18n.translate_text(part) for part in str(noise).split("; ")),
         })
     return rows
 
@@ -697,37 +720,37 @@ def _plan_rows(plan_summary: dict[str, dict[str, int]]) -> list[dict[str, str]]:
     rows = []
     for name in _in_label_order(plan_summary, SUBCHANNEL_LABELS):
         entry = plan_summary[name] or {}
-        row = {"label": SUBCHANNEL_LABELS.get(name, name)}
+        row = {"label": _(SUBCHANNEL_LABELS.get(name, name))}
         for key in ("slots", "bits", "positions", "pages"):
-            row[key] = format_int(int(entry[key])) if key in entry else "-"
+            row[key] = _int(int(entry[key])) if key in entry else "-"
         rows.append(row)
     return rows
 
 
 def _params_rows(p: TardosParams) -> list[tuple[str, str | Markup]]:
     return [
-        ("Ukuran koalisi rancangan (c)", format_int(p.c)),
-        ("Peluang tuduhan salah total (eps)", format_probability_html(p.eps, round_up=False)),
-        ("Jumlah penerima maksimum (n_max)", format_int(p.n_max)),
-        ("Peluang tuduhan salah per penerima pada rancangan kode (eps / n_max; ambang pelacakan memakai "
-         "jatah eps pelacakan itu, lihat Bagian V)",
-         format_probability_html(p.eps1, round_up=False)),
-        ("Panjang kode (m)", f"{format_int(p.length)} posisi"),
-        ("Konstanta panjang kode", f"{p.constant} (K = {format_number(p.k_constant, 2)})"),
-        ("Batas bias (t = 1 / (300 c))", format_probability_html(p.cutoff, round_up=False)),
+        (_("Ukuran koalisi rancangan (c)"), _int(p.c)),
+        (_("Peluang tuduhan salah total (eps)"), _prob(p.eps, round_up=False)),
+        (_("Jumlah penerima maksimum (n_max)"), _int(p.n_max)),
+        (_("Peluang tuduhan salah per penerima pada rancangan kode (eps / n_max; ambang pelacakan memakai "
+           "jatah eps pelacakan itu, lihat Bagian V)"),
+         _prob(p.eps1, round_up=False)),
+        (_("Panjang kode (m)"), _("%(n)s posisi", n=_int(p.length))),
+        (_("Konstanta panjang kode"), f"{p.constant} (K = {_num(p.k_constant, 2)})"),
+        (_("Batas bias (t = 1 / (300 c))"), _prob(p.cutoff, round_up=False)),
     ]
 
 
 def _registry_text(info: ReportInfo) -> str:
     if info.registry_ok is None:
-        return "tidak diperiksa"
+        return _("tidak diperiksa")
     if info.registry_ok and info.registry_unsigned:
-        return (f"rantai hash utuh ({format_int(info.registry_entries)} entri), tetapi "
-                f"{format_int(info.registry_unsigned)} entri salinan dokumen ini belum bertanda tangan "
-                "sehingga belum terlindungi dari pemalsuan")
+        return _("rantai hash utuh (%(n)s entri), tetapi %(unsigned)s entri salinan dokumen ini belum bertanda tangan "
+                 "sehingga belum terlindungi dari pemalsuan", n=_int(info.registry_entries),
+                 unsigned=_int(info.registry_unsigned))
     if info.registry_ok:
-        return f"utuh; {format_int(info.registry_entries)} entri terverifikasi dengan tanda tangan"
-    return f"TIDAK UTUH ({format_int(info.registry_entries)} entri); lihat Bagian VII"
+        return _("utuh; %(n)s entri terverifikasi dengan tanda tangan", n=_int(info.registry_entries))
+    return _("TIDAK UTUH (%(n)s entri); lihat Bagian VII", n=_int(info.registry_entries))
 
 
 def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None,
@@ -753,16 +776,19 @@ def rerun_command(info: ReportInfo, redact: Callable[[str], str] | None = None,
 def _trace_text(t: ThresholdRecord) -> str:
     """Section V and VI: which trace of the document this was and the eps it spent."""
     if t.trace_no is None:
-        text = ("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; "
-                + ("pelacakan ini memakai seluruh eps" if t.stage_eps is not None else "ambang memakai seluruh eps"))
+        text = (_("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; "
+                  "pelacakan ini memakai seluruh eps") if t.stage_eps is not None
+                else _("tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak "
+                       "diperhitungkan; ambang memakai seluruh eps"))
     else:
-        text = (f"pelacakan ke-{t.trace_no} untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps "
-                f"pelacakan ini 6 / (\u03c0\u00b2 \u00d7 {t.trace_no}\u00b2) = "
-                f"{_strip_zeros(format_number(100 * t.share, 2))} % dari eps")
+        text = _("pelacakan ke-%(k)s untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps pelacakan ini "
+                 "6 / (\u03c0\u00b2 \u00d7 %(k)s\u00b2) = %(pct)s %% dari eps", k=t.trace_no, pct=_pct(100 * t.share))
     if t.stage_eps is not None:
-        text += (f"; pelacakan bertahap (kebijakan {t.stage_policy}): tahap 1 memakai "
-                 f"{_strip_zeros(format_number(100 * t.stage_spent / t.spent, 2))} % "
-                 f"{'dari jatah itu' if t.trace_no is not None else 'dari eps itu'}")
+        pct = _pct(100 * t.stage_spent / t.spent)
+        text += "; " + (_("pelacakan bertahap (kebijakan %(policy)s): tahap 1 memakai %(pct)s %% dari jatah itu",
+                          policy=t.stage_policy, pct=pct) if t.trace_no is not None
+                        else _("pelacakan bertahap (kebijakan %(policy)s): tahap 1 memakai %(pct)s %% dari eps itu",
+                               policy=t.stage_policy, pct=pct))
     return text
 
 
@@ -776,9 +802,9 @@ def _canary_rows(info: ReportInfo, shown_seqs: set[int], redact: Callable[[str],
         elif int(seq) in shown_seqs:
             seq_text = f"#{int(seq)}"
         else:
-            seq_text = "salinan lain (nomor tidak dicantumkan)"
+            seq_text = _("salinan lain (nomor tidak dicantumkan)")
         rows.append({"seq": seq_text,
-                     "time": redact(format_datetime(str(e.get("time", "-")))),
+                     "time": redact(i18n.format_datetime(str(e.get("time", "-")))),
                      "source_ip": redact(str(e.get("source_ip", "-")))})
     return rows
 
@@ -799,51 +825,61 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
     n_read = sum(1 for r in channel_rows if r["status"] == STATUS_READ)
     others = [c for c in attribution.candidates if not c.accused]
     evidence_name = redact(info.evidence_name)
+    say = i18n.translate_text
+    anchor_text = say(info.anchor_text)
+
+    def say_warning(note: str) -> str:
+        """The merged manipulation warning; in English one sentence at a time (the rules know its
+        sentences), without the final full stop the template adds."""
+        if i18n.current() != "en":
+            return note
+        return " ".join(say(part) for part in manipulation_parts(note)).rstrip(".")
+
     return {
         "case": {
             "case_number": info.case_number,
-            "examiner_name": info.examiner_name,
-            "examiner_rank": info.examiner_rank,
+            "examiner_name": i18n.translate_text(info.examiner_name),  # the "(nama pemeriksa)" placeholder
+            "examiner_rank": i18n.translate_text(info.examiner_rank),
             "institution": info.institution,
             "place": info.place,
             "software_version": info.software_version,
             "evidence_name": evidence_name,
             "evidence_name_redacted": evidence_name != info.evidence_name,
-            "evidence_type": info.evidence_type,
+            "evidence_type": ", ".join(_(t) for t in info.evidence_type.split(", ")),
             "evidence_sha256": info.evidence_sha256,
             "document_name": redact(info.document_name),
             "doc_hash": info.doc_hash,
-            "copies_issued": format_int(info.copies_issued),
-            "c": format_int(p.c),
-            "n_max": format_int(p.n_max),
+            "copies_issued": _int(info.copies_issued),
+            "c": _int(p.c),
+            "n_max": _int(p.n_max),
             "constant": p.constant,
-            "cutoff": format_probability_html(p.cutoff, round_up=False),
+            "cutoff": _prob(p.cutoff, round_up=False),
         },
         "identified": identified,
         "accused_rows": _accused_rows(attribution, n_read),
         "anonymous_rows": _anonymous_rows(attribution, n_read),
-        "best_other_score": format_number(others[0].score) if others else None,
-        "z": format_number(t.threshold),
+        "best_other_score": _num(others[0].score) if others else None,
+        "z": _num(t.threshold),
         "z_finite": math.isfinite(t.threshold),
-        "z_fixed_at": format_datetime(t.fixed_at),
+        "z_fixed_at": i18n.format_datetime(t.fixed_at),
         "z_fixed_at_raw": t.fixed_at,
         "threshold_rule": t.rule,
-        "n_observed": format_int(t.n_observed),
-        "effective_positions": format_number(t.effective_positions, 0),
-        "m": format_int(p.length),
-        "eps1": format_probability_html(t.eps1, round_up=False),
-        "eps": format_probability_html(t.eps, round_up=False),
+        "n_observed": _int(t.n_observed),
+        "effective_positions": _num(t.effective_positions, 0),
+        "m": _int(p.length),
+        "eps1": _prob(t.eps1, round_up=False),
+        "eps": _prob(t.eps, round_up=False),
         "trace_no": t.trace_no,
-        "eps_share": format_probability_html(t.spent, round_up=False),
+        "eps_share": _prob(t.spent, round_up=False),
         "trace_text": _trace_text(t),
         "staged": t.stage_eps is not None,
         "stage_policy": t.stage_policy or "",
-        "eps_stage1": format_probability_html(t.stage_spent, round_up=False),
+        "eps_stage1": _prob(t.stage_spent, round_up=False),
         "stage_rule": attribution.stages[0].threshold.rule if attribution.stages else "",
         "stages": _stage_views(attribution),
         "trace_anchor": (f"{info.trace_entry}:{info.trace_entry_hash}"
                          if info.trace_entry is not None and info.trace_entry_hash else ""),
-        "anchor_text": info.anchor_text[:1].upper() + info.anchor_text[1:],
+        "anchor_text": anchor_text[:1].upper() + anchor_text[1:],
         "channel_rows": channel_rows,
         "unread_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_UNREAD],
         "unexamined_channels": [r["label"] for r in channel_rows if r["status"] == STATUS_NOT_EXAMINED],
@@ -852,21 +888,21 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
         "params_rows": _params_rows(p),
         "registry": _registry_text(info),
         "registry_failed": info.registry_ok is False,
-        "notes": [redact(n) for n in attribution.notes if not is_caveat(n)],
-        "caveats": [redact(n) for n in attribution.notes if VISIBLE_MARKS_NOTE in n],
-        "manipulation_warnings": [redact(n) for n in attribution.notes if is_manipulation_note(n)],
-        "reversal_text": attribution.reversal.text() if attribution.reversal is not None else "",
-        "erasure_text": attribution.erasure.text() if attribution.erasure is not None else "",
-        "contradiction_text": attribution.contradiction.text() if attribution.contradiction is not None else "",
+        "notes": [say(redact(n)) for n in attribution.notes if not is_caveat(n)],
+        "caveats": [say(redact(n)) for n in attribution.notes if VISIBLE_MARKS_NOTE in n],
+        "manipulation_warnings": [say_warning(redact(n)) for n in attribution.notes if is_manipulation_note(n)],
+        "reversal_text": say(attribution.reversal.text()) if attribution.reversal is not None else "",
+        "erasure_text": say(attribution.erasure.text()) if attribution.erasure is not None else "",
+        "contradiction_text": say(attribution.contradiction.text()) if attribution.contradiction is not None else "",
         "canary_rows": _canary_rows(info, shown_seqs, redact),
-        "digests": [(f"#{c.copy.seq}", info.code_digests.get(c.copy.seq, "tidak tersedia"))
-                    for _, c in attribution.named],
+        "digests": [(f"#{c.copy.seq}", info.code_digests.get(c.copy.seq, _("tidak tersedia")))
+                    for _stage, c in attribution.named],
         "command": rerun_command(info, redact, t.trace_no, t.stage_policy),
-        "examined_at": format_datetime(info.examined_at, with_day=True),
-        "received_at": format_datetime(info.evidence_received_at) if info.evidence_received_at else "",
-        "issued_at": format_datetime(info.issued_at),
-        "generated_at": format_datetime(_now_iso()),
-        "signing_date": format_datetime(info.examined_at, with_time=False),
+        "examined_at": i18n.format_datetime(info.examined_at, with_day=True),
+        "received_at": i18n.format_datetime(info.evidence_received_at) if info.evidence_received_at else "",
+        "issued_at": i18n.format_datetime(info.issued_at),
+        "generated_at": i18n.format_datetime(_now_iso()),
+        "signing_date": i18n.format_datetime(info.examined_at, with_time=False),
         "redacted": REDACTED,
         "inline_css": None,
     }
@@ -877,13 +913,20 @@ def _view(attribution: Attribution, info: ReportInfo) -> dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def _environment() -> Environment:
-    return Environment(
+    env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
+        extensions=["jinja2.ext.i18n"],
     )
+    # Indonesian, or an English rendition when tapak.i18n is set to English (the web does that
+    # for an English page); the Indonesian berita acara is the official one.
+    env.install_gettext_callables(i18n.translate, i18n.translate_plural, newstyle=True)  # type: ignore[attr-defined]
+    env.policies["ext.i18n.trimmed"] = True
+    env.globals["bahasa"] = i18n.current
+    return env
 
 
 def render_html(attribution: Attribution, info: ReportInfo, *, standalone: bool = False) -> str:

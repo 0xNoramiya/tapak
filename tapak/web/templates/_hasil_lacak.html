@@ -105,6 +105,7 @@
 
   <div class="verdict-actions">
     <a class="btn btn-primary" href="/lacak/{{ tid }}/berita-acara.pdf">{{ ikon("download") }}{{ _("Unduh berita acara (PDF)") }}</a>
+    {% if bahasa() == "en" %}<a class="link small" href="/lacak/{{ tid }}/berita-acara.pdf?asli=1" hreflang="id">{{ _("Asli berbahasa Indonesia (resmi)") }}</a>{% endif %}
     {% if not identified and t.n_observed %}<p class="hint">{{ _("Foto halaman lain dari kebocoran yang sama dapat diunggah bersama; buktinya digabung.") }}</p>{% endif %}
   </div>
 </section>

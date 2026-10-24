@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 from tapak.config import Settings
-from tapak.web.i18n import N_, localize
+from tapak.i18n import N_, localize
 
 DEMO_DIR = "demo"
 MARKER = ".tapak-demo"

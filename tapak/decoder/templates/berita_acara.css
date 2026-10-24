@@ -155,3 +155,6 @@ sup { font-size: 70%; line-height: 0; vertical-align: super; }
 .ttd .ruang td { height: 22mm; }
 .ttd .nama td { vertical-align: bottom; }
 .garis { border-bottom: 0.5pt solid #000; margin: 0 2mm 2pt; font-weight: bold; }
+
+/* the note on top of an English rendition */
+.terjemahan { border: 0.5pt solid #777; padding: 4pt 6pt; }

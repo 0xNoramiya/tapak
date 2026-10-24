@@ -1,13 +1,24 @@
 <!doctype html>
-<html lang="id">
+<html lang="{{ bahasa() }}">
 <head>
 <meta charset="utf-8">
-<title>Berita Acara Pemeriksaan Digital {{ case.case_number }}</title>
+<title>{{ _("Berita Acara Pemeriksaan Digital %(no)s", no=case.case_number) }}</title>
 <meta name="author" content="{{ case.examiner_name }}">
-<meta name="description" content="Atribusi sumber kebocoran dokumen rahasia">
+<meta name="description" content="{{ _('Atribusi sumber kebocoran dokumen rahasia') }}">
 {% if inline_css %}
 <style>
 {{ inline_css }}
+</style>
+{% endif %}
+{% if bahasa() == "en" %}
+{# the margin boxes of berita_acara.css, in English: the document's own style wins over that sheet #}
+<style>
+@page {
+  @top-center { content: "SECRET"; }
+  @bottom-left { content: "Digital examination report " string(perkara); }
+  @bottom-center { content: "SECRET"; }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); }
+}
 </style>
 {% endif %}
 </head>
@@ -17,65 +28,69 @@
   {% if case.institution %}
   <div class="instansi">{{ case.institution }}</div>
   {% endif %}
-  <h1>BERITA ACARA PEMERIKSAAN DIGITAL</h1>
-  <div class="subjudul">Atribusi Sumber Kebocoran Dokumen Rahasia</div>
-  <div class="nomor">Nomor Perkara: <span class="case-number">{{ case.case_number }}</span></div>
+  <h1>{{ _("BERITA ACARA PEMERIKSAAN DIGITAL") }}</h1>
+  <div class="subjudul">{{ _("Atribusi Sumber Kebocoran Dokumen Rahasia") }}</div>
+  <div class="nomor">{% trans no=case.case_number %}Nomor Perkara: <span class="case-number">{{ no }}</span>{% endtrans %}</div>
 </header>
+{% if bahasa() == "en" %}
+<p class="kecil terjemahan">This is an English rendition of the berita acara (digital examination report) for readers who do
+not read Indonesian. The Indonesian berita acara of the same trace is the official version.</p>
+{% endif %}
 
-<p>Pada hari ini, {{ examined_at }}, saya yang bertanda tangan di bawah ini:</p>
+<p>{{ _("Pada hari ini, %(when)s, saya yang bertanda tangan di bawah ini:", when=examined_at) }}</p>
 <table class="kv identitas">
-  <tr><th>Nama</th><td>{{ case.examiner_name }}</td></tr>
-  <tr><th>Pangkat/Jabatan</th><td>{{ case.examiner_rank }}</td></tr>
+  <tr><th>{{ _("Nama") }}</th><td>{{ case.examiner_name }}</td></tr>
+  <tr><th>{{ _("Pangkat/Jabatan") }}</th><td>{{ case.examiner_rank }}</td></tr>
 </table>
-<p>selaku Pemeriksa, telah melakukan pemeriksaan digital terhadap barang bukti yang diuraikan
-di bawah ini dengan perangkat lunak TAPAK versi {{ case.software_version }}, dengan hasil
-sebagai berikut.</p>
+<p>{% trans version=case.software_version %}selaku Pemeriksa, telah melakukan pemeriksaan digital terhadap barang bukti yang diuraikan
+di bawah ini dengan perangkat lunak TAPAK versi {{ version }}, dengan hasil
+sebagai berikut.{% endtrans %}</p>
 
 <section>
-<h2><span class="no">I.</span>IDENTITAS PERKARA DAN BARANG BUKTI</h2>
+<h2><span class="no">I.</span>{{ _("IDENTITAS PERKARA DAN BARANG BUKTI") }}</h2>
 <table class="kv">
-  <tr><th>Nomor perkara</th><td>{{ case.case_number }}</td></tr>
-  <tr><th>Pemeriksa</th><td>{{ case.examiner_name }}, {{ case.examiner_rank }}</td></tr>
-  <tr><th>Waktu pemeriksaan</th><td>{{ examined_at }}</td></tr>
+  <tr><th>{{ _("Nomor perkara") }}</th><td>{{ case.case_number }}</td></tr>
+  <tr><th>{{ _("Pemeriksa") }}</th><td>{{ case.examiner_name }}, {{ case.examiner_rank }}</td></tr>
+  <tr><th>{{ _("Waktu pemeriksaan") }}</th><td>{{ examined_at }}</td></tr>
   {% if received_at %}
-  <tr><th>Bukti diterima</th><td>{{ received_at }}</td></tr>
+  <tr><th>{{ _("Bukti diterima") }}</th><td>{{ received_at }}</td></tr>
   {% endif %}
-  <tr><th>Nama berkas bukti</th><td class="mono">{{ case.evidence_name }}</td></tr>
-  <tr><th>Jenis barang bukti</th><td>{{ case.evidence_type }}</td></tr>
-  <tr><th>SHA-256 barang bukti</th><td class="mono">{{ case.evidence_sha256 }}</td></tr>
+  <tr><th>{{ _("Nama berkas bukti") }}</th><td class="mono">{{ case.evidence_name }}</td></tr>
+  <tr><th>{{ _("Jenis barang bukti") }}</th><td>{{ case.evidence_type }}</td></tr>
+  <tr><th>{{ _("SHA-256 barang bukti") }}</th><td class="mono">{{ case.evidence_sha256 }}</td></tr>
 </table>
-<p>Nilai SHA-256 adalah sidik kriptografis berkas bukti sebagaimana diterima. Perangkat lunak
+<p>{% trans %}Nilai SHA-256 adalah sidik kriptografis berkas bukti sebagaimana diterima. Perangkat lunak
 hanya membaca berkas tersebut dan tidak mengubahnya. Siapa pun dapat menghitung ulang nilai ini
-untuk memastikan bahwa berkas yang diperiksa adalah berkas yang sama.</p>
+untuk memastikan bahwa berkas yang diperiksa adalah berkas yang sama.{% endtrans %}</p>
 {% if case.evidence_name_redacted %}
-<p>Nama berkas bukti memuat bagian yang menyerupai identitas atau nomor salinan penerima yang
+<p>{% trans %}Nama berkas bukti memuat bagian yang menyerupai identitas atau nomor salinan penerima yang
 tidak dituduh. Bagian itu ditulis sebagai "{{ redacted }}", karena nama berkas dapat diubah
-oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari nilai SHA-256 di atas.</p>
+oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari nilai SHA-256 di atas.{% endtrans %}</p>
 {% endif %}
 </section>
 
 <section>
-<h2><span class="no">II.</span>DOKUMEN INDUK DAN PENERBITAN</h2>
+<h2><span class="no">II.</span>{{ _("DOKUMEN INDUK DAN PENERBITAN") }}</h2>
 <table class="kv">
-  <tr><th>Nama dokumen induk</th><td class="mono">{{ case.document_name }}</td></tr>
-  <tr><th>SHA-256 dokumen induk</th><td class="mono">{{ case.doc_hash }}</td></tr>
-  <tr><th>Waktu penerbitan</th><td>{{ issued_at }}</td></tr>
-  <tr><th>Jumlah salinan diterbitkan</th><td>{{ case.copies_issued }} salinan, masing-masing untuk satu penerima</td></tr>
-  <tr><th>Status registri penerbitan</th><td>{{ registry }}</td></tr>
+  <tr><th>{{ _("Nama dokumen induk") }}</th><td class="mono">{{ case.document_name }}</td></tr>
+  <tr><th>{{ _("SHA-256 dokumen induk") }}</th><td class="mono">{{ case.doc_hash }}</td></tr>
+  <tr><th>{{ _("Waktu penerbitan") }}</th><td>{{ issued_at }}</td></tr>
+  <tr><th>{{ _("Jumlah salinan diterbitkan") }}</th><td>{{ _("%(n)s salinan, masing-masing untuk satu penerima", n=case.copies_issued) }}</td></tr>
+  <tr><th>{{ _("Status registri penerbitan") }}</th><td>{{ registry }}</td></tr>
 </table>
 
-<h3>Parameter kode Tardos</h3>
+<h3>{{ _("Parameter kode Tardos") }}</h3>
 <table class="kv">
   {% for label, value in params_rows %}
   <tr><th>{{ label }}</th><td>{{ value }}</td></tr>
   {% endfor %}
 </table>
 
-<h3>Kanal penanda yang dipakai pada penerbitan</h3>
+<h3>{{ _("Kanal penanda yang dipakai pada penerbitan") }}</h3>
 {% if plan_rows %}
 <table class="grid">
   <thead>
-    <tr><th>Kanal</th><th class="r">Slot</th><th class="r">Bit</th><th class="r">Posisi kode berbeda</th><th class="r">Halaman</th></tr>
+    <tr><th>{{ _("Kanal") }}</th><th class="r">{{ _("Slot") }}</th><th class="r">{{ _("Bit") }}</th><th class="r">{{ _("Posisi kode berbeda") }}</th><th class="r">{{ _("Halaman") }}</th></tr>
   </thead>
   <tbody>
     {% for r in plan_rows %}
@@ -84,45 +99,47 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
   </tbody>
 </table>
 {% else %}
-<p>Catatan penerbitan tidak memuat ringkasan kanal.</p>
+<p>{{ _("Catatan penerbitan tidak memuat ringkasan kanal.") }}</p>
 {% endif %}
 </section>
 
 <section>
-<h2><span class="no">III.</span>METODOLOGI</h2>
+<h2><span class="no">III.</span>{{ _("METODOLOGI") }}</h2>
 <ol class="metode">
-  <li><strong>Sidik jari per penerima.</strong> Setiap salinan yang diterbitkan membawa kode biner
+  <li>{% trans %}<strong>Sidik jari per penerima.</strong> Setiap salinan yang diterbitkan membawa kode biner
   yang unik untuk penerimanya. Kode itu disembunyikan dalam lima kanal: (a) pergeseran posisi
   kelompok kata dan baris yang jauh di bawah batas penglihatan; (b) pola latar abu-abu yang sangat
   halus; (c) karakter tak terlihat (zero-width) di lapisan teks; (d) penggantian huruf Latin
   dengan huruf Sirilik yang bentuknya identik (homoglyph); (e) variasi susunan kalimat yang
   maknanya sama. Kanal yang dipakai untuk dokumen ini tercantum pada Bagian II. Kode setiap
   salinan tidak disimpan; yang disimpan hanya komitmen kriptografisnya (code digest), sehingga
-  pihak ketiga dapat memeriksa bahwa kode tersebut sudah tetap sejak penerbitan.</li>
-  <li><strong>Pembacaan bukti.</strong> Dekoder membaca tanda pada bukti tanpa melihat kode penerima
+  pihak ketiga dapat memeriksa bahwa kode tersebut sudah tetap sejak penerbitan.{% endtrans %}</li>
+  <li>{% trans %}<strong>Pembacaan bukti.</strong> Dekoder membaca tanda pada bukti tanpa melihat kode penerima
   mana pun. Untuk setiap posisi kode yang terbaca, dekoder hanya menghasilkan perkiraan bit
-  beserta tingkat keyakinannya. Hasil semua kanal kemudian digabungkan.</li>
-  <li><strong>Kode anti-kolusi Tardos dengan skor simetris.</strong> Kode Tardos dirancang agar
+  beserta tingkat keyakinannya. Hasil semua kanal kemudian digabungkan.{% endtrans %}</li>
+  <li>{% trans %}<strong>Kode anti-kolusi Tardos dengan skor simetris.</strong> Kode Tardos dirancang agar
   tetap dapat menunjuk sedikitnya satu pembocor walaupun hingga c penerima bekerja sama
   menggabungkan salinan mereka. Untuk setiap salinan dihitung skor kecocokan simetris (Skoric
   dkk.) antara kode salinan itu dan perkiraan kode pada bukti. Posisi yang meragukan diberi bobot
-  lebih kecil, posisi yang tidak terbaca tidak dihitung.</li>
-  <li><strong>Ambang ditetapkan sebelum skor dihitung.</strong> Ambang Z dihitung dengan batas
+  lebih kecil, posisi yang tidak terbaca tidak dihitung.{% endtrans %}</li>
+  <li>{% trans %}<strong>Ambang ditetapkan sebelum skor dihitung.</strong> Ambang Z dihitung dengan batas
   Chernoff dari vektor bias kode, bobot keandalan posisi yang terbaca, dan target peluang tuduhan
   salah per penerima (eps1), dengan mengambil kemungkinan terburuk untuk setiap bit yang bocor.
   Perhitungan ini tidak memakai data penerima mana pun. Ambang dicatat beserta waktunya sebelum
   skor salinan mana pun dihitung, sehingga ambang tidak dapat disesuaikan dengan hasil. Tidak ada
-  pendekatan distribusi normal yang dipakai.</li>
-  <li><strong>Pelacakan berulang.</strong> Setiap pelacakan dokumen yang tercatat di registri lebih
+  pendekatan distribusi normal yang dipakai.{% endtrans %}</li>
+  <li>{% trans %}<strong>Pelacakan berulang.</strong> Setiap pelacakan dokumen yang tercatat di registri lebih
   dulu dicatat di registri dengan nomor urut k, sebelum bukti dibaca. Pelacakan ke-k hanya memakai
-  jatah eps &times; 6 / (&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max{% if staged %}
-  (pada pelacakan bertahap: jatah tahap yang bersangkutan dibagi n_max){% endif %}.
-  Jumlah 6 / (&pi;&sup2; k&sup2;) untuk semua k adalah 1, sehingga semua pelacakan dokumen yang sama,
-  berapa pun banyaknya, bersama-sama tetap dalam batas eps.</li>
+  jatah eps &times; 6 / (&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max{% endtrans %}{% if staged %}
+  {{ _("(pada pelacakan bertahap: jatah tahap yang bersangkutan dibagi n_max)") }}{% endif %}.
+  {% trans %}Jumlah 6 / (&pi;&sup2; k&sup2;) untuk semua k adalah 1, sehingga semua pelacakan dokumen yang sama,
+  berapa pun banyaknya, bersama-sama tetap dalam batas eps.{% endtrans %}</li>
   {% if staged %}
-  <li><strong>Pelacakan bertahap.</strong> Pelacakan ini memakai kebijakan tahap {{ stage_policy }},
-  yang ditetapkan sebelum bukti dibaca{% if trace_no is not none %} dan dicatat di registri bersama
-  nomor pelacakan{% endif %}. Tahap 1 adalah tuduhan biasa di atas, dengan sebagian jatah eps pelacakan.
+  <li>{% if trace_no is not none %}{% trans policy=stage_policy %}<strong>Pelacakan bertahap.</strong> Pelacakan ini memakai kebijakan tahap {{ policy }},
+  yang ditetapkan sebelum bukti dibaca dan dicatat di registri bersama
+  nomor pelacakan.{% endtrans %}{% else %}{% trans policy=stage_policy %}<strong>Pelacakan bertahap.</strong> Pelacakan ini memakai kebijakan tahap {{ policy }},
+  yang ditetapkan sebelum bukti dibaca.{% endtrans %}{% endif %}
+  {% trans %}Tahap 1 adalah tuduhan biasa di atas, dengan sebagian jatah eps pelacakan.
   Bila tahap 1 menuduh salinan, tahap 2 menilai ulang setiap salinan lain. Bobot posisinya dihitung dari
   bit yang bocor, vektor bias, bobot dekoder, dan kata kode salinan yang sudah dituduh: posisi yang
   bitnya tidak dimiliki satu pun salinan yang sudah dituduh mendapat bobot, karena di sana sedikitnya
@@ -131,38 +148,39 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
   sendiri, dan ambang itu dicatat sebelum skor tahap tersebut dihitung. Tahap 3 dan seterusnya mengulang
   langkah ini dengan semua salinan yang sudah dituduh, sampai tidak ada salinan baru atau sampai tahap
   terakhir kebijakan. Jumlah jatah semua tahap sama dengan jatah pelacakan, sehingga batas peluang
-  tuduhan salah tetap berlaku untuk semua tahap bersama.</li>
+  tuduhan salah tetap berlaku untuk semua tahap bersama.{% endtrans %}</li>
   {% endif %}
-  <li><strong>Arti peluang tuduhan salah.</strong> Angka peluang tuduhan salah pada Bagian V adalah
+  <li>{% trans %}<strong>Arti peluang tuduhan salah.</strong> Angka peluang tuduhan salah pada Bagian V adalah
   batas atas peluang bahwa, di antara semua penerima lain yang tidak bersalah, ada yang secara
   kebetulan memperoleh skor setinggi skor salinan tersebut. Contohnya, 2,3 &times; 10<sup>&minus;12</sup>
   berarti kejadian seperti itu terjadi tidak lebih sering dari sekali dalam sekitar 430 miliar
-  pemeriksaan serupa.{% if staged %} Angka itu sudah dibagi dengan bagian eps yang dipakai tahap
-  yang menuduh salinan tersebut{% if trace_no is not none %} (bagian dari jatah pelacakan ini), sehingga
+  pemeriksaan serupa.{% endtrans %}{% if staged %}{% if trace_no is not none %} {% trans %}Angka itu sudah dibagi dengan bagian eps yang dipakai tahap
+  yang menuduh salinan tersebut (bagian dari jatah pelacakan ini), sehingga
   berlaku untuk semua tahap dan semua pelacakan dokumen yang sama, bukan hanya tahap atau pelacakan
-  ini{% else %}, sehingga berlaku untuk semua tahap pelacakan ini bersama{% endif %}.{% elif trace_no is not none %}
-  Angka itu sudah dibagi dengan bagian eps yang dipakai pelacakan ini, sehingga berlaku untuk semua
-  pelacakan dokumen yang sama, bukan hanya pelacakan ini.{% endif %} Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang
-  sebenarnya dapat lebih kecil.</li>
-  <li><strong>Aturan tidak cukup bukti.</strong> Bila tidak ada salinan yang skornya mencapai Z,
+  ini.{% endtrans %}{% else %} {% trans %}Angka itu sudah dibagi dengan bagian eps yang dipakai tahap
+  yang menuduh salinan tersebut, sehingga berlaku untuk semua tahap pelacakan ini bersama.{% endtrans %}{% endif %}{% elif trace_no is not none %}
+  {% trans %}Angka itu sudah dibagi dengan bagian eps yang dipakai pelacakan ini, sehingga berlaku untuk semua
+  pelacakan dokumen yang sama, bukan hanya pelacakan ini.{% endtrans %}{% endif %} {% trans %}Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang
+  sebenarnya dapat lebih kecil.{% endtrans %}</li>
+  <li>{% trans %}<strong>Aturan tidak cukup bukti.</strong> Bila tidak ada salinan yang skornya mencapai Z,
   putusannya adalah "tidak cukup bukti" dan tidak ada nama yang disebutkan, termasuk pemilik skor
   tertinggi. Nama penerima hanya dicantumkan dalam baris yang juga memuat skor, ambang, dan
   peluang tuduhan salahnya. Salinan lain hanya disebut menurut peringkat skornya, tanpa nomor
-  salinan dan tanpa identitas.</li>
-  <li><strong>Kesepakatan kanal.</strong> Prosedur yang sama dijalankan pada setiap kanal fisik
+  salinan dan tanpa identitas.{% endtrans %}</li>
+  <li>{% trans %}<strong>Kesepakatan kanal.</strong> Prosedur yang sama dijalankan pada setiap kanal fisik
   secara terpisah, dengan ambangnya sendiri. Dengan demikian dapat dilihat berapa kanal yang
   secara independen menunjuk salinan yang sama. Hasil per kanal adalah bukti pendukung: setiap
   kanal merupakan uji tambahan, sehingga jaminan peluang tuduhan salah eps hanya berlaku untuk
   hasil gabungan pada Bagian V, tidak untuk setiap kanal secara terpisah. Karena itu nomor
-  salinan pada Bagian IV hanya dicantumkan bila salinan itu juga dituduh oleh hasil gabungan.</li>
+  salinan pada Bagian IV hanya dicantumkan bila salinan itu juga dituduh oleh hasil gabungan.{% endtrans %}</li>
 </ol>
 </section>
 
 <section>
-<h2><span class="no">IV.</span>HASIL PER KANAL</h2>
+<h2><span class="no">IV.</span>{{ _("HASIL PER KANAL") }}</h2>
 <table class="grid">
   <thead>
-    <tr><th>Kanal</th><th class="r">Posisi terbaca</th><th class="r">Ambang kanal</th><th>Salinan yang dituduh kanal tersebut</th></tr>
+    <tr><th>{{ _("Kanal") }}</th><th class="r">{{ _("Posisi terbaca") }}</th><th class="r">{{ _("Ambang kanal") }}</th><th>{{ _("Salinan yang dituduh kanal tersebut") }}</th></tr>
   </thead>
   <tbody>
     {% for r in channel_rows %}
@@ -170,15 +188,15 @@ oleh siapa pun dan bukan bukti. Berkas bukti tetap dikenali secara pasti dari ni
     {% endfor %}
   </tbody>
 </table>
-<p class="kecil">"Tidak terbaca": dekoder kanal dijalankan pada bukti, tetapi tidak ada posisi kode
+<p class="kecil">{% trans %}"Tidak terbaca": dekoder kanal dijalankan pada bukti, tetapi tidak ada posisi kode
 yang terbaca. "Tidak diperiksa": dekoder kanal itu tidak dijalankan untuk jenis bukti ini, sehingga
-tidak ada pernyataan apa pun tentang keadaan kanal tersebut pada bukti.</p>
+tidak ada pernyataan apa pun tentang keadaan kanal tersebut pada bukti.{% endtrans %}</p>
 
-<h3>Rincian pembacaan per sub-kanal</h3>
+<h3>{{ _("Rincian pembacaan per sub-kanal") }}</h3>
 {% if subchannel_rows %}
 <table class="grid">
   <thead>
-    <tr><th>Sub-kanal</th><th class="r">Observasi</th><th class="r">Slot terbaca</th><th>Estimasi derau</th></tr>
+    <tr><th>{{ _("Sub-kanal") }}</th><th class="r">{{ _("Observasi") }}</th><th class="r">{{ _("Slot terbaca") }}</th><th>{{ _("Estimasi derau") }}</th></tr>
   </thead>
   <tbody>
     {% for r in subchannel_rows %}
@@ -187,51 +205,49 @@ tidak ada pernyataan apa pun tentang keadaan kanal tersebut pada bukti.</p>
   </tbody>
 </table>
 {% else %}
-<p>Dekoder tidak menghasilkan observasi dari barang bukti ini.</p>
+<p>{{ _("Dekoder tidak menghasilkan observasi dari barang bukti ini.") }}</p>
 {% endif %}
 </section>
 
 <section>
-<h2><span class="no">V.</span>HASIL ATRIBUSI</h2>
-<p>Posisi kode terbaca (gabungan semua kanal): {{ n_observed }} dari {{ m }}; posisi efektif
-setelah pembobotan keyakinan: {{ effective_positions }}. Ambang Z = {{ z }} untuk
-{% if trace_no is not none %}pelacakan ke-{{ trace_no }} dengan jatah eps {{ eps_share }} dari
-eps = {{ eps }}{% else %}eps = {{ eps }}{% endif %}{% if staged %}, tahap 1 dengan jatah eps
-{{ eps_stage1 }}{% endif %} (eps1 = {{ eps1 }}), ditetapkan pada
-{{ z_fixed_at }}, sebelum skor dihitung.</p>
-<p>Pelacakan: {{ trace_text }}.</p>
+<h2><span class="no">V.</span>{{ _("HASIL ATRIBUSI") }}</h2>
+{% set reads %}{% trans n=n_observed, m=m, eff=effective_positions %}Posisi kode terbaca (gabungan semua kanal): {{ n }} dari {{ m }}; posisi efektif
+setelah pembobotan keyakinan: {{ eff }}.{% endtrans %}{% endset %}
+{% if trace_no is not none %}{% set budget %}{% trans k=trace_no, share=eps_share, eps=eps %}pelacakan ke-{{ k }} dengan jatah eps {{ share }} dari
+eps = {{ eps }}{% endtrans %}{% endset %}{% else %}{% set budget %}eps = {{ eps }}{% endset %}{% endif %}
+{% if staged %}{% set budget %}{{ budget }}{% trans share=eps_stage1 %}, tahap 1 dengan jatah eps
+{{ share }}{% endtrans %}{% endset %}{% endif %}
+<p>{{ reads }} {% trans z=z, budget=budget, eps1=eps1, when=z_fixed_at %}Ambang Z = {{ z }} untuk
+{{ budget }} (eps1 = {{ eps1 }}), ditetapkan pada
+{{ when }}, sebelum skor dihitung.{% endtrans %}</p>
+<p>{{ _("Pelacakan: %(text)s.", text=trace_text) }}</p>
 
 {% if identified %}
-<div class="putusan">PUTUSAN: TERIDENTIFIKASI</div>
+<div class="putusan">{{ _("PUTUSAN: TERIDENTIFIKASI") }}</div>
 {% for c in caveats %}
-<p class="peringatan">Perhatian, {{ c }}.</p>
+<p class="peringatan">{{ _("Perhatian, %(note)s.", note=c) }}</p>
 {% endfor %}
 {% else %}
-<div class="putusan tidak-cukup">TIDAK CUKUP BUKTI</div>
-<p>Tidak ada salinan yang skornya mencapai ambang Z.
+<div class="putusan tidak-cukup">{{ _("TIDAK CUKUP BUKTI") }}</div>
+<p>{{ _("Tidak ada salinan yang skornya mencapai ambang Z.") }}
 {% if not z_finite %}
-Tidak ada posisi kode yang terbaca dengan cukup keyakinan, sehingga ambang tidak terhingga dan
-tidak seorang pun dapat dituduh.
+{{ _("Tidak ada posisi kode yang terbaca dengan cukup keyakinan, sehingga ambang tidak terhingga dan tidak seorang pun dapat dituduh.") }}
 {% elif best_other_score is not none %}
-Skor tertinggi adalah {{ best_other_score }}, di bawah ambang Z = {{ z }}.
+{{ _("Skor tertinggi adalah %(score)s, di bawah ambang Z = %(z)s.", score=best_other_score, z=z) }}
 {% endif %}
-Sesuai aturan pada Bagian III, tidak ada nama, nomor salinan, atau identitas penerima yang
-dicantumkan dalam berita acara ini.</p>
+{{ _("Sesuai aturan pada Bagian III, tidak ada nama, nomor salinan, atau identitas penerima yang dicantumkan dalam berita acara ini.") }}</p>
 {% endif %}
 {% for w in manipulation_warnings %}
-<p class="peringatan">Perhatian, {{ w }}.</p>
+<p class="peringatan">{{ _("Perhatian, %(note)s.", note=w) }}</p>
 {% endfor %}
 {% if reversal_text %}
-<p>Pemeriksaan pola tanda terbalik (memakai vektor bias dokumen, tanpa kode penerima, dan tidak mengubah
-putusan): {{ reversal_text }}.</p>
+<p>{{ _("Pemeriksaan pola tanda terbalik (memakai vektor bias dokumen, tanpa kode penerima, dan tidak mengubah putusan): %(text)s.", text=reversal_text) }}</p>
 {% endif %}
 {% if erasure_text %}
-<p>Pemeriksaan pola penghapusan disengaja (memakai vektor bias dokumen, tanpa kode penerima, dan tidak
-mengubah putusan): {{ erasure_text }}.</p>
+<p>{{ _("Pemeriksaan pola penghapusan disengaja (memakai vektor bias dokumen, tanpa kode penerima, dan tidak mengubah putusan): %(text)s.", text=erasure_text) }}</p>
 {% endif %}
 {% if contradiction_text %}
-<p>Pemeriksaan bacaan jelas tanpa nama (batas terbukti peluang koalisi lolos dari bobot bacaan ini, tanpa
-kode penerima, dan tidak mengubah putusan): {{ contradiction_text }}.</p>
+<p>{{ _("Pemeriksaan bacaan jelas tanpa nama (batas terbukti peluang koalisi lolos dari bobot bacaan ini, tanpa kode penerima, dan tidak mengubah putusan): %(text)s.", text=contradiction_text) }}</p>
 {% endif %}
 
 {% if accused_rows or anonymous_rows %}
@@ -242,8 +258,8 @@ kode penerima, dan tidak mengubah putusan): {{ contradiction_text }}.</p>
   </colgroup>
   <thead>
     <tr>
-      <th>Nomor salinan</th><th>ID penerima</th><th>Nama</th><th class="r">Skor</th>
-      <th class="r">Ambang Z</th><th class="r">Peluang tuduhan salah</th><th>Kanal yang sepakat</th>
+      <th>{{ _("Nomor salinan") }}</th><th>{{ _("ID penerima") }}</th><th>{{ _("Nama") }}</th><th class="r">{{ _("Skor") }}</th>
+      <th class="r">{{ _("Ambang Z") }}</th><th class="r">{{ _("Peluang tuduhan salah") }}</th><th>{{ _("Kanal yang sepakat") }}</th>
     </tr>
   </thead>
   <tbody>
@@ -260,7 +276,7 @@ kode penerima, dan tidak mengubah putusan): {{ contradiction_text }}.</p>
     {% endfor %}
     {% for r in anonymous_rows %}
     <tr class="anonim">
-      <td colspan="3">Peringkat {{ r.rank }}: di bawah ambang, identitas tidak dicantumkan</td>
+      <td colspan="3">{{ _("Peringkat %(rank)s: di bawah ambang, identitas tidak dicantumkan", rank=r.rank) }}</td>
       <td class="r">{{ r.score }}</td>
       <td class="r">{{ r.threshold }}</td>
       <td class="r">&le; {{ r.probability }}</td>
@@ -269,20 +285,15 @@ kode penerima, dan tidak mengubah putusan): {{ contradiction_text }}.</p>
     {% endfor %}
   </tbody>
 </table>
-<p>{% if identified %}Skor salinan yang diberi identitas di atas mencapai atau melampaui ambang Z.
-{% endif %}Baris "Peringkat" adalah skor tertinggi berikutnya sebagai pembanding; skor itu di bawah
-ambang{% if stages %} tahap 1{% endif %}, sehingga pemiliknya tidak dituduh pada tahap ini dan
-identitasnya tidak dicantumkan di tabel ini.</p>
+<p>{% if identified %}{{ _("Skor salinan yang diberi identitas di atas mencapai atau melampaui ambang Z.") }}
+{% endif %}{% if stages %}{{ _('Baris "Peringkat" adalah skor tertinggi berikutnya sebagai pembanding; skor itu di bawah ambang tahap 1, sehingga pemiliknya tidak dituduh pada tahap ini dan identitasnya tidak dicantumkan di tabel ini.') }}{% else %}{{ _('Baris "Peringkat" adalah skor tertinggi berikutnya sebagai pembanding; skor itu di bawah ambang, sehingga pemiliknya tidak dituduh pada tahap ini dan identitasnya tidak dicantumkan di tabel ini.') }}{% endif %}</p>
 {% endif %}
 
 {% for st in stages %}
-<h3>Tahap {{ st.stage }}: mencari anggota koalisi lain berdasarkan salinan yang sudah dituduh ({{ st.basis }})</h3>
-<p>Tahap ini dijalankan karena salinan {{ st.basis }} dituduh pada tahap sebelumnya, dan bobot
-posisinya memakai kode salinan itu. Posisi yang bitnya tidak dimiliki salinan tersebut: {{ st.positions }}.
-{% if st.z_finite %}Ambang Z{{ st.stage }} = {{ st.z }}{% else %}Ambang tahap ini tidak terhingga{% endif %} untuk
-jatah eps tahap {{ st.eps_stage }} ({{ st.fraction }} % dari jatah pelacakan; eps1 = {{ st.eps1 }}),
-ditetapkan pada {{ st.fixed_at }}, sebelum skor tahap ini dihitung. Skor tahap ini memakai bobot tahap
-ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
+<h3>{{ _("Tahap %(n)s: mencari anggota koalisi lain berdasarkan salinan yang sudah dituduh (%(basis)s)", n=st.stage, basis=st.basis) }}</h3>
+<p>{{ _("Tahap ini dijalankan karena salinan %(basis)s dituduh pada tahap sebelumnya, dan bobot posisinya memakai kode salinan itu. Posisi yang bitnya tidak dimiliki salinan tersebut: %(n)s.", basis=st.basis, n=st.positions) }}
+{% if st.z_finite %}{{ _("Ambang Z%(n)s = %(z)s untuk jatah eps tahap %(eps)s (%(pct)s %% dari jatah pelacakan; eps1 = %(eps1)s), ditetapkan pada %(when)s, sebelum skor tahap ini dihitung.", n=st.stage, z=st.z, eps=st.eps_stage, pct=st.fraction, eps1=st.eps1, when=st.fixed_at) }}{% else %}{{ _("Ambang tahap ini tidak terhingga untuk jatah eps tahap %(eps)s (%(pct)s %% dari jatah pelacakan; eps1 = %(eps1)s), ditetapkan pada %(when)s, sebelum skor tahap ini dihitung.", eps=st.eps_stage, pct=st.fraction, eps1=st.eps1, when=st.fixed_at) }}{% endif %}
+{{ _("Skor tahap ini memakai bobot tahap ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.") }}</p>
 {% if st.rows %}
 <table class="grid hasil">
   <colgroup>
@@ -291,8 +302,8 @@ ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
   </colgroup>
   <thead>
     <tr>
-      <th>Nomor salinan</th><th>ID penerima</th><th>Nama</th><th class="r">Skor tahap {{ st.stage }}</th>
-      <th class="r">Ambang Z{{ st.stage }}</th><th class="r">Peluang tuduhan salah</th><th>Dasar</th>
+      <th>{{ _("Nomor salinan") }}</th><th>{{ _("ID penerima") }}</th><th>{{ _("Nama") }}</th><th class="r">{{ _("Skor tahap %(n)s", n=st.stage) }}</th>
+      <th class="r">{{ _("Ambang Z%(n)s", n=st.stage) }}</th><th class="r">{{ _("Peluang tuduhan salah") }}</th><th>{{ _("Dasar") }}</th>
     </tr>
   </thead>
   <tbody>
@@ -310,12 +321,12 @@ ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
   </tbody>
 </table>
 {% else %}
-<p>Tidak ada salinan lain yang skornya mencapai ambang tahap {{ st.stage }}{% if st.best_other_score is not none and st.z_finite %} (skor tertinggi {{ st.best_other_score }}){% endif %}; tidak ada nama tambahan.</p>
+<p>{% if st.best_other_score is not none and st.z_finite %}{{ _("Tidak ada salinan lain yang skornya mencapai ambang tahap %(n)s (skor tertinggi %(score)s); tidak ada nama tambahan.", n=st.stage, score=st.best_other_score) }}{% else %}{{ _("Tidak ada salinan lain yang skornya mencapai ambang tahap %(n)s; tidak ada nama tambahan.", n=st.stage) }}{% endif %}</p>
 {% endif %}
 {% endfor %}
 
 {% if notes %}
-<h3>Catatan pemeriksaan</h3>
+<h3>{{ _("Catatan pemeriksaan") }}</h3>
 <ul>
   {% for n in notes %}
   <li>{{ n }}</li>
@@ -324,12 +335,12 @@ ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.</p>
 {% endif %}
 
 {% if canary_rows %}
-<h3>Bukti pendukung: peristiwa kanari</h3>
-<p>Peristiwa berikut tercatat oleh penanda kanari pada salinan. Peristiwa ini adalah bukti
+<h3>{{ _("Bukti pendukung: peristiwa kanari") }}</h3>
+<p>{% trans %}Peristiwa berikut tercatat oleh penanda kanari pada salinan. Peristiwa ini adalah bukti
 pendukung yang terpisah dan tidak ikut dalam perhitungan skor di atas. Nomor salinan hanya
-dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
+dicantumkan untuk salinan yang dituduh oleh hasil atribusi.{% endtrans %}</p>
 <table class="grid">
-  <thead><tr><th>Nomor salinan</th><th>Waktu</th><th>Alamat IP sumber</th></tr></thead>
+  <thead><tr><th>{{ _("Nomor salinan") }}</th><th>{{ _("Waktu") }}</th><th>{{ _("Alamat IP sumber") }}</th></tr></thead>
   <tbody>
     {% for e in canary_rows %}
     <tr><td>{{ e.seq }}</td><td>{{ e.time }}</td><td class="mono">{{ e.source_ip }}</td></tr>
@@ -340,127 +351,119 @@ dicantumkan untuk salinan yang dituduh oleh hasil atribusi.</p>
 </section>
 
 <section>
-<h2><span class="no">VI.</span>DATA UNTUK REPRODUKSI</h2>
+<h2><span class="no">VI.</span>{{ _("DATA UNTUK REPRODUKSI") }}</h2>
 <table class="kv">
-  <tr><th>SHA-256 dokumen induk</th><td class="mono">{{ case.doc_hash }}</td></tr>
-  <tr><th>SHA-256 barang bukti</th><td class="mono">{{ case.evidence_sha256 }}</td></tr>
-  <tr><th>Parameter kode</th><td>c = {{ case.c }}; eps = {{ eps }}; n_max = {{ case.n_max }};
-    m = {{ m }}; konstanta {{ case.constant }}; batas bias t = {{ case.cutoff }}</td></tr>
-  <tr><th>Pelacakan</th><td>{{ trace_text }}; jatah eps = {{ eps_share }}, eps1 = {{ eps1 }}</td></tr>
+  <tr><th>{{ _("SHA-256 dokumen induk") }}</th><td class="mono">{{ case.doc_hash }}</td></tr>
+  <tr><th>{{ _("SHA-256 barang bukti") }}</th><td class="mono">{{ case.evidence_sha256 }}</td></tr>
+  <tr><th>{{ _("Parameter kode") }}</th><td>{% trans c=case.c, eps=eps, n_max=case.n_max, m=m, constant=case.constant, cutoff=case.cutoff %}c = {{ c }}; eps = {{ eps }}; n_max = {{ n_max }};
+    m = {{ m }}; konstanta {{ constant }}; batas bias t = {{ cutoff }}{% endtrans %}</td></tr>
+  <tr><th>{{ _("Pelacakan") }}</th><td>{% trans text=trace_text, share=eps_share, eps1=eps1 %}{{ text }}; jatah eps = {{ share }}, eps1 = {{ eps1 }}{% endtrans %}</td></tr>
   {% if trace_anchor %}
-  <tr><th>Jangkar entri pelacakan</th><td><div class="mono perintah">tapak verify --jangkar {{ trace_anchor }}</div>
-    Perintah ini memeriksa bahwa entri registri yang mencatat pelacakan ini masih ada dan tidak
+  <tr><th>{{ _("Jangkar entri pelacakan") }}</th><td><div class="mono perintah">tapak verify --jangkar {{ trace_anchor }}</div>
+    {% trans %}Perintah ini memeriksa bahwa entri registri yang mencatat pelacakan ini masih ada dan tidak
     diubah. Bila entri ini kemudian dihapus, pelacakan berikutnya dapat memakai lagi nomor dan
-    jatah eps pelacakan ini; pemeriksaan dengan jangkar ini mengungkapnya.</td></tr>
+    jatah eps pelacakan ini; pemeriksaan dengan jangkar ini mengungkapnya.{% endtrans %}</td></tr>
   {% endif %}
   {% if anchor_text %}
-  <tr><th>Log jangkar</th><td>{{ anchor_text }}.</td></tr>
+  <tr><th>{{ _("Log jangkar") }}</th><td>{{ anchor_text }}.</td></tr>
   {% endif %}
-  <tr><th>Aturan ambang</th><td>Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak
-    bersalah tidak melebihi eps1 (jatah eps {% if staged %}tahap 1{% else %}pelacakan{% endif %} dibagi n_max), dihitung hanya dari vektor bias
-    dan bobot dekoder.
-    <div class="label-rumus">Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya,
-    dalam bahasa Inggris):</div>
+  <tr><th>{{ _("Aturan ambang") }}</th><td>{% if staged %}{{ _("Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak bersalah tidak melebihi eps1 (jatah eps tahap 1 dibagi n_max), dihitung hanya dari vektor bias dan bobot dekoder.") }}{% else %}{{ _("Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak bersalah tidak melebihi eps1 (jatah eps pelacakan dibagi n_max), dihitung hanya dari vektor bias dan bobot dekoder.") }}{% endif %}
+    <div class="label-rumus">{{ _("Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya, dalam bahasa Inggris):") }}</div>
     <div class="mono rumus">{{ threshold_rule }}</div></td></tr>
-  <tr><th>Nilai ambang Z{% if staged %} (tahap 1){% endif %}</th><td>{{ z }}</td></tr>
-  <tr><th>Ambang ditetapkan pada</th><td>{{ z_fixed_at }}<div class="mono">{{ z_fixed_at_raw }}</div></td></tr>
+  <tr><th>{% if staged %}{{ _("Nilai ambang Z (tahap 1)") }}{% else %}{{ _("Nilai ambang Z") }}{% endif %}</th><td>{{ z }}</td></tr>
+  <tr><th>{{ _("Ambang ditetapkan pada") }}</th><td>{{ z_fixed_at }}<div class="mono">{{ z_fixed_at_raw }}</div></td></tr>
   {% if stages %}
-  <tr><th>Aturan ambang tahap lanjutan</th><td>Ambang Chernoff yang sama dengan bobot tahap: bobot hanya
-    pada posisi yang bitnya tidak dimiliki salinan yang sudah dituduh, dihitung dari bit yang bocor,
-    vektor bias, bobot dekoder, dan kata kode salinan yang sudah dituduh, tidak pernah dari kata kode
-    salinan yang dinilai.
-    <div class="label-rumus">Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya,
-    dalam bahasa Inggris):</div>
+  <tr><th>{{ _("Aturan ambang tahap lanjutan") }}</th><td>{{ _("Ambang Chernoff yang sama dengan bobot tahap: bobot hanya pada posisi yang bitnya tidak dimiliki salinan yang sudah dituduh, dihitung dari bit yang bocor, vektor bias, bobot dekoder, dan kata kode salinan yang sudah dituduh, tidak pernah dari kata kode salinan yang dinilai.") }}
+    <div class="label-rumus">{{ _("Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya, dalam bahasa Inggris):") }}</div>
     <div class="mono rumus">{{ stage_rule }}</div></td></tr>
   {% for st in stages %}
-  <tr><th>Tahap {{ st.stage }}</th><td>dasar {{ st.basis }}; Z{{ st.stage }} = {{ st.z }}; jatah eps
-    tahap {{ st.eps_stage }}, eps1 = {{ st.eps1 }}; ditetapkan {{ st.fixed_at }}
+  <tr><th>{{ _("Tahap %(n)s", n=st.stage) }}</th><td>{{ _("dasar %(basis)s; Z%(n)s = %(z)s; jatah eps tahap %(eps)s, eps1 = %(eps1)s; ditetapkan %(when)s", basis=st.basis, n=st.stage, z=st.z, eps=st.eps_stage, eps1=st.eps1, when=st.fixed_at) }}
     <div class="mono">{{ st.fixed_at_raw }}</div></td></tr>
   {% endfor %}
   {% endif %}
-  <tr><th>Code digest salinan yang dituduh</th><td>
+  <tr><th>{{ _("Code digest salinan yang dituduh") }}</th><td>
     {% if digests %}
     {% for seq, digest in digests %}
     <div>{{ seq }}: <span class="mono">{{ digest }}</span></div>
     {% endfor %}
     {% else %}
-    tidak ada (tidak ada salinan yang dituduh)
+    {{ _("tidak ada (tidak ada salinan yang dituduh)") }}
     {% endif %}
   </td></tr>
-  <tr><th>Versi perangkat lunak</th><td>TAPAK {{ case.software_version }}</td></tr>
-  <tr><th>Perintah untuk mengulang</th><td><div class="mono perintah">{{ command }}</div>
-    Perintah ini memerlukan berkas bukti, dokumen induk, manifest penerbitan, dan berkas rahasia
-    kode yang disimpan penerbit. Dengan masukan yang sama, skor, ambang, dan putusan akan sama.
+  <tr><th>{{ _("Versi perangkat lunak") }}</th><td>TAPAK {{ case.software_version }}</td></tr>
+  <tr><th>{{ _("Perintah untuk mengulang") }}</th><td><div class="mono perintah">{{ command }}</div>
+    {% trans %}Perintah ini memerlukan berkas bukti, dokumen induk, manifest penerbitan, dan berkas rahasia
+    kode yang disimpan penerbit. Dengan masukan yang sama, skor, ambang, dan putusan akan sama.{% endtrans %}
     {% if case.evidence_name_redacted %}
-    Nama berkas bukti pada perintah disamarkan sebagian (lihat Bagian I); gunakan berkas yang
-    SHA-256-nya tercantum di atas.
+    {% trans %}Nama berkas bukti pada perintah disamarkan sebagian (lihat Bagian I); gunakan berkas yang
+    SHA-256-nya tercantum di atas.{% endtrans %}
     {% endif %}
   </td></tr>
-  <tr><th>Laporan dibuat</th><td>{{ generated_at }}</td></tr>
+  <tr><th>{{ _("Laporan dibuat") }}</th><td>{{ generated_at }}</td></tr>
 </table>
 </section>
 
 <section>
-<h2><span class="no">VII.</span>BATASAN</h2>
+<h2><span class="no">VII.</span>{{ _("BATASAN") }}</h2>
 <ul class="batasan">
-  <li>Hasil ini hanya menyatakan apa yang didukung oleh bukti yang diperiksa, yaitu kecocokan antara
+  <li>{% trans %}Hasil ini hanya menyatakan apa yang didukung oleh bukti yang diperiksa, yaitu kecocokan antara
   tanda pada bukti dan kode salinan tertentu. Hasil ini tidak menyatakan siapa yang secara fisik
-  membocorkan, bagaimana caranya, atau apa niatnya; salinan dapat berpindah tangan setelah diterima.</li>
+  membocorkan, bagaimana caranya, atau apa niatnya; salinan dapat berpindah tangan setelah diterima.{% endtrans %}</li>
   {% if unread_channels %}
-  <li>Kanal berikut diperiksa tetapi tidak terbaca pada bukti: {{ unread_channels | join("; ") }}.
+  <li>{% trans channels=unread_channels|join("; ") %}Kanal berikut diperiksa tetapi tidak terbaca pada bukti: {{ channels }}.
   Kanal dapat hilang karena jenis bukti (misalnya foto tidak membawa lapisan teks), karena
-  kualitas bukti, atau karena dirusak dengan sengaja.</li>
+  kualitas bukti, atau karena dirusak dengan sengaja.{% endtrans %}</li>
   {% endif %}
   {% if unexamined_channels %}
-  <li>Kanal berikut dipakai pada penerbitan tetapi tidak diperiksa, karena dekodernya tidak
-  dijalankan untuk jenis bukti ini ({{ case.evidence_type }}): {{ unexamined_channels | join("; ") }}.
-  Berita acara ini tidak menyatakan apa pun tentang keadaan kanal tersebut pada bukti.</li>
+  <li>{% trans kind=case.evidence_type, channels=unexamined_channels|join("; ") %}Kanal berikut dipakai pada penerbitan tetapi tidak diperiksa, karena dekodernya tidak
+  dijalankan untuk jenis bukti ini ({{ kind }}): {{ channels }}.
+  Berita acara ini tidak menyatakan apa pun tentang keadaan kanal tersebut pada bukti.{% endtrans %}</li>
   {% endif %}
   {% if unread_channels or unexamined_channels %}
-  <li>Kesimpulan di atas hanya bersandar pada kanal yang terbaca.</li>
+  <li>{{ _("Kesimpulan di atas hanya bersandar pada kanal yang terbaca.") }}</li>
   {% else %}
-  <li>Semua kanal yang dipakai pada penerbitan diperiksa dan terbaca, sebagian atau seluruhnya.</li>
+  <li>{{ _("Semua kanal yang dipakai pada penerbitan diperiksa dan terbaca, sebagian atau seluruhnya.") }}</li>
   {% endif %}
-  <li>Pengetikan ulang dokumen secara utuh menghilangkan sebagian besar kanal (pergeseran, pola
+  <li>{% trans %}Pengetikan ulang dokumen secara utuh menghilangkan sebagian besar kanal (pergeseran, pola
   latar, karakter tak terlihat, dan huruf kembar). Hanya kanal variasi kalimat yang mungkin
-  bertahan, dan itu pun hanya bila susunan kalimat tidak diubah.</li>
-  <li>Kode dirancang untuk koalisi hingga {{ case.c }} penerima. Bila lebih banyak penerima
+  bertahan, dan itu pun hanya bila susunan kalimat tidak diubah.{% endtrans %}</li>
+  <li>{% trans c=case.c %}Kode dirancang untuk koalisi hingga {{ c }} penerima. Bila lebih banyak penerima
   bekerja sama, peluang menemukan pembocor menurun, tetapi batas peluang tuduhan salah tetap
-  berlaku karena ambang tidak bergantung pada ukuran koalisi.{% if staged %} Pelacakan bertahap
+  berlaku karena ambang tidak bergantung pada ukuran koalisi.{% endtrans %}{% if staged %} {% trans %}Pelacakan bertahap
   dapat menemukan anggota koalisi lain setelah tahap 1, tetapi tidak menjamin semua anggota
-  ditemukan.{% endif %}</li>
+  ditemukan.{% endtrans %}{% endif %}</li>
   {% if stages %}
-  <li>Nama yang dituduh pada tahap 2 atau sesudahnya ditemukan dengan bantuan salinan yang dituduh
+  <li>{% trans %}Nama yang dituduh pada tahap 2 atau sesudahnya ditemukan dengan bantuan salinan yang dituduh
   sebelumnya, jadi selalu dicantumkan bersama salinan itu. Batas peluang tuduhan salahnya tetap berlaku
   walaupun salah satu salinan dasar ternyata tidak terlibat; yang bergantung pada salinan dasar hanya
-  kemampuan tahap itu menemukan anggota koalisi lain.</li>
+  kemampuan tahap itu menemukan anggota koalisi lain.{% endtrans %}</li>
   {% endif %}
-  <li>Batas peluang tuduhan salah berlaku dengan syarat rahasia kode tidak bocor dan catatan
+  <li>{% trans status=registry %}Batas peluang tuduhan salah berlaku dengan syarat rahasia kode tidak bocor dan catatan
   penerbitan tidak diubah. Keutuhan catatan diperiksa melalui komitmen kode setiap salinan dan
-  registri penerbitan (status: {{ registry }}).</li>
+  registri penerbitan (status: {{ status }}).{% endtrans %}</li>
   {% if trace_no is none %}
-  <li>Pelacakan ini tidak dicatat di registri. Bila dokumen yang sama dilacak berulang kali, misalnya
+  <li>{% trans %}Pelacakan ini tidak dicatat di registri. Bila dokumen yang sama dilacak berulang kali, misalnya
   dengan potongan atau gabungan bukti yang berbeda, batas peluang tuduhan salah hanya berlaku untuk
-  setiap pelacakan secara terpisah.</li>
+  setiap pelacakan secara terpisah.{% endtrans %}</li>
   {% else %}
-  <li>Batas bersama untuk semua pelacakan dokumen ini berlaku bila bukti setiap pelacakan tidak
+  <li>{% trans %}Batas bersama untuk semua pelacakan dokumen ini berlaku bila bukti setiap pelacakan tidak
   dipilih berdasarkan skor pelacakan sebelumnya, misalnya dengan membuang halaman agar skor
-  tertinggi naik.</li>
+  tertinggi naik.{% endtrans %}</li>
   {% endif %}
   {% if registry_failed %}
-  <li class="tegas">Registri penerbitan TIDAK UTUH. Hasil atribusi tidak boleh dipakai sebelum
-  penyebabnya diperiksa.</li>
+  <li class="tegas">{% trans %}Registri penerbitan TIDAK UTUH. Hasil atribusi tidak boleh dipakai sebelum
+  penyebabnya diperiksa.{% endtrans %}</li>
   {% endif %}
 </ul>
 </section>
 
 <section class="penutup">
-<p>Demikian Berita Acara Pemeriksaan Digital ini dibuat dengan sebenarnya atas kekuatan sumpah
-jabatan, kemudian ditutup dan ditandatangani pada tanggal tersebut di atas.</p>
+<p>{% trans %}Demikian Berita Acara Pemeriksaan Digital ini dibuat dengan sebenarnya atas kekuatan sumpah
+jabatan, kemudian ditutup dan ditandatangani pada tanggal tersebut di atas.{% endtrans %}</p>
 <table class="ttd">
   <tr>
-    <td>Mengetahui,<br>Atasan Pemeriksa</td>
-    <td>{% if case.place %}{{ case.place }}, {% endif %}{{ signing_date }}<br>Pemeriksa,</td>
+    <td>{% trans %}Mengetahui,<br>Atasan Pemeriksa{% endtrans %}</td>
+    <td>{% if case.place %}{{ case.place }}, {% endif %}{{ signing_date }}<br>{{ _("Pemeriksa,") }}</td>
   </tr>
   <tr class="ruang"><td></td><td></td></tr>
   <tr class="nama">
@@ -468,7 +471,7 @@ jabatan, kemudian ditutup dan ditandatangani pada tanggal tersebut di atas.</p>
     <td><div class="garis">{{ case.examiner_name }}</div></td>
   </tr>
   <tr>
-    <td>Pangkat/NRP: ........................</td>
+    <td>{{ _("Pangkat/NRP:") }} ........................</td>
     <td>{{ case.examiner_rank }}</td>
   </tr>
 </table>

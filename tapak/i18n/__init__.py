@@ -1,7 +1,7 @@
-"""Indonesian and English for the web UI.
+"""Indonesian and English for the web UI and the berita acara.
 
 Indonesian is the source language: every message is written in Indonesian in the templates and
-in the code, and ``tapak/web/en.py`` maps it to English. A request's language comes from
+in the code, and ``tapak/i18n/en.py`` maps it to English. A request's language comes from
 ``?lang=id|en`` (remembered in the ``bahasa`` cookie), else the cookie, else Indonesian. It is
 held in a context variable while the request is handled, so code below the route asks
 :func:`current` instead of passing the request around.
@@ -20,7 +20,7 @@ import re
 from contextvars import ContextVar, Token
 from datetime import datetime
 
-from tapak.web.en import EN, PATTERNS
+from tapak.i18n.en import EN, PATTERNS
 
 LANGS = ("id", "en")
 DEFAULT = "id"
