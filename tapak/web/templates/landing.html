@@ -1,166 +1,141 @@
-{% from "_ikon.html" import ikon, logo -%}
+{% extends "_situs.html" %}
+{% from "_ikon.html" import ikon -%}
 {% from "_grafik.html" import batang_media, pemisahan, skala_batas -%}
 {% set c = angka.contoh %}
 {% set p = angka.pemisahan %}
-<!doctype html>
-<html lang="id">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <meta name="description" content="TAPAK menanam sidik tak kasatmata pada setiap salinan dokumen rahasia dan menunjuk penerimanya saat salinan itu bocor, dengan peluang salah tuduh yang dihitung. Berjalan sepenuhnya luring.">
-  <title>TAPAK · Lacak sumber kebocoran dokumen rahasia</title>
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="preload" href="/static/fonts/IBMPlexSans-400.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/static/fonts/IBMPlexSans-600.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/static/fonts/IBMPlexMono-500.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/tapak.css?v={{ asset_v() }}">
+{% block title %}{{ _("TAPAK · Lacak sumber kebocoran dokumen rahasia") }}{% endblock %}
+{% block description %}{{ _("TAPAK menanam sidik tak kasatmata pada setiap salinan dokumen rahasia dan menunjuk penerimanya saat salinan itu bocor, dengan peluang salah tuduh yang dihitung. Berjalan sepenuhnya luring.") }}{% endblock %}
+{% block head %}
   <link rel="stylesheet" href="/static/css/landing.css?v={{ asset_v() }}">
   <script src="/static/landing.js?v={{ asset_v() }}" defer></script>
-</head>
-<body class="ld">
-<a class="skip-link" href="#konten">Langsung ke konten</a>
-
-<header class="ld-nav" data-nav>
-  <div class="ld-wrap ld-nav-inner">
-    <a class="ld-brand" href="/" aria-label="TAPAK, halaman utama">{{ logo(28) }}<span>TAPAK</span></a>
-    <nav aria-label="Bagian halaman" class="ld-nav-links">
-      <a href="#masalah">Masalah</a>
-      <a href="#cara-kerja">Cara kerja</a>
-      <a href="#bukti">Bukti</a>
-      <a href="#instansi">Untuk instansi</a>
+{% endblock %}
+{% block nav_links %}
+    <nav aria-label="{{ _('Bagian halaman') }}" class="ld-nav-links">
+      <a href="#masalah">{{ _("Masalah") }}</a>
+      <a href="#cara-kerja">{{ _("Cara kerja") }}</a>
+      <a href="#bukti">{{ _("Bukti") }}</a>
+      <a href="#instansi">{{ _("Untuk instansi") }}</a>
     </nav>
-    <div class="ld-nav-actions">
-      <a class="btn btn-ghost btn-small ld-hide-sm" href="/beranda">Buka aplikasi</a>
-      <a class="btn btn-primary btn-small" href="/demo">{{ ikon("play", 16) }}Coba demo</a>
-    </div>
-  </div>
-</header>
-
-<main id="konten" tabindex="-1">
+{% endblock %}
+{% block nav_actions %}
+      <a class="btn btn-ghost btn-small ld-hide-sm" href="/beranda">{{ _("Buka aplikasi") }}</a>
+      <a class="btn btn-primary btn-small" href="/demo">{{ ikon("play", 16) }}{{ _("Coba demo") }}</a>
+{% endblock %}
+{% block content %}
 
   {# ------------------------------------------------------------------ hero #}
   <section class="ld-hero" aria-labelledby="hero-h">
     <div class="ld-wrap ld-hero-grid">
       <div class="ld-hero-copy">
-        <p class="ld-kicker"><span class="ld-stamp">Rahasia</span>Atribusi kebocoran untuk instansi pemerintah</p>
-        <h1 id="hero-h">Dokumen rahasia bocor. <span class="ld-h1-accent">TAPAK tahu salinan siapa.</span></h1>
-        <p class="ld-hero-lead">Setiap penerima mendapat salinan yang tampak sama, tetapi membawa sidik tak kasatmata miliknya sendiri. Saat salinan itu beredar sebagai foto, tangkapan layar, atau PDF yang diteruskan, TAPAK menunjuk penerimanya, lengkap dengan peluang salah tuduh yang dihitung, bukan ditebak.</p>
+        <p class="ld-kicker"><span class="ld-stamp">{{ _("Rahasia") }}</span>{{ _("Atribusi kebocoran untuk instansi pemerintah") }}</p>
+        <h1 id="hero-h">{% trans %}Dokumen rahasia bocor. <span class="ld-h1-accent">TAPAK tahu salinan siapa.</span>{% endtrans %}</h1>
+        <p class="ld-hero-lead">{{ _("Setiap penerima mendapat salinan yang tampak sama dengan milik orang lain, tetapi membawa sidik tak kasatmata miliknya sendiri. Saat salinan itu muncul sebagai foto, tangkapan layar, atau PDF yang diteruskan, TAPAK menyebut penerimanya beserta peluang bahwa tuduhan itu keliru.") }}</p>
         <div class="ld-hero-actions">
-          <a class="btn btn-primary ld-btn-lg" href="/demo">{{ ikon("play") }}Coba demo 3 menit</a>
-          <a class="btn ld-btn-outline ld-btn-lg" href="#cara-kerja">Lihat cara kerjanya{{ ikon("arrow-right") }}</a>
+          <a class="btn btn-primary ld-btn-lg" href="/demo">{{ ikon("play") }}{{ _("Coba demo 3 menit") }}</a>
+          <a class="btn ld-btn-outline ld-btn-lg" href="#cara-kerja">{{ _("Lihat cara kerjanya") }}{{ ikon("arrow-right") }}</a>
         </div>
-        <ul class="ld-hero-facts" aria-label="Sifat utama">
-          <li>{{ ikon("server", 16) }}Berjalan di jaringan internal</li>
-          <li>{{ ikon("lock", 16) }}Tanpa layanan awan</li>
-          <li>{{ ikon("file-text", 16) }}Berita acara siap audit</li>
+        <ul class="ld-hero-facts" aria-label="{{ _('Sifat utama') }}">
+          <li>{{ ikon("server", 16) }}{{ _("Berjalan di jaringan internal, tanpa layanan awan") }}</li>
+          <li>{{ ikon("file-text", 16) }}{{ _("Hasilnya langsung menjadi berita acara PDF") }}</li>
         </ul>
       </div>
 
       {% if c %}
-      <div class="ld-hero-visual" aria-label="Contoh: foto bocoran dilacak sampai ke salinan #{{ c.salinan }}" role="img">
+      <div class="ld-hero-visual" role="img" aria-label="{{ _('Contoh: foto bocoran dilacak sampai ke salinan #%(n)s', n=c.salinan) }}">
         <figure class="ld-chat" aria-hidden="true">
-          <figcaption class="ld-chat-head"><span class="ld-chat-dot"></span>Diteruskan ke grup<span class="ld-chat-time">21.47</span></figcaption>
+          <figcaption class="ld-chat-head"><span class="ld-chat-dot"></span>{{ _("Diteruskan ke grup") }}<span class="ld-chat-time">{{ "21:47" if bahasa() == "en" else "21.47" }}</span></figcaption>
           <span class="ld-chat-photo"><img src="/static/img/landing-bukti.webp" alt="" width="690" height="900"><span class="ld-scan"></span></span>
         </figure>
         <div class="ld-result" aria-hidden="true">
           <div class="ld-result-head">
-            <span class="ld-result-title">{{ ikon("scan", 16) }}Hasil pelacakan</span>
-            <span class="stamp stamp-ok">Teridentifikasi</span>
+            <span class="ld-result-title">{{ ikon("scan", 16) }}{{ _("Hasil pelacakan") }}</span>
+            <span class="stamp stamp-ok">{{ _("Teridentifikasi") }}</span>
           </div>
-          <p class="ld-result-copy">Salinan <b>#{{ c.salinan }}</b> dari {{ c.n_salinan }}</p>
+          <p class="ld-result-copy">{% trans n=c.salinan, total=c.n_salinan %}Salinan <b>#{{ n }}</b> dari {{ total }}{% endtrans %}</p>
           <p class="ld-result-name">{{ c.penerima }}</p>
           <p class="ld-result-unit">{{ c.jabatan }} · {{ c.satuan }}</p>
           <div class="ld-result-meter" style="--v: {{ '%.3f'|format([c.ambang / c.skor, 1]|min) }}">
             <div class="ld-result-track"><span class="ld-result-fill"></span><span class="ld-result-mark"></span></div>
-            <div class="ld-result-legend"><span>Skor <b class="tnum">{{ c.skor|num(1) }}</b></span><span>Ambang <b class="tnum">{{ c.ambang|num(1) }}</b></span></div>
+            <div class="ld-result-legend"><span>{{ _("Skor") }} <b class="tnum">{{ c.skor|num(1) }}</b></span><span>{{ _("Ambang") }} <b class="tnum">{{ c.ambang|num(1) }}</b></span></div>
           </div>
-          <p class="ld-result-fa">Peluang salah tuduh <b>&#8804; {{ 0|prob(c.log10_tuduhan_salah) }}</b></p>
+          <p class="ld-result-fa">{{ _("Peluang salah tuduh") }} <b>&#8804; {{ 0|prob(c.log10_tuduhan_salah) }}</b></p>
         </div>
         <img class="ld-ba" src="/static/img/landing-ba.webp" alt="" width="910" height="1287" aria-hidden="true">
       </div>
       {% endif %}
     </div>
-    {% if c %}<p class="ld-wrap ld-hero-note">Contoh nyata: foto sintetis salinan #{{ c.salinan }} dilacak oleh TAPAK. Semua dokumen dan nama fiktif.</p>{% endif %}
+    {% if c %}<p class="ld-wrap ld-hero-note">{{ _("Contoh nyata: foto sintetis salinan #%(n)s dilacak oleh TAPAK. Semua dokumen dan nama fiktif.", n=c.salinan) }}</p>{% endif %}
   </section>
 
   {# ------------------------------------------------------------------ big numbers #}
-  <section class="ld-numbers" aria-label="TAPAK dalam angka">
+  <section class="ld-numbers" aria-label="{{ _('TAPAK dalam angka') }}">
     <div class="ld-wrap ld-numbers-grid">
       <div class="ld-number">
-        <span class="ld-number-value tnum" data-count="0">0</span>
-        <span class="ld-number-label">tuduhan salah dalam <b class="tnum">{{ angka.uji.n|num }}</b> pelacakan uji tertahan</span>
+        <span class="ld-number-value tnum">0</span>
+        <span class="ld-number-label">{% trans n=angka.uji.n|num %}tuduhan salah dalam <b class="tnum">{{ n }}</b> pelacakan uji tertahan{% endtrans %}</span>
       </div>
       <div class="ld-number">
-        <span class="ld-number-value tnum">1 : 1 juta</span>
-        <span class="ld-number-label">batas peluang salah tuduh, ditetapkan sebelum bukti dinilai</span>
+        <span class="ld-number-value tnum">{{ _("1 : 1 juta") }}</span>
+        <span class="ld-number-label">{{ _("batas peluang salah tuduh, ditetapkan sebelum bukti dinilai") }}</span>
       </div>
       <div class="ld-number">
-        <span class="ld-number-value tnum">3 dari 3</span>
-        <span class="ld-number-label">pelaku tertangkap dalam simulasi saat tiga penerima menggabungkan salinan mereka</span>
+        <span class="ld-number-value tnum">{{ _("3 dari 3") }}</span>
+        <span class="ld-number-label">{{ _("pelaku disebut di setiap simulasi saat tiga penerima menggabungkan salinan mereka (8.000 simulasi)") }}</span>
       </div>
       <div class="ld-number">
         <span class="ld-number-value tnum">24 dpi</span>
-        <span class="ld-number-label">tangkapan layar halaman utuh seburam ini pun tetap terlacak</span>
+        <span class="ld-number-label">{{ _("tangkapan layar halaman utuh seburam ini pun masih terlacak") }}</span>
       </div>
     </div>
   </section>
 
   {# ------------------------------------------------------------------ problem #}
   <section class="ld-section" id="masalah" aria-labelledby="masalah-h">
-    <div class="ld-wrap">
-      <p class="ld-eyebrow"><span>01</span>Masalahnya</p>
-      <h2 id="masalah-h" class="ld-h2">Kebocoran hari ini tidak lewat server. Lewat kamera ponsel.</h2>
-      <div class="ld-problems">
-        <article class="ld-problem">
-          <span class="ld-problem-icon">{{ ikon("camera", 22) }}</span>
-          <h3>Satu foto, ribuan penerusan</h3>
-          <p>Dokumen difoto atau ditangkap layarnya, lalu beredar di grup percakapan. Log akses dan pengamanan jaringan tidak melihat apa pun.</p>
-        </article>
-        <article class="ld-problem">
-          <span class="ld-problem-icon">{{ ikon("eye-off", 22) }}</span>
-          <h3>Watermark nama mudah dihilangkan</h3>
-          <p>Nama penerima di pojok halaman cukup dipotong atau ditutup jari sebelum difoto. Setelah itu semua salinan kembali sama.</p>
-        </article>
-        <article class="ld-problem">
-          <span class="ld-problem-icon">{{ ikon("scale", 22) }}</span>
-          <h3>Menebak merusak satuan</h3>
-          <p>Penyelidikan manual memakan waktu berminggu-minggu. Satu tuduhan keliru merusak kepercayaan dan karier orang yang tidak bersalah.</p>
-        </article>
+    <div class="ld-wrap ld-split ld-problem-split">
+      <div>
+        <p class="ld-eyebrow"><span>01</span>{{ _("Masalahnya") }}</p>
+        <h2 id="masalah-h" class="ld-h2">{{ _("Kebocoran hari ini tidak lewat server. Lewat kamera ponsel.") }}</h2>
+        <p class="ld-lead">{{ _("Seseorang memotret halaman di mejanya dan mengirimnya ke satu grup. Sejam kemudian foto itu sudah diteruskan ke mana-mana, dan setiap penerima dokumen bisa saja pelakunya.") }}</p>
       </div>
+      <ul class="ld-problems">
+        <li><b>{{ _("Log dan pengamanan jaringan tidak melihatnya.") }}</b> {{ _("Foto layar atau kertas tidak pernah melewati server, surel, atau sistem DLP instansi.") }}</li>
+        <li><b>{{ _("Watermark nama mudah dihilangkan.") }}</b> {{ _("Nama penerima di pojok halaman cukup dipotong atau ditutup jari sebelum difoto. Setelah itu semua salinan kembali sama.") }}</li>
+        <li><b>{{ _("Menebak merusak satuan.") }}</b> {{ _("Penyelidikan manual memakan waktu berminggu-minggu, dan satu tuduhan keliru merusak karier orang yang tidak bersalah.") }}</li>
+      </ul>
     </div>
   </section>
 
   {# ------------------------------------------------------------------ compared #}
   <section class="ld-section ld-section-tight" id="banding" aria-labelledby="banding-h">
     <div class="ld-wrap">
-      <h2 id="banding-h" class="ld-h2 ld-h2-sm">Dibanding cara yang biasa dipakai</h2>
+      <h2 id="banding-h" class="ld-h2 ld-h2-sm">{{ _("Dibanding cara yang biasa dipakai") }}</h2>
       <div class="ld-matrix-wrap ld-compare">
         <table class="ld-matrix">
-          <caption class="sr-only">Cara melacak kebocoran dan apa yang dapat dilakukannya</caption>
+          <caption class="sr-only">{{ _("Cara melacak kebocoran dan apa yang dapat dilakukannya") }}</caption>
           <thead>
-            <tr><th scope="col">Pertanyaan</th>
-              {% for h in ["Watermark nama terlihat", "Metadata dan log akses", "Pengamanan jaringan (DLP)", "TAPAK"] %}<th scope="col"{% if loop.last %} class="ld-compare-us"{% endif %}><span>{{ h }}</span></th>{% endfor %}
+            <tr><th scope="col">{{ _("Pertanyaan") }}</th>
+              {% for h in [_("Watermark nama terlihat"), _("Metadata dan log akses"), _("Pengamanan jaringan (DLP)"), "TAPAK"] %}<th scope="col"{% if loop.last %} class="ld-compare-us"{% endif %}><span>{{ h }}</span></th>{% endfor %}
             </tr>
           </thead>
           <tbody>
             {% set rows = [
-              ("Masih bekerja bila dokumen difoto?", ["y", "n", "n", "y"]),
-              ("Masih bekerja bila namanya dipotong atau ditutup?", ["n", "n", "n", "y"]),
-              ("Menunjuk penerima, bukan sekadar perangkat atau akun?", ["y", "h", "h", "y"]),
-              ("Bertahan bila beberapa penerima menggabungkan salinan?", ["n", "n", "n", "y"]),
-              ("Menyebut peluang salah tuduhnya?", ["n", "n", "n", "y"]),
-              ("Berjalan tanpa layanan awan?", ["y", "h", "h", "y"]),
+              (_("Masih bekerja bila dokumen difoto?"), ["y", "n", "n", "y"]),
+              (_("Masih bekerja bila namanya dipotong atau ditutup?"), ["n", "n", "n", "y"]),
+              (_("Menunjuk penerima, bukan sekadar perangkat atau akun?"), ["y", "h", "h", "y"]),
+              (_("Bertahan bila beberapa penerima menggabungkan salinan?"), ["n", "n", "n", "y"]),
+              (_("Menyebut peluang salah tuduhnya?"), ["n", "n", "n", "y"]),
+              (_("Berjalan tanpa layanan awan?"), ["y", "h", "h", "y"]),
             ] %}
+            {% set said = {"y": _("ya"), "h": _("sebagian"), "n": _("tidak")} %}
             {% for q, cells in rows %}
             <tr>
               <th scope="row"><span class="ld-matrix-name">{{ q }}</span></th>
-              {% for v in cells %}<td{% if loop.last %} class="ld-compare-us"{% endif %}><span class="ld-cell ld-cell-{{ v }}" aria-hidden="true"></span><span class="sr-only">{{ {"y": "ya", "h": "sebagian", "n": "tidak"}[v] }}</span></td>{% endfor %}
+              {% for v in cells %}<td{% if loop.last %} class="ld-compare-us"{% endif %}><span class="ld-cell ld-cell-{{ v }}" aria-hidden="true"></span><span class="sr-only">{{ said[v] }}</span></td>{% endfor %}
             </tr>
             {% endfor %}
           </tbody>
         </table>
-        <p class="ld-matrix-key" aria-hidden="true"><span><i class="ld-cell ld-cell-y"></i>ya</span><span><i class="ld-cell ld-cell-h"></i>sebagian atau bergantung pemasangan</span><span><i class="ld-cell ld-cell-n"></i>tidak</span></p>
+        <p class="ld-matrix-key" aria-hidden="true"><span><i class="ld-cell ld-cell-y"></i>{{ _("ya") }}</span><span><i class="ld-cell ld-cell-h"></i>{{ _("sebagian atau bergantung pemasangan") }}</span><span><i class="ld-cell ld-cell-n"></i>{{ _("tidak") }}</span></p>
       </div>
     </div>
   </section>
@@ -168,8 +143,8 @@
   {# ------------------------------------------------------------------ how it works #}
   <section class="ld-section ld-section-alt" id="cara-kerja" aria-labelledby="cara-h">
     <div class="ld-wrap">
-      <p class="ld-eyebrow"><span>02</span>Cara kerja</p>
-      <h2 id="cara-h" class="ld-h2">Tiga langkah. Tidak ada yang berubah bagi penerima.</h2>
+      <p class="ld-eyebrow"><span>02</span>{{ _("Cara kerja") }}</p>
+      <h2 id="cara-h" class="ld-h2">{{ _("Tiga langkah. Bagi penerima, tidak ada yang berubah.") }}</h2>
       <ol class="ld-steps">
         <li class="ld-step">
           <svg class="ld-step-art" viewBox="0 0 160 110" aria-hidden="true">
@@ -177,9 +152,9 @@
             <g class="ld-art-lines">{% for j in range(4) %}<rect x="{{ 36 + i * 18 }}" y="{{ 28 + i * 4 + j * 12 }}" width="{{ [38, 30, 40, 24][j] + (i % 2) * 2 }}" height="3" rx="1.5"/>{% endfor %}</g>{% endfor %}
           </svg>
           <span class="ld-step-num">1</span>
-          <h3>Terbitkan</h3>
-          <p>Unggah PDF dan daftar penerima. TAPAK membuat satu salinan untuk setiap orang, masing-masing dengan sidik unik. Di mata manusia semuanya identik.</p>
-          <p class="ld-step-fact">{{ ikon("clock", 16) }}20 salinan dalam beberapa detik</p>
+          <h3>{{ _("Terbitkan") }}</h3>
+          <p>{{ _("Unggah PDF dan daftar penerima. TAPAK membuat satu salinan untuk setiap orang, masing-masing dengan sidik unik. Di mata manusia semuanya identik.") }}</p>
+          <p class="ld-step-fact">{{ ikon("clock", 16) }}{{ _("20 salinan dalam beberapa detik") }}</p>
         </li>
         <li class="ld-step">
           <svg class="ld-step-art" viewBox="0 0 160 110" aria-hidden="true">
@@ -190,9 +165,9 @@
             <path d="M44 40 l-20 -10 M44 55 h-24 M44 70 l-20 10" class="ld-art-arrow"/>
           </svg>
           <span class="ld-step-num">2</span>
-          <h3>Bocor</h3>
-          <p>Salinan difoto, ditangkap layarnya, dicetak, atau diteruskan. Sidiknya ikut terbawa, juga pada potongan sebagian halaman.</p>
-          <p class="ld-step-fact">{{ ikon("image", 16) }}Foto, tangkapan layar, cetakan, PDF, teks</p>
+          <h3>{{ _("Bocor") }}</h3>
+          <p>{{ _("Salinan difoto, ditangkap layarnya, dicetak, atau diteruskan. Sidiknya ikut terbawa, juga pada potongan sebagian halaman.") }}</p>
+          <p class="ld-step-fact">{{ ikon("image", 16) }}{{ _("Foto, tangkapan layar, cetakan, PDF, teks") }}</p>
         </li>
         <li class="ld-step">
           <svg class="ld-step-art" viewBox="0 0 160 110" aria-hidden="true">
@@ -204,9 +179,9 @@
             <rect x="103" y="21" width="34" height="4" rx="2" class="ld-art-tagline"/>
           </svg>
           <span class="ld-step-num">3</span>
-          <h3>Lacak</h3>
-          <p>Unggah bukti yang beredar. TAPAK membaca sidik yang tersisa dan menyebut penerimanya, atau menjawab <q>tidak cukup bukti</q> bila buktinya kurang.</p>
-          <p class="ld-step-fact">{{ ikon("file-text", 16) }}Hasil langsung menjadi berita acara PDF</p>
+          <h3>{{ _("Lacak") }}</h3>
+          <p>{% trans %}Unggah bukti yang beredar. TAPAK membaca sidik yang tersisa dan menyebut penerimanya, atau menjawab <q>tidak cukup bukti</q> bila buktinya kurang.{% endtrans %}</p>
+          <p class="ld-step-fact">{{ ikon("file-text", 16) }}{{ _("Hasil langsung menjadi berita acara PDF") }}</p>
         </li>
       </ol>
     </div>
@@ -217,43 +192,44 @@
     <div class="ld-wrap">
       <div class="ld-kanal-grid">
         <div>
-          <p class="ld-eyebrow"><span>03</span>Sidik tak kasatmata</p>
-          <h2 id="kanal-h" class="ld-h2">Lima lapis sidik. Satu hilang, yang lain tetap bicara.</h2>
-          <p class="ld-lead">Kata yang digeser 0,025 milimeter, pola titik samar di latar, karakter tak terlihat, parafrasa kalimat, dan alamat kanari. Setiap lapis bertahan pada cara bocor yang berbeda, dan dekoder menggabungkan apa pun yang tersisa.</p>
+          <p class="ld-eyebrow"><span>03</span>{{ _("Sidik tak kasatmata") }}</p>
+          <h2 id="kanal-h" class="ld-h2">{{ _("Lima lapis sidik. Satu hilang, yang lain tetap bicara.") }}</h2>
+          <p class="ld-lead">{{ _("Kata yang digeser 0,025 milimeter, pola titik samar di latar, karakter tak terlihat, parafrasa kalimat, dan alamat kanari. Setiap lapis bertahan pada cara bocor yang berbeda, dan dekoder menggabungkan apa pun yang tersisa.") }}</p>
         </div>
         <div class="ld-matrix-wrap">
           <table class="ld-matrix">
-            <caption class="sr-only">Lapis sidik dan cara bocor yang dapat dilaluinya</caption>
+            <caption class="sr-only">{{ _("Lapis sidik dan cara bocor yang dapat dilaluinya") }}</caption>
             <thead>
-              <tr><th scope="col">Lapis</th>
-                {% for h in ["PDF diteruskan", "Tangkapan layar", "Foto", "Cetakan", "Teks disalin", "Diketik ulang"] %}<th scope="col"><span>{{ h }}</span></th>{% endfor %}
+              <tr><th scope="col">{{ _("Lapis") }}</th>
+                {% for h in [_("PDF diteruskan"), _("Tangkapan layar"), _("Foto"), _("Cetakan"), _("Teks disalin"), _("Diketik ulang")] %}<th scope="col"><span>{{ h }}</span></th>{% endfor %}
               </tr>
             </thead>
             <tbody>
               {% set rows = [
-                ("Geser kata dan baris", "0,025 mm per kata", ["y", "y", "y", "y", "n", "n"]),
-                ("Pola titik latar", "titik samar, tak terbaca mata", ["y", "y", "y", "h", "n", "n"]),
-                ("Karakter tak terlihat", "ikut tersalin bersama teks", ["y", "n", "n", "n", "y", "n"]),
-                ("Varian kalimat", "parafrasa yang disetujui manusia", ["y", "y", "y", "y", "y", "h"]),
-                ("Kanari DNS", "berbunyi saat dibuka di luar jaringan", ["h", "n", "n", "n", "n", "n"]),
+                (_("Geser kata dan baris"), _("0,025 mm per kata"), ["y", "y", "y", "y", "n", "n"]),
+                (_("Pola titik latar"), _("titik samar, tak terbaca mata"), ["y", "y", "y", "h", "n", "n"]),
+                (_("Karakter tak terlihat"), _("ikut tersalin bersama teks"), ["y", "n", "n", "n", "y", "n"]),
+                (_("Varian kalimat"), _("parafrasa yang disetujui manusia"), ["y", "y", "y", "y", "y", "h"]),
+                (_("Kanari DNS"), _("berbunyi saat dibuka di luar jaringan"), ["h", "n", "n", "n", "n", "n"]),
               ] %}
+              {% set said = {"y": _("bertahan"), "h": _("sebagian"), "n": _("tidak")} %}
               {% for name, note, cells in rows %}
               <tr>
                 <th scope="row"><span class="ld-matrix-name">{{ name }}</span><span class="ld-matrix-note">{{ note }}</span></th>
-                {% for v in cells %}<td><span class="ld-cell ld-cell-{{ v }}" aria-hidden="true"></span><span class="sr-only">{{ {"y": "bertahan", "h": "sebagian", "n": "tidak"}[v] }}</span></td>{% endfor %}
+                {% for v in cells %}<td><span class="ld-cell ld-cell-{{ v }}" aria-hidden="true"></span><span class="sr-only">{{ said[v] }}</span></td>{% endfor %}
               </tr>
               {% endfor %}
             </tbody>
           </table>
-          <p class="ld-matrix-key" aria-hidden="true"><span><i class="ld-cell ld-cell-y"></i>bertahan</span><span><i class="ld-cell ld-cell-h"></i>sebagian atau bersyarat</span><span><i class="ld-cell ld-cell-n"></i>tidak</span></p>
+          <p class="ld-matrix-key" aria-hidden="true"><span><i class="ld-cell ld-cell-y"></i>{{ _("bertahan") }}</span><span><i class="ld-cell ld-cell-h"></i>{{ _("sebagian atau bersyarat") }}</span><span><i class="ld-cell ld-cell-n"></i>{{ _("tidak") }}</span></p>
         </div>
       </div>
       <figure class="ld-kanal">
         <picture>
           <source srcset="/static/img/landing-kanal-dark.webp" media="(prefers-color-scheme: dark)">
-          <img src="/static/img/landing-kanal-light.webp" alt="Tiga lapis sidik pada salinan sungguhan, diperbesar: huruf yang bergeser 0,025 mm, pola titik latar yang diperkuat 40 kali, dan simbol lebar-nol di antara kata" width="1792" height="585" loading="lazy">
+          <img src="/static/img/landing-kanal-light.webp" alt="{{ _('Tiga lapis sidik pada salinan sungguhan, diperbesar: huruf yang bergeser 0,025 mm, pola titik latar yang diperkuat 40 kali, dan simbol lebar-nol di antara kata') }}" width="1792" height="585" loading="lazy">
         </picture>
-        <figcaption>Tiga lapis pada salinan sungguhan, diperbesar. Tanpa pembesaran, salinan tampak persis seperti dokumen induknya.</figcaption>
+        <figcaption>{{ _("Tiga lapis pada salinan sungguhan, diperbesar. Tanpa pembesaran, salinan tampak persis seperti dokumen induknya.") }}</figcaption>
       </figure>
     </div>
   </section>
@@ -261,36 +237,36 @@
   {# ------------------------------------------------------------------ evidence #}
   <section class="ld-section ld-section-alt" id="bukti" aria-labelledby="bukti-h">
     <div class="ld-wrap">
-      <p class="ld-eyebrow"><span>04</span>Bukti</p>
-      <h2 id="bukti-h" class="ld-h2">Diuji ribuan kali. Nol orang tak bersalah tertuduh.</h2>
-      <p class="ld-lead">Semua angka di bawah berasal dari uji yang dapat diulang di repositori: dokumen fiktif, bukti sintetis, dan set uji yang dijalankan sekali setelah aturannya dikunci.</p>
+      <p class="ld-eyebrow"><span>04</span>{{ _("Bukti") }}</p>
+      <h2 id="bukti-h" class="ld-h2">{{ _("Diuji ribuan kali. Nol orang tak bersalah tertuduh.") }}</h2>
+      <p class="ld-lead">{{ _("Semua angka di bawah berasal dari uji yang dapat diulang di repositori: dokumen fiktif, bukti sintetis, dan set uji yang dijalankan sekali setelah aturannya dikunci.") }}</p>
 
       <div class="ld-evidence">
         <article class="ld-panel ld-panel-wide">
           <header class="ld-panel-head">
-            <h3>Seberapa sering TAPAK menyebut penerima yang benar</h3>
-            <p>Bukti yang tidak cukup dijawab <q>tidak cukup bukti</q>. Tidak satu pun menunjuk orang lain.</p>
+            <h3>{{ _("Seberapa sering TAPAK menyebut penerima yang benar") }}</h3>
+            <p>{% trans %}Bukti yang tidak cukup dijawab <q>tidak cukup bukti</q>. Tidak satu pun menunjuk orang lain.{% endtrans %}</p>
           </header>
-          <h4 class="ld-panel-sub">Uji benchmark: foto dan cetakan sintetis</h4>
+          <h4 class="ld-panel-sub">{{ _("Uji benchmark: foto dan cetakan sintetis") }}</h4>
           {{ batang_media(angka.media[:5]) }}
-          <h4 class="ld-panel-sub">Studi registrasi: bukti sebagian dan buram, set uji tertahan</h4>
+          <h4 class="ld-panel-sub">{{ _("Studi registrasi: bukti sebagian dan buram, set uji tertahan") }}</h4>
           {{ batang_media(angka.media[5:9]) }}
-          <h4 class="ld-panel-sub">Studi foto yang dipotong pembocor, set uji tertahan</h4>
+          <h4 class="ld-panel-sub">{{ _("Studi foto yang dipotong pembocor, set uji tertahan") }}</h4>
           {{ batang_media(angka.media[9:]) }}
         </article>
 
         <article class="ld-panel">
           <header class="ld-panel-head">
-            <h3>Garis tuduh yang tegas</h3>
-            <p>1.000 simulasi persekongkolan tiga orang dengan delapan strategi. Tidak ada orang tak bersalah yang mendekati garis, dan tidak ada pelaku yang lolos.</p>
+            <h3>{{ _("Garis tuduh yang tegas") }}</h3>
+            <p>{{ _("8.000 simulasi persekongkolan tiga orang, dengan delapan strategi menggabungkan salinan. Skor orang tak bersalah tidak pernah mendekati garis, dan tidak ada pelaku yang lolos.") }}</p>
           </header>
           {{ pemisahan(p) }}
         </article>
 
         <article class="ld-panel">
           <header class="ld-panel-head">
-            <h3>Seberapa kecil peluang salah tuduh</h3>
-            <p>Nama baru disebut bila peluangnya di bawah satu banding sejuta. Pada foto uji, peluangnya biasanya jauh lebih kecil lagi.</p>
+            <h3>{{ _("Seberapa kecil peluang salah tuduh") }}</h3>
+            <p>{{ _("Nama baru disebut bila peluangnya di bawah satu banding sejuta. Pada foto uji, peluangnya biasanya jauh lebih kecil lagi.") }}</p>
           </header>
           {{ skala_batas(angka.batas) }}
         </article>
@@ -301,45 +277,27 @@
   {# ------------------------------------------------------------------ for government #}
   <section class="ld-section ld-gov" id="instansi" aria-labelledby="instansi-h">
     <div class="ld-wrap">
-      <p class="ld-eyebrow"><span>05</span>Untuk instansi</p>
-      <h2 id="instansi-h" class="ld-h2">Dirancang untuk cara kerja instansi pemerintah</h2>
-      <p class="ld-lead">Kementerian dan lembaga, TNI dan Polri, pemerintah daerah, dan BUMN strategis: di mana pun dokumen berklasifikasi dibagikan kepada banyak orang.</p>
-      <div class="ld-values">
-        <article class="ld-value">
-          {{ ikon("server", 22) }}
-          <h3>Data tidak pernah keluar</h3>
-          <p>Seluruh proses berjalan di komputer atau server internal. Tanpa layanan awan, tanpa telemetri. Satu-satunya lalu lintas keluar adalah pendengar kanari.</p>
+      <p class="ld-eyebrow"><span>05</span>{{ _("Untuk instansi") }}</p>
+      <h2 id="instansi-h" class="ld-h2">{{ _("Dibuat untuk cara kerja instansi pemerintah") }}</h2>
+      <p class="ld-lead">{{ _("Kementerian dan lembaga, TNI dan Polri, pemerintah daerah, BUMN strategis: di mana pun dokumen berklasifikasi dibagikan kepada banyak orang.") }}</p>
+      <div class="ld-gov-grid">
+        <article class="ld-gov-lead">
+          {{ ikon("server", 26) }}
+          <h3>{{ _("Data tidak pernah keluar dari instansi") }}</h3>
+          <p>{{ _("Penerbitan, pelacakan, dan registri berjalan di komputer atau server internal. Tanpa layanan awan dan tanpa telemetri. Satu-satunya lalu lintas dari luar adalah kueri DNS yang diterima pendengar kanari, dan kanari boleh tidak dipakai.") }}</p>
+          <p class="ld-gov-lead-note">{{ _("Registri hanya menyimpan hash dan kode, tidak pernah isi dokumen atau gambar bukti.") }}</p>
         </article>
-        <article class="ld-value">
-          {{ ikon("file-text", 22) }}
-          <h3>Bukti yang dapat dipertanggungjawabkan</h3>
-          <p>Setiap putusan memuat skor, ambang, dan batas peluang salah tuduh, lalu ditulis sebagai berita acara PDF yang siap ditandatangani pemeriksa.</p>
-        </article>
-        <article class="ld-value">
-          {{ ikon("ledger", 22) }}
-          <h3>Registri yang tidak bisa diubah diam-diam</h3>
-          <p>Catatan penerbitan bersifat tambah-saja, berantai SHA-256, dan bertanda tangan Ed25519. Pihak ketiga dapat memeriksanya hanya dengan kunci publik.</p>
-        </article>
-        <article class="ld-value">
-          {{ ikon("scale", 22) }}
-          <h3>Adil sejak awal</h3>
-          <p>Ambang tuduhan ditetapkan dan dicatat sebelum bukti dinilai. Bila buktinya kurang, jawabannya <q>tidak cukup bukti</q>, bukan tebakan.</p>
-        </article>
-        <article class="ld-value">
-          {{ ikon("shield", 22) }}
-          <h3>Hemat data pribadi</h3>
-          <p>Registri hanya menyimpan hash dan kode, tidak pernah isi dokumen atau gambar bukti.</p>
-        </article>
-        <article class="ld-value">
-          {{ ikon("settings", 22) }}
-          <h3>Ringan dipasang</h3>
-          <p>Satu laptop atau server biasa, tanpa GPU. Tersedia sebagai kontainer Docker, dengan antarmuka berbahasa Indonesia.</p>
-        </article>
+        <dl class="ld-gov-rows">
+          <div><dt>{{ _("Bukti yang dapat dipertanggungjawabkan") }}</dt><dd>{{ _("Setiap putusan memuat skor, ambang, dan batas peluang salah tuduh, lalu ditulis sebagai berita acara PDF yang siap ditandatangani pemeriksa.") }}</dd></div>
+          <div><dt>{{ _("Registri yang tidak bisa diubah diam-diam") }}</dt><dd>{{ _("Catatan penerbitan bersifat tambah-saja, berantai SHA-256, dan bertanda tangan Ed25519. Pihak ketiga dapat memeriksanya hanya dengan kunci publik.") }}</dd></div>
+          <div><dt>{{ _("Adil sejak awal") }}</dt><dd>{% trans %}Ambang tuduhan ditetapkan dan dicatat sebelum bukti dinilai. Bila buktinya kurang, jawabannya <q>tidak cukup bukti</q>.{% endtrans %}</dd></div>
+          <div><dt>{{ _("Ringan dipasang") }}</dt><dd>{{ _("Satu laptop atau server biasa, tanpa GPU, tersedia sebagai kontainer Docker. Antarmukanya berbahasa Indonesia dan Inggris.") }}</dd></div>
+        </dl>
       </div>
       <div class="ld-uses">
-        <h3 class="ld-uses-h">Cocok untuk</h3>
+        <h3 class="ld-uses-h">{{ _("Cocok untuk") }}</h3>
         <ul class="ld-chips">
-          {% for u in ["Surat telegram", "Nota dinas", "Rencana operasi", "Dokumen pengadaan", "Bahan rapat terbatas", "Naskah soal seleksi", "Laporan intelijen", "Draf peraturan"] %}<li>{{ u }}</li>{% endfor %}
+          {% for u in [_("Surat telegram"), _("Nota dinas"), _("Rencana operasi"), _("Dokumen pengadaan"), _("Bahan rapat terbatas"), _("Naskah soal seleksi"), _("Laporan intelijen"), _("Draf peraturan")] %}<li>{{ u }}</li>{% endfor %}
         </ul>
       </div>
     </div>
@@ -348,12 +306,12 @@
   {# ------------------------------------------------------------------ adoption #}
   <section class="ld-section" id="penerapan" aria-labelledby="penerapan-h">
     <div class="ld-wrap">
-      <p class="ld-eyebrow"><span>06</span>Penerapan</p>
-      <h2 id="penerapan-h" class="ld-h2">Mulai dari satu satuan</h2>
+      <p class="ld-eyebrow"><span>06</span>{{ _("Penerapan") }}</p>
+      <h2 id="penerapan-h" class="ld-h2">{{ _("Mulai dari satu satuan") }}</h2>
       <ol class="ld-timeline">
-        <li><span class="ld-timeline-num">1</span><div><h3>Uji coba</h3><p>Pasang TAPAK di satu server internal. Terbitkan dokumen nyata kepada daftar penerima nyata, dan latih pelacakan dengan bukti uji.</p></div></li>
-        <li><span class="ld-timeline-num">2</span><div><h3>Pelatihan operator</h3><p>Operator belajar menerbitkan, melacak, membaca hasil, dan memverifikasi registri. Demo terpandu di aplikasi menjadi bahan latihannya.</p></div></li>
-        <li><span class="ld-timeline-num">3</span><div><h3>Perluasan bertahap</h3><p>Hubungkan dengan alur tata naskah dinas, tambahkan satuan, simpan log jangkar registri di tempat terpisah, dan pasang pendengar kanari di jaringan luar.</p></div></li>
+        <li><span class="ld-timeline-num">1</span><div><h3>{{ _("Uji coba") }}</h3><p>{{ _("Pasang TAPAK di satu server internal. Terbitkan dokumen nyata kepada daftar penerima nyata, dan latih pelacakan dengan bukti uji.") }}</p></div></li>
+        <li><span class="ld-timeline-num">2</span><div><h3>{{ _("Pelatihan operator") }}</h3><p>{{ _("Operator belajar menerbitkan, melacak, membaca hasil, dan memverifikasi registri. Demo terpandu di aplikasi menjadi bahan latihannya.") }}</p></div></li>
+        <li><span class="ld-timeline-num">3</span><div><h3>{{ _("Perluasan bertahap") }}</h3><p>{{ _("Hubungkan dengan alur tata naskah dinas, tambahkan satuan, simpan log jangkar registri di tempat terpisah, dan pasang pendengar kanari di jaringan luar.") }}</p></div></li>
       </ol>
     </div>
   </section>
@@ -362,16 +320,16 @@
   <section class="ld-section ld-section-alt" id="batasan" aria-labelledby="batasan-h">
     <div class="ld-wrap ld-split ld-split-limits">
       <div>
-        <p class="ld-eyebrow"><span>07</span>Batasan</p>
-        <h2 id="batasan-h" class="ld-h2">Kami lebih suka jujur daripada menebak</h2>
-        <p class="ld-lead">TAPAK menjawab <q>tidak cukup bukti</q> setiap kali buktinya kurang. Begitu pula halaman ini menyebut apa yang belum bisa dilakukannya.</p>
+        <p class="ld-eyebrow"><span>07</span>{{ _("Batasan") }}</p>
+        <h2 id="batasan-h" class="ld-h2">{{ _("Yang belum bisa dilakukan TAPAK") }}</h2>
+        <p class="ld-lead">{% trans %}TAPAK menjawab <q>tidak cukup bukti</q> setiap kali buktinya kurang. Halaman ini pun menyebut terus terang di mana batasnya.{% endtrans %}</p>
       </div>
       <ul class="ld-limits">
-        <li>Semua uji memakai foto, cetakan, dan tangkapan layar sintetis. Kamera, monitor, dan printer sungguhan belum diuji.</li>
-        <li>Dokumen yang diketik ulang hanya menyisakan sedikit sidik. Dokumen satu sampai dua halaman biasanya berakhir <q>tidak cukup bukti</q>.</li>
-        <li>Cetakan satu halaman disebut pada {{ angka.media[4].benar }} dari {{ angka.media[4].n }} foto uji; dua halaman bersama selalu disebut.</li>
-        <li>Lawan yang memahami TAPAK dapat merusak sidik sehingga tidak ada nama yang disebut. Batas salah tuduh tetap berlaku selama kunci rahasia aman.</li>
-        <li>Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word.</li>
+        <li>{{ _("Semua uji memakai foto, cetakan, dan tangkapan layar sintetis. Kamera, monitor, dan printer sungguhan belum diuji.") }}</li>
+        <li>{% trans %}Dokumen yang diketik ulang hanya menyisakan sedikit sidik. Dokumen satu sampai dua halaman biasanya berakhir <q>tidak cukup bukti</q>.{% endtrans %}</li>
+        <li>{{ _("Cetakan satu halaman disebut pada %(benar)s dari %(n)s foto uji; dua halaman bersama selalu disebut.", benar=angka.media[4].benar, n=angka.media[4].n) }}</li>
+        <li>{{ _("Lawan yang memahami TAPAK dapat merusak sidik sehingga tidak ada nama yang disebut. Batas salah tuduh tetap berlaku selama kunci rahasia aman.") }}</li>
+        <li>{{ _("Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word.") }}</li>
       </ul>
     </div>
   </section>
@@ -380,23 +338,13 @@
   <section class="ld-cta" aria-labelledby="cta-h">
     <div class="ld-wrap ld-cta-inner">
       <div>
-        <h2 id="cta-h">Lihat sendiri dalam tiga menit.</h2>
-        <p>Demo terpandu memakai dokumen fiktif: terbitkan 20 salinan, bocorkan satu sebagai foto ponsel, lalu lacak pembocornya.</p>
+        <h2 id="cta-h">{{ _("Lihat sendiri dalam tiga menit.") }}</h2>
+        <p>{{ _("Demo terpandu memakai dokumen fiktif: terbitkan 20 salinan, bocorkan satu sebagai foto ponsel, lalu lacak pembocornya.") }}</p>
       </div>
       <div class="ld-cta-actions">
-        <a class="btn btn-primary ld-btn-lg" href="/demo">{{ ikon("play") }}Mulai demo</a>
-        <a class="btn ld-btn-outline ld-btn-lg" href="/beranda">Buka aplikasi</a>
+        <a class="btn btn-primary ld-btn-lg" href="/demo">{{ ikon("play") }}{{ _("Mulai demo") }}</a>
+        <a class="btn ld-btn-outline ld-btn-lg" href="/beranda">{{ _("Buka aplikasi") }}</a>
       </div>
     </div>
   </section>
-</main>
-
-<footer class="ld-footer">
-  <div class="ld-wrap ld-footer-inner">
-    <span class="ld-brand ld-brand-sm">{{ logo(22) }}<span>TAPAK</span></span>
-    <span>Tanda Atribusi Penerima Anti-Kolusi · versi {{ version }} · prototipe Kartika Cyber Hackathon 2026</span>
-    <span>Semua dokumen, nama, dan bukti contoh fiktif.</span>
-  </div>
-</footer>
-</body>
-</html>
+{% endblock %}

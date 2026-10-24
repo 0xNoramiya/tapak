@@ -1,4 +1,4 @@
 {# Out-of-band error update for step 1: the form, and the files already chosen, stay in place. #}
 {% for f in ("dokumen", "penerima", "c", "eps", "latar", "geser") %}
-<span id="err-{{ f }}" hx-swap-oob="innerHTML">{% if errors.get(f) %}<span class="field-error" role="alert">{{ errors[f] }}{% if f == "dokumen" and existing %} <a class="link" href="/lacak{% if existing is string %}?dokumen={{ existing }}{% endif %}">Lacak kebocorannya</a> atau unggah dokumen lain.{% endif %}</span>{% endif %}</span>
+<span id="err-{{ f }}" hx-swap-oob="innerHTML">{% if errors.get(f) %}<span class="field-error" role="alert">{{ errors[f] }}{% if f == "dokumen" and existing %} {% trans href="/lacak" ~ ("?dokumen=" ~ existing if existing is string else "") %}<a class="link" href="{{ href }}">Lacak kebocorannya</a> atau unggah dokumen lain.{% endtrans %}{% endif %}</span>{% endif %}</span>
 {% endfor %}

@@ -1,23 +1,23 @@
 {% from "_ikon.html" import ikon %}
-<ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan">
+<ol class="stepper alur-stepper" id="stepper" aria-label="{{ _('Langkah penerbitan') }}">
   {% for label in langkah_terbit %}
-  <li class="stepper-item"{% if loop.first %} aria-current="step"{% endif %}><span class="stepper-num">{{ loop.index }}</span> <span class="stepper-label">{{ label }}</span></li>
+  <li class="stepper-item"{% if loop.first %} aria-current="step"{% endif %}><span class="stepper-num">{{ loop.index }}</span> <span class="stepper-label">{{ _(label) }}</span></li>
   {% endfor %}
 </ol>
 <section class="card" aria-labelledby="langkah1">
-  <h2 id="langkah1">Dokumen dan penerima</h2>
-  <p class="lead">Dokumen induk tetap di perangkat ini. Registri hanya menyimpan hash dokumen dan komitmen kode setiap penerima.</p>
+  <h2 id="langkah1">{{ _("Dokumen dan penerima") }}</h2>
+  <p class="lead">{{ _("Dokumen induk tetap di perangkat ini. Registri hanya menyimpan hash dokumen dan komitmen kode setiap penerima.") }}</p>
   <form id="form-terbit" hx-post="/terbitkan/analisis" hx-encoding="multipart/form-data" hx-target="#alur" hx-swap="innerHTML show:#alur:top"
         hx-disabled-elt="find button[type=submit]" novalidate>
     <div class="drop-pair">
       <div class="field">
         <label class="dropzone" data-dropzone>
-          <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" title="Pilih berkas"
+          <input id="dokumen" name="dokumen" type="file" accept="application/pdf,.pdf" title="{{ _('Pilih berkas') }}"
                  aria-labelledby="label-dokumen" aria-describedby="hint-dokumen err-dokumen" {% if errors.dokumen %}aria-invalid="true"{% endif %}>
           <span class="dropzone-icon" aria-hidden="true">{{ ikon("file-text") }}</span>
           <span class="dropzone-text">
-            <span class="dropzone-title" id="label-dokumen">Dokumen induk (PDF)</span>
-            <span class="dropzone-hint" id="hint-dokumen">Seret ke sini atau <span class="dropzone-link">pilih berkas</span>. PDF berlapis teks atau hasil pindai (minimal 200&nbsp;dpi), maks. 40&nbsp;MB.</span>
+            <span class="dropzone-title" id="label-dokumen">{{ _("Dokumen induk (PDF)") }}</span>
+            <span class="dropzone-hint" id="hint-dokumen">{% trans %}Seret ke sini atau <span class="dropzone-link">pilih berkas</span>. PDF berlapis teks atau hasil pindai (minimal 200&nbsp;dpi), maks. 40&nbsp;MB.{% endtrans %}</span>
           </span>
           <ul class="dropzone-files" data-dropzone-files></ul>
         </label>
@@ -25,12 +25,12 @@
       </div>
       <div class="field">
         <label class="dropzone" data-dropzone>
-          <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" title="Pilih berkas"
+          <input id="penerima" name="penerima" type="file" accept=".csv,text/csv" title="{{ _('Pilih berkas') }}"
                  aria-labelledby="label-penerima" aria-describedby="hint-penerima err-penerima" {% if errors.penerima %}aria-invalid="true"{% endif %}>
           <span class="dropzone-icon" aria-hidden="true">{{ ikon("users") }}</span>
           <span class="dropzone-text">
-            <span class="dropzone-title" id="label-penerima">Daftar penerima (CSV)</span>
-            <span class="dropzone-hint" id="hint-penerima">Seret ke sini atau <span class="dropzone-link">pilih berkas</span>. Kolom wajib <span class="mono">recipient_id</span> dan <span class="mono">nama</span>; <span class="mono">jabatan</span> dan <span class="mono">satuan</span> opsional.</span>
+            <span class="dropzone-title" id="label-penerima">{{ _("Daftar penerima (CSV)") }}</span>
+            <span class="dropzone-hint" id="hint-penerima">{% trans %}Seret ke sini atau <span class="dropzone-link">pilih berkas</span>. Kolom wajib <span class="mono">recipient_id</span> dan <span class="mono">nama</span>; <span class="mono">jabatan</span> dan <span class="mono">satuan</span> opsional.{% endtrans %}</span>
           </span>
           <ul class="dropzone-files" data-dropzone-files></ul>
         </label>
@@ -38,97 +38,98 @@
       </div>
     </div>
     <div class="field field-penerbit">
-      <label for="penerbit">Penerbit <span class="field-optional">(opsional)</span></label>
+      <label for="penerbit">{% trans %}Penerbit <span class="field-optional">(opsional)</span>{% endtrans %}</label>
       <input id="penerbit" name="penerbit" type="text" value="{{ values.penerbit or '' }}" autocomplete="name"
-             placeholder="contoh: Kasi Ops Brigif 9905" aria-describedby="hint-penerbit">
-      <span class="hint" id="hint-penerbit">Tercatat di registri sebagai pihak yang menerbitkan.</span>
+             placeholder="{{ _('contoh: Kasi Ops Brigif 9905') }}" aria-describedby="hint-penerbit">
+      <span class="hint" id="hint-penerbit">{{ _("Tercatat di registri sebagai pihak yang menerbitkan.") }}</span>
     </div>
     {# The print-profile warning is in the markup (no script); CSS hides it while "Cetak" is not
        chosen, and a browser without :has() shows it always. #}
     {% set latar = values.latar if values.latar is defined else "layar" %}
     <fieldset class="field latar" aria-describedby="hint-latar">
-      <legend class="field-label">Pola latar</legend>
-      <span class="hint" id="hint-latar">Lapisan kode di bawah teks halaman. Pilih menurut cara salinan akan dibagikan.</span>
+      <legend class="field-label">{{ _("Pola latar") }}</legend>
+      <span class="hint" id="hint-latar">{{ _("Lapisan kode di bawah teks halaman. Pilih menurut cara salinan akan dibagikan.") }}</span>
       <div class="choices">
         <label class="choice">
           <input type="radio" name="latar" value="layar" {% if latar == "layar" %}checked{% endif %}
                  aria-describedby="latar-layar-ket err-latar" {% if errors.latar %}aria-invalid="true"{% endif %}>
           <span class="choice-body">
-            <span class="choice-title">Layar <span class="field-optional">(bawaan)</span></span>
-            <span class="choice-desc" id="latar-layar-ket">Tidak terlihat, tetapi hilang bila salinan dicetak.</span>
+            <span class="choice-title">{% trans %}Layar <span class="field-optional">(bawaan)</span>{% endtrans %}</span>
+            <span class="choice-desc" id="latar-layar-ket">{{ _("Tidak terlihat, tetapi hilang bila salinan dicetak.") }}</span>
           </span>
         </label>
         <label class="choice">
           <input type="radio" name="latar" value="cetak" {% if latar == "cetak" %}checked{% endif %}
                  aria-describedby="latar-cetak-ket latar-peringatan err-latar" {% if errors.latar %}aria-invalid="true"{% endif %}>
           <span class="choice-body">
-            <span class="choice-title">Cetak</span>
-            <span class="choice-desc" id="latar-cetak-ket">Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda.</span>
+            <span class="choice-title">{{ _("Cetak") }}</span>
+            <span class="choice-desc" id="latar-cetak-ket">{{ _("Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda.") }}</span>
           </span>
         </label>
       </div>
-      <p class="notice notice-warn latar-peringatan" id="latar-peringatan">{{ peringatan_cetak }}</p>
+      <p class="notice notice-warn latar-peringatan" id="latar-peringatan">{{ peringatan_cetak|tr }}</p>
       <span id="err-latar">{% if errors.latar %}<span class="field-error">{{ errors.latar }}</span>{% endif %}</span>
     </fieldset>
     {% set geser = values.geser if values.geser is defined and values.geser else geser_bawaan %}
     <fieldset class="field latar geser" aria-describedby="hint-geser">
-      <legend class="field-label">Skema geser kata</legend>
-      <span class="hint" id="hint-geser">Geser kata dan baris yang tetap terbaca pada foto kertas cetak.</span>
+      <legend class="field-label">{{ _("Skema geser kata") }}</legend>
+      <span class="hint" id="hint-geser">{{ _("Geser kata dan baris yang tetap terbaca pada foto kertas cetak.") }}</span>
       <div class="choices">
         <label class="choice">
           <input type="radio" name="geser" value="v1" {% if geser == "v1" %}checked{% endif %}
                  aria-describedby="geser-v1-ket err-geser" {% if errors.geser %}aria-invalid="true"{% endif %}>
           <span class="choice-body">
-            <span class="choice-title">v1{% if geser_bawaan == "v1" %} <span class="field-optional">(bawaan)</span>{% endif %}</span>
-            <span class="choice-desc" id="geser-v1-ket">Kelompok kata kontrol dan data berselang-seling, geser 0,05 mm.</span>
+            <span class="choice-title">v1{% if geser_bawaan == "v1" %} <span class="field-optional">{{ _("(bawaan)") }}</span>{% endif %}</span>
+            <span class="choice-desc" id="geser-v1-ket">{{ _("Kelompok kata kontrol dan data berselang-seling, geser 0,05 mm.") }}</span>
           </span>
         </label>
         <label class="choice">
           <input type="radio" name="geser" value="v2" {% if geser == "v2" %}checked{% endif %}
                  aria-describedby="geser-v2-ket err-geser" {% if errors.geser %}aria-invalid="true"{% endif %}>
           <span class="choice-body">
-            <span class="choice-title">v2{% if geser_bawaan == "v2" %} <span class="field-optional">(bawaan)</span>{% endif %}</span>
-            <span class="choice-desc" id="geser-v2-ket">Setiap kelompok kata membawa bit, geser 0,025 mm: lebih banyak posisi pada foto kertas cetak yang tajam.</span>
+            <span class="choice-title">v2{% if geser_bawaan == "v2" %} <span class="field-optional">{{ _("(bawaan)") }}</span>{% endif %}</span>
+            <span class="choice-desc" id="geser-v2-ket">{{ _("Setiap kelompok kata membawa bit, geser 0,025 mm: lebih banyak posisi pada foto kertas cetak yang tajam.") }}</span>
           </span>
         </label>
       </div>
       <span id="err-geser">{% if errors.geser %}<span class="field-error">{{ errors.geser }}</span>{% endif %}</span>
     </fieldset>
     <details class="more" id="more-params" {% if errors.c or errors.eps %}open{% endif %}>
-      <summary>Parameter kode dan kanari</summary>
+      <summary>{{ _("Parameter kode dan kanari") }}</summary>
       <div class="param-grid">
         <div class="field">
-          <label for="c">Ukuran koalisi yang ditahan (c)</label>
+          <label for="c">{{ _("Ukuran koalisi yang ditahan (c)") }}</label>
           <input id="c" name="c" type="number" inputmode="numeric" min="1" max="10" value="{{ values.get('c') if values.get('c') not in (none, '') else 3 }}"
                  aria-describedby="hint-c err-c" {% if errors.c %}aria-invalid="true"{% endif %}>
-          <span class="hint" id="hint-c">Jumlah penerima yang mungkin bersekongkol membandingkan salinan.</span>
+          <span class="hint" id="hint-c">{{ _("Jumlah penerima yang mungkin bersekongkol membandingkan salinan.") }}</span>
           <span id="err-c">{% if errors.c %}<span class="field-error">{{ errors.c }}</span>{% endif %}</span>
         </div>
         <div class="field">
-          <label for="eps">Peluang tuduhan salah maksimum</label>
+          <label for="eps">{{ _("Peluang tuduhan salah maksimum") }}</label>
           <select id="eps" name="eps" aria-describedby="hint-eps err-eps" {% if errors.eps %}aria-invalid="true"{% endif %}>
             {% for v, label in eps_choices %}
-            <option value="{{ v }}" {% if (values.eps or '1e-6') == v %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ v }}" {% if (values.eps or '1e-6') == v %}selected{% endif %}>{{ _(label) }}</option>
             {% endfor %}
           </select>
-          <span class="hint" id="hint-eps">Untuk seluruh daftar penerima, ditetapkan sebelum analisis apa pun.</span>
+          <span class="hint" id="hint-eps">{{ _("Untuk seluruh daftar penerima, ditetapkan sebelum analisis apa pun.") }}</span>
           <span id="err-eps">{% if errors.eps %}<span class="field-error">{{ errors.eps }}</span>{% endif %}</span>
         </div>
         <div class="field">
-          <label for="kanari">Domain kanari</label>
+          <label for="kanari">{{ _("Domain kanari") }}</label>
           <input id="kanari" name="kanari" type="text" value="{{ values.kanari if values.kanari is defined else canary_domain }}"
                  spellcheck="false" autocomplete="off" aria-describedby="hint-kanari">
-          <span class="hint" id="hint-kanari">Kosongkan untuk menonaktifkan token kanari.</span>
+          <span class="hint" id="hint-kanari">{{ _("Kosongkan untuk menonaktifkan token kanari.") }}</span>
         </div>
       </div>
     </details>
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        <span class="idle-label">Analisis dokumen</span>
-        <span class="htmx-indicator">Menganalisis dokumen…</span>
+        <span class="idle-label">{{ _("Analisis dokumen") }}</span>
+        <span class="htmx-indicator">{{ _("Menganalisis dokumen…") }}</span>
       </button>
-      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Membaca lapisan teks dan menguji gerbang visual. Untuk PDF hasil pindai: {{ sibuk_pindaian[:1]|lower }}{{ sibuk_pindaian[1:] }}</span></div>
+      {% set sp = _(sibuk_pindaian) %}
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>{{ _("Membaca lapisan teks dan menguji gerbang visual. Untuk PDF hasil pindai: %(scan)s", scan=sp[:1]|lower ~ sp[1:]) }}</span></div>
     </div>
   </form>
 </section>

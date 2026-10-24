@@ -1,35 +1,49 @@
-{% extends "base.html" %}
+{% extends "_situs.html" %}
 {% from "_ikon.html" import ikon %}
-{% block head %}<link rel="stylesheet" href="/static/css/lacak.css?v={{ asset_v() }}">
-<link rel="stylesheet" href="/static/css/demo.css?v={{ asset_v() }}">{% endblock %}
+{% block title %}{{ _("Demo terpandu · TAPAK") }}{% endblock %}
+{% block description %}{{ _("Terbitkan nota dinas fiktif kepada 20 penerima, bocorkan satu salinan, lalu lihat TAPAK menemukan pembocornya.") }}{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="/static/css/lacak.css?v={{ asset_v() }}">
+  <link rel="stylesheet" href="/static/css/demo.css?v={{ asset_v() }}">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/tapak.js?v={{ asset_v() }}" defer></script>
+{% endblock %}
+{% block body_class %}dm{% endblock %}
+{% block nav_links %}<span class="dm-nav-title">{{ _("Demo terpandu") }}</span>{% endblock %}
+{% block nav_actions %}
+      <a class="btn btn-ghost btn-small ld-hide-sm" href="/">{{ _("Halaman produk") }}</a>
+      <a class="btn btn-ghost btn-small ld-hide-sm" href="/beranda">{{ _("Buka aplikasi") }}</a>
+{% endblock %}
 {% block content %}
-<div class="page demo">
-  <header class="page-head">
-    <p class="eyebrow">Demo terpandu · dokumen dan nama fiktif</p>
-    <h1>Temukan pembocornya dalam empat langkah</h1>
-    <p class="lead">Anda berperan sebagai satuan yang membagikan nota dinas rahasia kepada 20 orang. Salah satunya membocorkan salinannya. Ikuti langkah di bawah dan lihat bagaimana TAPAK menemukan salinan itu.</p>
-  </header>
-
-  <div class="demo-layout">
-    <div class="demo-main">
-      <p class="notice">Demo berjalan di ruang kerja terpisah dengan kunci dan registrinya sendiri. Dokumen, kunci, dan registri Anda tidak tersentuh.</p>
-      {% include "_demo_alur.html" %}
-    </div>
-
-    <aside class="card demo-guide" aria-labelledby="panduan-h">
-      <h2 id="panduan-h">Memakai TAPAK untuk dokumen nyata</h2>
-      <ol class="demo-guide-steps">
-        <li>
-          <b>Siapkan dua berkas.</b> PDF induk dokumen (berlapis teks atau hasil pindai) dan daftar penerima dalam CSV dengan kolom <span class="mono">recipient_id, nama, jabatan, satuan</span>.
-          <a class="link small" href="/demo/contoh-penerima.csv">Unduh contoh CSV</a>
-        </li>
-        <li><b>Terbitkan.</b> Di halaman <a class="link" href="/terbitkan">Terbitkan</a>, unggah keduanya, tinjau varian kalimat yang diusulkan, lalu unduh ZIP berisi satu salinan per penerima.</li>
-        <li><b>Bagikan.</b> Kirim setiap salinan hanya kepada penerimanya. Registri mencatat salinan mana untuk siapa, tanpa menyimpan isi dokumen.</li>
-        <li><b>Bila bocor, lacak.</b> Di halaman <a class="link" href="/lacak">Lacak</a>, pilih dokumennya dan unggah apa pun yang beredar: foto, tangkapan layar, PDF, DOCX, atau teks yang ditempel.</li>
-        <li><b>Laporkan.</b> Unduh berita acara PDF dari hasil pelacakan, dan periksa keutuhan catatan penerbitan di halaman <a class="link" href="/registri">Registri</a>.</li>
-      </ol>
-      <p class="hint">Semua langkah berjalan di komputer ini. Tidak ada data yang dikirim ke luar.</p>
-    </aside>
+<section class="dm-intro" aria-labelledby="demo-h">
+  <div class="ld-wrap">
+    <p class="ld-kicker"><span class="ld-stamp">{{ _("Rahasia") }}</span>{{ _("Dokumen dan nama fiktif") }}</p>
+    <h1 id="demo-h">{{ _("Temukan pembocornya dalam empat langkah") }}</h1>
+    <p class="dm-lead">{{ _("Anda membagikan nota dinas rahasia kepada 20 orang, dan salah satunya membocorkan salinannya. Anda yang memilih siapa dan bagaimana. TAPAK hanya melihat barang buktinya.") }}</p>
   </div>
+</section>
+
+<div class="ld-wrap dm-body">
+  <div id="galat-global" role="alert" tabindex="-1"></div>
+  <div id="alur" class="dm-flow">{% include "_demo_alur.html" %}</div>
+  <p class="dm-sandbox">{{ ikon("lock", 16) }}{{ _("Demo berjalan di ruang kerja terpisah dengan kunci dan registrinya sendiri. Dokumen, kunci, dan registri Anda tidak tersentuh, dan tidak ada data yang dikirim ke luar komputer ini.") }}</p>
+
+  <section class="dm-guide" aria-labelledby="panduan-h">
+    <div>
+      <p class="ld-eyebrow">{{ _("Setelah demo") }}</p>
+      <h2 id="panduan-h">{{ _("Memakai TAPAK untuk dokumen nyata") }}</h2>
+      <p>{{ _("Alurnya sama dengan demo ini, dengan dokumen dan daftar penerima Anda sendiri.") }}</p>
+      <a class="btn btn-primary" href="/terbitkan">{{ ikon("files") }}{{ _("Terbitkan dokumen") }}</a>
+    </div>
+    <ol class="dm-guide-steps">
+      <li><b>{{ _("Siapkan dua berkas.") }}</b> {% trans %}PDF induk dokumen (berlapis teks atau hasil pindai) dan daftar penerima dalam CSV dengan kolom <span class="mono">recipient_id, nama, jabatan, satuan</span>.{% endtrans %} <a class="link" href="/demo/contoh-penerima.csv">{{ _("Unduh contoh CSV") }}</a></li>
+      <li><b>{{ _("Terbitkan.") }}</b> {% trans %}Di halaman <a class="link" href="/terbitkan">Terbitkan</a>, unggah keduanya, tinjau varian kalimat yang diusulkan, lalu unduh ZIP berisi satu salinan per penerima.{% endtrans %}</li>
+      <li><b>{{ _("Bagikan.") }}</b> {{ _("Kirim setiap salinan hanya kepada penerimanya. Registri mencatat salinan mana untuk siapa, tanpa menyimpan isi dokumen.") }}</li>
+      <li><b>{{ _("Bila bocor, lacak.") }}</b> {% trans %}Di halaman <a class="link" href="/lacak">Lacak</a>, pilih dokumennya dan unggah apa pun yang beredar: foto, tangkapan layar, PDF, DOCX, atau teks yang ditempel.{% endtrans %}</li>
+      <li><b>{{ _("Laporkan.") }}</b> {% trans %}Unduh berita acara PDF dari hasil pelacakan, dan periksa keutuhan catatan penerbitan di halaman <a class="link" href="/registri">Registri</a>.{% endtrans %}</li>
+    </ol>
+  </section>
 </div>
+<div id="status-global" class="sr-only" aria-live="polite"></div>
+{% include "_teks_js.html" %}
 {% endblock %}

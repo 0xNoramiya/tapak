@@ -1,0 +1,105 @@
+/* Site pages outside the app shell (_situs.html: the landing page at / and the demo at /demo):
+   the dark nav, the page width, the large buttons and the footer. Uses the tokens of tapak.css.
+   The nav is dark in both themes. Class prefix: ld-. */
+
+:root {
+  --ld-night: oklch(0.2 0.022 118);
+  --ld-night-2: oklch(0.245 0.026 118);
+  --ld-night-line: oklch(0.36 0.03 118);
+  --ld-night-ink: oklch(0.955 0.012 95);
+  --ld-night-muted: oklch(0.79 0.02 100);
+  --ld-olive-bright: oklch(0.8 0.11 122);
+  --ld-safe: var(--accent);
+  --ld-hot: oklch(0.56 0.17 27);
+  --ld-gap: oklch(0.92 0.04 120 / 0.7);
+  --ld-wrap: 1180px;
+  --ld-pad: 24px;
+  --ld-section: clamp(64px, 9vw, 112px);
+  --ld-h1: clamp(38px, 5.4vw, 66px);
+  --ld-h2: clamp(28px, 3.3vw, 42px);
+  --ld-number: clamp(30px, 3.4vw, 44px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ld-night: oklch(0.155 0.016 115);
+    --ld-night-2: oklch(0.2 0.02 115);
+    --ld-hot: oklch(0.66 0.16 27);
+    --ld-gap: oklch(0.32 0.04 120 / 0.6);
+  }
+}
+
+body.ld { background: var(--paper); color: var(--ink); overflow-x: clip; }
+/* tapak.css caps <main> for the app shell; site sections run edge to edge */
+.ld main { max-width: none; padding: 0; margin: 0; container-type: normal; }
+.ld main:focus { outline: none; }
+.ld-wrap { width: 100%; max-width: var(--ld-wrap); margin-inline: auto; padding-inline: var(--ld-pad); }
+@media (max-width: 640px) { :root { --ld-pad: 16px; } .ld-hide-sm { display: none !important; } }
+
+/* ---------------------------------------------------------------- nav */
+
+.ld-nav {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--ld-night);
+  color: var(--ld-night-ink);
+  border-bottom: 1px solid var(--ld-night-line);
+}
+.ld-nav-inner { display: flex; align-items: center; gap: 24px; min-height: 64px; }
+.ld-brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none;
+  font-weight: 600; letter-spacing: 0.14em; font-size: 17px; }
+.ld-nav .brand-mark { color: var(--ld-night-ink); --accent: var(--ld-olive-bright); width: 28px; height: 28px; }
+.ld-nav-links { display: flex; gap: 4px; margin-inline-start: 12px; }
+.ld-nav-links a { color: var(--ld-night-muted); text-decoration: none; font-size: var(--fs-ui); padding: 8px 12px;
+  border-radius: var(--r-1); transition: color 150ms, background-color 150ms; }
+.ld-nav-links a:hover { color: var(--ld-night-ink); background: oklch(1 0 0 / 0.06); }
+.ld-nav-actions { margin-inline-start: auto; display: flex; gap: 8px; align-items: center; }
+.ld-nav .btn-ghost { color: var(--ld-night-ink); }
+.ld-nav .btn-ghost:hover { background: oklch(1 0 0 / 0.08); }
+.ld .btn-primary { --accent: oklch(0.52 0.1 122); }
+.ld-nav .btn-primary, .ld-hero .btn-primary, .ld-cta .btn-primary {
+  background: var(--ld-olive-bright); color: oklch(0.2 0.03 118); border-color: transparent; }
+.ld-nav .btn-primary:hover, .ld-hero .btn-primary:hover, .ld-cta .btn-primary:hover {
+  background: color-mix(in oklch, var(--ld-olive-bright) 88%, white); }
+@media (max-width: 900px) { .ld-nav-links { display: none; } }
+
+.ld-hero-actions, .ld-cta-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.ld-btn-lg { min-height: 52px; padding-inline: 22px; font-size: var(--fs-lead); border-radius: var(--r-2); }
+.ld-btn-outline { background: transparent; color: var(--ld-night-ink); border: 1px solid oklch(1 0 0 / 0.28); }
+.ld-btn-outline:hover { background: oklch(1 0 0 / 0.07); border-color: oklch(1 0 0 / 0.42); }
+.ld-btn-outline .icon { transition: transform 150ms var(--ease-out); }
+.ld-btn-outline:hover .icon { transform: translateX(3px); }
+
+/* kicker with the classification stamp (hero, demo intro) and the numbered section eyebrow */
+.ld-kicker {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ld-night-muted); margin: 0 0 24px;
+}
+.ld-stamp {
+  display: inline-block; padding: 3px 8px; border: 1.5px solid var(--ld-hot); color: oklch(0.78 0.12 27);
+  border-radius: var(--r-stamp); letter-spacing: 0.2em; font-weight: 500; transform: rotate(-2deg);
+}
+.ld-eyebrow {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 16px;
+  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted);
+}
+.ld-eyebrow span { display: inline-grid; place-items: center; min-width: 30px; height: 22px; padding-inline: 6px;
+  border: 1px solid var(--border-strong); border-radius: var(--r-stamp); color: var(--accent-text); font-weight: 500; }
+
+/* footer */
+.ld-footer { padding-block: 28px; background: var(--paper); border-top: 1px solid var(--border); font-size: var(--fs-sm); color: var(--ink-muted); }
+.ld-footer-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; }
+.ld-brand-sm { font-size: 14px; color: var(--ink); }
+.ld-brand-sm .brand-mark { --accent: var(--accent); }
+
+.ld q { quotes: "\201C" "\201D"; }
+
+/* anchors from the sticky nav land below it */
+.ld section[id] { scroll-margin-top: 72px; }
+html:has(body.ld) { scroll-behavior: smooth; scroll-padding-top: 80px; }
+@media (prefers-reduced-motion: reduce) { html:has(body.ld) { scroll-behavior: auto; } }
+
+/* the ID | EN switch (tapak.css) on the dark nav */
+.ld-nav .lang-switch { box-shadow: inset 0 0 0 1px var(--ld-night-line); }
+.ld-nav .lang-switch a { color: var(--ld-night-muted); }
+.ld-nav .lang-switch a[aria-current] { background: var(--ld-night-ink); color: var(--ld-night); }
+@media (hover: hover) and (pointer: fine) { .ld-nav .lang-switch a:not([aria-current]):hover { color: var(--ld-night-ink); background: oklch(1 0 0 / 0.08); } }

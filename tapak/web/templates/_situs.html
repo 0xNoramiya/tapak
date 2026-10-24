@@ -1,0 +1,47 @@
+{# Frame of the pages outside the app shell: the landing page (/) and the demo (/demo). #}
+{% from "_ikon.html" import ikon, logo -%}
+{% from "_bahasa.html" import pilih_bahasa -%}
+<!doctype html>
+<html lang="{{ bahasa() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="{% block description %}{% endblock %}">
+  <title>{% block title %}{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/IBMPlexSans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/IBMPlexSans-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/IBMPlexMono-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/tapak.css?v={{ asset_v() }}">
+  <link rel="stylesheet" href="/static/css/situs.css?v={{ asset_v() }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="ld {% block body_class %}{% endblock %}">
+<a class="skip-link" href="#konten">{{ _("Langsung ke konten") }}</a>
+
+<header class="ld-nav">
+  <div class="ld-wrap ld-nav-inner">
+    <a class="ld-brand" href="/" aria-label="{{ _('TAPAK, halaman utama') }}">{{ logo(28) }}<span>TAPAK</span></a>
+    {% block nav_links %}{% endblock %}
+    <div class="ld-nav-actions">
+      {{ pilih_bahasa(request) }}
+      {% block nav_actions %}{% endblock %}
+    </div>
+  </div>
+</header>
+
+<main id="konten" tabindex="-1">
+{% block content %}{% endblock %}
+</main>
+
+<footer class="ld-footer">
+  <div class="ld-wrap ld-footer-inner">
+    <span class="ld-brand ld-brand-sm">{{ logo(22) }}<span>TAPAK</span></span>
+    <span>{% trans %}Tanda Atribusi Penerima Anti-Kolusi · versi {{ version }} · prototipe Kartika Cyber Hackathon 2026{% endtrans %}</span>
+    <span>{{ _("Semua dokumen, nama, dan bukti contoh fiktif.") }}</span>
+  </div>
+</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

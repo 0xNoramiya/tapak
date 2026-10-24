@@ -3,24 +3,24 @@
 {% block content %}
 <div class="page lacak">
   <div class="page-head">
-    <p class="eyebrow">Dekoder luring · ambang Chernoff</p>
-    <h1>Lacak sumber kebocoran</h1>
-    <p>Unggah apa pun yang bocor: foto layar atau kertas, tangkapan layar, PDF atau DOCX yang diteruskan, atau teks yang disalin.</p>
+    <p class="eyebrow">{{ _("Dekoder luring · ambang Chernoff") }}</p>
+    <h1>{{ _("Lacak sumber kebocoran") }}</h1>
+    <p>{{ _("Unggah apa pun yang bocor: foto layar atau kertas, tangkapan layar, PDF atau DOCX yang diteruskan, atau teks yang disalin.") }}</p>
   </div>
   <div id="form-lacak">{% include "_lacak_form.html" %}</div>
   <div class="busy lacak-sibuk">
     <span class="busy-bar"></span>
-    <span><b>Menganalisis bukti.</b> Foto memerlukan beberapa detik untuk diluruskan dan dibaca.<span class="sibuk-pindaian"> Dokumen ini memuat halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan halaman itu pada bukti dibaca sebagai gambar, jadi lebih lama (contoh: satu PDF salinan 2 halaman sekitar 40 detik).</span></span>
+    <span>{% trans %}<b>Menganalisis bukti.</b> Foto memerlukan beberapa detik untuk diluruskan dan dibaca.{% endtrans %}<span class="sibuk-pindaian"> {{ _("Dokumen ini memuat halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan halaman itu pada bukti dibaca sebagai gambar, jadi lebih lama (contoh: satu PDF salinan 2 halaman sekitar 40 detik).") }}</span></span>
   </div>
   <div id="hasil" class="stack">
     {% if docs %}
     <section class="empty-state hasil-kosong" aria-labelledby="hasil-kosong-h">
       <div class="contoh-meter" aria-hidden="true">
-        <span class="contoh-label">Ambang Z</span>
+        <span class="contoh-label">{{ _("Ambang Z") }}</span>
         <span class="contoh-track"><span class="contoh-mark"></span></span>
       </div>
-      <h2 id="hasil-kosong-h">Belum ada hasil pelacakan.</h2>
-      <p>Skor tiap salinan dibandingkan dengan ambang Z, yang ditetapkan sebelum skor siapa pun dihitung. Nama hanya disebut bila skornya melewati ambang itu.</p>
+      <h2 id="hasil-kosong-h">{{ _("Belum ada hasil pelacakan.") }}</h2>
+      <p>{{ _("Skor tiap salinan dibandingkan dengan ambang Z, yang ditetapkan sebelum skor siapa pun dihitung. Nama hanya disebut bila skornya melewati ambang itu.") }}</p>
     </section>
     {% endif %}
   </div>

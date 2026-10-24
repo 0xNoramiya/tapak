@@ -49,9 +49,12 @@ def _issue(client) -> str:
 
 
 def test_pages_render(client):
-    for path in ("/beranda", "/terbitkan", "/lacak", "/registri", "/demo"):
+    for path in ("/beranda", "/terbitkan", "/lacak", "/registri"):
         r = client.get(path)
         assert r.status_code == 200 and "RAHASIA" in r.text and "TAPAK" in r.text
+    # the demo stands on its own, like the product page, without the app's banner
+    r = client.get("/demo")
+    assert r.status_code == 200 and 'class="ld-stamp">Rahasia' in r.text and "TAPAK" in r.text
     assert client.get("/healthz").json() == {"status": "ok"}
 
 
@@ -1062,7 +1065,7 @@ def _source_words() -> set[str]:
 
 
 def test_scanned_master_is_accepted_and_the_plan_shows_page_modes(client, scans):
-    from tapak.web.app import SCAN_GATE_LINES, _STAGING
+    from tapak.web.app import RASTER_GATE_MAX_DIFF, SCAN_GATE_LINES, _STAGING
 
     sid, page = _analyse_scan(client, scans["pindaian"])
     record = _STAGING[sid].scan
@@ -1081,9 +1084,10 @@ def test_scanned_master_is_accepted_and_the_plan_shows_page_modes(client, scans)
     assert "salinan bisa jauh lebih besar dari induk hasil pindai JPEG (contoh 300 dpi: sekitar 2,9 MB per halaman salinan" in text
     assert "Ukuran sebenarnya ditampilkan setelah terbit." in text and "4 kali" not in text
     assert "Waktu: 4 salinan \u00d7 1 halaman pindaian ditandai di piksel gambar" in text
-    assert "dirender sama" not in text and "berselisih paling banyak 24 tingkat abu-abu" in SCAN_GATE_LINES[True]
+    gate_line = SCAN_GATE_LINES[True] % {"n": RASTER_GATE_MAX_DIFF}
+    assert "dirender sama" not in text and "berselisih paling banyak 24 tingkat abu-abu" in gate_line
     # the gate: pixel-identical scanned page only (the gray-level sentence is about text pages)
-    assert f'id="gerbang-pindaian">{SCAN_GATE_LINES[True]}</span>' in page and "selisih maksimum" not in text
+    assert f'id="gerbang-pindaian">{gate_line}</span>' in page and "selisih maksimum" not in text
     # channels: shift and background in the page image; no text channel has slots on a scan
     assert "Bertahan: cetak, foto, tangkapan layar; di halaman pindaian: digeser di piksel gambar" in text
     assert "foto layar; di halaman pindaian: ditambahkan ke piksel kertas" in text
@@ -1094,7 +1098,7 @@ def test_scanned_master_is_accepted_and_the_plan_shows_page_modes(client, scans)
 
 
 def test_mixed_master_shows_text_and_scanned_pages(client, scans):
-    from tapak.web.app import SCAN_GATE_LINES, _STAGING, _staging_master
+    from tapak.web.app import RASTER_GATE_MAX_DIFF, SCAN_GATE_LINES, _STAGING, _staging_master
 
     sid, page = _analyse_scan(client, scans["campuran"], "nota_campuran.pdf")
     text = _plain(page)
@@ -1102,7 +1106,7 @@ def test_mixed_master_shows_text_and_scanned_pages(client, scans):
     assert re.search(r"\d+ kata, \d+ kotak kata \(Tesseract\)", text)
     assert "<span>Halaman 1: teks</span>" in page and "<span>Halaman 2: pindaian, 200 dpi</span>" in page
     assert "Tanpa tanda, halaman teks digambar ulang identik dengan aslinya: selisih maksimum" in text
-    assert SCAN_GATE_LINES[True] in text
+    assert SCAN_GATE_LINES[True] % {"n": RASTER_GATE_MAX_DIFF} in text
     # the text channels stay on the text page, and step 3 still applies there
     assert '<span class="ch-name">Karakter tak terlihat' in page
     assert "salin-tempel, berkas diteruskan (halaman teks saja)" in text
@@ -1203,7 +1207,7 @@ def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(c
 
     from tapak.config import load_settings
     from tapak.marker.issue import IssueManifest
-    from tapak.web.app import SCAN_GATE_LINES, _STAGING
+    from tapak.web.app import RASTER_GATE_MAX_DIFF, SCAN_GATE_LINES, _STAGING
 
     sid, page = _analyse_scan(client, scans["pindaian"])
     record = dict(_STAGING[sid].scan)
@@ -1220,7 +1224,7 @@ def test_publishing_a_scanned_master_stores_the_scan_record_and_lacak_reads_it(c
     # the result: page modes, the scan gate and the copy sizes measured on the files
     text = _plain(r.text)
     assert "Mode halaman: 1 halaman pindaian (halaman 1; 200 dpi)." in text and "0 halaman teks" not in text
-    assert SCAN_GATE_LINES[True] in text
+    assert SCAN_GATE_LINES[True] % {"n": RASTER_GATE_MAX_DIFF} in text
     sizes = [(folder / "salinan" / c.file).stat().st_size / 1e6 for c in manifest.copies]
     biggest = f"{max(sizes):.1f}".replace(".", ",")
     assert re.search(rf"Ukuran salinan: rata-rata \d+,\d MB, terbesar {biggest} MB \(dokumen induk \d+,\d MB\)", text)
@@ -1572,8 +1576,12 @@ def test_landing_page_tells_the_numbers_of_the_result_files(client):
 
 def test_demo_refuses_steps_out_of_order(client, tmp_path):
     r = client.get("/demo")
-    assert r.status_code == 200 and "Terbitkan 20 salinan" in r.text and "Terbuka setelah" in r.text
-    assert "Terbitkan" in client.post("/demo/bocorkan", data={"salinan": "13", "cara": "foto"}).text
+    assert r.status_code == 200 and "Terbitkan 20 salinan" in r.text
+    # the rail shows the four steps; only step 1 is open, and a page load plays no entrance
+    assert r.text.count('class="dm-rail-step') == 4 and 'is-current" aria-current="step"' in r.text
+    assert "is-new" not in r.text and "is-moving" not in r.text
+    early = client.post("/demo/bocorkan", data={"salinan": "13", "cara": "foto"}).text
+    assert "Terbitkan salinan demo lebih dulu" in early and "dm-step-1" in early
     assert "tidak ditemukan" in client.post("/demo/lacak", data={"bukti": "0123456789abcdef"}).text
     assert client.get("/demo/bukti/0123456789abcdef").status_code == 404
     assert client.get("/demo/salinan/1/pratinjau.png").status_code == 404
@@ -1600,7 +1608,8 @@ def test_demo_issues_leaks_and_traces_in_its_sandbox(client, tmp_path):
     """The four demo steps end to end: the leaked copy is named, the berita acara is a PDF, and
     the operator's own registry is never written."""
     r = client.post("/demo/terbitkan")
-    assert r.status_code == 200 and "Selesai" in r.text and "Bocorkan salinan" in r.text
+    assert r.status_code == 200 and "Bocorkan satu salinan" in r.text and "dm-step-2 is-new" in r.text
+    assert r.text.count('class="dm-card"') == 20 and client.get("/demo/induk.png").content.startswith(b"\x89PNG")
     for path in ("/demo/salinan/1/pratinjau.png", "/demo/selisih.png"):
         png = client.get(path)
         assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
@@ -1610,9 +1619,12 @@ def test_demo_issues_leaks_and_traces_in_its_sandbox(client, tmp_path):
         assert client.get(f"/demo/bukti/{lid}").status_code == 200
         assert client.get(f"/demo/bukti/{lid}?unduh=1").headers["content-disposition"].startswith("attachment")
         r = client.post("/demo/lacak", data={"bukti": lid})
-        assert r.status_code == 200 and f"TAPAK menunjuk salinan #{seq}" in r.text
+        assert r.status_code == 200 and "<b>Tepat.</b>" in r.text and f">Salinan #{seq} <span" in r.text
+        assert r.text.count('class="dm-dot') == 20 and 'class="dm-dot is-named"' in r.text
         tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
-        assert client.get(f"/lacak/{tid}/berita-acara.pdf").content.startswith(b"%PDF")
+        report = client.get(f"/lacak/{tid}/berita-acara.pdf").content
+        assert report.startswith(b"%PDF") and client.get(f"/lacak/{tid}/berita-acara.pdf").content == report
+        assert client.get(f"/demo/berita-acara/{tid}.png").content.startswith(b"\x89PNG")
     bad = client.post("/demo/bocorkan", data={"salinan": "99", "cara": "faks"})
     assert "Pilih penerima" in bad.text and "Pilih cara" in bad.text
     assert not (tmp_path / "data" / "registry.db").exists()

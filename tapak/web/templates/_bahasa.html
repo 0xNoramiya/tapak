@@ -1,0 +1,9 @@
+{# The ID | EN switch: a link to the same page in the other language (?lang= sets the cookie
+   that keeps the choice). #}
+{% macro pilih_bahasa(request) -%}
+<nav class="lang-switch" aria-label="{{ _('Bahasa') }}">
+  {%- for code, label, name in [("id", "ID", "Bahasa Indonesia"), ("en", "EN", "English")] %}
+  <a href="{{ lang_url(request, code) }}" hreflang="{{ code }}" lang="{{ code }}"{% if bahasa() == code %} aria-current="true"{% endif %}><span aria-hidden="true">{{ label }}</span><span class="sr-only">{{ name }}</span></a>
+  {%- endfor %}
+</nav>
+{%- endmacro %}

@@ -8,9 +8,9 @@
 {# The progress header and the plan tile sit outside #semantik; they follow the review state. #}
 {% set cur = 3 if (st.units and (not st.sets or pending.n)) or lex_pending else 4 %}
 {% set na = 3 if st.all_scanned else 0 %}
-<ol class="stepper alur-stepper" id="stepper" aria-label="Langkah penerbitan" hx-swap-oob="true">
+<ol class="stepper alur-stepper" id="stepper" aria-label="{{ _('Langkah penerbitan') }}" hx-swap-oob="true">
   {% for label in langkah_terbit %}
-  <li class="stepper-item{% if loop.index == na %} is-na{% elif loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index == na %}{{ ikon("minus", 14) }}{% elif loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ label }}{% if loop.index == na %}<span class="stepper-na"><span class="sr-only">: </span>tidak berlaku</span>{% elif loop.index < cur %}<span class="sr-only"> (selesai)</span>{% endif %}</span></li>
+  <li class="stepper-item{% if loop.index == na %} is-na{% elif loop.index < cur %} is-done{% endif %}"{% if loop.index == cur %} aria-current="step"{% endif %}><span class="stepper-num">{% if loop.index == na %}{{ ikon("minus", 14) }}{% elif loop.index < cur %}{{ ikon("check", 14) }}{% else %}{{ loop.index }}{% endif %}</span> <span class="stepper-label">{{ _(label) }}{% if loop.index == na %}<span class="stepper-na"><span class="sr-only">: </span>{{ _("tidak berlaku") }}</span>{% elif loop.index < cur %}<span class="sr-only"> ({{ _("selesai") }})</span>{% endif %}</span></li>
   {% endfor %}
 </ol>
 {% include "_tahan_ketik.html" %}
@@ -18,40 +18,40 @@
 {% if st.all_scanned %}
 {# No text layer at all: neither safe sentences nor word choice can be marked, nothing to review. #}
 <section class="card teks-na" aria-labelledby="langkah3">
-  <h2 id="langkah3">Tinjau teks</h2>
-  <p class="lead">{{ pindaian_na }}. Kalimat aman dan pilihan kata hanya dapat ditanam di lapisan teks, jadi keduanya dilewati dan tidak ada yang perlu ditinjau.</p>
-  <p class="hint">Salinan tetap membawa kanal geser dan pola latar di piksel gambar halaman. Teks yang diketik ulang dari salinan tidak membawa tanda, sehingga pengetikan ulang dokumen ini tidak dapat dilacak.</p>
+  <h2 id="langkah3">{{ _("Tinjau teks") }}</h2>
+  <p class="lead">{{ _(pindaian_na) }}. {{ _("Kalimat aman dan pilihan kata hanya dapat ditanam di lapisan teks, jadi keduanya dilewati dan tidak ada yang perlu ditinjau.") }}</p>
+  <p class="hint">{{ _("Salinan tetap membawa kanal geser dan pola latar di piksel gambar halaman. Teks yang diketik ulang dari salinan tidak membawa tanda, sehingga pengetikan ulang dokumen ini tidak dapat dilacak.") }}</p>
 </section>
 {% else %}
 <section class="card sem" aria-labelledby="langkah3">
-  <h2 id="langkah3">Kalimat aman <span class="field-optional">(opsional)</span></h2>
-  <p class="lead">Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Bersama pilihan kata (di bawah), hanya kanal ini yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.</p>
-  {% if st.scan %}<p class="hint teks-saja">Hanya halaman teks. Halaman pindaian (halaman {{ st.plan.scan_nums }}) tidak membawa kanal ini.</p>{% endif %}
+  <h2 id="langkah3">{% trans %}Kalimat aman <span class="field-optional">(opsional)</span>{% endtrans %}</h2>
+  <p class="lead">{{ _("Kalimat pembuka, penutup, dan tembusan dapat diparafrasekan per penerima oleh LLM lokal. Bersama pilihan kata (di bawah), hanya kanal ini yang bertahan bila dokumen diketik ulang. Perintah, angka, nama, waktu, dan koordinat tidak pernah ditawarkan.") }}</p>
+  {% if st.scan %}<p class="hint teks-saja">{{ _("Hanya halaman teks. Halaman pindaian (halaman %(nums)s) tidak membawa kanal ini.", nums=st.plan.scan_nums) }}</p>{% endif %}
   {% if st.candidates %}
   {% set decided = namespace(n=0) %}
   {% for vs in st.sets.values() %}{% for x in vs.status[1:] %}{% if x != "menunggu" %}{% set decided.n = decided.n + 1 %}{% endif %}{% endfor %}{% endfor %}
   {% set held = st.candidates|selectattr("1")|list %}
   <form class="sem-form" hx-post="/terbitkan/{{ st.sid }}/varian" hx-target="#semantik" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]"
-        {% if decided.n %}hx-confirm="Buat ulang varian? Keputusan untuk varian yang teksnya tetap sama dipertahankan; varian baru harus ditinjau lagi."{% endif %}>
+        {% if decided.n %}hx-confirm="{{ _('Buat ulang varian? Keputusan untuk varian yang teksnya tetap sama dipertahankan; varian baru harus ditinjau lagi.') }}"{% endif %}>
     {% if st.units %}
     <fieldset class="sentences">
-      <legend class="label">Pilih kalimat yang diparafrasekan</legend>
+      <legend class="label">{{ _("Pilih kalimat yang diparafrasekan") }}</legend>
       {% for unit, reasons in st.candidates if not reasons %}
       <label class="check-row sentence">
         <input type="checkbox" name="unit" value="{{ unit.unit_id }}" {% if unit.unit_id in st.sets or not st.sets %}checked{% endif %}>
-        <span class="sentence-body"><span class="sentence-page">Halaman {{ unit.page + 1 }}</span><span class="sentence-text">{{ unit.text }}</span></span>
+        <span class="sentence-body"><span class="sentence-page">{{ _("Halaman %(n)s", n=unit.page + 1) }}</span><span class="sentence-text" lang="id">{{ unit.text }}</span></span>
       </label>
       {% endfor %}
     </fieldset>
     {% else %}
-    <p class="empty">Tidak ada kalimat yang aman untuk diparafrasekan. Kanal varian kalimat tidak dipakai.</p>
+    <p class="empty">{{ _("Tidak ada kalimat yang aman untuk diparafrasekan. Kanal varian kalimat tidak dipakai.") }}</p>
     {% endif %}
     {% if held %}
     <details class="more held">
-      <summary>{{ held|length }} kalimat tidak ditawarkan</summary>
+      <summary>{{ ngettext("%(num)s kalimat tidak ditawarkan", "%(num)s kalimat tidak ditawarkan", held|length) }}</summary>
       <ul class="held-list">
         {% for unit, reasons in held %}
-        <li><span class="sentence-page">Halaman {{ unit.page + 1 }}</span><span class="sentence-text">{{ unit.text }}</span><span class="hint">Alasan: {{ reasons|join(", ") }}.</span></li>
+        <li><span class="sentence-page">{{ _("Halaman %(n)s", n=unit.page + 1) }}</span><span class="sentence-text" lang="id">{{ unit.text }}</span><span class="hint">{{ _("Alasan: %(why)s.", why=reasons|map("tr")|join(", ")) }}</span></li>
         {% endfor %}
       </ul>
     </details>
@@ -60,30 +60,30 @@
     <div class="form-actions">
       <button class="btn btn-secondary" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        <span class="idle-label">{% if st.sets %}{{ ikon("refresh") }}Buat ulang varian{% else %}Buat varian dengan LLM lokal{% endif %}</span>
-        <span class="htmx-indicator">Membuat varian…</span>
+        <span class="idle-label">{% if st.sets %}{{ ikon("refresh") }}{{ _("Buat ulang varian") }}{% else %}{{ _("Buat varian dengan LLM lokal") }}{% endif %}</span>
+        <span class="htmx-indicator">{{ _("Membuat varian…") }}</span>
       </button>
-      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>LLM lokal memparafrasekan kalimat terpilih. Dengan model sungguhan di CPU, ini dapat memakan beberapa menit.</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>{{ _("LLM lokal memparafrasekan kalimat terpilih. Dengan model sungguhan di CPU, ini dapat memakan beberapa menit.") }}</span></div>
     </div>
     {% endif %}
   </form>
   {% else %}
-  <p class="empty">Tidak ada kalimat pembuka, penutup, atau tembusan yang dikenali di dokumen ini. Kanal varian kalimat tidak dipakai.</p>
+  <p class="empty">{{ _("Tidak ada kalimat pembuka, penutup, atau tembusan yang dikenali di dokumen ini. Kanal varian kalimat tidak dipakai.") }}</p>
   {% endif %}
 
   {% if st.sets %}
-  {% set status_text %}{% if pending.n %}{{ pending.n }} dari {{ pending.total }} varian menunggu tinjauan Anda.{% else %}Semua varian sudah ditinjau.{% endif %}{% endset %}
+  {% set status_text %}{% if pending.n %}{{ _("%(n)s dari %(total)s varian menunggu tinjauan Anda.", n=pending.n, total=pending.total) }}{% else %}{{ _("Semua varian sudah ditinjau.") }}{% endif %}{% endset %}
   <div class="review">
     <div class="review-head">
       {# focused when generating the variants removed the button that had focus #}
-      <h3 id="tinjau-h" tabindex="-1" data-focus-fallback>Tinjau varian</h3>
+      <h3 id="tinjau-h" tabindex="-1" data-focus-fallback>{{ _("Tinjau varian") }}</h3>
       <div class="review-progress">
         <span class="bar{% if pending.n %} bar-warn{% endif %}" style="--value: {{ ((pending.total - pending.n) / pending.total)|round(3) if pending.total else 1 }}"></span>
         <p class="small">{{ status_text }}</p>
       </div>
     </div>
     {# The live region sits outside #semantik, so it survives the swap and is announced. #}
-    {% if oob and not lex_announce %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}{% if lex_pending %} {{ lex_pending }} titik pilihan kata masih menunggu.{% endif %}</p>{% endif %}
+    {% if oob and not lex_announce %}<p id="semantik-status" hx-swap-oob="innerHTML">{{ status_text }}{% if lex_pending %} {{ _("%(n)s titik pilihan kata masih menunggu.", n=lex_pending) }}{% endif %}</p>{% endif %}
     {% for unit in st.units if unit.unit_id in st.sets %}
     {% set vs = st.sets[unit.unit_id] %}
     {% set page = unit.page + 1 %}
@@ -93,17 +93,17 @@
     <article class="unit-review" aria-labelledby="asli-{{ unit.unit_id }}">
       <div class="unit-review-head">
         <div class="original">
-          <span class="label" id="asli-{{ unit.unit_id }}">Asli, halaman {{ page }}</span>
-          <p class="original-text">{{ vs.variants[0] }}</p>
-          {% if shared_note %}<p class="judge"><span class="judge-label">Pemeriksa kesetaraan, semua varian</span> {{ shared_note }}</p>{% endif %}
+          <span class="label" id="asli-{{ unit.unit_id }}">{{ _("Asli, halaman %(n)s", n=page) }}</span>
+          <p class="original-text" lang="id">{{ vs.variants[0] }}</p>
+          {% if shared_note %}<p class="judge"><span class="judge-label">{{ _("Pemeriksa kesetaraan, semua varian") }}</span> {{ shared_note|tr }}</p>{% endif %}
         </div>
         {% if vs.variants|length > 1 and vs.provider != "mock" %}
-        <p class="hint">Varian dari model bahasa ditinjau satu per satu.</p>
+        <p class="hint">{{ _("Varian dari model bahasa ditinjau satu per satu.") }}</p>
         {% elif vs.variants|length > 1 %}
         {# Once nothing is pending the button stays (same id, aria-disabled) but posts nothing. #}
         <button class="btn btn-secondary btn-small" type="button" id="all-{{ unit.unit_id }}"
                 {% if vs.pending() %}hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/semua" hx-target="#semantik"{% else %}aria-disabled="true"{% endif %}>
-          {% if vs.pending() %}{{ ikon("check") }}Setujui semua ({{ vs.pending()|length }}){% else %}Semua sudah ditinjau{% endif %}
+          {% if vs.pending() %}{{ ikon("check") }}{{ _("Setujui semua (%(n)s)", n=vs.pending()|length) }}{% else %}{{ _("Semua sudah ditinjau") }}{% endif %}
         </button>
         {% endif %}
       </div>
@@ -114,35 +114,35 @@
         <li class="variant-row is-{{ vs.status[i] }}">
           <span class="variant-num" aria-hidden="true">{{ i }}</span>
           <div class="variant-body">
-            <p class="variant-text">{{ vs.variants[0]|beda(v) }}</p>
+            <p class="variant-text" lang="id">{{ vs.variants[0]|beda(v) }}</p>
             <p class="variant-meta">
-              {% if vs.status[i] == "disetujui" %}<span class="stamp stamp-ok">Disetujui</span>
-              {% elif vs.status[i] == "ditolak" %}<span class="stamp stamp-danger">Ditolak</span>
-              {% else %}<span class="stamp stamp-neutral">Menunggu</span>{% endif %}
-              {% if vs.equivalence[i][1] and not shared_note %}<span class="judge"><span class="judge-label">Pemeriksa kesetaraan</span> {{ vs.equivalence[i][1] }}</span>{% endif %}
+              {% if vs.status[i] == "disetujui" %}<span class="stamp stamp-ok">{{ _("Disetujui") }}</span>
+              {% elif vs.status[i] == "ditolak" %}<span class="stamp stamp-danger">{{ _("Ditolak") }}</span>
+              {% else %}<span class="stamp stamp-neutral">{{ _("Menunggu") }}</span>{% endif %}
+              {% if vs.equivalence[i][1] and not shared_note %}<span class="judge"><span class="judge-label">{{ _("Pemeriksa kesetaraan") }}</span> {{ vs.equivalence[i][1]|tr }}</span>{% endif %}
             </p>
           </div>
           {# Buttons stay enabled (state shown with aria-pressed) and keep stable ids, so htmx
              returns keyboard focus to the same button after the list re-renders. #}
-          <div class="segmented" role="group" aria-label="Putusan varian {{ i }} kalimat halaman {{ page }}">
+          <div class="segmented" role="group" aria-label="{{ _('Putusan varian %(i)s kalimat halaman %(page)s', i=i, page=page) }}">
             <button type="button" class="btn-approve" id="v-{{ unit.unit_id }}-{{ i }}-ok"
                     aria-pressed="{{ 'true' if vs.status[i] == 'disetujui' else 'false' }}"
-                    aria-label="Setujui varian {{ i }} kalimat halaman {{ page }}"
-                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/disetujui" hx-target="#semantik">{{ ikon("check") }}Setujui</button>
+                    aria-label="{{ _('Setujui varian %(i)s kalimat halaman %(page)s', i=i, page=page) }}"
+                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/disetujui" hx-target="#semantik">{{ ikon("check") }}{{ _("Setujui") }}</button>
             <button type="button" class="btn-reject" id="v-{{ unit.unit_id }}-{{ i }}-no"
                     aria-pressed="{{ 'true' if vs.status[i] == 'ditolak' else 'false' }}"
-                    aria-label="Tolak varian {{ i }} kalimat halaman {{ page }}"
-                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/ditolak" hx-target="#semantik">{{ ikon("x") }}Tolak</button>
+                    aria-label="{{ _('Tolak varian %(i)s kalimat halaman %(page)s', i=i, page=page) }}"
+                    hx-post="/terbitkan/{{ st.sid }}/varian/{{ unit.unit_id }}/{{ i }}/ditolak" hx-target="#semantik">{{ ikon("x") }}{{ _("Tolak") }}</button>
           </div>
         </li>
         {% endfor %}
       </ol>
       {% else %}
-      <p class="empty">Tidak ada varian yang lolos pemeriksaan otomatis untuk kalimat ini.</p>
+      <p class="empty">{{ _("Tidak ada varian yang lolos pemeriksaan otomatis untuk kalimat ini.") }}</p>
       {% endif %}
       {% if vs.dropped %}
-      <details class="more dropped"><summary>{{ vs.dropped|length }} usulan ditolak otomatis</summary>
-        <ul class="notes">{% for t, why in vs.dropped %}<li>{{ t }}: {{ why }}</li>{% endfor %}</ul>
+      <details class="more dropped"><summary>{{ ngettext("%(num)s usulan ditolak otomatis", "%(num)s usulan ditolak otomatis", vs.dropped|length) }}</summary>
+        <ul class="notes">{% for t, why in vs.dropped %}<li><span lang="id">{{ t }}</span>: {{ why|tr }}</li>{% endfor %}</ul>
       </details>
       {% endif %}
     </article>
@@ -158,12 +158,12 @@
 <section class="card publish{% if not blocked %} is-ready{% endif %}" aria-labelledby="langkah4">
   <div class="publish-row">
     <div class="publish-text">
-      <h2 id="langkah4" tabindex="-1">Terbitkan</h2>
+      <h2 id="langkah4" tabindex="-1">{{ _("Terbitkan") }}</h2>
       <p class="lead{% if blocked %} is-blocked{% endif %}" id="langkah4-status">
-        {% if pending.n and lex_pending %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian dan titik pilihan kata disetujui atau ditolak ({{ pending.n }} varian dan {{ lex_pending }} titik menunggu).
-        {% elif pending.n %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap varian disetujui atau ditolak ({{ pending.n }} menunggu).
-        {% elif lex_pending %}{{ ikon("alert", 16) }}Penerbitan diblokir sampai setiap titik pilihan kata disetujui atau ditolak ({{ lex_pending }} menunggu).
-        {% else %}Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.{% endif %}
+        {% if pending.n and lex_pending %}{{ ikon("alert", 16) }}{{ _("Penerbitan diblokir sampai setiap varian dan titik pilihan kata disetujui atau ditolak (%(n)s varian dan %(lex)s titik menunggu).", n=pending.n, lex=lex_pending) }}
+        {% elif pending.n %}{{ ikon("alert", 16) }}{{ _("Penerbitan diblokir sampai setiap varian disetujui atau ditolak (%(n)s menunggu).", n=pending.n) }}
+        {% elif lex_pending %}{{ ikon("alert", 16) }}{{ _("Penerbitan diblokir sampai setiap titik pilihan kata disetujui atau ditolak (%(n)s menunggu).", n=lex_pending) }}
+        {% else %}{{ _("Salinan dibuat dan dicatat di registri yang ditandatangani. Kode setiap penerima tidak disimpan, hanya komitmennya.") }}{% endif %}
       </p>
     </div>
     {# While the copies are issued every review control is disabled too (the server refuses
@@ -171,10 +171,10 @@
     <form class="publish-form" hx-post="/terbitkan/{{ st.sid }}/terbitkan" hx-target="#alur" hx-swap="innerHTML show:#alur:top" hx-disabled-elt="#semantik button">
       <button class="btn btn-primary" type="submit" {% if blocked %}disabled{% endif %} aria-describedby="langkah4-status">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        <span class="idle-label">Terbitkan {{ st.recipients|length }} salinan</span>
-        <span class="htmx-indicator">Menerbitkan…</span>
+        <span class="idle-label">{{ _("Terbitkan %(n)s salinan", n=st.recipients|length) }}</span>
+        <span class="htmx-indicator">{{ _("Menerbitkan…") }}</span>
       </button>
-      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>Menandai dan merender {{ st.recipients|length }} salinan.{% if st.scan %} Halaman pindaian ditandai di piksel gambar, jadi lebih lama (contoh: 20 salinan dokumen 2 halaman pindaian 300&nbsp;dpi sekitar 30 detik).{% endif %}</span></div>
+      <div class="busy htmx-indicator"><span class="busy-bar"></span><span>{{ _("Menandai dan merender %(n)s salinan.", n=st.recipients|length) }}{% if st.scan %} {{ _("Halaman pindaian ditandai di piksel gambar, jadi lebih lama (contoh: 20 salinan dokumen 2 halaman pindaian 300&nbsp;dpi sekitar 30 detik).") }}{% endif %}</span></div>
     </form>
   </div>
   {% if block_error %}<div class="notice notice-error" role="alert" id="semantik-galat" tabindex="-1" data-autofocus>{{ block_error }}</div>{% endif %}

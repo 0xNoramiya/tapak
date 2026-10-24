@@ -3,7 +3,7 @@
 {% set reg = registry_status() %}
 <a class="status-registry" id="status-registri" href="/registri" hx-get="/registri/status" hx-trigger="registri-berubah from:body"
    hx-swap="outerHTML" data-quiet>
-  <span class="label">Registri</span>
-  <span class="stamp {{ {'ok': 'stamp-ok', 'warn': 'stamp-warn', 'danger': 'stamp-danger'}.get(reg.state, 'stamp-neutral') }}">{{ reg.label }}</span>
-  {% if reg.counted %}<span class="status-meta">{{ reg.entries|num }} entri</span>{% endif %}
+  <span class="label">{{ _("Registri") }}</span>
+  <span class="stamp {{ {'ok': 'stamp-ok', 'warn': 'stamp-warn', 'danger': 'stamp-danger'}.get(reg.state, 'stamp-neutral') }}">{{ _(reg.label) }}</span>
+  {% if reg.counted %}<span class="status-meta">{{ _("%(n)s entri", n=reg.entries|num) }}</span>{% endif %}
 </a>
