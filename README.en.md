@@ -75,7 +75,7 @@ The full numbers, including noisy channels and coalitions of 5, are in [how it w
 
 The product page at `/` explains TAPAK for government agencies with numbers and charts from the result files in this repository. The guided **demo** at `/demo` issues a sample memo to 20 fictional recipients, lets you leak one copy (a phone photo, a screenshot, part of a page, the PDF, or its text), and traces it to a forensic report, in a separate workspace that does not touch your registry.
 
-Every page is in Indonesian and English: the ID | EN switch sits in the navigation and the choice is kept in a cookie. The forensic report PDF stays in Indonesian, since it is an official form.
+Every page is in Indonesian and English: the ID | EN switch sits in the navigation and the choice is kept in a cookie. The forensic report PDF follows the page language; the English one is a rendition, and the Indonesian form stays the official version.
 
 The **Trace** page above reads the same photo as the flow figure. Here only the background pattern names copy #13 on its own (channels agreeing: 1), and that pattern is absent from photos of printed copies. The **Issue** page takes a PDF (with a text layer, or scanned) and a recipient list, offers a background profile (screen or print) and a shift scheme (v2 or v1), asks for a review of every variant and every word-choice point (optional), and produces a ZIP of copies.
 

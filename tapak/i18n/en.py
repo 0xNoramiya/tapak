@@ -1,4 +1,4 @@
-"""English for the web UI, keyed by the Indonesian message (``tapak/web/i18n.py``).
+"""English for the web UI and the berita acara, keyed by the Indonesian message (``tapak/i18n``).
 
 A value is the English text, or for a message shown with a count (``ngettext``) the pair
 (one, other). Sentences the core library writes (trace notes, registry problems, errors) are
@@ -460,9 +460,9 @@ EN: dict[str, str | tuple[str, str]] = {
     "paling besar %(p)s": "at most %(p)s",
     "Berita acara": "Forensic report",
     "SHA-256 barang bukti, dokumen induk, parameter kode, skor, ambang, dan batas peluang salah tuduh, siap "
-    "ditandatangani pemeriksa. Formulirnya berbahasa Indonesia.":
+    "ditandatangani pemeriksa.":
         "The evidence\u2019s SHA-256, the master document, the code parameters, the score, the threshold and the "
-        "false-accusation bound, ready for the examiner\u2019s signature. The form itself is in Indonesian.",
+        "false-accusation bound, ready for the examiner\u2019s signature.",
     "Unduh berita acara PDF": "Download the report PDF",
     "Coba pembocor atau cara bocor lain": "Try another leaker or leak",
     "Pakai dokumen sendiri": "Use your own document",
@@ -1429,6 +1429,427 @@ EN: dict[str, str | tuple[str, str]] = {
     "llama.cpp lokal":
         "the llama_cpp library is not installed; install llama-cpp-python, or clear the model path and run a local "
         "llama.cpp server",
+    # ---------------------------------------------------------------- berita acara (decoder/report.py,
+    # decoder/templates/berita_acara.html): an English rendition; the Indonesian form is official
+    "Berita Acara Pemeriksaan Digital %(no)s": "Digital Examination Report %(no)s",
+    "Atribusi sumber kebocoran dokumen rahasia": "Attribution of the source of a leaked classified document",
+    "BERITA ACARA PEMERIKSAAN DIGITAL": "DIGITAL EXAMINATION REPORT",
+    "Atribusi Sumber Kebocoran Dokumen Rahasia": "Attribution of the Source of a Leaked Classified Document",
+    'Nomor Perkara: <span class="case-number">%(no)s</span>': 'Case number: <span class="case-number">%(no)s</span>',
+    "Pada hari ini, %(when)s, saya yang bertanda tangan di bawah ini:": "On this day, %(when)s, I, the undersigned:",
+    "Nama": "Name",
+    "Pangkat/Jabatan": "Rank/Position",
+    "selaku Pemeriksa, telah melakukan pemeriksaan digital terhadap barang bukti yang diuraikan di bawah ini dengan "
+    "perangkat lunak TAPAK versi %(version)s, dengan hasil sebagai berikut.":
+        "acting as Examiner, have carried out a digital examination of the evidence described below with the TAPAK "
+        "software version %(version)s, with the following results.",
+    "IDENTITAS PERKARA DAN BARANG BUKTI": "CASE AND EVIDENCE",
+    "Nomor perkara": "Case number",
+    "Pemeriksa": "Examiner",
+    "Waktu pemeriksaan": "Time of examination",
+    "Bukti diterima": "Evidence received",
+    "Nama berkas bukti": "Evidence file name",
+    "Jenis barang bukti": "Kind of evidence",
+    "SHA-256 barang bukti": "SHA-256 of the evidence",
+    "Nilai SHA-256 adalah sidik kriptografis berkas bukti sebagaimana diterima. Perangkat lunak hanya membaca berkas "
+    "tersebut dan tidak mengubahnya. Siapa pun dapat menghitung ulang nilai ini untuk memastikan bahwa berkas yang "
+    "diperiksa adalah berkas yang sama.":
+        "The SHA-256 value is the cryptographic fingerprint of the evidence file as received. The software only reads "
+        "the file and does not change it. Anyone can compute this value again to make sure the file examined is the "
+        "same file.",
+    'Nama berkas bukti memuat bagian yang menyerupai identitas atau nomor salinan penerima yang tidak dituduh. Bagian '
+    'itu ditulis sebagai "%(redacted)s", karena nama berkas dapat diubah oleh siapa pun dan bukan bukti. Berkas bukti '
+    'tetap dikenali secara pasti dari nilai SHA-256 di atas.':
+        'The evidence file name contains a part that resembles the identity or copy number of a recipient who is not '
+        'accused. That part is written as "%(redacted)s", since anyone can change a file name and it is not evidence. '
+        'The evidence file is still identified exactly by the SHA-256 value above.',
+    "DOKUMEN INDUK DAN PENERBITAN": "MASTER DOCUMENT AND ISSUANCE",
+    "Nama dokumen induk": "Master document name",
+    "SHA-256 dokumen induk": "SHA-256 of the master document",
+    "Waktu penerbitan": "Time of issuance",
+    "Jumlah salinan diterbitkan": "Copies issued",
+    "%(n)s salinan, masing-masing untuk satu penerima": "%(n)s copies, each for one recipient",
+    "Status registri penerbitan": "Issuance registry status",
+    "Parameter kode Tardos": "Tardos code parameters",
+    "Kanal penanda yang dipakai pada penerbitan": "Marking channels used at issuance",
+    "Bit": "Bits",
+    "Posisi kode berbeda": "Distinct code positions",
+    "Catatan penerbitan tidak memuat ringkasan kanal.": "The issuance record holds no channel summary.",
+    "METODOLOGI": "METHOD",
+    "<strong>Sidik jari per penerima.</strong> Setiap salinan yang diterbitkan membawa kode biner yang unik untuk "
+    "penerimanya. Kode itu disembunyikan dalam lima kanal: (a) pergeseran posisi kelompok kata dan baris yang jauh di "
+    "bawah batas penglihatan; (b) pola latar abu-abu yang sangat halus; (c) karakter tak terlihat (zero-width) di "
+    "lapisan teks; (d) penggantian huruf Latin dengan huruf Sirilik yang bentuknya identik (homoglyph); (e) variasi "
+    "susunan kalimat yang maknanya sama. Kanal yang dipakai untuk dokumen ini tercantum pada Bagian II. Kode setiap "
+    "salinan tidak disimpan; yang disimpan hanya komitmen kriptografisnya (code digest), sehingga pihak ketiga dapat "
+    "memeriksa bahwa kode tersebut sudah tetap sejak penerbitan.":
+        "<strong>A fingerprint per recipient.</strong> Every copy issued carries a binary code unique to its "
+        "recipient. The code is hidden in five channels: (a) shifts of word groups and lines far below the limit of "
+        "sight; (b) a very faint grey background pattern; (c) invisible (zero-width) characters in the text layer; "
+        "(d) Latin letters replaced with identical-looking Cyrillic letters (homoglyphs); (e) sentence variants with "
+        "the same meaning. The channels used for this document are listed in Section II. No copy\u2019s code is stored; "
+        "only its cryptographic commitment (code digest) is, so a third party can check that the code has been fixed "
+        "since issuance.",
+    "<strong>Pembacaan bukti.</strong> Dekoder membaca tanda pada bukti tanpa melihat kode penerima mana pun. Untuk "
+    "setiap posisi kode yang terbaca, dekoder hanya menghasilkan perkiraan bit beserta tingkat keyakinannya. Hasil "
+    "semua kanal kemudian digabungkan.":
+        "<strong>Reading the evidence.</strong> The decoder reads the marks in the evidence without looking at any "
+        "recipient\u2019s code. For each code position read it produces only an estimated bit with its confidence. The "
+        "results of all channels are then combined.",
+    "<strong>Kode anti-kolusi Tardos dengan skor simetris.</strong> Kode Tardos dirancang agar tetap dapat menunjuk "
+    "sedikitnya satu pembocor walaupun hingga c penerima bekerja sama menggabungkan salinan mereka. Untuk setiap "
+    "salinan dihitung skor kecocokan simetris (Skoric dkk.) antara kode salinan itu dan perkiraan kode pada bukti. "
+    "Posisi yang meragukan diberi bobot lebih kecil, posisi yang tidak terbaca tidak dihitung.":
+        "<strong>Collusion-resistant Tardos code with symmetric scores.</strong> The Tardos code is designed to still "
+        "point to at least one leaker even when up to c recipients work together to merge their copies. For each copy "
+        "a symmetric match score (Skoric et al.) is computed between that copy\u2019s code and the code estimated from the "
+        "evidence. Doubtful positions get a smaller weight; positions not read are not counted.",
+    "<strong>Ambang ditetapkan sebelum skor dihitung.</strong> Ambang Z dihitung dengan batas Chernoff dari vektor "
+    "bias kode, bobot keandalan posisi yang terbaca, dan target peluang tuduhan salah per penerima (eps1), dengan "
+    "mengambil kemungkinan terburuk untuk setiap bit yang bocor. Perhitungan ini tidak memakai data penerima mana pun. "
+    "Ambang dicatat beserta waktunya sebelum skor salinan mana pun dihitung, sehingga ambang tidak dapat disesuaikan "
+    "dengan hasil. Tidak ada pendekatan distribusi normal yang dipakai.":
+        "<strong>The threshold is fixed before any score is computed.</strong> The threshold Z is computed with a "
+        "Chernoff bound from the code\u2019s bias vector, the reliability weights of the positions read and the target "
+        "chance of a false accusation per recipient (eps1), taking the worst case for every leaked bit. The "
+        "computation uses no recipient\u2019s data. The threshold is recorded with its time before any copy\u2019s score is "
+        "computed, so it cannot be fitted to the result. No normal-distribution approximation is used.",
+    "<strong>Pelacakan berulang.</strong> Setiap pelacakan dokumen yang tercatat di registri lebih dulu dicatat di "
+    "registri dengan nomor urut k, sebelum bukti dibaca. Pelacakan ke-k hanya memakai jatah eps &times; 6 / "
+    "(&pi;&sup2; k&sup2;) dari target eps, dan eps1 adalah jatah itu dibagi n_max":
+        "<strong>Repeated traces.</strong> Every trace of a document recorded in the registry is first recorded in the "
+        "registry with a sequence number k, before the evidence is read. Trace k uses only a share eps &times; 6 / "
+        "(&pi;&sup2; k&sup2;) of the target eps, and eps1 is that share divided by n_max",
+    "(pada pelacakan bertahap: jatah tahap yang bersangkutan dibagi n_max)": "(in a staged trace: the share of that stage divided by n_max)",
+    "Jumlah 6 / (&pi;&sup2; k&sup2;) untuk semua k adalah 1, sehingga semua pelacakan dokumen yang sama, berapa pun "
+    "banyaknya, bersama-sama tetap dalam batas eps.":
+        "The sum of 6 / (&pi;&sup2; k&sup2;) over all k is 1, so all traces of the same document, however many, stay "
+        "within eps together.",
+    "<strong>Pelacakan bertahap.</strong> Pelacakan ini memakai kebijakan tahap %(policy)s, yang ditetapkan sebelum "
+    "bukti dibaca dan dicatat di registri bersama nomor pelacakan.":
+        "<strong>Staged trace.</strong> This trace uses the stage policy %(policy)s, fixed before the evidence was "
+        "read and recorded in the registry with the trace number.",
+    "<strong>Pelacakan bertahap.</strong> Pelacakan ini memakai kebijakan tahap %(policy)s, yang ditetapkan sebelum "
+    "bukti dibaca.":
+        "<strong>Staged trace.</strong> This trace uses the stage policy %(policy)s, fixed before the evidence was read.",
+    "Tahap 1 adalah tuduhan biasa di atas, dengan sebagian jatah eps pelacakan. Bila tahap 1 menuduh salinan, tahap 2 "
+    "menilai ulang setiap salinan lain. Bobot posisinya dihitung dari bit yang bocor, vektor bias, bobot dekoder, dan "
+    "kata kode salinan yang sudah dituduh: posisi yang bitnya tidak dimiliki satu pun salinan yang sudah dituduh "
+    "mendapat bobot, karena di sana sedikitnya satu anggota koalisi lain pasti memegang bit itu. Bobot dan ambang "
+    "tahap tidak pernah memakai kata kode salinan yang sedang dinilai. Setiap tahap memakai ambang Chernoff yang sama "
+    "dengan jatah eps-nya sendiri, dan ambang itu dicatat sebelum skor tahap tersebut dihitung. Tahap 3 dan "
+    "seterusnya mengulang langkah ini dengan semua salinan yang sudah dituduh, sampai tidak ada salinan baru atau "
+    "sampai tahap terakhir kebijakan. Jumlah jatah semua tahap sama dengan jatah pelacakan, sehingga batas peluang "
+    "tuduhan salah tetap berlaku untuk semua tahap bersama.":
+        "Stage 1 is the ordinary accusation above, with part of the trace\u2019s eps share. When stage 1 accuses a copy, "
+        "stage 2 scores every other copy again. Its position weights are computed from the leaked bits, the bias "
+        "vector, the decoder weights and the codewords of the copies already accused: positions whose bit none of the "
+        "accused copies holds get weight, since at least one other coalition member must hold that bit there. Stage "
+        "weights and thresholds never use the codeword of the copy being scored. Every stage uses the same Chernoff "
+        "threshold with its own eps share, recorded before that stage\u2019s scores are computed. Stage 3 and later repeat "
+        "this step with all copies accused so far, until no new copy is found or the policy\u2019s last stage is reached. "
+        "The shares of all stages add up to the trace\u2019s share, so the false-accusation bound holds for all stages "
+        "together.",
+    "<strong>Arti peluang tuduhan salah.</strong> Angka peluang tuduhan salah pada Bagian V adalah batas atas peluang "
+    "bahwa, di antara semua penerima lain yang tidak bersalah, ada yang secara kebetulan memperoleh skor setinggi skor "
+    "salinan tersebut. Contohnya, 2,3 &times; 10<sup>&minus;12</sup> berarti kejadian seperti itu terjadi tidak lebih "
+    "sering dari sekali dalam sekitar 430 miliar pemeriksaan serupa.":
+        "<strong>What the chance of a false accusation means.</strong> The chance of a false accusation in Section V "
+        "is an upper bound on the chance that, among all other, innocent recipients, someone scores as high as that "
+        "copy by coincidence. For example, 2.3 &times; 10<sup>&minus;12</sup> means such an event happens no more "
+        "often than once in about 430 billion similar examinations.",
+    "Angka itu sudah dibagi dengan bagian eps yang dipakai tahap yang menuduh salinan tersebut (bagian dari jatah "
+    "pelacakan ini), sehingga berlaku untuk semua tahap dan semua pelacakan dokumen yang sama, bukan hanya tahap atau "
+    "pelacakan ini.":
+        "The number is already divided by the part of eps used by the stage that accused the copy (part of this "
+        "trace\u2019s share), so it holds for all stages and all traces of the same document, not only this stage or trace.",
+    "Angka itu sudah dibagi dengan bagian eps yang dipakai tahap yang menuduh salinan tersebut, sehingga berlaku "
+    "untuk semua tahap pelacakan ini bersama.":
+        "The number is already divided by the part of eps used by the stage that accused the copy, so it holds for all "
+        "stages of this trace together.",
+    "Angka itu sudah dibagi dengan bagian eps yang dipakai pelacakan ini, sehingga berlaku untuk semua pelacakan "
+    "dokumen yang sama, bukan hanya pelacakan ini.":
+        "The number is already divided by the part of eps used by this trace, so it holds for all traces of the same "
+        "document, not only this one.",
+    "Karena merupakan batas atas, angka itu dibulatkan ke atas, dan peluang sebenarnya dapat lebih kecil.":
+        "Being an upper bound, it is rounded up, and the real chance can be smaller.",
+    '<strong>Aturan tidak cukup bukti.</strong> Bila tidak ada salinan yang skornya mencapai Z, putusannya adalah '
+    '"tidak cukup bukti" dan tidak ada nama yang disebutkan, termasuk pemilik skor tertinggi. Nama penerima hanya '
+    'dicantumkan dalam baris yang juga memuat skor, ambang, dan peluang tuduhan salahnya. Salinan lain hanya disebut '
+    'menurut peringkat skornya, tanpa nomor salinan dan tanpa identitas.':
+        '<strong>The not-enough-evidence rule.</strong> When no copy\u2019s score reaches Z, the verdict is "not enough '
+        'evidence" and no name is given, not even the holder of the highest score. A recipient\u2019s name appears only in '
+        'a row that also gives its score, threshold and chance of a false accusation. Other copies are given by score '
+        'rank only, without copy number or identity.',
+    "<strong>Kesepakatan kanal.</strong> Prosedur yang sama dijalankan pada setiap kanal fisik secara terpisah, dengan "
+    "ambangnya sendiri. Dengan demikian dapat dilihat berapa kanal yang secara independen menunjuk salinan yang sama. "
+    "Hasil per kanal adalah bukti pendukung: setiap kanal merupakan uji tambahan, sehingga jaminan peluang tuduhan "
+    "salah eps hanya berlaku untuk hasil gabungan pada Bagian V, tidak untuk setiap kanal secara terpisah. Karena itu "
+    "nomor salinan pada Bagian IV hanya dicantumkan bila salinan itu juga dituduh oleh hasil gabungan.":
+        "<strong>Channel agreement.</strong> The same procedure runs on each physical channel separately, with its own "
+        "threshold, which shows how many channels independently point to the same copy. The per-channel results are "
+        "supporting evidence: each channel is an extra test, so the eps false-accusation guarantee holds only for the "
+        "combined result in Section V, not for each channel on its own. That is why Section IV gives a copy number "
+        "only when the combined result also accuses that copy.",
+    "HASIL PER KANAL": "RESULTS PER CHANNEL",
+    "Salinan yang dituduh kanal tersebut": "Copies that channel accuses",
+    '"Tidak terbaca": dekoder kanal dijalankan pada bukti, tetapi tidak ada posisi kode yang terbaca. "Tidak '
+    'diperiksa": dekoder kanal itu tidak dijalankan untuk jenis bukti ini, sehingga tidak ada pernyataan apa pun '
+    'tentang keadaan kanal tersebut pada bukti.':
+        '"Not read": the channel\u2019s decoder ran on the evidence, but no code position was read. "Not examined": that '
+        'channel\u2019s decoder does not run for this kind of evidence, so nothing is stated about the channel\u2019s state in '
+        'the evidence.',
+    "Rincian pembacaan per sub-kanal": "Reading per sub-channel",
+    "Slot terbaca": "Slots read",
+    "Estimasi derau": "Noise estimate",
+    "Dekoder tidak menghasilkan observasi dari barang bukti ini.": "The decoder produced no observations from this evidence.",
+    "HASIL ATRIBUSI": "ATTRIBUTION RESULT",
+    "Posisi kode terbaca (gabungan semua kanal): %(n)s dari %(m)s; posisi efektif setelah pembobotan keyakinan: %(eff)s.":
+        "Code positions read (all channels combined): %(n)s of %(m)s; effective positions after confidence weighting: %(eff)s.",
+    "pelacakan ke-%(k)s dengan jatah eps %(share)s dari eps = %(eps)s": "trace number %(k)s with an eps share of %(share)s of eps = %(eps)s",
+    ", tahap 1 dengan jatah eps %(share)s": ", stage 1 with an eps share of %(share)s",
+    "Ambang Z = %(z)s untuk %(budget)s (eps1 = %(eps1)s), ditetapkan pada %(when)s, sebelum skor dihitung.":
+        "Threshold Z = %(z)s for %(budget)s (eps1 = %(eps1)s), fixed on %(when)s, before any score was computed.",
+    "Pelacakan: %(text)s.": "Trace: %(text)s.",
+    "PUTUSAN: TERIDENTIFIKASI": "VERDICT: IDENTIFIED",
+    "Perhatian, %(note)s.": "Note: %(note)s.",
+    "TIDAK CUKUP BUKTI": "NOT ENOUGH EVIDENCE",
+    "Tidak ada salinan yang skornya mencapai ambang Z.": "No copy\u2019s score reaches the threshold Z.",
+    "Tidak ada posisi kode yang terbaca dengan cukup keyakinan, sehingga ambang tidak terhingga dan tidak seorang pun "
+    "dapat dituduh.":
+        "No code position was read with enough confidence, so the threshold is infinite and no one can be accused.",
+    "Skor tertinggi adalah %(score)s, di bawah ambang Z = %(z)s.": "The highest score is %(score)s, below the threshold Z = %(z)s.",
+    "Sesuai aturan pada Bagian III, tidak ada nama, nomor salinan, atau identitas penerima yang dicantumkan dalam "
+    "berita acara ini.":
+        "Under the rule in Section III, this report gives no name, copy number or recipient identity.",
+    "Pemeriksaan pola tanda terbalik (memakai vektor bias dokumen, tanpa kode penerima, dan tidak mengubah putusan): "
+    "%(text)s.":
+        "Reversed-mark check (uses the document\u2019s bias vector, no recipient code, and does not change the verdict): %(text)s.",
+    "Pemeriksaan pola penghapusan disengaja (memakai vektor bias dokumen, tanpa kode penerima, dan tidak mengubah "
+    "putusan): %(text)s.":
+        "Deliberate-erasure check (uses the document\u2019s bias vector, no recipient code, and does not change the "
+        "verdict): %(text)s.",
+    "Pemeriksaan bacaan jelas tanpa nama (batas terbukti peluang koalisi lolos dari bobot bacaan ini, tanpa kode "
+    "penerima, dan tidak mengubah putusan): %(text)s.":
+        "Clear-reading-without-a-name check (a proven bound on a coalition\u2019s chance to escape, from the weights of this "
+        "reading, no recipient code, and does not change the verdict): %(text)s.",
+    "Nomor salinan": "Copy number",
+    "ID penerima": "Recipient ID",
+    "Kanal yang sepakat": "Channels agreeing",
+    "Peringkat %(rank)s: di bawah ambang, identitas tidak dicantumkan": "Rank %(rank)s: below the threshold, identity not given",
+    "Skor salinan yang diberi identitas di atas mencapai atau melampaui ambang Z.":
+        "The scores of the copies identified above reach or pass the threshold Z.",
+    'Baris "Peringkat" adalah skor tertinggi berikutnya sebagai pembanding; skor itu di bawah ambang tahap 1, sehingga '
+    'pemiliknya tidak dituduh pada tahap ini dan identitasnya tidak dicantumkan di tabel ini.':
+        'The "Rank" rows are the next highest scores, for comparison; they are below the stage 1 threshold, so their '
+        'holders are not accused at this stage and their identities are not given in this table.',
+    'Baris "Peringkat" adalah skor tertinggi berikutnya sebagai pembanding; skor itu di bawah ambang, sehingga '
+    'pemiliknya tidak dituduh pada tahap ini dan identitasnya tidak dicantumkan di tabel ini.':
+        'The "Rank" rows are the next highest scores, for comparison; they are below the threshold, so their holders '
+        'are not accused at this stage and their identities are not given in this table.',
+    "Tahap %(n)s: mencari anggota koalisi lain berdasarkan salinan yang sudah dituduh (%(basis)s)":
+        "Stage %(n)s: looking for other coalition members from the copies already accused (%(basis)s)",
+    "Tahap ini dijalankan karena salinan %(basis)s dituduh pada tahap sebelumnya, dan bobot posisinya memakai kode "
+    "salinan itu. Posisi yang bitnya tidak dimiliki salinan tersebut: %(n)s.":
+        "This stage ran because copy %(basis)s was accused at the stage before, and its position weights use that "
+        "copy\u2019s code. Positions whose bit that copy does not hold: %(n)s.",
+    "Ambang Z%(n)s = %(z)s untuk jatah eps tahap %(eps)s (%(pct)s %% dari jatah pelacakan; eps1 = %(eps1)s), "
+    "ditetapkan pada %(when)s, sebelum skor tahap ini dihitung.":
+        "Threshold Z%(n)s = %(z)s for a stage eps share of %(eps)s (%(pct)s %% of the trace\u2019s share; eps1 = %(eps1)s), "
+        "fixed on %(when)s, before this stage\u2019s scores were computed.",
+    "Ambang tahap ini tidak terhingga untuk jatah eps tahap %(eps)s (%(pct)s %% dari jatah pelacakan; eps1 = "
+    "%(eps1)s), ditetapkan pada %(when)s, sebelum skor tahap ini dihitung.":
+        "This stage\u2019s threshold is infinite for a stage eps share of %(eps)s (%(pct)s %% of the trace\u2019s share; eps1 = "
+        "%(eps1)s), fixed on %(when)s, before this stage\u2019s scores were computed.",
+    "Skor tahap ini memakai bobot tahap ini, sehingga tidak dapat dibandingkan langsung dengan skor tahap 1.":
+        "This stage\u2019s scores use this stage\u2019s weights, so they cannot be compared directly with stage 1 scores.",
+    "Dasar": "Basis",
+    "Tidak ada salinan lain yang skornya mencapai ambang tahap %(n)s (skor tertinggi %(score)s); tidak ada nama "
+    "tambahan.":
+        "No other copy\u2019s score reaches the stage %(n)s threshold (highest score %(score)s); no further name.",
+    "Tidak ada salinan lain yang skornya mencapai ambang tahap %(n)s; tidak ada nama tambahan.":
+        "No other copy\u2019s score reaches the stage %(n)s threshold; no further name.",
+    "Catatan pemeriksaan": "Examination notes",
+    "Bukti pendukung: peristiwa kanari": "Supporting evidence: canary events",
+    "Peristiwa berikut tercatat oleh penanda kanari pada salinan. Peristiwa ini adalah bukti pendukung yang terpisah "
+    "dan tidak ikut dalam perhitungan skor di atas. Nomor salinan hanya dicantumkan untuk salinan yang dituduh oleh "
+    "hasil atribusi.":
+        "The canary markers in the copies recorded the events below. They are separate supporting evidence and take no "
+        "part in the scores above. Copy numbers are given only for copies the attribution accuses.",
+    "Alamat IP sumber": "Source IP address",
+    "DATA UNTUK REPRODUKSI": "DATA FOR REPRODUCTION",
+    "Parameter kode": "Code parameters",
+    "c = %(c)s; eps = %(eps)s; n_max = %(n_max)s; m = %(m)s; konstanta %(constant)s; batas bias t = %(cutoff)s":
+        "c = %(c)s; eps = %(eps)s; n_max = %(n_max)s; m = %(m)s; constant %(constant)s; bias cutoff t = %(cutoff)s",
+    "%(text)s; jatah eps = %(share)s, eps1 = %(eps1)s": "%(text)s; eps share = %(share)s, eps1 = %(eps1)s",
+    "Jangkar entri pelacakan": "Trace entry anchor",
+    "Perintah ini memeriksa bahwa entri registri yang mencatat pelacakan ini masih ada dan tidak diubah. Bila entri ini "
+    "kemudian dihapus, pelacakan berikutnya dapat memakai lagi nomor dan jatah eps pelacakan ini; pemeriksaan dengan "
+    "jangkar ini mengungkapnya.":
+        "This command checks that the registry entry recording this trace still exists unchanged. If the entry is later "
+        "deleted, a later trace could reuse this trace\u2019s number and eps share; a check with this anchor reveals it.",
+    "Aturan ambang": "Threshold rule",
+    "Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak bersalah tidak melebihi eps1 (jatah eps tahap "
+    "1 dibagi n_max), dihitung hanya dari vektor bias dan bobot dekoder.":
+        "Z is the smallest score whose Chernoff bound for an innocent recipient does not exceed eps1 (the stage 1 eps "
+        "share divided by n_max), computed from the bias vector and the decoder weights only.",
+    "Z adalah skor terkecil yang batas Chernoff-nya untuk penerima tidak bersalah tidak melebihi eps1 (jatah eps "
+    "pelacakan dibagi n_max), dihitung hanya dari vektor bias dan bobot dekoder.":
+        "Z is the smallest score whose Chernoff bound for an innocent recipient does not exceed eps1 (the trace\u2019s eps "
+        "share divided by n_max), computed from the bias vector and the decoder weights only.",
+    "Rumus sebagaimana tercatat dalam perangkat lunak (dikutip apa adanya, dalam bahasa Inggris):":
+        "The formula as recorded in the software (quoted as it is):",
+    "Nilai ambang Z (tahap 1)": "Threshold Z (stage 1)",
+    "Nilai ambang Z": "Threshold Z",
+    "Ambang ditetapkan pada": "Threshold fixed on",
+    "Aturan ambang tahap lanjutan": "Threshold rule of the later stages",
+    "Ambang Chernoff yang sama dengan bobot tahap: bobot hanya pada posisi yang bitnya tidak dimiliki salinan yang "
+    "sudah dituduh, dihitung dari bit yang bocor, vektor bias, bobot dekoder, dan kata kode salinan yang sudah dituduh, "
+    "tidak pernah dari kata kode salinan yang dinilai.":
+        "The same Chernoff threshold with stage weights: weight only on positions whose bit the accused copies do not "
+        "hold, computed from the leaked bits, the bias vector, the decoder weights and the codewords of the copies "
+        "already accused, never from the codeword of the copy being scored.",
+    "dasar %(basis)s; Z%(n)s = %(z)s; jatah eps tahap %(eps)s, eps1 = %(eps1)s; ditetapkan %(when)s":
+        "basis %(basis)s; Z%(n)s = %(z)s; stage eps share %(eps)s, eps1 = %(eps1)s; fixed %(when)s",
+    "Code digest salinan yang dituduh": "Code digests of the accused copies",
+    "tidak ada (tidak ada salinan yang dituduh)": "none (no copy is accused)",
+    "Versi perangkat lunak": "Software version",
+    "Perintah untuk mengulang": "Command to repeat",
+    "Perintah ini memerlukan berkas bukti, dokumen induk, manifest penerbitan, dan berkas rahasia kode yang disimpan "
+    "penerbit. Dengan masukan yang sama, skor, ambang, dan putusan akan sama.":
+        "The command needs the evidence file, the master document, the issuance manifest and the code secret file the "
+        "issuer keeps. With the same inputs, the scores, thresholds and verdict come out the same.",
+    "Nama berkas bukti pada perintah disamarkan sebagian (lihat Bagian I); gunakan berkas yang SHA-256-nya tercantum "
+    "di atas.":
+        "The evidence file name in the command is partly masked (see Section I); use the file whose SHA-256 is given above.",
+    "Laporan dibuat": "Report made",
+    "BATASAN": "LIMITATIONS",
+    "Hasil ini hanya menyatakan apa yang didukung oleh bukti yang diperiksa, yaitu kecocokan antara tanda pada bukti dan "
+    "kode salinan tertentu. Hasil ini tidak menyatakan siapa yang secara fisik membocorkan, bagaimana caranya, atau apa "
+    "niatnya; salinan dapat berpindah tangan setelah diterima.":
+        "This result states only what the examined evidence supports: a match between the marks in the evidence and "
+        "the code of a particular copy. It does not state who physically leaked it, how, or with what intent; a copy "
+        "can change hands after it is received.",
+    "Kanal berikut diperiksa tetapi tidak terbaca pada bukti: %(channels)s. Kanal dapat hilang karena jenis bukti "
+    "(misalnya foto tidak membawa lapisan teks), karena kualitas bukti, atau karena dirusak dengan sengaja.":
+        "These channels were examined but not read in the evidence: %(channels)s. A channel can be lost because of the "
+        "kind of evidence (a photo has no text layer, for example), its quality, or deliberate damage.",
+    "Kanal berikut dipakai pada penerbitan tetapi tidak diperiksa, karena dekodernya tidak dijalankan untuk jenis "
+    "bukti ini (%(kind)s): %(channels)s. Berita acara ini tidak menyatakan apa pun tentang keadaan kanal tersebut pada "
+    "bukti.":
+        "These channels were used at issuance but not examined, since their decoders do not run for this kind of "
+        "evidence (%(kind)s): %(channels)s. This report states nothing about their state in the evidence.",
+    "Kesimpulan di atas hanya bersandar pada kanal yang terbaca.": "The conclusion above rests only on the channels read.",
+    "Semua kanal yang dipakai pada penerbitan diperiksa dan terbaca, sebagian atau seluruhnya.":
+        "Every channel used at issuance was examined and read, in part or in full.",
+    "Pengetikan ulang dokumen secara utuh menghilangkan sebagian besar kanal (pergeseran, pola latar, karakter tak "
+    "terlihat, dan huruf kembar). Hanya kanal variasi kalimat yang mungkin bertahan, dan itu pun hanya bila susunan "
+    "kalimat tidak diubah.":
+        "Retyping the whole document removes most channels (shifts, background pattern, invisible characters and "
+        "look-alike letters). Only the sentence-variant channel may survive, and only if the wording is not changed.",
+    "Kode dirancang untuk koalisi hingga %(c)s penerima. Bila lebih banyak penerima bekerja sama, peluang menemukan "
+    "pembocor menurun, tetapi batas peluang tuduhan salah tetap berlaku karena ambang tidak bergantung pada ukuran "
+    "koalisi.":
+        "The code is designed for coalitions of up to %(c)s recipients. If more recipients work together, the chance "
+        "of finding a leaker drops, but the false-accusation bound still holds, since the threshold does not depend on "
+        "the coalition\u2019s size.",
+    "Pelacakan bertahap dapat menemukan anggota koalisi lain setelah tahap 1, tetapi tidak menjamin semua anggota "
+    "ditemukan.":
+        "A staged trace can find other coalition members after stage 1, but does not guarantee that all are found.",
+    "Nama yang dituduh pada tahap 2 atau sesudahnya ditemukan dengan bantuan salinan yang dituduh sebelumnya, jadi "
+    "selalu dicantumkan bersama salinan itu. Batas peluang tuduhan salahnya tetap berlaku walaupun salah satu salinan "
+    "dasar ternyata tidak terlibat; yang bergantung pada salinan dasar hanya kemampuan tahap itu menemukan anggota "
+    "koalisi lain.":
+        "A name accused at stage 2 or later was found with the help of copies accused before it, so it is always given "
+        "together with those copies. Its false-accusation bound holds even if one of the basis copies turns out not to "
+        "be involved; only that stage\u2019s ability to find other coalition members depends on the basis copies.",
+    "Batas peluang tuduhan salah berlaku dengan syarat rahasia kode tidak bocor dan catatan penerbitan tidak diubah. "
+    "Keutuhan catatan diperiksa melalui komitmen kode setiap salinan dan registri penerbitan (status: %(status)s).":
+        "The false-accusation bound holds provided the code secret has not leaked and the issuance record has not been "
+        "changed. The record is checked through each copy\u2019s code commitment and the issuance registry (status: "
+        "%(status)s).",
+    "Pelacakan ini tidak dicatat di registri. Bila dokumen yang sama dilacak berulang kali, misalnya dengan potongan "
+    "atau gabungan bukti yang berbeda, batas peluang tuduhan salah hanya berlaku untuk setiap pelacakan secara "
+    "terpisah.":
+        "This trace is not recorded in the registry. If the same document is traced repeatedly, for example with "
+        "different crops or combinations of evidence, the false-accusation bound holds only for each trace on its own.",
+    "Batas bersama untuk semua pelacakan dokumen ini berlaku bila bukti setiap pelacakan tidak dipilih berdasarkan skor "
+    "pelacakan sebelumnya, misalnya dengan membuang halaman agar skor tertinggi naik.":
+        "The joint bound for all traces of this document holds if the evidence of each trace is not chosen on the "
+        "scores of earlier traces, for example by dropping pages to raise the highest score.",
+    "Registri penerbitan TIDAK UTUH. Hasil atribusi tidak boleh dipakai sebelum penyebabnya diperiksa.":
+        "The issuance registry is NOT INTACT. The attribution result must not be used before the cause is examined.",
+    "Demikian Berita Acara Pemeriksaan Digital ini dibuat dengan sebenarnya atas kekuatan sumpah jabatan, kemudian "
+    "ditutup dan ditandatangani pada tanggal tersebut di atas.":
+        "This Digital Examination Report was made truthfully under the oath of office, then closed and signed on the "
+        "date above.",
+    "Mengetahui,<br>Atasan Pemeriksa": "Acknowledged,<br>Examiner\u2019s superior",
+    "Pemeriksa,": "Examiner,",
+    "Pangkat/NRP:": "Rank/service number:",
+    "Pergeseran kata dan baris": "Word and line shifts",
+    "Pola latar halus": "Faint background pattern",
+    "Karakter tak terlihat (zero-width)": "Invisible characters (zero-width)",
+    "Huruf kembar (homoglyph)": "Look-alike letters (homoglyph)",
+    "Variasi kalimat (semantik)": "Sentence variants (semantic)",
+    "Pilihan kata (leksikal)": "Word choice (lexical)",
+    "Variasi kalimat (semantik, OCR gambar)": "Sentence variants (semantic, image OCR)",
+    "Pilihan kata (leksikal, OCR gambar)": "Word choice (lexical, image OCR)",
+    "Geser (pergeseran kata dan baris)": "Shift (word and line shifts)",
+    "Latar (pola latar halus)": "Background (faint background pattern)",
+    "Teks (karakter tak terlihat dan huruf kembar)": "Text (invisible characters and look-alike letters)",
+    "Semantik (variasi kalimat)": "Semantic (sentence variants)",
+    "Leksikal (pilihan kata; bertahan saat diketik ulang, tetapi terlihat di kertas sehingga dapat ditiru; satu "
+    "pembocor, tidak tahan kolusi)":
+        "Lexical (word choice; survives retyping but is visible on paper, so it can be imitated; one leaker, not "
+        "collusion-resistant)",
+    "TIDAK UTUH (%(n)s entri); lihat Bagian VII": "NOT INTACT (%(n)s entries); see Section VII",
+    "tidak diperiksa": "not checked",
+    "rantai hash utuh (%(n)s entri), tetapi %(unsigned)s entri salinan dokumen ini belum bertanda tangan sehingga "
+    "belum terlindungi dari pemalsuan":
+        "hash chain intact (%(n)s entries), but %(unsigned)s copy entries of this document are not signed yet, so they "
+        "are not yet protected against forgery",
+    "utuh; %(n)s entri terverifikasi dengan tanda tangan": "intact; %(n)s entries verified by signature",
+    "pelacakan ke-%(k)s untuk dokumen ini, dicatat di registri sebelum dekode; jatah eps pelacakan ini 6 / (\u03c0\u00b2 \u00d7 "
+    "%(k)s\u00b2) = %(pct)s %% dari eps":
+        "trace number %(k)s of this document, recorded in the registry before decoding; this trace\u2019s eps share is 6 / "
+        "(\u03c0\u00b2 \u00d7 %(k)s\u00b2) = %(pct)s %% of eps",
+    "Ukuran koalisi rancangan (c)": "Design coalition size (c)",
+    "Peluang tuduhan salah total (eps)": "Total chance of a false accusation (eps)",
+    "Jumlah penerima maksimum (n_max)": "Largest number of recipients (n_max)",
+    "Peluang tuduhan salah per penerima pada rancangan kode (eps / n_max; ambang pelacakan memakai jatah eps pelacakan "
+    "itu, lihat Bagian V)":
+        "Chance of a false accusation per recipient in the code design (eps / n_max; a trace\u2019s threshold uses that "
+        "trace\u2019s eps share, see Section V)",
+    "Panjang kode (m)": "Code length (m)",
+    "%(n)s posisi": "%(n)s positions",
+    "Konstanta panjang kode": "Code length constant",
+    "Batas bias (t = 1 / (300 c))": "Bias cutoff (t = 1 / (300 c))",
+    "tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; pelacakan ini "
+    "memakai seluruh eps":
+        "not recorded in the registry, so repeated traces of this document are not accounted for; this trace uses all of eps",
+    "tidak dicatat di registri, sehingga pelacakan berulang atas dokumen ini tidak diperhitungkan; ambang memakai "
+    "seluruh eps":
+        "not recorded in the registry, so repeated traces of this document are not accounted for; the threshold uses "
+        "all of eps",
+    "%(n)s salinan lain (nomor tidak dicantumkan)": "%(n)s other copies (numbers not given)",
+    "%(n)s salinan (nomor tidak dicantumkan)": "%(n)s copies (numbers not given)",
+    "%(label)s; dibaca dari %(source)s": "%(label)s; read from %(source)s",
+    "pelacakan bertahap (kebijakan %(policy)s): tahap 1 memakai %(pct)s %% dari jatah itu":
+        "staged trace (policy %(policy)s): stage 1 uses %(pct)s %% of that share",
+    "pelacakan bertahap (kebijakan %(policy)s): tahap 1 memakai %(pct)s %% dari eps itu":
+        "staged trace (policy %(policy)s): stage 1 uses %(pct)s %% of that eps",
+    "salinan lain (nomor tidak dicantumkan)": "another copy (number not given)",
+    "tidak tersedia": "not available",
+    "tidak terbaca": "not read",
+    "tidak diperiksa untuk jenis bukti ini": "not examined for this kind of evidence",
+    "foto": "photo",
+    "berkas PDF": "PDF file",
+    "tangkapan layar": "screenshot",
+    "(nama pemeriksa)": "(examiner\u2019s name)",
+    "(pangkat/NRP)": "(rank/service number)",
+    "Asli berbahasa Indonesia (resmi)": "Indonesian original (official)",
+    "Ini terjemahan bahasa Inggris; formulir resminya berbahasa Indonesia.": "This is an English rendition; the official form is in Indonesian.",
+    "teks": "text",
 }
 
 # ---------------------------------------------------------------- sentences of the core library

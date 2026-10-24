@@ -1,4 +1,4 @@
-"""Indonesian and English in the web UI (tapak/web/i18n.py, tapak/web/en.py).
+"""Indonesian and English in the web UI and the berita acara (tapak/i18n).
 
 Every message of the pages has an English entry with the same placeholders, pages asked for in
 English carry no Indonesian outside elements marked lang="id" (document text, lexicon forms),
@@ -16,11 +16,13 @@ import pytest
 from fastapi.testclient import TestClient
 from jinja2.ext import babel_extract
 
-from tapak.web import i18n
-from tapak.web.en import EN, PATTERNS, RULES
+from tapak import i18n
+from tapak.i18n.en import EN, PATTERNS, RULES
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "tapak" / "web"
+REPORT = ROOT / "tapak" / "decoder" / "report.py"
+REPORT_TEMPLATE = ROOT / "tapak" / "decoder" / "templates" / "berita_acara.html"
 SAMPLE = ROOT / "samples" / "nota_dinas.pdf"
 PLACEHOLDER = re.compile(r"%\((\w+)\)s")
 EM_DASH = chr(0x2014)
@@ -30,19 +32,17 @@ STOPWORDS = re.compile(r"\b(yang|dan|untuk|dengan|tidak|belum|sudah|dapat|ini|it
 
 
 def _messages() -> dict[str, str]:
-    """Every message of the web UI: _(), ngettext() and {% trans %} in the templates, and the
-    _() / N_() calls of tapak/web/*.py. Value: where it was found."""
+    """Every message of the web UI and the berita acara: _(), ngettext() and {% trans %} in the
+    templates, and the _() / N_() calls of tapak/web/*.py and report.py. Value: where it was found."""
     found: dict[str, str] = {}
-    for template in sorted((WEB / "templates").glob("*.html")):
+    for template in [*sorted((WEB / "templates").glob("*.html")), REPORT_TEMPLATE]:
         with open(template, "rb") as f:
             for lineno, _func, msg, _comments in babel_extract(
                     f, ["_", "gettext", "ngettext"], [], {"trimmed": "true", "extensions": "jinja2.ext.i18n,jinja2.ext.do"}):
                 first = msg[0] if isinstance(msg, tuple) else msg
                 if first:
                     found.setdefault(first, f"{template.name}:{lineno}")
-    for module in sorted(WEB.glob("*.py")):
-        if module.name == "en.py":
-            continue
+    for module in [*sorted(WEB.glob("*.py")), REPORT]:
         for node in ast.walk(ast.parse(module.read_text())):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("_", "N_")
                     and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
@@ -230,9 +230,22 @@ def test_an_english_issue_and_trace_carry_no_indonesian(client):
     assert not _indonesian_left(r.text), _indonesian_left(r.text)[:5]
     for path in ("/beranda", "/registri", f"/lacak?dokumen={doc}"):
         assert not _indonesian_left(client.get(path).text), path
-    # the berita acara stays the Indonesian official form
+    # the berita acara in English is a rendition; ?asli=1 gives the Indonesian official form
     tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
-    assert client.get(f"/lacak/{tid}/berita-acara.pdf").content.startswith(b"%PDF")
+    english = _pdf_text(client.get(f"/lacak/{tid}/berita-acara.pdf").content)
+    assert "DIGITAL EXAMINATION REPORT" in english and "VERDICT: IDENTIFIED" in english
+    prose = re.sub(r"tapak trace .*?(?=The command)", "", english)  # the command keeps its flags
+    assert not [m.group(0) for m in STOPWORDS.finditer(prose)], prose[:300]
+    official = client.get(f"/lacak/{tid}/berita-acara.pdf?asli=1")
+    assert "BERITA ACARA PEMERIKSAAN DIGITAL" in _pdf_text(official.content)
+    assert official.headers["content-disposition"].endswith(f'berita_acara_{tid}.pdf"')
+
+
+def _pdf_text(pdf: bytes) -> str:
+    import pymupdf
+
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        return " ".join(" ".join(page.get_text() for page in doc).split())
 
 
 def test_english_errors_are_english(client):

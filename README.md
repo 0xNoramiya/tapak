@@ -75,7 +75,7 @@ Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](
 
 Halaman produk di `/` menjelaskan TAPAK untuk instansi pemerintah dengan angka dan grafik dari berkas hasil di repositori. **Demo** terpandu di `/demo` menerbitkan nota dinas contoh untuk 20 penerima fiktif, membocorkan satu salinan (foto ponsel, tangkapan layar, potongan halaman, PDF, atau teks), lalu melacaknya sampai berita acara, di ruang kerja terpisah yang tidak menyentuh registri Anda.
 
-Semua halaman tersedia dalam bahasa Indonesia dan Inggris: pilihan ID | EN ada di navigasi dan diingat lewat cookie. Berita acara PDF tetap berbahasa Indonesia karena merupakan formulir resmi.
+Semua halaman tersedia dalam bahasa Indonesia dan Inggris: pilihan ID | EN ada di navigasi dan diingat lewat cookie. Berita acara PDF mengikuti bahasa halaman; versi Inggrisnya terjemahan, dan yang resmi tetap versi Indonesia.
 
 Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Di sini hanya pola latar yang sendirian menunjuk salinan #13 (kanal sepakat: 1), dan pola itu tidak ada pada foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar (layar atau cetak) dan skema geser (v2 atau v1), meminta peninjauan setiap varian dan setiap titik pilihan kata (opsional), lalu menghasilkan ZIP salinan.
 

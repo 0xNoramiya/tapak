@@ -228,8 +228,9 @@
     <aside class="dm-ba" aria-labelledby="ba-h">
       <a class="dm-ba-thumb" href="/lacak/{{ hasil.tid }}/berita-acara.pdf" tabindex="-1" aria-hidden="true"><img src="/demo/berita-acara/{{ hasil.tid }}.png" alt="" width="413" height="584"></a>
       <h3 id="ba-h">{{ _("Berita acara") }}</h3>
-      <p>{{ _("SHA-256 barang bukti, dokumen induk, parameter kode, skor, ambang, dan batas peluang salah tuduh, siap ditandatangani pemeriksa. Formulirnya berbahasa Indonesia.") }}</p>
+      <p>{{ _("SHA-256 barang bukti, dokumen induk, parameter kode, skor, ambang, dan batas peluang salah tuduh, siap ditandatangani pemeriksa.") }}{% if bahasa() == "en" %} {{ _("Ini terjemahan bahasa Inggris; formulir resminya berbahasa Indonesia.") }}{% endif %}</p>
       <a class="btn btn-primary" href="/lacak/{{ hasil.tid }}/berita-acara.pdf">{{ ikon("download") }}{{ _("Unduh berita acara PDF") }}</a>
+      {% if bahasa() == "en" %}<a class="link small" href="/lacak/{{ hasil.tid }}/berita-acara.pdf?asli=1" hreflang="id">{{ _("Asli berbahasa Indonesia (resmi)") }}</a>{% endif %}
     </aside>
   </div>
 

@@ -54,9 +54,9 @@ from tapak.marker.lexical import LexicalSelection, LexPoint
 from tapak.marker.master import MasterDocument
 from tapak.marker.pdf_shift import DEFAULT_SCHEME, SCHEME_CHOICES
 from tapak.marker.raster import GATE_MAX_DIFF as RASTER_GATE_MAX_DIFF
-from tapak.web import i18n
-from tapak.web.i18n import N_
-from tapak.web.i18n import gettext as _
+from tapak import i18n
+from tapak.i18n import N_
+from tapak.i18n import gettext as _
 
 HERE = Path(__file__).resolve().parent
 MAX_UPLOAD = 40 * 1024 * 1024
@@ -1781,35 +1781,43 @@ def _eps_label(eps: float) -> str:
     return i18n.localize(format_number(eps, 6))
 
 
-_REPORTS: dict[str, bytes] = {}  # trace id -> its berita acara, so a preview and the download agree
+_REPORTS: dict[tuple[str, str], bytes] = {}  # (trace id, language) -> berita acara: a preview and the download agree
 
 
-def _report_pdf(tid: str) -> bytes:
-    """The berita acara of trace ``tid``, made once (the newest 10 are kept)."""
+def _report_pdf(tid: str, lang: str | None = None) -> bytes:
+    """The berita acara of trace ``tid`` in ``lang`` (the page language by default), made once
+    (the newest 10 are kept). The English one is a rendition; the Indonesian one is official."""
     from tapak.service import write_report
 
     outcome = _TRACES.get(tid)
     if outcome is None:
         raise HTTPException(404, _("Hasil pelacakan tidak ditemukan; jalankan pelacakan lagi"))
-    pdf = _REPORTS.get(tid)
+    key = (tid, lang or i18n.current())
+    pdf = _REPORTS.get(key)
     if pdf is None:
+        token = i18n.use(key[1])
         try:
             pdf = write_report(outcome)  # type: ignore[arg-type]
         except (RuntimeError, ValueError) as exc:
             raise HTTPException(500, _("Berita acara tidak dapat dibuat: %(reason)s",
                                        reason=i18n.translate_text(str(exc)))) from exc
+        finally:
+            i18n.reset(token)
         with _LOCK:
-            _REPORTS[tid] = pdf
+            _REPORTS[key] = pdf
             while len(_REPORTS) > 10:
                 _REPORTS.pop(next(iter(_REPORTS)))
     return pdf
 
 
 @app.get("/lacak/{tid}/berita-acara.pdf")
-def berita_acara(tid: str) -> Response:
-    """The forensic report of a trace (in Indonesian in both languages: it is an official form)."""
-    return Response(_report_pdf(tid), media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="berita_acara_{tid}.pdf"'})
+def berita_acara(tid: str, asli: int = 0) -> Response:
+    """The forensic report of a trace, in the page language; ``asli=1`` gives the Indonesian
+    original (the official form) from an English page."""
+    lang = "id" if asli else i18n.current()
+    name = f"berita_acara_{tid}.pdf" if lang == "id" else f"berita_acara_{tid}_{lang}.pdf"
+    return Response(_report_pdf(tid, lang), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 # --- Demo ----------------------------------------------------------------------------------
