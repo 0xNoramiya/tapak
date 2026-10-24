@@ -53,10 +53,12 @@ def collect_from_gray(gray: np.ndarray, ctx: "TraceContext", read_text: bool = T
     if ctx.plan.channel(CHANNEL_SHIFT):
         template = render_page_exact(ctx.master.pdf_bytes, reg.page, reg.dpi,
                                      boxes=template_boxes(ctx.master, reg.page, reg.dpi))
-        disp = measure_image(reg.rectified, reg.valid, template, ctx.master, reg.page, reg.dpi)
+        quality: dict = {}
+        disp = measure_image(reg.rectified, reg.valid, template, ctx.master, reg.page, reg.dpi, quality=quality)
         del template
         pixel_grid = PixelGrid(reg.h_page_to_img, reg.dpi, reg.effective_dpi)
-        sb = decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded, grid=pixel_grid)
+        sb = decode_displacements(ctx.master, ctx.plan, disp, ctx.shift, ctx.excluded, grid=pixel_grid,
+                                  quality=quality)
         sb.meta.update(reg_meta)
         out.append(sb)
     if ctx.plan.channel(CHANNEL_BACKGROUND) and ctx.background is not None:

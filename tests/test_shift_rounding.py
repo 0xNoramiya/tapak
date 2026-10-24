@@ -176,7 +176,9 @@ def test_rounded_rows_read_whole_pixel_moves_of_an_issued_copy(scheme, issued, c
         correct += int(right[conf].sum())
         some += int((np.abs(llr) >= 1).sum())
         some_wrong += int((~right & (np.abs(llr) >= 1)).sum())
-        sb = decode_displacements(c.master, c.plan, disp, c.shift, c.excluded, grid=_grid(render_dpi, phase))
+        # word_model="gauss": the rows alone change here (image word groups: tests/test_shift_words.py)
+        sb = decode_displacements(c.master, c.plan, disp, c.shift, c.excluded, grid=_grid(render_dpi, phase),
+                                  word_model="gauss")
         assert sb.meta["row_model"]["pages"] and "baris" not in sb.meta["sigma_pt"]
         plain = decode_displacements(c.master, c.plan, disp, c.shift, c.excluded)
         words = [int(p) not in rows for p in plain.positions]
@@ -218,9 +220,19 @@ def test_rows_off_the_pixel_grid_keep_the_gaussian_model(issued, ctx):
     noisy = {w: (dx + rng.normal(0, 0.01), dy + rng.normal(0, 0.03)) for w, (dx, dy) in exact.items()}
     grid = _grid(73.3, 0.4)
     assert rounded_rows(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded, grid) is None
-    a = decode_displacements(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded, grid=grid)
+    a = decode_displacements(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded, grid=grid, word_model="gauss")
     b = decode_displacements(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded)
     assert np.array_equal(a.positions, b.positions) and np.array_equal(a.llr, b.llr) and a.meta == b.meta
+    # the image word model (default on image evidence) changes the word-group LLRs and nothing else
+    from tapak.decoder.ch_shift import IMAGE_WORD_MODEL
+
+    d = decode_displacements(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded, grid=grid)
+    words = {s.positions[0] for s in ctx.plan.channel("shift") if len(s.ref) == 2}
+    rows_b = {int(q): v for q, v in zip(b.positions, b.llr) if int(q) not in words}
+    rows_d = {int(q): v for q, v in zip(d.positions, d.llr) if int(q) not in words}
+    assert d.meta["word_model"] == IMAGE_WORD_MODEL and rows_d == rows_b
+    assert {int(q) for q in d.positions} - set(rows_d) <= words and d.meta["word_slots_read"] > 100
+    assert np.array_equal(d.strengths.values, b.strengths.values)
 
 
 def test_rounded_rows_do_not_depend_on_codewords(issued, ctx):

@@ -41,6 +41,7 @@ plan (positions and whitening), never a recipient's codeword.
 from __future__ import annotations
 
 import difflib
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -55,6 +56,7 @@ from tapak.marker.pdf_zerowidth import normalize_text
 from tapak.marker.plan import CHANNEL_SHIFT, EmbeddingPlan
 
 Displacements = dict[WordId, tuple[float, float]]
+GroupKey = tuple[int, int, int]  # (page, row, group) of the shift layout
 OUTLIER_FACTOR = 3.0
 JOINT_DEGREE = 1          # geser-v2 row nuisance: polynomial of this degree along the row (offset, slope)
 FIELD_DEGREE = 3          # geser-v2 page field: polynomial of this total degree in (x, y), None for none
@@ -297,6 +299,136 @@ def joint_word_llrs(rows: list[tuple[np.ndarray, np.ndarray]], delta: float, flo
     return out, sigma
 
 
+# Word groups of image evidence (research/geser). The Gaussian row model above holds on a forwarded
+# PDF, but on photos and prints a few groups per page match far off (heavy tails: the kurtosis
+# of the standardized residual was 7 to 9 on the development photos), and a group that slipped by
+# more than delta reads as a confident mark the other way. Groups whose template matched poorly
+# are the noisy ones, and below about 44 dpi effective resolution the measured shift is only
+# 0.55 to 0.7 of the mark. So the word groups of image evidence are read with a Student t row
+# likelihood (WORD_MODELS[IMAGE_WORD_MODEL]): nu degrees of freedom, a scale per group
+# proportional to (1 - peak correlation of its match) relative to the evidence's median, clipped
+# to QUALITY_CLIP and raised to ``quality``, and below ``low_res[0]`` dpi the mark taken as
+# ``low_res[1]`` times its issued size. The row nuisance (offset and slope) is fitted per sign
+# pattern by iteratively reweighted least squares (a profile likelihood), the 2^g patterns are
+# enumerated as before, and the scale is fitted by EM over all rows. Sign patterns that differ by
+# a ramp still get LLR 0. Only LLRs change: rows, the page field, dropped groups, sigma and
+# strengths come from the Gaussian decode, so the erasure check sees the same units.
+WORD_MODELS: dict[str, dict[str, object] | None] = {
+    "gauss": None,  # the Gaussian row model above (every word group before research/geser)
+    "t3_redam": {"nu": 3.0, "low_res": (44.0, 0.6), "quality": 0.0},
+    "t3_redam_puncak": {"nu": 3.0, "low_res": (44.0, 0.6), "quality": 1.0},
+    "t3_redam_puncak05": {"nu": 3.0, "low_res": (44.0, 0.6), "quality": 0.5},
+    "t4_redam_puncak": {"nu": 4.0, "low_res": (44.0, 0.6), "quality": 1.0},
+    "t2_redam_puncak": {"nu": 2.0, "low_res": (44.0, 0.6), "quality": 1.0},
+}
+IMAGE_WORD_MODEL = "t3_redam"  # chosen by research/geser/kandidat.py (hasil/pilihan.json)
+QUALITY_CLIP = (0.25, 4.0)
+T_EM_ROUNDS = 15
+T_IRLS_FIRST, T_IRLS = 6, 3  # nuisance refits per pattern: first EM round, later rounds (warm start)
+T_IRLS_FINAL = 8
+
+
+def _t_logpdf(r: np.ndarray, sigma: float, nu: float) -> np.ndarray:
+    return (math.lgamma((nu + 1) / 2) - math.lgamma(nu / 2) - 0.5 * math.log(nu * math.pi) - math.log(sigma)
+            - (nu + 1) / 2 * np.log1p((r / sigma) ** 2 / nu))
+
+
+def _t_profile(x: np.ndarray, d: np.ndarray, v: np.ndarray, delta: float, sigma: float, nu: float,
+               theta: np.ndarray | None, rounds: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """For every sign pattern s of one row (chunk): (patterns, log-likelihood, standardized
+    residuals, t weights, nuisance) with the offset and slope fitted by IRLS, ``rounds`` times
+    from ``theta`` (None: ordinary least squares)."""
+    span = float(np.ptp(x)) or 1.0
+    a = np.vander((x - x.mean()) / span, JOINT_DEGREE + 1)
+    a0, a1 = a[:, 0], a[:, 1]
+    s = _sign_patterns(len(d))
+    r0 = d[None, :] - delta * s
+    sg = sigma * np.sqrt(v)
+    if theta is None:
+        theta = r0 @ np.linalg.pinv(a).T
+    for _ in range(rounds):
+        res = r0 - theta @ a.T
+        w = (nu + 1) / (nu + (res / sg) ** 2) / v
+        m00, m01, m11 = w @ (a0 * a0), w @ (a0 * a1), w @ (a1 * a1)
+        b0, b1 = (w * r0) @ a0, (w * r0) @ a1
+        det = m00 * m11 - m01 * m01 + 1e-18
+        theta = np.stack([(m11 * b0 - m01 * b1) / det, (m00 * b1 - m01 * b0) / det], axis=1)
+    res = r0 - theta @ a.T
+    w = (nu + 1) / (nu + (res / sg) ** 2)
+    ll = (_t_logpdf(res / np.sqrt(v), sigma, nu) - 0.5 * np.log(v)).sum(axis=1)
+    return s, ll, res / np.sqrt(v), w, theta
+
+
+def robust_word_llrs(rows: list[tuple[np.ndarray, np.ndarray]], delta: float, floor: float, nu: float,
+                     scales: list[np.ndarray] | None = None) -> tuple[list[np.ndarray], float]:
+    """Sign LLRs of geser-v2 word groups under the Student t row model, and its fitted scale.
+
+    ``rows`` holds (x, d) per row as for :func:`joint_word_llrs` (chunked the same way; a chunk
+    with at most two groups gets LLR 0), ``delta`` is the mark (points), ``scales`` the relative
+    noise variance of every group (None: all 1). The offset and slope of each chunk are fitted per
+    sign pattern by IRLS; the t scale (at least ``floor``) by EM over all chunks: each round the
+    posterior over the patterns weighs the t-weighted squared residuals, divided by the degrees
+    of freedom left (g - 2 per chunk). Code-blind: only the evidence and the plan enter.
+    """
+    if nu <= 0:
+        raise ValueError("derajat kebebasan harus positif")
+    pieces = []
+    for k, (x, d) in enumerate(rows):
+        x = np.asarray(x, dtype=np.float64)
+        d = np.asarray(d, dtype=np.float64)
+        v = np.ones(x.size) if scales is None else np.asarray(scales[k], dtype=np.float64)
+        for sl in _chunks(x.size) if x.size else []:
+            if sl.stop - sl.start > JOINT_DEGREE + 1:
+                pieces.append((k, sl, x[sl], d[sl], v[sl]))
+    out = [np.zeros(len(x)) for x, _ in rows]
+    dof = sum(len(pc[3]) - JOINT_DEGREE - 1 for pc in pieces)
+    if not pieces or dof <= 0:
+        return out, max(delta, floor)
+    sigma = max(delta, floor)
+    thetas: list[np.ndarray | None] = [None] * len(pieces)
+    for it in range(T_EM_ROUNDS):
+        energy = 0.0
+        for i, (_, _, x, d, v) in enumerate(pieces):
+            s, ll, res, w, thetas[i] = _t_profile(x, d, v, delta, sigma, nu, thetas[i], T_IRLS if it else T_IRLS_FIRST)
+            post = np.exp(ll - ll.max())
+            energy += float((post / post.sum()) @ (w * res * res).sum(axis=1))
+        sigma = max(math.sqrt(energy / dof), floor)
+    for i, (k, sl, x, d, v) in enumerate(pieces):
+        s, ll, *_ = _t_profile(x, d, v, delta, sigma, nu, thetas[i], T_IRLS_FINAL)
+        out[k][sl] = _marginals(s, ll)
+    return out, sigma
+
+
+@dataclass(frozen=True)
+class ImageWords:
+    """How the word groups of an image evidence are read: the model's name and settings
+    (``WORD_MODELS``), the evidence's effective resolution and the peak correlation of every
+    group's match by code position."""
+
+    name: str
+    model: dict[str, object] | None
+    effective_dpi: float
+    quality: dict[int, float] | None = None
+
+
+def quality_scales(rows: list[list[tuple[int, int, float, float]]], quality: dict[int, float],
+                   power: float) -> list[np.ndarray] | None:
+    """Relative noise variance of every decoded word group from its match quality: (1 - peak)
+    over the median of the evidence, clipped to QUALITY_CLIP, to the ``power``. ``quality`` maps
+    code positions to peak correlations (groups without one get the median). None when
+    ``power`` is 0 or nothing has a quality."""
+    if power == 0 or not quality:
+        return None
+    bad = {q: 1.0 - min(max(float(v), 0.0), 0.999) for q, v in quality.items() if np.isfinite(v)}
+    if not bad:
+        return None
+    med = float(np.median(list(bad.values())))
+    if med <= 0:
+        return None
+    lo, hi = QUALITY_CLIP
+    return [np.array([min(max(bad.get(u[0], med) / med, lo), hi) ** power for u in r]) for r in rows]
+
+
 def fit_page_field(x: np.ndarray, y: np.ndarray, d: np.ndarray, degree: int = 3,
                    rounds: int = 3, factor: float = 3.0) -> np.ndarray:
     """Values at (x, y) of a polynomial of total ``degree`` in the page coordinates fitted to the
@@ -495,16 +627,30 @@ def _decode_v2(
     sigma_floor_ratio: float,
     degree: int,
     field_degree: int | None,
+    image: ImageWords | None = None,
 ) -> SoftBits:
     """Channel 1 soft bits under geser-v2: word groups jointly per row, rows as in geser-v1.
     Strengths: :func:`joint_strengths` for the word groups, |s| / sigma for the rows (0 for an
-    implausible offset), as under geser-v1."""
+    implausible offset), as under geser-v1. With ``image`` (image evidence) the word-group LLRs
+    come from :func:`robust_word_llrs` under that model; everything else is unchanged."""
     delta = settings.word_pt
     rows, llrs, sigma_w, dropped = _joint_decode(master, plan, disp, delta, sigma_floor_ratio * delta, degree,
                                                  field_degree, FIELD_ROUNDS)
+    word_meta: dict[str, object] = {}
+    sign_llrs = llrs
+    if image is not None and image.model is not None and rows:
+        spec = image.model
+        mark = delta
+        lo_dpi, gain = spec["low_res"]  # type: ignore[misc]
+        if image.effective_dpi < float(lo_dpi):  # the measured mark shrinks at low resolution
+            mark = float(gain) * delta
+        scales = quality_scales(rows, image.quality or {}, float(spec["quality"]))  # type: ignore[arg-type]
+        sign_llrs, scale = robust_word_llrs([(np.array([u[2] for u in r]), np.array([u[3] for u in r])) for r in rows],
+                                            mark, sigma_floor_ratio * delta, float(spec["nu"]), scales)  # type: ignore[arg-type]
+        word_meta = {"word_model": image.name, "word_t_scale_pt": scale, "word_mark_pt": mark}
     pos: list[int] = []
     llr: list[float] = []
-    for units, row_llr in zip(rows, llrs):
+    for units, row_llr in zip(rows, sign_llrs):
         for (q, white, _, _), v in zip(units, row_llr):
             if abs(v) > AMBIGUOUS_LLR:  # patterns told apart only by rounding: unreadable
                 pos.append(q)
@@ -539,7 +685,7 @@ def _decode_v2(
         np.array(pos, dtype=np.int64),
         np.array(llr),
         {"slots_read": len(pos), "slots_total": total, "slots_implausible": implausible, "sigma_pt": sigmas,
-         "fraction_clear": clear, "scheme": SCHEME_V2, "word_slots_read": n_words},
+         "fraction_clear": clear, "scheme": SCHEME_V2, "word_slots_read": n_words, **word_meta},
         strengths,
     )
 
@@ -554,18 +700,32 @@ def decode_displacements(
     joint_degree: int = JOINT_DEGREE,
     field_degree: int | None = FIELD_DEGREE,
     grid: PixelGrid | None = None,
+    quality: dict[GroupKey, float] | None = None,
+    word_model: str | None = None,
 ) -> SoftBits:
     """Soft bits of channel 1 from per-word displacements, under the scheme of ``settings``
     (geser-v1: relative offsets; geser-v2: word groups read jointly per row after the page field
     of ``field_degree`` is subtracted, ``joint_degree`` being the degree of the row nuisance
     projected out).
 
+    On image evidence (``grid`` given) the geser-v2 word groups are read with
+    ``WORD_MODELS[word_model]`` (default ``IMAGE_WORD_MODEL``), using the match quality of every
+    group (``quality``, from :func:`measure_image`) and the effective resolution of ``grid``.
+
     ``grid`` (image evidence only) says where the page lies in the image. When the rows of the
     page sit on the image's pixel grid (a renderer rounded the baselines, see
     :func:`rounded_rows`), the row slots of that page are decoded with the rounding model
     instead of the Gaussian one; everything else is unchanged, and without ``grid`` (a PDF) or
     on a page whose rows are not on the grid the result is exactly that of the Gaussian model."""
-    sb = _decode_gaussian(master, plan, disp, settings, excluded, sigma_floor_ratio, joint_degree, field_degree)
+    image = None
+    if grid is not None:
+        name = IMAGE_WORD_MODEL if word_model is None else word_model
+        by_pos = None
+        if quality:
+            by_pos = {sl.positions[0]: quality[(sl.page, *sl.ref)] for sl in plan.channel(CHANNEL_SHIFT)
+                      if len(sl.ref) == 2 and (sl.page, *sl.ref) in quality}
+        image = ImageWords(name, WORD_MODELS[name], grid.effective_dpi, by_pos)
+    sb = _decode_gaussian(master, plan, disp, settings, excluded, sigma_floor_ratio, joint_degree, field_degree, image)
     return sb if grid is None else _with_rounded_rows(sb, master, plan, disp, settings, excluded, grid)
 
 
@@ -578,10 +738,12 @@ def _decode_gaussian(
     sigma_floor_ratio: float,
     joint_degree: int,
     field_degree: int | None,
+    image: ImageWords | None = None,
 ) -> SoftBits:
     """:func:`decode_displacements` without the rounding model (every row Gaussian)."""
     if settings.scheme == SCHEME_V2:
-        return _decode_v2(master, plan, disp, settings, excluded, sigma_floor_ratio, joint_degree, field_degree)
+        return _decode_v2(master, plan, disp, settings, excluded, sigma_floor_ratio, joint_degree, field_degree,
+                          image)
     pos, vals, kinds = signed_measurements(master, plan, disp, excluded)
     if not pos:
         return SoftBits.empty(CHANNEL_SHIFT, slots_total=len(plan.channel(CHANNEL_SHIFT)))
@@ -1095,6 +1257,7 @@ def measure_image(
     search_px: int = 5,
     pad_px: int = 3,
     min_peak: float = 0.6,
+    quality: dict[GroupKey, float] | None = None,
 ) -> Displacements:
     """Displacement of every shift group on a rectified page image.
 
@@ -1104,6 +1267,8 @@ def measure_image(
     group get the group's displacement (in points). Only the master render inside
     :func:`template_boxes` (same ``pad_px``) is read. On a scanned page the groups come from
     its word boxes (``master.shift_layout``) and the template is the master page image itself.
+    ``quality``, when given, receives the peak correlation of every group measured, by (page,
+    row, group): how well its template matched, which the word model of image evidence reads.
     """
     s = dpi / 72.0
     disp: Displacements = {}
@@ -1111,7 +1276,7 @@ def measure_image(
     tmpl_all = cv2.GaussianBlur(master_render.astype(np.float32), (0, 0), MATCH_BLUR_SIGMA)
     img_all = cv2.GaussianBlur(rectified.astype(np.float32), (0, 0), MATCH_BLUR_SIGMA)
     for row in master.shift_layout.pages[page].rows:
-        for g in row.groups:
+        for gi, g in enumerate(row.groups):
             x0, y0, x1, y1 = g.bbox
             X0, Y0 = int(np.floor(x0 * s)) - pad_px, int(np.floor(y0 * s)) - pad_px
             X1, Y1 = int(np.ceil(x1 * s)) + pad_px, int(np.ceil(y1 * s)) + pad_px
@@ -1129,4 +1294,6 @@ def measure_image(
             dx, dy = found[0] / s, found[1] / s
             for wi in g.word_indices:
                 disp[row.words[wi].id] = (dx, dy)
+            if quality is not None:
+                quality[(page, row.index, gi)] = found[2]
     return disp
