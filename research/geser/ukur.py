@@ -126,10 +126,21 @@ def issue() -> None:
         indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
 
 
+def _kandidat():
+    """research/geser/kandidat.py under its own module name (research/kalibrasi has a kandidat.py too)."""
+    import importlib.util
+
+    if "geser_kandidat" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("geser_kandidat", ROOT / "research" / "geser" / "kandidat.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["geser_kandidat"] = mod
+        spec.loader.exec_module(mod)
+    return sys.modules["geser_kandidat"]
+
+
 def trace_job(job: dict) -> dict:
     """One evidence: traced with the chosen model, then its registration decoded with gauss."""
-    import kandidat
-
+    kandidat = _kandidat()
     row = kal.trace_job(job)
     if row.get("registrasi"):
         ctx, _ = kal.context(job["iss"])

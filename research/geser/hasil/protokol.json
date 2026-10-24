@@ -1,0 +1,220 @@
+{
+  "issuances": {
+    "G1": [
+      "nota_dinas",
+      20,
+      13401,
+      "layar"
+    ],
+    "G2": [
+      "surat_telegram",
+      20,
+      13402,
+      "layar"
+    ],
+    "G3": [
+      "nota_dinas",
+      20,
+      13403,
+      "cetak"
+    ],
+    "G4": [
+      "surat_telegram",
+      20,
+      13404,
+      "cetak"
+    ]
+  },
+  "seeds": {
+    "bukti": 13411,
+    "koalisi": 13412,
+    "serangan": 13413,
+    "induk": 13419
+  },
+  "resolutions": [
+    28,
+    40,
+    56,
+    84,
+    120
+  ],
+  "grid": {
+    "layar": {
+      "pdf": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "layar_copies": [
+        4,
+        15
+      ],
+      "foto_copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "koalisi": {
+        "k": [
+          2,
+          3
+        ],
+        "per_k": 3,
+        "rule": "acak",
+        "media": [
+          [
+            "pdf",
+            null,
+            null
+          ],
+          [
+            "pesan",
+            "mupdf",
+            40
+          ],
+          [
+            "pesan",
+            "mupdf",
+            84
+          ],
+          [
+            "foto",
+            null,
+            null
+          ]
+        ]
+      },
+      "induk": {
+        "reps": 2,
+        "media": [
+          [
+            "pdf",
+            null,
+            null
+          ],
+          [
+            "png",
+            "mupdf",
+            56
+          ],
+          [
+            "pesan",
+            "mupdf",
+            40
+          ],
+          [
+            "pesan",
+            "mupdf",
+            84
+          ],
+          [
+            "layar_sim",
+            null,
+            null
+          ],
+          [
+            "foto",
+            null,
+            null
+          ],
+          [
+            "ponsel",
+            null,
+            null
+          ],
+          [
+            "monitor",
+            null,
+            null
+          ]
+        ]
+      }
+    },
+    "cetak": {
+      "cetak_copies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "pages": [
+        1,
+        2
+      ],
+      "pdf": [
+        1,
+        2,
+        3
+      ],
+      "induk": {
+        "reps": 2,
+        "media": [
+          [
+            "cetak",
+            null,
+            null
+          ]
+        ]
+      }
+    }
+  },
+  "media": [
+    "pdf",
+    "png",
+    "pesan",
+    "kecil",
+    "layar_sim",
+    "foto",
+    "ponsel",
+    "monitor",
+    "cetak"
+  ],
+  "w_edges": [
+    0.0,
+    0.5,
+    0.8,
+    0.9,
+    0.95,
+    0.99,
+    0.999,
+    1.0
+  ],
+  "trace": "pelacakan tercatat ke-1, kebijakan tahap bertahap-v1, jalur produksi, model kata pilihan",
+  "banding": "registrasi yang sama didekode ulang dengan gauss (dekoder sebelum studi ini)",
+  "script_sha256": "c4e0eb0089d8cf9a5d29bb9e227351feae995ed8853bcafff0fa1d986b3ce923"
+}
