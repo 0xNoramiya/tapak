@@ -1,0 +1,2621 @@
+{
+ "split": "uji",
+ "rows": 2535,
+ "traces": 3432,
+ "per_jenis": {
+  "foto": {
+   "n": 208,
+   "sebelum": {
+    "ditemukan": 180,
+    "benar": 150,
+    "kasar": 29,
+    "salah": 1,
+    "disebut": 168,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 183,
+    "benar": 152,
+    "kasar": 30,
+    "salah": 1,
+    "disebut": 171,
+    "tuduhan_salah": 0
+   }
+  },
+  "induk:foto": {
+   "n": 24,
+   "sebelum": {
+    "ditemukan": 21,
+    "benar": 21,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 23,
+    "benar": 23,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "induk:paragraf": {
+   "n": 24,
+   "sebelum": {
+    "ditemukan": 19,
+    "benar": 19,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 24,
+    "benar": 24,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "induk:potong": {
+   "n": 24,
+   "sebelum": {
+    "ditemukan": 21,
+    "benar": 19,
+    "kasar": 2,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 22,
+    "benar": 20,
+    "kasar": 2,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "induk:rendah": {
+   "n": 24,
+   "sebelum": {
+    "ditemukan": 18,
+    "benar": 18,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 24,
+    "benar": 24,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "paragraf": {
+   "n": 240,
+   "sebelum": {
+    "ditemukan": 146,
+    "benar": 142,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 130,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 237,
+    "benar": 231,
+    "kasar": 6,
+    "salah": 0,
+    "disebut": 161,
+    "tuduhan_salah": 0
+   }
+  },
+  "potong": {
+   "n": 1280,
+   "sebelum": {
+    "ditemukan": 919,
+    "benar": 785,
+    "kasar": 133,
+    "salah": 1,
+    "disebut": 914,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 1196,
+    "benar": 985,
+    "kasar": 210,
+    "salah": 1,
+    "disebut": 1191,
+    "tuduhan_salah": 0
+   }
+  },
+  "rendah": {
+   "n": 440,
+   "sebelum": {
+    "ditemukan": 314,
+    "benar": 277,
+    "kasar": 37,
+    "salah": 0,
+    "disebut": 314,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 440,
+    "benar": 403,
+    "kasar": 37,
+    "salah": 0,
+    "disebut": 440,
+    "tuduhan_salah": 0
+   }
+  },
+  "silang:foto": {
+   "n": 26,
+   "sebelum": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "silang:paragraf": {
+   "n": 30,
+   "sebelum": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "silang:potong": {
+   "n": 160,
+   "sebelum": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 9,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 9,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  },
+  "silang:rendah": {
+   "n": 55,
+   "sebelum": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 0,
+    "benar": 0,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 0,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "potong_posisi_tinggi": {
+  "atas 100%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 80,
+    "benar": 78,
+    "kasar": 2,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 78,
+    "kasar": 2,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 25%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 80,
+    "benar": 71,
+    "kasar": 9,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 71,
+    "kasar": 9,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 40%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 80,
+    "benar": 67,
+    "kasar": 13,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 67,
+    "kasar": 13,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 55%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 80,
+    "benar": 62,
+    "kasar": 18,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 62,
+    "kasar": 18,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 70%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 80,
+    "benar": 61,
+    "kasar": 19,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 61,
+    "kasar": 19,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 85%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 80,
+    "benar": 61,
+    "kasar": 19,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 61,
+    "kasar": 19,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 25%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 31,
+    "benar": 23,
+    "kasar": 8,
+    "salah": 0,
+    "disebut": 31,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 49,
+    "kasar": 31,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 40%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 39,
+    "benar": 29,
+    "kasar": 10,
+    "salah": 0,
+    "disebut": 39,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 59,
+    "kasar": 21,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 55%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 47,
+    "benar": 37,
+    "kasar": 10,
+    "salah": 0,
+    "disebut": 43,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 58,
+    "kasar": 22,
+    "salah": 0,
+    "disebut": 76,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 70%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 48,
+    "benar": 41,
+    "kasar": 7,
+    "salah": 0,
+    "disebut": 48,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 80,
+    "benar": 62,
+    "kasar": 18,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 85%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 47,
+    "benar": 42,
+    "kasar": 4,
+    "salah": 1,
+    "disebut": 46,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 79,
+    "benar": 60,
+    "kasar": 18,
+    "salah": 1,
+    "disebut": 78,
+    "tuduhan_salah": 0
+   }
+  },
+  "paragraf paragraf": {
+   "n": 240,
+   "sebelum": {
+    "ditemukan": 146,
+    "benar": 142,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 130,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 237,
+    "benar": 231,
+    "kasar": 6,
+    "salah": 0,
+    "disebut": 161,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 25%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 39,
+    "benar": 38,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 39,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 60,
+    "benar": 59,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 60,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 40%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 39,
+    "benar": 39,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 39,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 60,
+    "benar": 60,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 60,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 55%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 47,
+    "benar": 47,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 47,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 60,
+    "benar": 60,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 60,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 70%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 46,
+    "benar": 45,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 46,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 60,
+    "benar": 59,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 60,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 85%": {
+   "n": 80,
+   "sebelum": {
+    "ditemukan": 56,
+    "benar": 44,
+    "kasar": 12,
+    "salah": 0,
+    "disebut": 56,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 77,
+    "benar": 59,
+    "kasar": 18,
+    "salah": 0,
+    "disebut": 77,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "potong_bingkai": {
+  "polos": {
+   "n": 881,
+   "sebelum": {
+    "ditemukan": 705,
+    "benar": 623,
+    "kasar": 82,
+    "salah": 0,
+    "disebut": 687,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 837,
+    "benar": 723,
+    "kasar": 114,
+    "salah": 0,
+    "disebut": 759,
+    "tuduhan_salah": 0
+   }
+  },
+  "bingkai": {
+   "n": 639,
+   "sebelum": {
+    "ditemukan": 360,
+    "benar": 304,
+    "kasar": 55,
+    "salah": 1,
+    "disebut": 357,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 596,
+    "benar": 493,
+    "kasar": 102,
+    "salah": 1,
+    "disebut": 593,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "potong_dpi": {
+  "48": {
+   "n": 304,
+   "sebelum": {
+    "ditemukan": 175,
+    "benar": 149,
+    "kasar": 26,
+    "salah": 0,
+    "disebut": 171,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 282,
+    "benar": 236,
+    "kasar": 46,
+    "salah": 0,
+    "disebut": 259,
+    "tuduhan_salah": 0
+   }
+  },
+  "64": {
+   "n": 304,
+   "sebelum": {
+    "ditemukan": 189,
+    "benar": 168,
+    "kasar": 21,
+    "salah": 0,
+    "disebut": 189,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 287,
+    "benar": 244,
+    "kasar": 43,
+    "salah": 0,
+    "disebut": 263,
+    "tuduhan_salah": 0
+   }
+  },
+  "84": {
+   "n": 304,
+   "sebelum": {
+    "ditemukan": 230,
+    "benar": 202,
+    "kasar": 28,
+    "salah": 0,
+    "disebut": 218,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 288,
+    "benar": 243,
+    "kasar": 45,
+    "salah": 0,
+    "disebut": 269,
+    "tuduhan_salah": 0
+   }
+  },
+  "120": {
+   "n": 304,
+   "sebelum": {
+    "ditemukan": 237,
+    "benar": 210,
+    "kasar": 26,
+    "salah": 1,
+    "disebut": 234,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 288,
+    "benar": 250,
+    "kasar": 37,
+    "salah": 1,
+    "disebut": 281,
+    "tuduhan_salah": 0
+   }
+  },
+  "150": {
+   "n": 304,
+   "sebelum": {
+    "ditemukan": 234,
+    "benar": 198,
+    "kasar": 36,
+    "salah": 0,
+    "disebut": 232,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 288,
+    "benar": 243,
+    "kasar": 45,
+    "salah": 0,
+    "disebut": 280,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "potong_format": {
+  "png": {
+   "n": 760,
+   "sebelum": {
+    "ditemukan": 535,
+    "benar": 468,
+    "kasar": 67,
+    "salah": 0,
+    "disebut": 533,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 717,
+    "benar": 612,
+    "kasar": 105,
+    "salah": 0,
+    "disebut": 702,
+    "tuduhan_salah": 0
+   }
+  },
+  "pesan": {
+   "n": 760,
+   "sebelum": {
+    "ditemukan": 530,
+    "benar": 459,
+    "kasar": 70,
+    "salah": 1,
+    "disebut": 511,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 716,
+    "benar": 604,
+    "kasar": 111,
+    "salah": 1,
+    "disebut": 650,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "potong_halaman": {
+  "nota_dinas hal 1": {
+   "n": 380,
+   "sebelum": {
+    "ditemukan": 295,
+    "benar": 294,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 294,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 379,
+    "benar": 377,
+    "kasar": 2,
+    "salah": 0,
+    "disebut": 361,
+    "tuduhan_salah": 0
+   }
+  },
+  "nota_dinas hal 2": {
+   "n": 380,
+   "sebelum": {
+    "ditemukan": 270,
+    "benar": 263,
+    "kasar": 7,
+    "salah": 0,
+    "disebut": 266,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 380,
+    "benar": 358,
+    "kasar": 22,
+    "salah": 0,
+    "disebut": 361,
+    "tuduhan_salah": 0
+   }
+  },
+  "surat_telegram hal 1": {
+   "n": 380,
+   "sebelum": {
+    "ditemukan": 286,
+    "benar": 283,
+    "kasar": 3,
+    "salah": 0,
+    "disebut": 284,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 378,
+    "benar": 374,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 357,
+    "tuduhan_salah": 0
+   }
+  },
+  "surat_telegram hal 2": {
+   "n": 380,
+   "sebelum": {
+    "ditemukan": 214,
+    "benar": 87,
+    "kasar": 126,
+    "salah": 1,
+    "disebut": 200,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 296,
+    "benar": 107,
+    "kasar": 188,
+    "salah": 1,
+    "disebut": 273,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "rendah": {
+  "mupdf png": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 6,
+     "benar": 6,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 6,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "mupdf pesan": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 6,
+     "benar": 6,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 6,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "mupdf kecil": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "poppler png": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 4,
+     "benar": 4,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 4,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "poppler pesan": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 4,
+     "benar": 3,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 4,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 7,
+     "benar": 6,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 7,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "poppler kecil": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "cairo png": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 6,
+     "benar": 6,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 6,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "cairo pesan": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 6,
+     "benar": 6,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 6,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 7,
+     "benar": 7,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 7,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "cairo kecil": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "poppler_tanpa_aa png": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 0,
+     "benar": 0,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 0,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 5,
+     "benar": 3,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 5,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 6,
+     "benar": 5,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 6,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 4,
+     "benar": 4,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 4,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  },
+  "poppler_tanpa_aa pesan": {
+   "24": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 1,
+     "benar": 0,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 1,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "28": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 4,
+     "benar": 4,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 4,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "32": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 5,
+     "benar": 3,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 5,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 6,
+     "kasar": 2,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "40": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 5,
+     "benar": 4,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 5,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 7,
+     "kasar": 1,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   },
+   "48": {
+    "n": 8,
+    "sebelum": {
+     "ditemukan": 6,
+     "benar": 6,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 6,
+     "tuduhan_salah": 0
+    },
+    "sesudah": {
+     "ditemukan": 8,
+     "benar": 8,
+     "kasar": 0,
+     "salah": 0,
+     "disebut": 8,
+     "tuduhan_salah": 0
+    }
+   }
+  }
+ },
+ "rendah_dpi": {
+  "24": {
+   "n": 88,
+   "sebelum": {
+    "ditemukan": 1,
+    "benar": 0,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 1,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 88,
+    "benar": 87,
+    "kasar": 1,
+    "salah": 0,
+    "disebut": 88,
+    "tuduhan_salah": 0
+   }
+  },
+  "28": {
+   "n": 88,
+   "sebelum": {
+    "ditemukan": 65,
+    "benar": 56,
+    "kasar": 9,
+    "salah": 0,
+    "disebut": 65,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 88,
+    "benar": 79,
+    "kasar": 9,
+    "salah": 0,
+    "disebut": 88,
+    "tuduhan_salah": 0
+   }
+  },
+  "32": {
+   "n": 88,
+   "sebelum": {
+    "ditemukan": 81,
+    "benar": 70,
+    "kasar": 11,
+    "salah": 0,
+    "disebut": 81,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 88,
+    "benar": 77,
+    "kasar": 11,
+    "salah": 0,
+    "disebut": 88,
+    "tuduhan_salah": 0
+   }
+  },
+  "40": {
+   "n": 88,
+   "sebelum": {
+    "ditemukan": 81,
+    "benar": 72,
+    "kasar": 9,
+    "salah": 0,
+    "disebut": 81,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 88,
+    "benar": 79,
+    "kasar": 9,
+    "salah": 0,
+    "disebut": 88,
+    "tuduhan_salah": 0
+   }
+  },
+  "48": {
+   "n": 88,
+   "sebelum": {
+    "ditemukan": 86,
+    "benar": 79,
+    "kasar": 7,
+    "salah": 0,
+    "disebut": 86,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 88,
+    "benar": 81,
+    "kasar": 7,
+    "salah": 0,
+    "disebut": 88,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "rendah_batas": {
+  "mupdf png": {
+   "sebelum": 32,
+   "sesudah": 24
+  },
+  "mupdf pesan": {
+   "sebelum": 32,
+   "sesudah": 24
+  },
+  "mupdf kecil": {
+   "sebelum": 28,
+   "sesudah": 24
+  },
+  "poppler png": {
+   "sebelum": 32,
+   "sesudah": 24
+  },
+  "poppler pesan": {
+   "sebelum": 40,
+   "sesudah": 24
+  },
+  "poppler kecil": {
+   "sebelum": 28,
+   "sesudah": 24
+  },
+  "cairo png": {
+   "sebelum": 32,
+   "sesudah": 24
+  },
+  "cairo pesan": {
+   "sebelum": 40,
+   "sesudah": 24
+  },
+  "cairo kecil": {
+   "sebelum": 28,
+   "sesudah": 24
+  },
+  "poppler_tanpa_aa png": {
+   "sebelum": 48,
+   "sesudah": 24
+  },
+  "poppler_tanpa_aa pesan": {
+   "sebelum": null,
+   "sesudah": 24
+  }
+ },
+ "foto_posisi": {
+  "atas 25%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 14,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 14,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 40%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 15,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 15,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 55%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 16,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 16,
+    "tuduhan_salah": 0
+   }
+  },
+  "atas 70%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 16,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 16,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 25%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 12,
+    "benar": 8,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 11,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 12,
+    "benar": 8,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 11,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 40%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 15,
+    "benar": 9,
+    "kasar": 6,
+    "salah": 0,
+    "disebut": 15,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 15,
+    "benar": 9,
+    "kasar": 6,
+    "salah": 0,
+    "disebut": 15,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 55%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 15,
+    "benar": 12,
+    "kasar": 3,
+    "salah": 0,
+    "disebut": 13,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 16,
+    "benar": 12,
+    "kasar": 4,
+    "salah": 0,
+    "disebut": 14,
+    "tuduhan_salah": 0
+   }
+  },
+  "bawah 70%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 12,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 12,
+    "tuduhan_salah": 0
+   }
+  },
+  "paragraf paragraf": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 13,
+    "benar": 13,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 11,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 15,
+    "benar": 15,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 13,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 25%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 10,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 10,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 40%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 12,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 12,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 55%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 10,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 12,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 0,
+    "disebut": 10,
+    "tuduhan_salah": 0
+   }
+  },
+  "tengah 70%": {
+   "n": 16,
+   "sebelum": {
+    "ditemukan": 13,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 1,
+    "disebut": 13,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 13,
+    "benar": 12,
+    "kasar": 0,
+    "salah": 1,
+    "disebut": 13,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "foto_isp": {
+  "tanpa_isp": {
+   "n": 104,
+   "sebelum": {
+    "ditemukan": 90,
+    "benar": 75,
+    "kasar": 15,
+    "salah": 0,
+    "disebut": 80,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 92,
+    "benar": 76,
+    "kasar": 16,
+    "salah": 0,
+    "disebut": 82,
+    "tuduhan_salah": 0
+   }
+  },
+  "isp": {
+   "n": 104,
+   "sebelum": {
+    "ditemukan": 90,
+    "benar": 75,
+    "kasar": 14,
+    "salah": 1,
+    "disebut": 88,
+    "tuduhan_salah": 0
+   },
+   "sesudah": {
+    "ditemukan": 91,
+    "benar": 76,
+    "kasar": 14,
+    "salah": 1,
+    "disebut": 89,
+    "tuduhan_salah": 0
+   }
+  }
+ },
+ "tahap_gagal": {
+  "potong": {
+   "tanpa_teks": {
+    "n": 80,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "tanpa_kandidat": {
+    "n": 12,
+    "sesudah_benar": 2,
+    "sesudah_kasar": 10,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 12
+   },
+   "awal_salah": {
+    "n": 97,
+    "sesudah_benar": 26,
+    "sesudah_kasar": 67,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 93
+   },
+   "ecc_menyimpang": {
+    "n": 104,
+    "sesudah_benar": 104,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 104
+   },
+   "ecc_di_bawah_ambang": {
+    "n": 68,
+    "sesudah_benar": 68,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 68
+   },
+   "halaman_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "pose_salah": {
+    "n": 1,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 1,
+    "sesudah_disebut": 0
+   }
+  },
+  "paragraf": {
+   "tanpa_teks": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "tanpa_kandidat": {
+    "n": 2,
+    "sesudah_benar": 2,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 2
+   },
+   "awal_salah": {
+    "n": 58,
+    "sesudah_benar": 56,
+    "sesudah_kasar": 2,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 18
+   },
+   "ecc_menyimpang": {
+    "n": 18,
+    "sesudah_benar": 16,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 5
+   },
+   "ecc_di_bawah_ambang": {
+    "n": 16,
+    "sesudah_benar": 15,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 6
+   },
+   "halaman_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "pose_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   }
+  },
+  "rendah": {
+   "tanpa_teks": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "tanpa_kandidat": {
+    "n": 9,
+    "sesudah_benar": 9,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 9
+   },
+   "awal_salah": {
+    "n": 52,
+    "sesudah_benar": 52,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 52
+   },
+   "ecc_menyimpang": {
+    "n": 1,
+    "sesudah_benar": 1,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 1
+   },
+   "ecc_di_bawah_ambang": {
+    "n": 64,
+    "sesudah_benar": 64,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 64
+   },
+   "halaman_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "pose_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   }
+  },
+  "foto": {
+   "tanpa_teks": {
+    "n": 16,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 1,
+    "sesudah_disebut": 1
+   },
+   "tanpa_kandidat": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "awal_salah": {
+    "n": 13,
+    "sesudah_benar": 2,
+    "sesudah_kasar": 1,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 3
+   },
+   "ecc_menyimpang": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "ecc_di_bawah_ambang": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "halaman_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   },
+   "pose_salah": {
+    "n": 0,
+    "sesudah_benar": 0,
+    "sesudah_kasar": 0,
+    "sesudah_salah": 0,
+    "sesudah_disebut": 0
+   }
+  }
+ },
+ "orakel": {},
+ "skor": {
+  "sebelum": {
+   "disebut": 1526,
+   "skor_min": 1.002,
+   "skor_median": 4.27,
+   "tak_bersalah_maks": 0.612,
+   "log10_fa_maks": -6.04
+  },
+  "sesudah": {
+   "disebut": 1963,
+   "skor_min": 1.002,
+   "skor_median": 4.254,
+   "tak_bersalah_maks": 0.612,
+   "log10_fa_maks": -6.04
+  },
+  "baru_disebut": {
+   "n": 437,
+   "skor_min": 1.008,
+   "skor_median": 4.173
+  },
+  "hilang": 0
+ },
+ "peringatan": {
+  "sebelum": {
+   "jejak": 2264,
+   "penghapusan": 0,
+   "bacaan_jelas_tanpa_nama": 0,
+   "terdaftar": 1638,
+   "pose_salah": 2,
+   "penghapusan_pose_salah": 0,
+   "bacaan_jelas_pose_salah": 0
+  },
+  "sesudah": {
+   "jejak": 2264,
+   "penghapusan": 0,
+   "bacaan_jelas_tanpa_nama": 0,
+   "terdaftar": 2149,
+   "pose_salah": 2,
+   "penghapusan_pose_salah": 0,
+   "bacaan_jelas_pose_salah": 0
+  }
+ },
+ "silang": {
+  "sebelum": {
+   "n": 271,
+   "terdaftar": 0,
+   "penghapusan": 0,
+   "bacaan_jelas_tanpa_nama": 0,
+   "tuduhan_salah": 0
+  },
+  "sesudah": {
+   "n": 271,
+   "terdaftar": 9,
+   "penghapusan": 0,
+   "bacaan_jelas_tanpa_nama": 0,
+   "tuduhan_salah": 0
+  }
+ },
+ "tuduhan_salah": {
+  "sebelum": 0,
+  "sesudah": 0
+ },
+ "penyelamat": {
+  "berjalan": 897,
+  "hasil": {
+   "terdaftar": 520,
+   "tidak_terverifikasi": 345,
+   "tanpa_pose": 28,
+   "ambigu": 4
+  },
+  "terdaftar_menurut_kelas": {
+   "benar": 431,
+   "kasar": 80,
+   "salah": 9
+  },
+  "asal_pose": {
+   "penyelamat:fitur": 189,
+   "penyelamat:tesseract": 25,
+   "penyelamat:templat": 271,
+   "penyelamat:kontur": 35
+  }
+ },
+ "detik": {
+  "sebelum": {
+   "median": 6.6,
+   "p95": 22.9,
+   "maks": 56.5
+  },
+  "sesudah": {
+   "median": 9.0,
+   "p95": 57.3,
+   "maks": 172.0
+  },
+  "sesudah_bila_penyelamat_berjalan": {
+   "median": 14.0,
+   "p95": 79.6
+  }
+ }
+}

@@ -1,0 +1,25 @@
+{
+  "git_head": "51bd1582d50976c2ca41fb5db6555701a8e46430",
+  "decoder_sha256": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "accuse.py": "b606c02030e2279ccd205f071c4b9b83a6d02d89bdc2c511a91010b524748dcf",
+    "ch_background.py": "c59cb7d48b661f93cb3a861d9067a20460699cf1d6d0d3f53809127d7c8d7a48",
+    "ch_docx.py": "ef13c7fc4b9279e6ecbfd31b2da82bba4f0200b8ecc9945bd36dff0dc9b242e8",
+    "ch_lexical.py": "938d68eda6c0adef84ef32948757ebf88c69c7c98458f73e59f040be92899b13",
+    "ch_semantic.py": "111cca76e56342845c748698dc95c7f44cc9b950ef5ca00d552f3e93a7f95e30",
+    "ch_shift.py": "6c1dc1464e081bf24c64ab78e6d50823611850fd1640df4885e755132f80c276",
+    "ch_zerowidth.py": "29a47b2f5ba9921030d29611bbe9dfa0f3e9f87e6703f17e0ce39b3c384deaf6",
+    "contradiction.py": "8d86cdf0b0dad7539fa8798c2f16dc9ff2e4edb7b0d8b73a69ef175927abe566",
+    "erasure.py": "a1aef54436c0c2dc3222a0b92be752b5f53a96ff595079578dbece10e2a8efa8",
+    "fuse.py": "3b70980724ec5297ff2fd85cb54f6fcb2f8acb8d364430eac52655df31d04c11",
+    "image.py": "727bb9731f67f3cbd35f250bd746d96d530d3ca51bf19608dc066bdd8635a482",
+    "lines.py": "111885d2fdf250557c7b26a0118286c22cd58447041849478228960ec39e7b8e",
+    "ocr.py": "b0409af839e6e3975a146bfc853a1d8d4e33d3454e67fb09607db2221434efa5",
+    "rectify.py": "0c33d25fb586358fc7b364b128b9ff9fc666321871753d70feb5bcc5b6142dac",
+    "report.py": "0588aaa74da3b9ab2c9d014d1a3fea68eaa41752393f8aa4f8c5ed2c634e6113",
+    "softbits.py": "a7526461500b7e1f2b802b67bcc290090942c2c929e20ef0d86eb90498b81cbb",
+    "trace.py": "f2180727e06be47c5603cbffdf97c9d30f7e1cb450fa0d8c15ee14e544ec4ad9"
+  },
+  "resumed_after_rows": 1552,
+  "reason": "LinAlgError pada pose awal singular; dilanjutkan setelah perbaikan"
+}

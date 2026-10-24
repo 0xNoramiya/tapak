@@ -707,7 +707,18 @@ Registrasi (`tapak/decoder/rectify.py`) menemukan halaman induk pada foto atau t
 
    Kedua ambang verifikasi dipilih pada set pengembangan dengan aturan yang ditetapkan lebih dulu: di antara pasangan ambang yang tidak menerima satu pun pose salah (termasuk induk tanpa tanda dan bukti dokumen lain), pasangan yang menerima pose benar paling banyak, lalu dinaikkan satu langkah. Piksel jendela penampil tidak ikut didekode. Registrasi lewat tahap ini bermetode `penyelamat:<asal pose awal>` di catatan hasil. Bukti yang ditemukan langkah 1 dan 2 didekode persis seperti sebelumnya, jadi benchmark README tidak berubah.
 
-(Hasil set uji diisi.)
+**Hasil** (`research/registrasi/`, [README studi](../research/registrasi/README.md); set uji 2.535 gambar baru, kedua dokumen contoh, halaman 1 dan 2, skema v2, dijalankan sekali; sebelum dan sesudah pada gambar yang sama):
+
+| Bukti | Disebut, sebelum -> sesudah |
+|---|---|
+| Halaman utuh 24 sampai 48 dpi, keempat penggambar, PNG, pesan, dan diperkecil | 314 -> 440 dari 440 (setiap sel mulai 24 dpi) |
+| Potongan layar dari tengah halaman, 25 sampai 85 % tingginya | 227 -> 317 dari 400 |
+| Potongan layar dari bawah halaman | 207 -> 394 dari 400 |
+| Potongan layar dari atas halaman | 480 dari 480, tidak berubah |
+| Satu paragraf | 130 -> 161 dari 240 (ditemukan 146 -> 237) |
+| Foto ponsel sebagian halaman | 168 -> 171 dari 208 |
+
+437 salinan baru disebut dan tidak ada yang hilang. Tidak ada tuduhan salah dalam 3.432 pelacakan, termasuk induk tanpa tanda dan 271 pelacakan terhadap dokumen yang lain, dan tidak ada peringatan baru pada bukti jujur. Dari 520 registrasi tahap penyelamat, 9 salah dokumen: potongan yang hanya memuat kaki halaman, yang sama persis di kedua dokumen contoh, diregistrasi pada dokumen yang lain; tidak ada bit pola latar yang terbaca dan jawabannya "tidak cukup bukti". Waktu per pelacakan naik dari median 6,6 menjadi 9,0 detik (bila tahap penyelamat berjalan median 14 detik, persentil ke-95 80 detik, di mesin yang dipakai bersama). Yang tetap tidak ditemukan: bagian halaman tanpa teks induk, dan sebagian besar foto ponsel sebagian halaman yang gagal (pencocokan templat tidak mencari perspektif).
 
 ## Keputusan desain yang menyimpang dari spesifikasi awal
 

@@ -4,7 +4,7 @@ Studi tangkapan layar ([`research/layar`](../layar/README.md)) menemukan bahwa r
 
 ## Protokol
 
-Protokol, benih, dan aturan pemilihan ditetapkan di `ukur.py` (`PROTOCOL`) dan `pilih.py` (`ATURAN`) dan masuk riwayat repositori sebelum set uji dibuat.
+Protokol, benih, dan aturan pemilihan ditetapkan di `ukur.py` (`PROTOCOL`) dan `pilih.py` (`ATURAN`) dan masuk riwayat repositori sebelum set uji dibuat. Berkas `pilih.py` dengan aturan itu ditulis sebelum pengumpulan pertama pada set pengembangan dan tidak diubah sesudahnya, tetapi baru masuk riwayat git bersama protokol, tepat sebelum set uji; urutan itu tercatat di log kerja, bukan di git.
 
 * **Penerbitan.** Nota dinas dan surat telegram contoh (fiktif) lewat `tapak issue --benih-riset BENIH --no-registry` untuk N = 20 penerima (c = 3, eps = 10^-6, skema geser v2, profil latar bawaan). Benih baru yang belum dipakai studi lain: set `dev` 9601 dan 9602 (benih bukti 9611, induk tanpa tanda 9699), set `uji` 9701 dan 9702 (9711, 9799). Bukti diambil dari halaman 1 dan halaman 2.
 * **Jenis bukti** (`PROTOCOL["grids"]`):
@@ -50,7 +50,34 @@ Tahap ini hanya berjalan bila tahap sebelumnya tidak menemukan halaman (tidak ad
 
 ## Hasil (set uji)
 
-(diisi)
+Dijalankan sekali dengan kode komit protokol (`7cc56a5`, hash sumber dekoder di `hasil/uji_dekoder.json`). Jalannya berhenti dua kali. Pada gambar 1.553 dari 2.535, SIFT memberi pose awal yang singular dan tahap penyelamat gagal membaliknya (`LinAlgError`; pelacakan produksi gambar itu akan gagal dengan cara yang sama). Perbaikannya (`51bd158`) hanya melewati pose awal yang tidak dapat dibalik, jadi 1.552 baris yang sudah tercatat adalah hasil kode itu juga; jalannya dilanjutkan (`hasil/uji_dekoder_lanjut.json`). Pada gambar 1.589 sesi mesin uji berhenti, dan jalannya dilanjutkan lagi dengan kode yang sama setelah hash sumber dekoder diperiksa. Gambar yang sudah dilacak dilewati, dan setiap gambar memakai benihnya sendiri. Sebelum dan sesudah berpasangan pada gambar yang sama: 2.535 gambar, 3.432 pelacakan.
+
+**Salinan bertanda, sebelum -> sesudah** (ditemukan / pose benar / disebut):
+
+| Bukti | Gambar | Ditemukan | Pose benar | Disebut |
+|---|---|---|---|---|
+| Potongan layar dari atas halaman (25 sampai 100 %) | 480 | 480 -> 480 | 400 -> 400 | 480 -> 480 |
+| Potongan dari tengah halaman (25 sampai 85 %) | 400 | 227 -> 317 | 213 -> 297 | 227 -> 317 |
+| Potongan dari bawah halaman (25 sampai 85 %) | 400 | 212 -> 399 | 172 -> 288 | 207 -> 394 |
+| Satu paragraf | 240 | 146 -> 237 | 142 -> 231 | 130 -> 161 |
+| Halaman utuh 24 sampai 48 dpi | 440 | 314 -> 440 | 277 -> 403 | 314 -> 440 |
+| Foto ponsel sebagian halaman | 208 | 180 -> 183 | 150 -> 152 | 168 -> 171 |
+
+* **Jendela penampil.** Potongan berjendela (termasuk dari atas halaman): ditemukan 360 -> 596 dari 639, disebut 357 -> 593. Tanpa jendela 705 -> 837 dari 881.
+* **Halaman utuh beresolusi rendah.** Setiap halaman pada 24 sampai 48 dpi ditemukan dan disebut, untuk keempat penggambar dan setiap format (8 dari 8 per sel). Sebelumnya batasnya 28 dpi untuk tangkapan yang diperkecil, 32 dpi untuk PNG dan pesan MuPDF serta PNG Splash dan Cairo, 40 dpi untuk pesan Splash dan Cairo, dan 48 dpi untuk PNG Splash tanpa anti-aliasing; pesan Splash tanpa anti-aliasing tidak pernah 8 dari 8 sampai 48 dpi.
+* **Putusan.** 437 salinan baru disebut (skor paling kecil 1,008 kali ambang, median 4,2), tidak ada yang hilang; seluruhnya 1.526 -> 1.963.
+* **Tuduhan salah:** 0 dari 3.432 pelacakan, termasuk 96 pelacakan induk tanpa tanda (ditemukan 79 -> 93) dan 271 pelacakan terhadap dokumen yang lain; skor tak bersalah tertinggi 0,61 kali ambang, sebelum dan sesudah.
+* **Peringatan pada bukti jujur:** tidak ada peringatan pola penghapusan atau bacaan jelas tanpa nama pada 2.264 pelacakan, sebelum maupun sesudah, juga pada registrasi yang salah.
+* **Pose salah.** Tahap penyelamat berjalan pada 897 pelacakan: 520 terdaftar (431 tepat, 80 kasar, 9 salah), 345 ditolak verifikasi, 28 tanpa pose, 4 ambigu. Kesembilan pose salah adalah dokumen yang salah: bagian bawah 40 % halaman 2 surat telegram, yang hanya memuat kaki halaman ("RAHASIA" dan tanda contoh sintetis), dilacak terhadap nota dinas, yang kaki halamannya sama persis. Pose itu pas dengan tinta yang terlihat; tidak ada bit pola latar yang terbaca dan jawabannya "tidak cukup bukti". Pada set pengembangan tidak ada bukti dokumen lain yang diterima. Pada dokumen yang benar, tahap penyelamat tidak memberi satu pun pose salah (yang tersisa 1, dari jalur lama).
+* **Waktu per pelacakan** (3 proses di mesin yang dipakai bersama, beban sekitar 8 sampai 12 pada 8 CPU): median 6,6 -> 9,0 detik, persentil ke-95 23 -> 57 detik, paling lama 57 -> 172 detik. Bila tahap penyelamat berjalan: median 14 detik, persentil ke-95 80 detik. Bukti yang ditemukan jalur lama tidak berubah waktunya.
+
+## Yang tersisa
+
+* **Bagian halaman tanpa teks induk** tidak dapat diregistrasi: 80 potongan dari bagian kosong halaman 2 surat telegram (juga foto: 16).
+* **Paragraf pendek** kini hampir selalu ditemukan (237 dari 240), tetapi hanya 161 yang disebut: dua sampai empat baris membawa terlalu sedikit sel pola latar.
+* **Foto ponsel sebagian halaman** hampir tidak terbantu (3 bertambah): pencocokan templat hanya mencari skala dan geseran, sedangkan foto berperspektif, dan masker kertas hanya untuk tangkapan layar.
+* **Kaki halaman yang sama di dokumen lain.** Potongan yang hanya memuat kaki halaman dapat diregistrasi pada dokumen lain dengan kaki halaman yang sama (9 dari 271 pelacakan dokumen lain). Tidak ada yang disebut, karena pola latar berkunci per dokumen, tetapi jawabannya "tidak cukup bukti", bukan "halaman tidak ditemukan". Uji dokumen lain hanya memakai dua dokumen contoh dengan templat yang sama; formulir dengan banyak halaman berpola sama belum diuji.
+* **Waktu.** Bukti yang tetap tidak ditemukan kini memerlukan lebih lama (sampai sekitar 3 menit di mesin yang sibuk), karena tahap penyelamat mencoba setiap halaman.
 
 ## Menjalankan
 
