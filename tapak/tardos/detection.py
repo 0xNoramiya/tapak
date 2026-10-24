@@ -203,15 +203,21 @@ Where the conditions fail.
     at most k flips anywhere follows, not implemented).
 (d) Rates that are too optimistic: if the decoder's LLRs are overconfident, the true flip
     rate is above (1 - w)/2 and a bound with calibrated rates is not valid. On the synthetic
-    photo set the weights above 0.95 (mean 0.998) err 0.33 % of the time against 0.12 %
-    calibrated (``research/deteksi/llr_foto.py``), so ``kanal.py`` also uses measured rates.
+    photo set the weights above 0.95 (mean 0.998) erred 0.33 % of the time against 0.12 %
+    calibrated (``research/deteksi/llr_foto.py``, decoder before ``research/kalibrasi``), so
+    ``kanal.py`` also uses measured rates. On JPEG screenshots the background weights above 0.95
+    erred up to several times their calibrated rate; ``research/kalibrasi`` changed the
+    background noise model (``decoder/ch_background.py``, step 6) and measures the calibration of
+    the background, shift and fused weights per medium on held-out seeds. Calibration is a
+    measurement on simulated media, never a proof.
 (e) Bias-dependent placement: the lexical and semantic channels take their positions from the
     bias band 0.3 to 0.7, so their weights depend on p (a few dozen positions). Not modelled.
 (f) TAPAK's image decoder: on photos the background channel uses the bias vector as a pilot
     to estimate its gain per saturation stratum and to decide whether the pattern is present
     (``decoder/ch_background.py``), so its weights depend on p and on the leaked bits through
     a few page-wide numbers. Each is a regression over thousands of cells, so the effect per
-    position is small, but (C1) does not hold exactly. Not modelled.
+    position is small, but (C1) does not hold exactly. Not modelled. Its noise variances come
+    from differences of cells of one bit, in which the bit cancels, and from those gains.
 
 Scope. The bounds hold for every strategy obeying the marking assumption, for the threshold
 TAPAK computes for the read, under (C1) and (C2). Erasures aimed at positions where the

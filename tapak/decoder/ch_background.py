@@ -42,14 +42,29 @@ Steps:
    v_j / n_c with n_c its valid-pixel fraction. Per stratum j the gain is the weighted
    regression of u_c on the pilot, g_j = sum n_c e_b u_c / sum n_c e_b^2, and
    v_j = E[n_c u_c^2] - g_j^2 E[n_c]; the LLR of bit b is the matched filter
-   sum_c 2 g_j n_c u_c / v_j over its cells. Clipped cells get a weight near 0, so they
-   neither dilute nor bias the statistic, and partly clipped cells count as much as their
-   signal deserves. Without the bias vector (a page rendered from a PDF, which never clips),
-   mu is fitted on t with sigma held at the decoy value and LLR = 2 mu t / sigma^2.
+   sum_c 2 g_j n_c u_c / v_c over its cells, with the noise variance v_c of step 6. Clipped
+   cells get a weight near 0, so they neither dilute nor bias the statistic, and partly clipped
+   cells count as much as their signal deserves. Without the bias vector (a page rendered from
+   a PDF, which never clips), mu is fitted on t with sigma held at the decoy value and
+   LLR = 2 mu t / sigma^2;
+6. noise per cell (images; ``NOISE_MODEL``, chosen in ``research/kalibrasi``). The noise is not
+   the same everywhere on a page: within one cell of the master's ink a JPEG screenshot carried
+   four to eight times the noise variance of cells two cells away, and a pattern attenuated to a
+   quarter or half at 40 to 56 dpi (development screenshots), and one variance
+   per stratum made those cells (and the cells of thin strata, whose variance estimate is
+   noisy) far too confident, so bits weighted above 0.95 were wrong several times as often as
+   their weights promised. Each cell now belongs to an ink-distance class (``INK_CLASS_EDGES``,
+   from ``ink_distance_cells``: the master alone) and its variance is A_j B_k for its saturation
+   stratum j and class k, fitted to the pairs of cells of one bit (``pair_noise_variance``: the
+   bit's sign cancels in their difference, so no codeword or bias vector is needed), and no cell
+   adds more than CELL_LLR_CAP = ln 99 to its bit's LLR. The previous model stays available as
+   ``"kejenuhan"`` (``saturation_noise``).
 
 The tests are a detection aid only. The false-accusation bound never depends on them: the
 weights use no codeword (only the evidence, the master, the keyed cell layout and the bias
 vector, which is the same for every copy), so the bound holds for any input, noise included.
+The noise model of step 6 changes only the weights; the presence decision, the pilot sum and
+the strengths below are computed as before.
 The periodic filter and the outlier mask look at the evidence alone, before any keyed sign
 is applied, so they leave the decoy and pilot tests exactly as calibrated.
 
@@ -64,6 +79,10 @@ No codeword is consulted at any step.
 """
 
 from __future__ import annotations
+
+import math
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -327,6 +346,134 @@ def _clip_by_stratum(u: np.ndarray, stratum: np.ndarray, n_strata: int) -> np.nd
     return out
 
 
+CellNoiseModel = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray],
+                          tuple[np.ndarray, ...]]
+"""(u, e, stratum, weight, ink distance, bits) -> (gain, noise variance[, cap]) per used cell of an
+image page.
+
+u: despread cell values (clipped per saturation stratum); e: the pilot of each cell's bit;
+stratum: saturation stratum; weight: valid-pixel fraction n_c; ink distance: cells to the
+master's ink (None when not measured); bits: the bit index of each cell. The noise of cell c is
+taken to have variance v_c / n_c and the LLR of bit b is the sum over its cells of
+2 g_c n_c u_c / v_c, each term clipped to +/- cap when the model returns one. A model may use
+these arrays, which come from the evidence, the master, the keyed cell layout and the bias
+vector, never a codeword."""
+
+
+def saturation_noise(u: np.ndarray, e: np.ndarray, stratum: np.ndarray, weight: np.ndarray,
+                     distance: np.ndarray | None = None, bits: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """The noise model before ``research/kalibrasi``: one gain and one noise variance per
+    saturation stratum (``stratum_gains``), whatever the cell's distance to the ink."""
+    gain, var = stratum_gains(u, e, stratum, len(SAT_EDGES), weight)
+    return gain[stratum], var[stratum]
+
+
+INK_CLASS_EDGES = (0.0, 0.5, 1.0, 1.5, 2.0, 3.0)  # lower edges of the ink-distance classes (cells)
+NOISE_FIT_ITERATIONS = 10  # rounds of the reweighted pair fit
+CELL_LLR_CAP = math.log(99.0)  # largest LLR term of one cell: one cell in a hundred an outlier
+
+
+def ink_distance_classes(distance: np.ndarray | None, n: int) -> np.ndarray:
+    """Class (0 .. len(INK_CLASS_EDGES) - 1) of every cell's distance to the master's ink; class 0
+    for all ``n`` cells when the distance was not measured."""
+    if distance is None:
+        return np.zeros(n, dtype=np.int64)
+    return np.searchsorted(np.asarray(INK_CLASS_EDGES), np.asarray(distance, dtype=np.float64), side="right") - 1
+
+
+def same_bit_pairs(bits: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(i, j) indices of every pair of cells that carry the same bit, i before j in each bit's
+    cells in their order in ``bits``."""
+    key = np.asarray(bits).astype(np.int64) * 64
+    order = np.argsort(key, kind="stable")
+    ks = key[order]
+    starts = np.flatnonzero(np.r_[True, ks[1:] != ks[:-1]])
+    ends = np.r_[starts[1:], ks.size]
+    first, second = [], []
+    for a, b in zip(starts, ends):
+        if b - a < 2:
+            continue
+        idx = order[a:b]
+        i, j = np.triu_indices(b - a, 1)
+        first.append(idx[i])
+        second.append(idx[j])
+    if not first:
+        return np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
+    return np.concatenate(first), np.concatenate(second)
+
+
+def pair_noise_variance(u: np.ndarray, gain: np.ndarray, weight: np.ndarray, stratum: np.ndarray,
+                        cls: np.ndarray, bits: np.ndarray, start: np.ndarray,
+                        iterations: int = NOISE_FIT_ITERATIONS) -> np.ndarray:
+    """Noise variance V_c = A_j B_k of every cell with a positive gain (1 for the others, whose
+    LLR term is 0), j its saturation stratum and k its ink-distance class.
+
+    Two cells c and c' of one bit carry the same sign s_b, so u_c - u_c' = (g_c - g_c') s_b plus
+    noise and, with s_b^2 = 1, E[(u_c - u_c')^2 - (g_c - g_c')^2] = V_c / n_c + V_c' / n_c'
+    whatever the bit: every pair of cells of one bit measures the noise without the codeword or the
+    bias vector. A and B are fitted to all pairs by alternating, iteratively reweighted least
+    squares (each pair weighted by 1 / P^2 with P = V_c / n_c + V_c' / n_c' of the previous step,
+    since the variance of a squared Gaussian difference is 2 P^2), A started at ``start`` (one
+    variance per saturation stratum) and B at 1; a factor whose solution is not positive keeps its
+    start. B is scaled to mean 1 over the cells used.
+    """
+    use = gain > 0
+    v_c = np.ones(u.size)
+    i, j = same_bit_pairs(bits)
+    keep = use[i] & use[j]
+    i, j = i[keep], j[keep]
+    if i.size == 0:
+        return v_c
+    y = (u[i] - u[j]) ** 2 - (gain[i] - gain[j]) ** 2
+    n_s, n_k = len(SAT_EDGES), len(INK_CLASS_EDGES)
+    start = np.asarray(start, dtype=np.float64)
+    a = start.copy()
+    b = np.ones(n_k)
+    rows = np.arange(i.size)
+    for _ in range(iterations):
+        for target in ("a", "b"):
+            p = a[stratum[i]] * b[cls[i]] / weight[i] + a[stratum[j]] * b[cls[j]] / weight[j]
+            root_w = 1.0 / p  # square root of the pair weight 1 / p^2
+            if target == "a":
+                x = np.zeros((i.size, n_s))
+                np.add.at(x, (rows, stratum[i]), b[cls[i]] / weight[i])
+                np.add.at(x, (rows, stratum[j]), b[cls[j]] / weight[j])
+            else:
+                x = np.zeros((i.size, n_k))
+                np.add.at(x, (rows, cls[i]), a[stratum[i]] / weight[i])
+                np.add.at(x, (rows, cls[j]), a[stratum[j]] / weight[j])
+            cols = np.flatnonzero(x.any(axis=0))
+            sol, *_ = np.linalg.lstsq(x[:, cols] * root_w[:, None], y * root_w, rcond=None)
+            if target == "a":
+                a[cols] = np.where(sol > 0, sol, start[cols])
+            else:
+                b[cols] = np.where(sol > 0, sol, 1.0)
+        scale = float(np.mean(b[cls[use]]))
+        b /= scale
+        a *= scale
+    v_c[use] = a[stratum[use]] * b[cls[use]]
+    return v_c
+
+
+def ink_pair_noise(u: np.ndarray, e: np.ndarray, stratum: np.ndarray, weight: np.ndarray,
+                   distance: np.ndarray | None, bits: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    """The noise model of ``research/kalibrasi``: the gain per saturation stratum as before (pilot
+    regression, ``stratum_gains``), the noise variance of every cell from the pairs of cells of one
+    bit with one factor per saturation stratum and one per ink-distance class
+    (``pair_noise_variance``, started from the per-stratum variance of ``stratum_gains``), and no
+    cell adds more than CELL_LLR_CAP to the LLR of its bit."""
+    g_s, v_s = stratum_gains(u, e, stratum, len(SAT_EDGES), weight)
+    cls = ink_distance_classes(distance, u.size)
+    gain = g_s[stratum]
+    return gain, pair_noise_variance(u, gain, weight, stratum, cls, bits, v_s), CELL_LLR_CAP
+
+
+# "pasangan_irls_batas" was chosen on development seeds by the rule of research/kalibrasi
+# (kandidat.py, ATURAN); "kejenuhan" is the decoder before it, kept for comparison.
+NOISE_MODELS: dict[str, CellNoiseModel] = {"kejenuhan": saturation_noise, "pasangan_irls_batas": ink_pair_noise}
+NOISE_MODEL = "pasangan_irls_batas"
+
+
 def decode_background(
     rectified: np.ndarray,
     valid: np.ndarray,
@@ -335,16 +482,69 @@ def decode_background(
     grid: PageGrid,
     slots: list[Slot],
     bias: np.ndarray | None = None,
+    noise_model: str | CellNoiseModel | None = None,
 ) -> SoftBits:
     """Soft bits of the background channel for one page.
 
     ``bias`` is the document's Tardos bias vector p (one value per code position, the same
     for every copy). With it the pilot test and the saturation strata are used (photos and
     screenshots); without it the decoder keeps a single amplitude for the whole page.
+    ``noise_model`` (images only) names the per-cell noise model (``NOISE_MODELS``; default
+    ``NOISE_MODEL``) or is a :data:`CellNoiseModel` function.
     """
     page_slots = [s for s in slots if s.page == grid.page and s.channel == CHANNEL_BACKGROUND]
     if not page_slots:
         return SoftBits.empty(CHANNEL_BACKGROUND)
+    measure = measure_background(rectified, valid, master_render, dpi, grid, image=bias is not None)
+    return background_soft_bits(measure, grid, slots, bias, noise_model)
+
+
+@dataclass(frozen=True)
+class BackgroundMeasure:
+    """What the background decoder measured on one page, before any keyed sign, gain, pilot or
+    noise model: everything here comes from the evidence and the master alone.
+
+    Attributes:
+        means: mean relative modulation of every cell, shaped (ny, nx).
+        frac: valid-pixel fraction of every cell, (ny, nx).
+        share: smoothed share of saturated pixels around every cell (``saturated_share``), (ny, nx).
+        periodic: periodic spectral bins removed (images only, 0 otherwise).
+        ink_distance: mean distance of every cell's central samples to the nearest ink of the
+            master, in cells (``ink_distance_cells``), (ny, nx); None for a page rendered from a
+            PDF, whose decoder does not use it.
+    """
+
+    means: np.ndarray
+    frac: np.ndarray
+    share: np.ndarray
+    periodic: int
+    ink_distance: np.ndarray | None = None
+
+
+def ink_distance_cells(master_render: np.ndarray, grid: PageGrid, dpi: float) -> np.ndarray:
+    """Distance from every cell to the nearest ink of the master, in cells, shaped (ny, nx).
+
+    Ink is what ``paper_threshold`` calls ink in the master render (not dilated). The Euclidean
+    distance of every pixel to the nearest ink pixel is averaged over the cell's central samples
+    as in ``cell_means`` and divided by the cell size in pixels. It uses the master alone, so it
+    is the same for every copy and never sees a keyed sign or a codeword. A master page without
+    ink gives a large constant.
+    """
+    ink = master_render < paper_threshold(master_render)
+    if not ink.any():
+        return np.full((grid.ny, grid.nx), 1e6)
+    dist = cv2.distanceTransform((~ink).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    cell_px = grid.cell_pt * dpi / 72.0
+    means, _ = cell_means(dist.astype(np.float64) / cell_px, np.ones(ink.shape, dtype=bool), grid, dpi)
+    return means
+
+
+def measure_background(rectified: np.ndarray, valid: np.ndarray, master_render: np.ndarray, dpi: float,
+                       grid: PageGrid, image: bool) -> BackgroundMeasure:
+    """Steps 1 and 2 of the module docstring and the cell means: the code-blind measurements of
+    one page. ``image`` is True for photos and screenshots (the trace passes the bias vector):
+    periodic components are removed, outliers are masked in both directions and the distance of
+    every cell to the master's ink is kept; False for a page rendered from a PDF."""
     usable = valid & ~ink_mask(master_render) & (rectified > 20)
     sigma_px = 3.0 * grid.cell_pt * dpi / 72.0
     mod = relative_modulation(rectified, usable, sigma_px)
@@ -352,7 +552,7 @@ def decode_background(
     # itself is below 1 %, ink is tens of percent darker than paper). On images (bias given)
     # periodic components (moire of a photographed screen) are removed first, and bright
     # outliers are dropped as well: the halos a phone's sharpening leaves next to text.
-    if bias is not None:
+    if image:
         mod, _ = suppress_periodic(mod, usable)
         outliers = np.abs(mod) > OUTLIER_LEVEL
     else:
@@ -362,9 +562,27 @@ def decode_background(
     usable &= ~extra_ink
     mod = relative_modulation(rectified, usable, sigma_px)
     periodic = 0
-    if bias is not None:
+    if image:
         mod, periodic = suppress_periodic(mod, usable)
     means, frac = cell_means(mod, usable, grid, dpi)
+    share = saturated_share(rectified, usable, grid, dpi, frac)
+    distance = ink_distance_cells(master_render, grid, dpi) if image else None
+    return BackgroundMeasure(means, frac, share, periodic, distance)
+
+
+def background_soft_bits(measure: BackgroundMeasure, grid: PageGrid, slots: list[Slot],
+                         bias: np.ndarray | None = None, noise_model: str | CellNoiseModel | None = None) -> SoftBits:
+    """Steps 3 to 5 of the module docstring on a page's measurements: despreading, the presence
+    tests, the per-cell gains and noise (``noise_model``, images only) and the soft bits.
+
+    ``noise_model`` names an entry of ``NOISE_MODELS`` (default ``NOISE_MODEL``) or is a function
+    with the signature of :data:`CellNoiseModel` (research). It only changes the LLRs of an image
+    page: the presence decision, the pilot sum and the strengths are computed as before.
+    """
+    page_slots = [s for s in slots if s.page == grid.page and s.channel == CHANNEL_BACKGROUND]
+    if not page_slots:
+        return SoftBits.empty(CHANNEL_BACKGROUND)
+    means, frac, share, periodic = measure.means, measure.frac, measure.share, measure.periodic
     ok = frac >= MIN_VALID_FRACTION
     cb = grid.cell_bit
     sel = ok & (cb >= 0)
@@ -385,7 +603,6 @@ def decode_background(
     noise2 = float(np.median(t_decoy[seen] ** 2)) if seen.any() else 0.0
     sigma = float(np.sqrt(noise2 / 0.4549)) if noise2 > 0 else 1.0  # median of chi2(1) is 0.4549
     z_decoy = pattern_z(t[seen], t_decoy[seen], sigma) if noise2 > 0 else 0.0
-    share = saturated_share(rectified, usable, grid, dpi, frac)
     meta: dict[str, object] = {"page": grid.page, "bits_total": len(page_slots), "decoy_z": round(z_decoy, 2),
                                "clipped_share": round(float(np.mean(share[sel] >= 0.5)) if sel.any() else 0.0, 3)}
     if bias is not None:
@@ -408,17 +625,25 @@ def decode_background(
         e = e_bit[bits]
         pilot_sum, pilot_var = pilot_parts(u, e)
         z_pilot = pilot_z(u, e)
+        # The presence decision keeps the saturation strata alone, whatever the noise model.
         gain, var = stratum_gains(u, e, stratum, n_strata, weight)
         found = (z_decoy >= SIGNAL_Z or z_pilot >= SIGNAL_Z) and bool(np.any(gain > 0))
-        info = np.bincount(bits, weights=(gain ** 2 / var)[stratum] * weight, minlength=grid.n_bits)  # per-bit SNR^2
-        llr = np.bincount(bits, weights=(2.0 * gain / var)[stratum] * weight * u, minlength=grid.n_bits)
+        model = noise_model if callable(noise_model) else NOISE_MODELS[noise_model or NOISE_MODEL]
+        distance = None if measure.ink_distance is None else measure.ink_distance[sel]
+        noise = model(u, e, stratum, weight, distance, bits)
+        g_c, v_c = noise[0], noise[1]
+        info = np.bincount(bits, weights=(g_c ** 2 / v_c) * weight, minlength=grid.n_bits)  # per-bit SNR^2
+        terms = (2.0 * g_c / v_c) * weight * u
+        if len(noise) > 2 and math.isfinite(noise[2]):  # no single cell adds more than the cap
+            terms = np.clip(terms, -noise[2], noise[2])
+        llr = np.bincount(bits, weights=terms, minlength=grid.n_bits)
         reported = info > 0
         best = int(np.argmax(gain / np.sqrt(var)))
         meta.update(mu=float(gain[best]) if found else 0.0, sigma=float(np.sqrt(var[best])),
                     snr=float(np.sqrt(np.mean(info[reported]))) if found and reported.any() else 0.0,
                     signal_z=round(max(z_decoy, z_pilot), 2), pilot_z=round(z_pilot, 2),
                     pilot_sum=pilot_sum, pilot_var=pilot_var,
-                    cells_used=int(np.count_nonzero(gain[stratum] > 0)) if found else 0)
+                    cells_used=int(np.count_nonzero(g_c > 0)) if found else 0)
     pos, val = [], []
     if found:  # no pattern detected: report nothing rather than noise
         for s in page_slots:

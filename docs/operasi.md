@@ -401,6 +401,7 @@ Setiap angka uji tertahan di [cara kerja](cara-kerja.md) dan [batasan](keamanan.
 | `research/sepakat/` | koalisi yang memahami TAPAK, pola penghapusan, penyamaran | [koalisi yang memahami TAPAK](cara-kerja.md#koalisi-yang-memahami-tapak), [batasan 6](keamanan.md#batasan-6) | docstring `ukur.py`, `geser2.py`, `balik.py`, `samaran.py` |
 | `research/kontradiksi/` | bacaan jelas tanpa nama, pola penghapusan pada cetakan | [bacaan jelas tanpa nama](cara-kerja.md#pemeriksaan-bacaan-jelas-tanpa-nama), [batasan 12](keamanan.md#batasan-12) | [README studi](../research/kontradiksi/README.md#menjalankan) |
 | `research/balik/` | pola tanda terbalik, dua statistik pola penghapusan, aturan skor dua sisi | [pola tanda terbalik](cara-kerja.md#pemeriksaan-pola-tanda-terbalik), [batasan 6](keamanan.md#batasan-6) | [README studi](../research/balik/README.md#menjalankan) |
+| `research/kalibrasi/` | kalibrasi bobot pola latar dan geser per medium, model derau latar | [kalibrasi bobot](cara-kerja.md#kalibrasi-bobot-pola-latar), [batasan 12](keamanan.md#batasan-12) | [di bawah](#mengukur-kalibrasi-bobot), [README studi](../research/kalibrasi/README.md#menjalankan) |
 
 Studi salinan cetak, foto ponsel, dan tangkapan layar memerlukan waktu dan alat tambahan, jadi perintahnya dijelaskan di bawah.
 
@@ -490,3 +491,25 @@ $L/ulang.py terbit && $L/ulang.py lacak && $L/ulang.py banding && $L/ulang.py ri
 ```
 
 Putaran penilaian menimpa `hasil/dev_kandidat.jsonl.gz` dan `hasil/dev_kandidat_ringkas.json`; ganti namanya menjadi `dev_kandidat_putaranN...` sebelum putaran berikutnya, seperti di repositori. `lacak --split uji` menolak berjalan bila dekoder pohon kerja bukan pilihan di `hasil/pilihan.json`, mencatat commit dan hash sumber dekoder di `hasil/uji_dekoder.json`, dan melewati gambar yang sudah dilacak bila diulang setelah terputus. Set dev memerlukan sekitar 1 jam dan set uji sekitar 1,5 jam dengan 3 proses di mesin uji yang dipakai bersama; satu putaran `kandidat.py` sekitar 8 menit.
+
+## Mengukur kalibrasi bobot
+
+Angka kalibrasi bobot di [cara kerja](cara-kerja.md#kalibrasi-bobot-pola-latar) dan [batasan 12](keamanan.md#batasan-12) dibuat ulang dengan `research/kalibrasi/`. Studi ini memakai fungsi penggambar dan tangkapan `research/layar/ukur.py` tanpa perubahan, jadi MuPDF dan Poppler harus terpasang seperti di atas. Penerbitan, gambar bukti, dan pengamatan ada di `$TAPAK_KALIBRASI_KERJA` (bawaan `out/riset_kalibrasi`), hasil JSONL di `research/kalibrasi/hasil/`. Protokol dan benih ditetapkan di `ukur.py`, aturan pemilihan di `kandidat.py`, keduanya dicatat di git sebelum dijalankan.
+
+```bash
+export PYTHONPATH=. TAPAK_KALIBRASI_KERJA=out/riset_kalibrasi
+K=".venv/bin/python research/kalibrasi"
+$K/ukur.py terbit --split dev        # empat penerbitan pengembangan (profil latar bawaan dan cetak)
+$K/ukur.py lacak --split dev         # 626 pelacakan dengan dekoder sebelum studi ini
+$K/kandidat.py periksa --split dev   # kejenuhan mengulang setiap keluaran latar yang tersimpan
+$K/kandidat.py nilai --split dev --putaran 1 && $K/kandidat.py pilih --sampai 1
+$K/kandidat.py nilai --split dev --putaran 2 && $K/kandidat.py pilih --sampai 2
+$K/kandidat.py nilai --split dev --putaran 3 && $K/kandidat.py pilih   # hasil/pilihan.json
+$K/kandidat.py periksa --split dev --terpasang   # model bawaan dekoder sama persis dengan pilihan
+$K/ukur.py terbit --split uji && $K/ukur.py lacak --split uji   # set uji, sekali (1.024 pelacakan)
+$K/kandidat.py banding --split uji   # dekoder sebelum studi ini pada registrasi yang sama
+$K/ringkas.py --split uji --json     # tabel di dokumentasi (dev: --split dev --json)
+$K/kandidat.py diagnosa --split dev  # varians residu dan penguatan per jarak ke teks
+```
+
+`lacak --split uji` menolak berjalan bila model derau bawaan dekoder bukan pilihan di `hasil/pilihan.json`, dan mencatat hash sumber dekoder di `hasil/uji_dekoder.json`. Pengukuran yang dilaporkan menjalankan set uji dari ekspor `git archive` komit pilihan. Set dev memerlukan sekitar 35 menit, satu putaran kandidat 15 sampai 25 menit, dan set uji sekitar 1 jam dengan 3 proses di mesin uji yang dipakai bersama. `research/kalibrasi/bench.py` membaca keempat set foto benchmark README dengan kedua model derau (perintah di docstring-nya).

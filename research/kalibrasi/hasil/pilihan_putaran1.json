@@ -1,0 +1,1096 @@
+{
+  "aturan": {
+    "1_tanpa_tuduhan_salah": "tidak ada tuduhan salah di pelacakan dev mana pun (salinan, koalisi jujur, induk tanpa tanda)",
+    "2_tanpa_putusan_hilang": "setiap salinan dev yang disebut dekoder sekarang tetap disebut, dan setiap koalisi dev tidak kehilangan anggota yang disebut (tahap mana pun)",
+    "3_tanpa_peringatan_baru": "tidak ada pelacakan jujur dev (salinan, koalisi jujur, induk tanpa tanda) tanpa peringatan dengan dekoder sekarang yang mendapat peringatan (pola penghapusan, bacaan jelas tanpa nama, atau pola tanda terbalik) dengan kandidat",
+    "4_kalibrasi": "bobot pola latar salinan dev, per kelas medium (pdf; png, pesan, kecil x 28-48, 56-84, 96-150 dpi; layar_sim; foto; ponsel; monitor; cetak) dan kelompok bobot W_EDGES: dengan n bit, k salah, dan E = jumlah 1 / (1 + exp |L|), P(Poisson(E) >= k) >= 1e-4 (tidak terlalu yakin secara bermakna)",
+    "5_pilihan": "di antara kandidat yang lolos 1 sampai 4, galat kalibrasi terkecil: rata-rata atas kelas medium dari jumlah |k - E| atas kelompok bobot dibagi jumlah bit kelas itu; seri: lebih banyak putusan benar, lalu median skor salinan / Z lebih besar; tidak ada yang lolos: dekoder tetap kejenuhan",
+    "level_poisson": 0.0001
+  },
+  "kandidat": {
+    "kejenuhan": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.004133,
+      "sel_gagal": [
+        {
+          "kelas": "kecil|28-48",
+          "bin": 4,
+          "n": 12467,
+          "salah": 266,
+          "E": 168.04,
+          "p": 1.9978652739208334e-12
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 5,
+          "n": 7942,
+          "salah": 58,
+          "E": 18.58,
+          "p": 2.1030857249289288e-13
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 6,
+          "n": 4098,
+          "salah": 11,
+          "E": 0.65,
+          "p": 1.2172739130307717e-10
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 2,
+          "n": 3307,
+          "salah": 309,
+          "E": 238.09,
+          "p": 6.150772327198051e-06
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 3,
+          "n": 3686,
+          "salah": 199,
+          "E": 131.37,
+          "p": 2.4428870425902666e-08
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 4,
+          "n": 9982,
+          "salah": 246,
+          "E": 121.5,
+          "p": 2.5413048211003424e-23
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 5,
+          "n": 15393,
+          "salah": 106,
+          "E": 29.97,
+          "p": 3.9767942727579576e-27
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 53221,
+          "salah": 98,
+          "E": 3.23,
+          "p": 3.1731236184750745e-106
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 1,
+          "n": 374,
+          "salah": 99,
+          "E": 61.6,
+          "p": 7.1245780789813426e-06
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 2,
+          "n": 300,
+          "salah": 42,
+          "E": 21.6,
+          "p": 6.510657108757217e-05
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 3,
+          "n": 301,
+          "salah": 30,
+          "E": 10.83,
+          "p": 1.2406944236663185e-06
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 4,
+          "n": 1022,
+          "salah": 47,
+          "E": 12.01,
+          "p": 1.707730306663256e-14
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 5,
+          "n": 2232,
+          "salah": 40,
+          "E": 4.05,
+          "p": 4.892812451966368e-26
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 65348,
+          "salah": 74,
+          "E": 1.05,
+          "p": 3.5923992882578056e-107
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 2,
+          "n": 124,
+          "salah": 26,
+          "E": 8.96,
+          "p": 2.734378510514262e-06
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 4,
+          "n": 400,
+          "salah": 29,
+          "E": 4.69,
+          "p": 3.5779114933550694e-14
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 5,
+          "n": 939,
+          "salah": 24,
+          "E": 1.68,
+          "p": 8.654764023262691e-20
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 6,
+          "n": 44686,
+          "salah": 28,
+          "E": 0.55,
+          "p": 1.3097297461263472e-37
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 3,
+          "n": 7843,
+          "salah": 359,
+          "E": 287.83,
+          "p": 2.909263427940597e-05
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 4,
+          "n": 11760,
+          "salah": 291,
+          "E": 157.36,
+          "p": 1.1068357777420547e-21
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 5,
+          "n": 7245,
+          "salah": 68,
+          "E": 16.65,
+          "p": 3.5601379702938834e-21
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 3726,
+          "salah": 10,
+          "E": 0.59,
+          "p": 8.823588881426005e-10
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 2,
+          "n": 3766,
+          "salah": 358,
+          "E": 269.77,
+          "p": 1.7438421147916668e-07
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 3,
+          "n": 4244,
+          "salah": 217,
+          "E": 153.14,
+          "p": 6.832951768917436e-07
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 4,
+          "n": 11343,
+          "salah": 266,
+          "E": 137.47,
+          "p": 1.8386344081733615e-22
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 5,
+          "n": 17760,
+          "salah": 135,
+          "E": 34.82,
+          "p": 5.346525885589147e-38
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 47745,
+          "salah": 84,
+          "E": 3.44,
+          "p": 1.32271010490211e-83
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 1,
+          "n": 540,
+          "salah": 130,
+          "E": 87.58,
+          "p": 1.3621813051363818e-05
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 2,
+          "n": 435,
+          "salah": 65,
+          "E": 30.95,
+          "p": 6.39215606016197e-08
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 3,
+          "n": 491,
+          "salah": 41,
+          "E": 17.62,
+          "p": 1.3837059364619929e-06
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 4,
+          "n": 1526,
+          "salah": 68,
+          "E": 18.01,
+          "p": 1.9624614871922222e-19
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 5,
+          "n": 3203,
+          "salah": 33,
+          "E": 5.84,
+          "p": 7.913915081036188e-15
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 63232,
+          "salah": 82,
+          "E": 1.28,
+          "p": 2.7693512503836605e-115
+        },
+        {
+          "kelas": "png|28-48",
+          "bin": 5,
+          "n": 2673,
+          "salah": 27,
+          "E": 4.88,
+          "p": 3.267338230716016e-12
+        }
+      ],
+      "sel_gagal_jumlah": 34,
+      "benar": 548,
+      "median_skor": 4.4822,
+      "lolos": false
+    },
+    "jarak_var": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.00233,
+      "sel_gagal": [
+        {
+          "kelas": "cetak",
+          "bin": 4,
+          "n": 2969,
+          "salah": 68,
+          "E": 36.01,
+          "p": 1.313152365585999e-06
+        },
+        {
+          "kelas": "cetak",
+          "bin": 5,
+          "n": 5450,
+          "salah": 37,
+          "E": 10.07,
+          "p": 5.364970087241901e-11
+        },
+        {
+          "kelas": "cetak",
+          "bin": 6,
+          "n": 49473,
+          "salah": 91,
+          "E": 1.64,
+          "p": 5.412077026629505e-122
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 70219,
+          "salah": 106,
+          "E": 2.72,
+          "p": 6.351857277330322e-126
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 3,
+          "n": 119,
+          "salah": 16,
+          "E": 4.19,
+          "p": 8.648936164541864e-06
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 5,
+          "n": 869,
+          "salah": 10,
+          "E": 1.52,
+          "p": 4.577638447631627e-06
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 68135,
+          "salah": 47,
+          "E": 0.69,
+          "p": 4.791389878631315e-68
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 6,
+          "n": 45955,
+          "salah": 41,
+          "E": 0.39,
+          "p": 2.7312666242555325e-67
+        },
+        {
+          "kelas": "monitor",
+          "bin": 4,
+          "n": 5631,
+          "salah": 111,
+          "E": 70.93,
+          "p": 6.546321520001326e-06
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 13994,
+          "salah": 104,
+          "E": 1.56,
+          "p": 3.02857966772272e-147
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 69936,
+          "salah": 78,
+          "E": 2.86,
+          "p": 2.2417079648494784e-81
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 5,
+          "n": 1278,
+          "salah": 16,
+          "E": 2.24,
+          "p": 2.291950248064088e-09
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 67386,
+          "salah": 48,
+          "E": 0.8,
+          "p": 7.103648973380003e-67
+        },
+        {
+          "kelas": "png|28-48",
+          "bin": 5,
+          "n": 1589,
+          "salah": 16,
+          "E": 2.96,
+          "p": 1.0428635685084483e-07
+        },
+        {
+          "kelas": "png|56-84",
+          "bin": 6,
+          "n": 93206,
+          "salah": 19,
+          "E": 0.57,
+          "p": 1.2256134573701615e-22
+        }
+      ],
+      "sel_gagal_jumlah": 15,
+      "benar": 548,
+      "median_skor": 4.5186,
+      "lolos": false
+    },
+    "jarak_gain": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.002576,
+      "sel_gagal": [
+        {
+          "kelas": "kecil|28-48",
+          "bin": 1,
+          "n": 11739,
+          "salah": 2195,
+          "E": 1963.05,
+          "p": 1.450898614028127e-07
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 2,
+          "n": 7395,
+          "salah": 647,
+          "E": 536.52,
+          "p": 2.0580426089513933e-06
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 3,
+          "n": 6452,
+          "salah": 345,
+          "E": 235.04,
+          "p": 1.1799980620057649e-11
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 4,
+          "n": 12278,
+          "salah": 313,
+          "E": 159.48,
+          "p": 4.708441784826652e-27
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 5,
+          "n": 12444,
+          "salah": 83,
+          "E": 26.07,
+          "p": 6.0249277918256195e-19
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 6,
+          "n": 26073,
+          "salah": 19,
+          "E": 1.98,
+          "p": 5.442141826003748e-13
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 5,
+          "n": 4941,
+          "salah": 29,
+          "E": 9.21,
+          "p": 1.4966376933626818e-07
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 81175,
+          "salah": 67,
+          "E": 1.68,
+          "p": 5.466542532984317e-81
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 68962,
+          "salah": 25,
+          "E": 0.55,
+          "p": 1.401053683097774e-32
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 6,
+          "n": 46254,
+          "salah": 7,
+          "E": 0.34,
+          "p": 7.888274426461946e-08
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 1,
+          "n": 11607,
+          "salah": 2205,
+          "E": 1952.16,
+          "p": 1.083270275623593e-08
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 2,
+          "n": 6913,
+          "salah": 684,
+          "E": 502.06,
+          "p": 8.055930347677781e-15
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 3,
+          "n": 5993,
+          "salah": 368,
+          "E": 217.59,
+          "p": 1.1079047046859115e-20
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 4,
+          "n": 11650,
+          "salah": 320,
+          "E": 149.31,
+          "p": 6.474821355488434e-34
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 5,
+          "n": 12513,
+          "salah": 112,
+          "E": 26.14,
+          "p": 1.5757890224387663e-35
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 25928,
+          "salah": 58,
+          "E": 2.03,
+          "p": 3.4507458300224e-62
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 3,
+          "n": 1008,
+          "salah": 67,
+          "E": 36.5,
+          "p": 3.861439318690923e-06
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 4,
+          "n": 2976,
+          "salah": 67,
+          "E": 35.62,
+          "p": 1.763800332887129e-06
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 5,
+          "n": 5313,
+          "salah": 36,
+          "E": 9.82,
+          "p": 1.0396294282488804e-10
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 80721,
+          "salah": 65,
+          "E": 1.77,
+          "p": 3.256667079902296e-76
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 4,
+          "n": 306,
+          "salah": 15,
+          "E": 3.62,
+          "p": 6.2335999547373375e-06
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 5,
+          "n": 723,
+          "salah": 10,
+          "E": 1.3,
+          "p": 1.1738610305109845e-06
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 68438,
+          "salah": 37,
+          "E": 0.63,
+          "p": 1.2112418951694582e-51
+        },
+        {
+          "kelas": "png|28-48",
+          "bin": 6,
+          "n": 87975,
+          "salah": 10,
+          "E": 0.89,
+          "p": 3.7990318875212615e-08
+        }
+      ],
+      "sel_gagal_jumlah": 24,
+      "benar": 548,
+      "median_skor": 4.528,
+      "lolos": false
+    },
+    "jarak_pasangan": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.00194,
+      "sel_gagal": [
+        {
+          "kelas": "foto",
+          "bin": 6,
+          "n": 26462,
+          "salah": 11,
+          "E": 1.42,
+          "p": 3.2568754656736415e-07
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 77438,
+          "salah": 56,
+          "E": 2.08,
+          "p": 1.1265225293311725e-58
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 4,
+          "n": 230,
+          "salah": 16,
+          "E": 2.63,
+          "p": 2.1193869127963073e-08
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 5,
+          "n": 487,
+          "salah": 7,
+          "E": 0.88,
+          "p": 3.800563904720322e-05
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 68849,
+          "salah": 29,
+          "E": 0.59,
+          "p": 1.6400043059948704e-38
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 6,
+          "n": 46201,
+          "salah": 8,
+          "E": 0.35,
+          "p": 4.3038785412845606e-09
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 4,
+          "n": 12551,
+          "salah": 242,
+          "E": 162.78,
+          "p": 4.092794183767276e-09
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 5,
+          "n": 11891,
+          "salah": 59,
+          "E": 25.3,
+          "p": 7.720459789170302e-09
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 17996,
+          "salah": 79,
+          "E": 1.72,
+          "p": 9.506295906739147e-100
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 4,
+          "n": 3840,
+          "salah": 75,
+          "E": 46.12,
+          "p": 5.759061462983659e-05
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 5,
+          "n": 7061,
+          "salah": 30,
+          "E": 13.29,
+          "p": 5.594697056897553e-05
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 77036,
+          "salah": 52,
+          "E": 2.17,
+          "p": 5.0671891890012506e-52
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 5,
+          "n": 756,
+          "salah": 10,
+          "E": 1.37,
+          "p": 1.8336697527948594e-06
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 68363,
+          "salah": 31,
+          "E": 0.66,
+          "p": 1.3661612683637367e-40
+        },
+        {
+          "kelas": "png|56-84",
+          "bin": 6,
+          "n": 93213,
+          "salah": 6,
+          "E": 0.57,
+          "p": 3.054132048649246e-05
+        }
+      ],
+      "sel_gagal_jumlah": 15,
+      "benar": 548,
+      "median_skor": 4.5278,
+      "lolos": false
+    },
+    "jarak_gain_pasangan": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.002211,
+      "sel_gagal": [
+        {
+          "kelas": "foto",
+          "bin": 6,
+          "n": 26525,
+          "salah": 11,
+          "E": 1.4,
+          "p": 2.767365489615867e-07
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 4,
+          "n": 12748,
+          "salah": 263,
+          "E": 165.38,
+          "p": 1.6655371550432123e-12
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 5,
+          "n": 12451,
+          "salah": 56,
+          "E": 26.08,
+          "p": 2.4913081846816507e-07
+        },
+        {
+          "kelas": "kecil|28-48",
+          "bin": 6,
+          "n": 22958,
+          "salah": 29,
+          "E": 1.86,
+          "p": 1.2082822866157218e-24
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 4,
+          "n": 2826,
+          "salah": 61,
+          "E": 34.26,
+          "p": 2.3905621405313913e-05
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 5,
+          "n": 5112,
+          "salah": 33,
+          "E": 9.42,
+          "p": 1.7931727679006343e-09
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 80912,
+          "salah": 52,
+          "E": 1.71,
+          "p": 3.146729050565522e-57
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 4,
+          "n": 196,
+          "salah": 11,
+          "E": 2.21,
+          "p": 2.073092202976807e-05
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 5,
+          "n": 448,
+          "salah": 11,
+          "E": 0.79,
+          "p": 9.315848804738999e-10
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 68950,
+          "salah": 21,
+          "E": 0.56,
+          "p": 5.1658052271779325e-26
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 6,
+          "n": 46240,
+          "salah": 8,
+          "E": 0.34,
+          "p": 3.4634461588487837e-09
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 2,
+          "n": 7193,
+          "salah": 614,
+          "E": 522.66,
+          "p": 5.3722798126598216e-05
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 3,
+          "n": 6322,
+          "salah": 344,
+          "E": 230.84,
+          "p": 2.2650584552493463e-12
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 4,
+          "n": 11841,
+          "salah": 290,
+          "E": 152.03,
+          "p": 1.8690172582011847e-23
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 5,
+          "n": 12008,
+          "salah": 96,
+          "E": 25.44,
+          "p": 1.0476886413910159e-26
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 23868,
+          "salah": 92,
+          "E": 1.87,
+          "p": 1.3123538367654614e-118
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 3,
+          "n": 1089,
+          "salah": 71,
+          "E": 38.87,
+          "p": 2.4164845613349552e-06
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 5,
+          "n": 5576,
+          "salah": 39,
+          "E": 10.33,
+          "p": 7.575742427402406e-12
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 80307,
+          "salah": 55,
+          "E": 1.8,
+          "p": 1.3163842191450962e-60
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 4,
+          "n": 298,
+          "salah": 15,
+          "E": 3.51,
+          "p": 4.341734474351237e-06
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 68530,
+          "salah": 29,
+          "E": 0.61,
+          "p": 3.349684259430833e-38
+        }
+      ],
+      "sel_gagal_jumlah": 21,
+      "benar": 548,
+      "median_skor": 4.528,
+      "lolos": false
+    },
+    "jarak_var_redam": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.014045,
+      "sel_gagal": [
+        {
+          "kelas": "cetak",
+          "bin": 6,
+          "n": 37976,
+          "salah": 52,
+          "E": 2.47,
+          "p": 2.7040841872787913e-49
+        },
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 51994,
+          "salah": 86,
+          "E": 3.13,
+          "p": 7.5274801480604035e-90
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 65513,
+          "salah": 39,
+          "E": 1.12,
+          "p": 1.4132926448518646e-45
+        },
+        {
+          "kelas": "layar_sim",
+          "bin": 6,
+          "n": 44862,
+          "salah": 39,
+          "E": 0.59,
+          "p": 2.8500730567396494e-56
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 5103,
+          "salah": 82,
+          "E": 0.58,
+          "p": 3.016972538504405e-143
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 50174,
+          "salah": 61,
+          "E": 3.5,
+          "p": 9.12217437439635e-53
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 63719,
+          "salah": 40,
+          "E": 1.37,
+          "p": 8.697461458125792e-44
+        },
+        {
+          "kelas": "png|56-84",
+          "bin": 5,
+          "n": 5,
+          "salah": 3,
+          "E": 0.01,
+          "p": 3.710547515627445e-08
+        },
+        {
+          "kelas": "png|56-84",
+          "bin": 6,
+          "n": 93200,
+          "salah": 16,
+          "E": 0.58,
+          "p": 4.065012237991813e-18
+        }
+      ],
+      "sel_gagal_jumlah": 9,
+      "benar": 548,
+      "median_skor": 4.5177,
+      "lolos": false
+    },
+    "jarak_gain_redam": {
+      "tuduhan_salah": [],
+      "putusan_hilang": [],
+      "peringatan_baru": [],
+      "kalibrasi_lolos": false,
+      "galat_kalibrasi": 0.01042,
+      "sel_gagal": [
+        {
+          "kelas": "kecil|56-84",
+          "bin": 6,
+          "n": 71161,
+          "salah": 47,
+          "E": 2.4,
+          "p": 2.6409882226013425e-43
+        },
+        {
+          "kelas": "kecil|96-150",
+          "bin": 6,
+          "n": 67661,
+          "salah": 20,
+          "E": 0.76,
+          "p": 8.52515745445722e-22
+        },
+        {
+          "kelas": "pesan|28-48",
+          "bin": 6,
+          "n": 12942,
+          "salah": 29,
+          "E": 1.43,
+          "p": 9.602629608463466e-28
+        },
+        {
+          "kelas": "pesan|56-84",
+          "bin": 6,
+          "n": 69626,
+          "salah": 46,
+          "E": 2.71,
+          "p": 1.1190755739306758e-39
+        },
+        {
+          "kelas": "pesan|96-150",
+          "bin": 6,
+          "n": 66531,
+          "salah": 31,
+          "E": 0.95,
+          "p": 8.62257684191765e-36
+        },
+        {
+          "kelas": "png|28-48",
+          "bin": 6,
+          "n": 85141,
+          "salah": 8,
+          "E": 1.08,
+          "p": 1.7519546638778496e-05
+        }
+      ],
+      "sel_gagal_jumlah": 6,
+      "benar": 548,
+      "median_skor": 4.5267,
+      "lolos": false
+    }
+  },
+  "dipilih": "kejenuhan"
+}
