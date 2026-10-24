@@ -50,12 +50,12 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/benchmark-dark.svg">
-  <img alt="Uji sintetis: foto layar 40 dari 40 benar; foto kertas cetak dari printer simulasi 9 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 32 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
+  <img alt="Uji sintetis: foto layar 40 dari 40 benar; foto kertas cetak dari printer simulasi 10 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 32 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 1 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Semua ini memakai satu rahasia kode; dengan rahasia lain angkanya dapat lebih rendah ([batasan 3](docs/keamanan.md#batasan-3)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 2 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Semua ini memakai satu rahasia kode; dengan rahasia lain angkanya dapat lebih rendah ([batasan 3](docs/keamanan.md#batasan-3)).
 
-Satu foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan-4)). Foto itu disebut lewat kanal geser saja, tipis di atas ambang (sebagai pelacakan tercatat pertama, dengan jatah eps lebih kecil, jawabannya "tidak cukup bukti"), dan ambangnya tidak diturunkan. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 4,0 &times; 10<sup>-26</sup>.
+Satu foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan-4)). Foto itu disebut lewat kanal geser saja, tipis di atas ambang (sebagai pelacakan tercatat pertama, dengan jatah eps lebih kecil, jawabannya "tidak cukup bukti"), dan ambangnya tidak diturunkan. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 6,3 &times; 10<sup>-26</sup>.
 
 Uji lainnya:
 
