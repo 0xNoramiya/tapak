@@ -32,6 +32,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))  # the server shoots this checkout's tapak, not the installed one
 IMG_DIR = ROOT / "docs" / "img"
 PREVIEW_DIR = Path(os.environ.get("TAPAK_FIG_PREVIEW", ROOT / "out" / "figures"))
 WORK = ROOT / "out" / "figures-work" / "ui"
@@ -211,8 +212,8 @@ def main() -> None:
     secret = hashlib.sha256(b"tapak readme ui code secret").hexdigest()
     (issued / "keys" / "code_secret.key").write_text(secret + "\n", encoding="ascii")
     _env(issued)
-    tapak = str(Path(sys.executable).with_name("tapak"))
-    subprocess.run([tapak, "keys", "init"], check=True, stdout=subprocess.DEVNULL)
+    checkout = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, (str(ROOT), os.environ.get("PYTHONPATH"))))}
+    subprocess.run([sys.executable, "-m", "tapak.cli", "keys", "init"], check=True, stdout=subprocess.DEVNULL, env=checkout)
     traced = WORK / "lacak"  # a copy, so tracing leaves fig_alur's workspace untouched
     shutil.copytree(ALUR_DEMO, traced)
 
