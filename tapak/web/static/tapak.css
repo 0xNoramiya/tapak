@@ -1319,5 +1319,15 @@ mark.diff {
   .top-progress::after, .busy-bar::after { width: 100%; transform: none; opacity: 0.6; }
 }
 
-/* the sidebar's way back to the product page (/) */
-.sidebar-produk { display: inline-block; margin-top: 12px; color: var(--ink-muted); }
+/* the sidebar's way back to the product page (/), and the language switch */
+.sidebar-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.sidebar-foot .link { color: var(--ink-muted); }
+
+/* ID | EN: the current language is filled */
+.lang-switch { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--border-strong); }
+.lang-switch a { display: inline-grid; place-items: center; min-width: 36px; min-height: 28px; padding-inline: 8px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0.06em; color: var(--ink-muted); text-decoration: none;
+  transition: color 150ms ease, background-color 150ms ease; }
+.lang-switch a[aria-current] { background: var(--ink); color: var(--paper); }
+@media (hover: hover) and (pointer: fine) { .lang-switch a:not([aria-current]):hover { color: var(--ink); background: var(--hover); } }
+@media (pointer: coarse) { .lang-switch a { min-height: 44px; min-width: 44px; } }

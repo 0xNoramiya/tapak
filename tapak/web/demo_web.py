@@ -22,22 +22,24 @@ from pathlib import Path
 import numpy as np
 
 from tapak.config import Settings
+from tapak.web.i18n import N_, localize
 
 DEMO_DIR = "demo"
 MARKER = ".tapak-demo"
 ISSUER = "Kasi Ops Brigif 9905 (fiktif)"
 SAMPLE = "nota_dinas.pdf"
 RECIPIENTS = "recipients.csv"
-# medium key -> (label, what happens, icon)
+# medium key -> (label, what happens, icon); the texts are translated where they are shown
 MEDIA: dict[str, tuple[str, str, str]] = {
-    "foto": ("Difoto dengan ponsel", "Halaman 1 difoto miring dengan bayangan dan sedikit buram, lalu dikirim lewat "
-             "aplikasi pesan.", "camera"),
-    "layar": ("Tangkapan layar", "Halaman 1 dibuka di penampil PDF, ditangkap layarnya, lalu dikompresi aplikasi "
-              "pesan.", "monitor"),
-    "monitor": ("Foto layar monitor", "Salinan ditampilkan di monitor, lalu layarnya difoto dengan ponsel.", "image"),
-    "potong": ("Potongan halaman", "Hanya bagian tengah halaman 1 yang ditangkap layarnya.", "scan"),
-    "pdf": ("PDF diteruskan", "Berkas salinan dikirim apa adanya.", "file-text"),
-    "teks": ("Teks disalin", "Isi dokumen disalin dari PDF dan ditempel ke percakapan.", "type"),
+    "foto": (N_("Difoto dengan ponsel"), N_("Halaman 1 difoto miring dengan bayangan dan sedikit buram, lalu dikirim "
+                                           "lewat aplikasi pesan."), "camera"),
+    "layar": (N_("Tangkapan layar"), N_("Halaman 1 dibuka di penampil PDF, ditangkap layarnya, lalu dikompresi "
+                                        "aplikasi pesan."), "monitor"),
+    "monitor": (N_("Foto layar monitor"), N_("Salinan ditampilkan di monitor, lalu layarnya difoto dengan ponsel."),
+                "image"),
+    "potong": (N_("Potongan halaman"), N_("Hanya bagian tengah halaman 1 yang ditangkap layarnya."), "scan"),
+    "pdf": (N_("PDF diteruskan"), N_("Berkas salinan dikirim apa adanya."), "file-text"),
+    "teks": (N_("Teks disalin"), N_("Isi dokumen disalin dari PDF dan ditempel ke percakapan."), "type"),
 }
 
 
@@ -189,7 +191,7 @@ def evidence_preview(name: str, data: bytes) -> tuple[bytes, str]:
 
 
 def size_label(n: int) -> str:
-    """'412 KB' or '1,2 MB'."""
+    """'412 KB' or '1,2 MB' (1.2 MB in English)."""
     if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f} MB".replace(".", ",")
+        return localize(f"{n / 1_000_000:.1f} MB".replace(".", ","))
     return f"{max(1, round(n / 1000))} KB"

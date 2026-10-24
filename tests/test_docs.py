@@ -1,6 +1,6 @@
 """The documentation points only at things that exist: files, headings, make targets, CLI options.
 
-Covers README.md, docs/*.md and research/*/README.md. Anchors follow GitHub's heading slugs, since
+Covers README.md, README.en.md, docs/*.md and research/*/README.md. Anchors follow GitHub's heading slugs, since
 the judges read the docs on GitHub; a renamed heading or a removed option fails here instead of
 leaving a dead link or a command that errors out.
 """
@@ -17,7 +17,8 @@ import pytest
 
 from tests_support import ROOT
 
-DOCS = sorted([ROOT / "README.md", *(ROOT / "docs").glob("*.md"), *(ROOT / "research").glob("*/README.md")])
+DOCS = sorted([ROOT / "README.md", ROOT / "README.en.md", *(ROOT / "docs").glob("*.md"),
+               *(ROOT / "research").glob("*/README.md")])
 FENCE = re.compile(r"^(```|~~~)")
 INLINE_CODE = re.compile(r"`([^`\n]+)`")
 MD_LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")

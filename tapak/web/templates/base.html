@@ -1,11 +1,12 @@
 {% from "_ikon.html" import ikon, logo -%}
+{% from "_bahasa.html" import pilih_bahasa -%}
 <!doctype html>
-<html lang="id">
+<html lang="{{ bahasa() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>{{ title }} · TAPAK</title>
+  <title>{{ _(title) }} · TAPAK</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/static/fonts/IBMPlexSans-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/IBMPlexSans-500.woff2" as="font" type="font/woff2" crossorigin>
@@ -17,31 +18,34 @@
   <script src="/static/tapak.js?v={{ asset_v() }}" defer></script>
 </head>
 <body hx-boost="false">
-  <a class="skip-link" href="#konten">Langsung ke konten</a>
-  <div class="banner" role="region" aria-label="Klasifikasi">RAHASIA</div>
+  <a class="skip-link" href="#konten">{{ _("Langsung ke konten") }}</a>
+  <div class="banner" role="region" aria-label="{{ _('Klasifikasi') }}">{{ _("RAHASIA") }}</div>
   <div class="top-progress" aria-hidden="true"></div>
   <div class="shell">
     <header class="sidebar">
-      <a class="brand" href="/beranda" aria-label="TAPAK, beranda">
+      <a class="brand" href="/beranda" aria-label="{{ _('TAPAK, beranda') }}">
         {{ logo() }}
         <span class="brand-name">TAPAK</span>
-        <span class="brand-sub">Tanda Atribusi Penerima <span class="nowrap">Anti-Kolusi</span></span>
+        <span class="brand-sub">{% trans %}Tanda Atribusi Penerima <span class="nowrap">Anti-Kolusi</span>{% endtrans %}</span>
       </a>
-      <nav class="nav" aria-label="Menu utama">
+      <nav class="nav" aria-label="{{ _('Menu utama') }}">
         <ul>
-          {% for href, key, label, icon in [("/beranda", "beranda", "Beranda", "home"), ("/terbitkan", "terbitkan", "Terbitkan", "files"),
-                                            ("/lacak", "lacak", "Lacak", "scan"), ("/registri", "registri", "Registri", "ledger"),
-                                            ("/demo", "demo", "Demo", "play")] %}
+          {% for href, key, label, icon in [("/beranda", "beranda", _("Beranda"), "home"), ("/terbitkan", "terbitkan", _("Terbitkan"), "files"),
+                                            ("/lacak", "lacak", _("Lacak"), "scan"), ("/registri", "registri", _("Registri"), "ledger"),
+                                            ("/demo", "demo", _("Demo"), "play")] %}
           <li><a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ ikon(icon) }}<span>{{ label }}</span></a></li>
           {% endfor %}
         </ul>
       </nav>
       <div class="sidebar-status">
-        <p class="status-line" title="Tidak ada data yang dikirim keluar dari perangkat ini">
-          <span class="status-dot" aria-hidden="true"></span><span><b>Luring</b>, semua diproses di perangkat ini</span>
+        <p class="status-line" title="{{ _('Tidak ada data yang dikirim keluar dari perangkat ini') }}">
+          <span class="status-dot" aria-hidden="true"></span><span>{% trans %}<b>Luring</b>, semua diproses di perangkat ini{% endtrans %}</span>
         </p>
         {% include "_status_registri.html" %}
-        <a class="link small sidebar-produk" href="/">Halaman produk TAPAK</a>
+        <div class="sidebar-foot">
+          <a class="link small" href="/">{{ _("Halaman produk TAPAK") }}</a>
+          {{ pilih_bahasa(request) }}
+        </div>
       </div>
     </header>
     <div class="main-col">
@@ -51,12 +55,13 @@
       </main>
       <footer class="footer">
         <div class="footer-inner">
-          <span>TAPAK {{ version }} · prototipe Kartika Cyber Hackathon 2026 · data contoh sepenuhnya fiktif</span>
-          <span>Registri: <span class="mono">{{ registry_path }}</span></span>
+          <span>{% trans %}TAPAK {{ version }} · prototipe Kartika Cyber Hackathon 2026 · data contoh sepenuhnya fiktif{% endtrans %}</span>
+          <span>{{ _("Registri:") }} <span class="mono">{{ registry_path }}</span></span>
         </div>
       </footer>
     </div>
   </div>
   <div id="status-global" class="sr-only" aria-live="polite"></div>
+  {% include "_teks_js.html" %}
 </body>
 </html>

@@ -1,175 +1,246 @@
 {% from "_ikon.html" import ikon %}
-{# The four demo steps. Every step posts back here (hx-target="#alur"), and the server renders
-   the steps again from what exists: the sandbox issuance (m), the simulated leak (leak) and the
-   trace (hasil). #}
+{# The guided demo, rendered again after every step (hx-target="#alur"): the rail of the four
+   steps and the card of the current one (langkah), from what exists so far: the sandbox
+   issuance (m), the simulated leak (leak) and the trace (hasil). Only the step a request has
+   just opened (baru) plays its entrance; a page load shows everything at rest. #}
 {% set errors = errors or {} %}
-{% set done1 = m is not none %}
-{% set done2 = leak is not none %}
-{% set done3 = hasil is not none %}
-{% macro head(n, title, done, locked, note) -%}
-<div class="demo-step-head">
-  <span class="demo-step-num" aria-hidden="true">{% if done %}{{ ikon("check", 16) }}{% else %}{{ n }}{% endif %}</span>
-  <div>
-    <h2 id="langkah-{{ n }}-h">Langkah {{ n }}<span class="sr-only">:</span> <span class="demo-step-title">{{ title }}</span></h2>
-    {% if locked %}<p class="hint">{{ note }}</p>{% endif %}
+{% set titles = [_("Terbitkan"), _("Bocorkan"), _("Lacak"), _("Hasil")] %}
+{% set n_copies = m.copies|length if m else 20 %}
+{% set media_label = _(media[leak.cara][0]) if leak else "" %}
+{% if langkah > 1 %}{% set note1 = ngettext("%(num)s salinan", "%(num)s salinan", n_copies) %}{% else %}{% set note1 = _("nota dinas fiktif") %}{% endif %}
+{% if langkah > 2 %}{% set note2 = "#" ~ leak.seq ~ " · " ~ media_label|lower %}{% else %}{% set note2 = _("Anda pilih pembocornya") %}{% endif %}
+{% if langkah > 3 %}{% set note3 = _("%(s)s detik", s=hasil.detik|num(0)) %}{% else %}{% set note3 = _("dari barang bukti saja") %}{% endif %}
+{% if langkah == 4 %}{% set note4 = _("Teridentifikasi") if hasil.identified else _("Tidak cukup bukti") %}{% else %}{% set note4 = _("putusan dan berita acara") %}{% endif %}
+{% set notes = [note1, note2, note3, note4] %}
+
+<nav class="dm-rail{% if baru %} is-moving{% endif %}" aria-label="{{ _('Langkah demo') }}"
+     style="--ke: {{ ((langkah - 1) / 3)|round(4) }}; --dari: {{ ((langkah - 2) / 3)|round(4) if baru else 0 }}">
+  <div class="dm-rail-inner">
+    <div class="dm-rail-track" aria-hidden="true"><span class="dm-rail-fill"></span></div>
+    <ol>
+      {% for t in titles %}
+      {% set n = loop.index %}
+      <li class="dm-rail-step{% if n < langkah %} is-done{% elif n == langkah %} is-current{% endif %}{% if baru and n == langkah - 1 %} just-done{% endif %}"{% if n == langkah %} aria-current="step"{% endif %}>
+        <span class="dm-rail-dot" aria-hidden="true">{% if n < langkah %}{{ ikon("check", 14) }}{% else %}{{ n }}{% endif %}</span>
+        <span class="dm-rail-text">
+          <span class="dm-rail-label"><span class="sr-only">{{ _("Langkah %(n)s:", n=n) }} </span>{{ t }}</span>
+          <span class="dm-rail-note">{{ notes[loop.index0] }}{% if n < langkah %}<span class="sr-only">, {{ _("selesai") }}</span>{% endif %}</span>
+        </span>
+      </li>
+      {% endfor %}
+    </ol>
   </div>
-  {% if done %}<span class="stamp stamp-ok">Selesai</span>{% endif %}
-</div>
-{%- endmacro %}
+</nav>
 
-<div id="alur" class="demo-flow" data-enter>
-<ol class="demo-steps">
+{% if galat %}<p class="notice notice-error dm-galat" role="alert" tabindex="-1" data-autofocus>{{ galat|prosa }}</p>{% endif %}
 
-  {# ---------------------------------------------------------------- 1. issue #}
-  <li class="demo-step card{% if done1 %} is-done{% else %} is-current{% endif %}" id="langkah-1" aria-labelledby="langkah-1-h">
-    {{ head(1, "Terbitkan 20 salinan", done1, false, "") }}
-    {% if not done1 %}
-    <p>Nota dinas contoh (2 halaman, fiktif) diterbitkan untuk 20 penerima fiktif. Setiap salinan mendapat sidiknya sendiri di lima lapis: geser kata, pola titik latar, karakter tak terlihat, varian kalimat, dan alamat kanari.</p>
-    <form hx-post="/demo/terbitkan" hx-target="#alur" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
-      <button class="btn btn-primary" type="submit">
+{% macro kicker(n) %}<p class="dm-step-kicker">{{ _("Langkah %(n)s dari 4", n=n) }}</p>{% endmacro %}
+
+{# ---------------------------------------------------------------- 1. issue #}
+{% if langkah == 1 %}
+<section class="dm-step dm-step-1{% if baru == 1 %} is-new{% endif %}" aria-labelledby="langkah-h">
+  <div class="dm-step-copy">
+    {{ kicker(1) }}
+    <h2 id="langkah-h" tabindex="-1"{% if baru and not galat %} data-autofocus{% endif %}>{{ _("Terbitkan 20 salinan") }}</h2>
+    <p>{{ _("Nota dinas contoh (2 halaman, fiktif) diterbitkan untuk 20 penerima fiktif. TAPAK membuat satu salinan untuk setiap orang dan menanam sidiknya di lima lapis:") }}</p>
+    <ul class="dm-layers">
+      {% for layer in [_("geser kata dan baris"), _("pola titik latar"), _("karakter tak terlihat"), _("varian kalimat"), _("alamat kanari")] %}<li>{{ layer }}</li>{% endfor %}
+    </ul>
+    <form id="dm-terbit" hx-post="/demo/terbitkan" hx-target="#alur" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]"
+          hx-indicator="#dm-terbit, #dm-tumpuk">
+      <button class="btn btn-primary dm-btn" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        {{ ikon("files") }}<span class="idle-label">Terbitkan 20 salinan</span>
-        <span class="htmx-indicator">Menerbitkan 20 salinan…</span>
+        {{ ikon("files") }}<span class="idle-label">{{ _("Terbitkan 20 salinan") }}</span>
+        <span class="htmx-indicator">{{ _("Menerbitkan 20 salinan…") }}</span>
       </button>
     </form>
-    {% else %}
-    <p><b class="tnum">{{ m.copies|length }}</b> salinan <b>{{ m.doc_name }}</b> terbit{% if issue_seconds %} dalam <span class="tnum">{{ issue_seconds|num(1) }}</span> detik{% endif %}, masing-masing tercatat di registri demo.</p>
-    <div class="demo-compare">
-      <figure>
-        <span class="thumb"><img src="/demo/salinan/1/pratinjau.png" alt="Halaman 1 salinan #1" width="200" height="283"></span>
-        <figcaption>Salinan #1</figcaption>
-      </figure>
-      <figure>
-        <span class="thumb"><img src="/demo/salinan/2/pratinjau.png" alt="Halaman 1 salinan #2" width="200" height="283"></span>
-        <figcaption>Salinan #2</figcaption>
-      </figure>
-      <figure class="demo-diff">
-        <span class="thumb"><img src="/demo/selisih.png" alt="Selisih salinan #1 dan #2 pada separuh atas halaman 1, diperkuat 40 kali: titik-titik pola latar dan tepi kata yang bergeser" width="200" height="142"></span>
-        <figcaption>Selisih keduanya, diperkuat 40 kali</figcaption>
-      </figure>
+    <p class="hint">{{ _("Butuh beberapa detik, dan semuanya dikerjakan di komputer ini.") }}</p>
+  </div>
+  <figure class="dm-stack" id="dm-tumpuk">
+    <span class="dm-stack-pages">
+      <span class="dm-stack-sheet" aria-hidden="true"></span><span class="dm-stack-sheet" aria-hidden="true"></span><span class="dm-stack-sheet" aria-hidden="true"></span>
+      <img src="/demo/induk.png" alt="{{ _('Halaman 1 nota dinas contoh') }}" width="496" height="701">
+    </span>
+    <figcaption><span class="mono keep-case">nota_dinas.pdf</span> · {{ _("dokumen induk") }}</figcaption>
+  </figure>
+</section>
+
+{# ---------------------------------------------------------------- 2. leak #}
+{% elif langkah == 2 %}
+{% set pilih = pilih or 13 %}
+{% set pilih_cara = pilih_cara or "foto" %}
+<section class="dm-step dm-step-2{% if baru == 2 %} is-new{% endif %}" aria-labelledby="langkah-h">
+  <header class="dm-step-head">
+    <div>
+      {{ kicker(2) }}
+      <h2 id="langkah-h" tabindex="-1"{% if baru and not galat %} data-autofocus{% endif %}>{{ _("Bocorkan satu salinan") }}</h2>
+      <p>{% if issue_seconds %}{{ _("%(n)s salinan terbit dalam %(s)s detik, masing-masing tercatat di registri demo.", n=n_copies, s=issue_seconds|num(1)) }}{% else %}{{ _("%(n)s salinan sudah terbit, masing-masing tercatat di registri demo.", n=n_copies) }}{% endif %}
+        {{ _("Semuanya tampak sama. Pilih siapa yang membocorkan salinannya dan bagaimana caranya.") }}</p>
     </div>
-    <p class="hint">Kedua salinan tampak sama. Selisihnya baru terlihat setelah diperkuat: pola titik latar dan tepi kata yang bergeser, berbeda untuk setiap penerima.</p>
-    <details class="more">
-      <summary><span>Daftar {{ m.copies|length }} penerima</span></summary>
-      <div class="table-wrap demo-penerima">
-        <table>
-          <thead><tr><th scope="col" class="num">No.</th><th scope="col">Nama</th><th scope="col">Jabatan</th><th scope="col">Satuan</th></tr></thead>
-          <tbody>
-            {% for c in m.copies %}<tr><td class="num">{{ c.seq }}</td><td>{{ c.recipient.nama }}</td><td>{{ c.recipient.jabatan }}</td><td>{{ c.recipient.satuan }}</td></tr>{% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </details>
-    <form class="demo-ulang" hx-post="/demo/terbitkan" hx-target="#alur" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]"
-          hx-confirm="Terbitkan ulang? Salinan, bukti, dan registri demo yang lama dihapus.">
-      <button class="btn btn-ghost btn-small" type="submit" data-loading-text="Menerbitkan ulang…">{{ ikon("refresh", 16) }}Terbitkan ulang</button>
+    <form class="dm-ulang" hx-post="/demo/terbitkan" hx-target="#alur" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]"
+          hx-confirm="{{ _('Terbitkan ulang? Salinan, bukti, dan registri demo yang lama dihapus.') }}">
+      <button class="btn btn-ghost btn-small" type="submit" data-loading-text="{{ _('Menerbitkan ulang…') }}">{{ ikon("refresh", 16) }}{{ _("Terbitkan ulang") }}</button>
     </form>
-    {% endif %}
-  </li>
+  </header>
 
-  {# ---------------------------------------------------------------- 2. leak #}
-  <li class="demo-step card{% if done2 %} is-done{% elif done1 %} is-current{% else %} is-locked{% endif %}" id="langkah-2" aria-labelledby="langkah-2-h">
-    {{ head(2, "Bocorkan satu salinan", done2, not done1, "Terbuka setelah salinan diterbitkan.") }}
-    {% if done1 %}
-    {% if done2 %}
-    {% set media_label = media[leak.cara][0] %}
-    <figure class="demo-evidence">
-      <span class="demo-evidence-img"><img src="/demo/bukti/{{ leak_id }}" alt="Barang bukti yang beredar: {{ media_label|lower }} salinan yang dibocorkan" loading="lazy"></span>
-      <figcaption>
-        <span class="label">Barang bukti yang beredar</span>
-        <span class="mono keep-case">{{ leak.name }}</span> · {{ media_label }} · {{ size_label(leak.data|length) }}
-        <a class="link small" href="/demo/bukti/{{ leak_id }}?unduh=1">Unduh berkasnya</a>
-      </figcaption>
+  <div class="dm-compare">
+    <figure>
+      <span class="thumb"><img src="/demo/salinan/1/pratinjau.png" alt="{{ _('Halaman 1 salinan #%(n)s', n=1) }}" width="200" height="283"></span>
+      <figcaption>{{ _("Salinan #%(n)s", n=1) }}</figcaption>
     </figure>
-    <p class="hint">TAPAK tidak tahu siapa pembocornya. Pelacak hanya melihat berkas ini, seperti penyidik yang menemukannya di grup percakapan.</p>
-    {% endif %}
-    <details class="more"{% if not done2 or errors %} open{% endif %}>
-      <summary><span>{% if done2 %}Coba pembocor atau cara bocor lain{% else %}Pilih pembocor dan cara bocornya{% endif %}</span></summary>
-      <form class="demo-leak-form" hx-post="/demo/bocorkan" hx-target="#alur" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
-        {% set pilih = pilih or (leak.seq if leak else 13) %}
-        <div class="field">
-          <label for="salinan">Siapa pembocornya?</label>
-          <select id="salinan" name="salinan" aria-describedby="salinan-err" {% if errors.salinan %}aria-invalid="true"{% endif %}>
-            {% for c in m.copies %}<option value="{{ c.seq }}"{% if c.seq == pilih %} selected{% endif %}>#{{ c.seq }} · {{ c.recipient.nama }} ({{ c.recipient.jabatan }})</option>{% endfor %}
-          </select>
-          <span id="salinan-err">{% if errors.salinan %}<span class="field-error" role="alert">{{ errors.salinan }}</span>{% endif %}</span>
-        </div>
-        {% set pilih_cara = pilih_cara or (leak.cara if leak else "foto") %}
-        <fieldset class="field">
-          <legend class="field-label">Bagaimana salinan itu bocor?</legend>
-          <div class="choices demo-media">
-            {% for key, (label, desc, icon) in media.items() %}
-            <label class="choice">
-              <input type="radio" name="cara" value="{{ key }}" aria-describedby="cara-{{ key }} cara-err" {% if key == pilih_cara %}checked{% endif %}>
-              <span class="choice-body">
-                <span class="choice-title">{{ ikon(icon, 16) }}{{ label }}</span>
-                <span class="choice-desc" id="cara-{{ key }}">{{ desc }}</span>
-              </span>
-            </label>
-            {% endfor %}
-          </div>
-          <span id="cara-err">{% if errors.cara %}<span class="field-error" role="alert">{{ errors.cara }}</span>{% endif %}</span>
-        </fieldset>
-        <button class="btn {% if done2 %}btn-secondary{% else %}btn-primary{% endif %}" type="submit">
-          <span class="htmx-indicator spinner" aria-hidden="true"></span>
-          {{ ikon("upload") }}<span class="idle-label">Bocorkan salinan</span>
-          <span class="htmx-indicator">Membuat barang bukti…</span>
-        </button>
-      </form>
-    </details>
-    {% endif %}
-  </li>
+    <figure>
+      <span class="thumb"><img src="/demo/salinan/2/pratinjau.png" alt="{{ _('Halaman 1 salinan #%(n)s', n=2) }}" width="200" height="283"></span>
+      <figcaption>{{ _("Salinan #%(n)s", n=2) }}</figcaption>
+    </figure>
+    <figure class="dm-compare-diff">
+      <span class="thumb"><img src="/demo/selisih.png" alt="{{ _('Selisih salinan #1 dan #2 pada separuh atas halaman 1, diperkuat 40 kali: titik-titik pola latar dan tepi kata yang bergeser') }}" width="200" height="142"></span>
+      <figcaption>{{ _("Selisih keduanya, diperkuat 40 kali: titik pola latar dan tepi kata yang bergeser, berbeda untuk setiap penerima.") }}</figcaption>
+    </figure>
+  </div>
 
-  {# ---------------------------------------------------------------- 3. trace #}
-  <li class="demo-step card{% if done3 %} is-done{% elif done2 %} is-current{% else %} is-locked{% endif %}" id="langkah-3" aria-labelledby="langkah-3-h">
-    {{ head(3, "Lacak sumbernya", done3, not done2, "Terbuka setelah ada barang bukti.") }}
-    {% if done2 and not done3 %}
-    <p>TAPAK membaca sidik yang tersisa di barang bukti, menggabungkan semua lapis, lalu membandingkan skor setiap salinan dengan ambang yang ditetapkan sebelum skor dihitung.</p>
-    <form hx-post="/demo/lacak" hx-target="#alur" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+  <form class="dm-leak" hx-post="/demo/bocorkan" hx-target="#alur" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
+    <fieldset class="dm-field">
+      <legend>{{ _("Siapa pembocornya?") }}</legend>
+      <p class="hint" id="salinan-hint">{{ _("Pelacak tidak diberi tahu pilihan Anda.") }}</p>
+      <div class="dm-cards">
+        {% for c in m.copies %}
+        <label class="dm-card" style="--i: {{ loop.index0 }}">
+          <input type="radio" name="salinan" value="{{ c.seq }}"{% if c.seq == pilih %} checked{% endif %} aria-describedby="salinan-hint salinan-err"{% if errors.salinan %} aria-invalid="true"{% endif %}>
+          <svg class="dm-card-page" viewBox="0 0 24 30" aria-hidden="true" focusable="false"><rect x="0.75" y="0.75" width="22.5" height="28.5" rx="2.5"/><path d="M5 8h13M{{ 5 + (c.seq % 4) * 0.75 }} 13h12M5 18h14M5 23h9"/></svg>
+          <span class="dm-card-text">
+            <span class="dm-card-seq">#{{ c.seq }}</span>
+            <span class="dm-card-name">{{ c.recipient.nama }}</span>
+            <span class="dm-card-role">{{ c.recipient.jabatan }}</span>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+      <span id="salinan-err">{% if errors.salinan %}<span class="field-error" role="alert">{{ errors.salinan }}</span>{% endif %}</span>
+    </fieldset>
+
+    <fieldset class="dm-field">
+      <legend>{{ _("Bagaimana salinan itu bocor?") }}</legend>
+      <div class="choices dm-media">
+        {% for key, (label, desc, icon) in media.items() %}
+        <label class="choice">
+          <input type="radio" name="cara" value="{{ key }}" aria-describedby="cara-{{ key }} cara-err"{% if key == pilih_cara %} checked{% endif %}{% if errors.cara %} aria-invalid="true"{% endif %}>
+          <span class="choice-body">
+            <span class="choice-title">{{ ikon(icon, 16) }}{{ _(label) }}</span>
+            <span class="choice-desc" id="cara-{{ key }}">{{ _(desc) }}</span>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+      <span id="cara-err">{% if errors.cara %}<span class="field-error" role="alert">{{ errors.cara }}</span>{% endif %}</span>
+    </fieldset>
+
+    <button class="btn btn-primary dm-btn" type="submit">
+      <span class="htmx-indicator spinner" aria-hidden="true"></span>
+      {{ ikon("upload") }}<span class="idle-label">{{ _("Bocorkan salinan") }}</span>
+      <span class="htmx-indicator">{{ _("Membuat barang bukti…") }}</span>
+    </button>
+  </form>
+</section>
+
+{# ---------------------------------------------------------------- 3. trace #}
+{% elif langkah == 3 %}
+<section class="dm-step dm-step-3{% if baru == 3 %} is-new{% endif %}" aria-labelledby="langkah-h">
+  <figure class="dm-chat" id="dm-bukti">
+    <figcaption class="dm-chat-head"><span class="dm-chat-dot" aria-hidden="true"></span>{{ _("Diteruskan ke grup") }}<span class="dm-chat-time" aria-hidden="true">{{ "21:47" if bahasa() == "en" else "21.47" }}</span></figcaption>
+    <span class="dm-chat-media">
+      <img src="/demo/bukti/{{ leak_id }}" alt="{{ _('Barang bukti yang beredar: %(cara)s dari salinan yang dibocorkan', cara=media_label|lower) }}">
+      <span class="dm-scan" aria-hidden="true"></span>
+    </span>
+    <span class="dm-chat-file"><span class="mono keep-case">{{ leak.name }}</span><span>{{ size_label(leak.data|length) }}</span></span>
+  </figure>
+  <div class="dm-step-copy">
+    {{ kicker(3) }}
+    <h2 id="langkah-h" tabindex="-1"{% if baru and not galat %} data-autofocus{% endif %}>{{ _("Lacak sumbernya") }}</h2>
+    <p>{{ _("Salinan #%(n)s bocor: %(cara)s. Mulai dari sini TAPAK hanya melihat berkas ini, seperti penyidik yang menemukannya di grup percakapan.", n=leak.seq, cara=media_label|lower) }}</p>
+    <p>{{ _("TAPAK membaca sidik yang tersisa, menggabungkan semua lapis, lalu membandingkan skor setiap salinan dengan ambang yang ditetapkan sebelum skor dihitung.") }}</p>
+    <form id="dm-lacak" hx-post="/demo/lacak" hx-target="#alur" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]"
+          hx-indicator="#dm-lacak, #dm-bukti">
       <input type="hidden" name="bukti" value="{{ leak_id }}">
-      <button class="btn btn-primary" type="submit">
+      <button class="btn btn-primary dm-btn" type="submit">
         <span class="htmx-indicator spinner" aria-hidden="true"></span>
-        {{ ikon("scan") }}<span class="idle-label">Lacak barang bukti ini</span>
-        <span class="htmx-indicator">Menganalisis bukti, 10 sampai 40 detik…</span>
+        {{ ikon("scan") }}<span class="idle-label">{{ _("Lacak barang bukti ini") }}</span>
+        <span class="htmx-indicator">{{ _("Menganalisis bukti, 10 sampai 40 detik…") }}</span>
       </button>
     </form>
-    {% elif done3 %}
-    {% set a = hasil.a %}
-    {% set named = a.named_seqs|list %}
-    <div class="demo-reveal" id="langkah-3-hasil" tabindex="-1" data-autofocus>
-      {% if hasil.identified and named == [leak.seq] %}
-      <p class="notice notice-ok"><b>Tepat.</b> TAPAK menunjuk salinan #{{ leak.seq }}, salinan yang Anda bocorkan di langkah 2, dalam <span class="tnum">{{ hasil.detik|num(0) }}</span> detik. Tidak ada penerima lain yang disebut.</p>
+    <p class="dm-links"><a class="link" href="/demo/bukti/{{ leak_id }}?unduh=1">{{ ikon("download", 16) }}{{ _("Unduh berkas bukti") }}</a><a class="link" href="/demo">{{ ikon("arrow-left", 16) }}{{ _("Ganti pembocor atau cara bocor") }}</a></p>
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 4. result #}
+{% else %}
+{% set a = hasil.a %}
+{% set named = a.named_seqs|list %}
+{% set plot = hasil.plot %}
+<section class="dm-step dm-step-4{% if baru == 4 %} is-new{% endif %}" aria-labelledby="langkah-h">
+  <div class="dm-result">
+    <div class="dm-result-main">
+      {{ kicker(4) }}
+      {% if hasil.identified %}
       {% set top = a.accused[0] %}
-      {% set others = a.candidates|rejectattr("copy.seq", "in", named)|map(attribute="score")|list %}
-      <dl class="demo-explain">
-        <div><dt>Skor salinan #{{ leak.seq }}</dt><dd><b class="tnum">{{ top.score|num(1) }}</b>, {{ (top.score / a.threshold.threshold)|num(1) }} kali ambang tuduhan ({{ a.threshold.threshold|num(1) }})</dd></div>
-        {% if others %}<div><dt>Skor tertinggi penerima lain</dt><dd><b class="tnum">{{ (others|max)|num(1) }}</b>, jauh di bawah ambang</dd></div>{% endif %}
-        <div><dt>Peluang menunjuk orang yang salah</dt><dd><b>&#8804; {{ fap(top, a.candidates|length) }}</b>, dihitung dari ambang yang ditetapkan sebelum skor dihitung</dd></div>
-      </dl>
-      {% elif hasil.identified %}
-      <p class="notice notice-error">TAPAK menyebut salinan {% for s in named %}#{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}, sedangkan yang dibocorkan salinan #{{ leak.seq }}. Ini tidak boleh terjadi; simpan berkas buktinya dan laporkan.</p>
+      <span class="stamp stamp-lg stamp-ok dm-verdict" id="putusan-cap">{{ _("Teridentifikasi") }}</span>
+      <h2 id="langkah-h" tabindex="-1"{% if baru %} data-autofocus{% endif %} aria-describedby="putusan-cap">{{ _("Salinan #%(n)s", n=top.copy.seq) }} <span class="dm-who">{{ top.copy.nama }}</span></h2>
+      <p class="dm-who-meta">{{ top.copy.jabatan }}{% if top.copy.satuan %} · {{ top.copy.satuan }}{% endif %}</p>
+      {% if named == [leak.seq] %}
+      <p class="notice notice-ok">{% trans s=hasil.detik|num(0) %}<b>Tepat.</b> Ini salinan yang Anda bocorkan di langkah 2, ditemukan dalam {{ s }} detik. Tidak ada penerima lain yang disebut.{% endtrans %}</p>
       {% else %}
-      <p class="notice notice-warn"><b>Tidak cukup bukti.</b> Sidik yang tersisa di {{ media[leak.cara][0]|lower }} ini tidak cukup kuat untuk menyebut nama dengan peluang salah tuduh di bawah batasnya, jadi TAPAK tidak menebak.{% if leak.cara == "teks" %} Teks yang disalin hanya membawa karakter tak terlihat dan varian kalimat; bila aplikasi pesan membuang karakter tak terlihat, yang tersisa terlalu sedikit.{% endif %} Coba cara bocor lain di langkah 2.</p>
+      <p class="notice notice-error">{% trans named=named|map("string")|join(", #"), n=leak.seq %}TAPAK menyebut salinan #{{ named }}, sedangkan yang dibocorkan salinan #{{ n }}. Ini tidak boleh terjadi; simpan berkas buktinya dan laporkan.{% endtrans %}</p>
+      {% endif %}
+      {% else %}
+      <span class="stamp stamp-lg stamp-warn dm-verdict" id="putusan-cap">{{ _("Tidak cukup bukti") }}</span>
+      <h2 id="langkah-h" tabindex="-1"{% if baru %} data-autofocus{% endif %} aria-describedby="putusan-cap">{{ _("TAPAK tidak menyebut nama") }}</h2>
+      <p class="notice notice-warn">{{ _("Sidik yang tersisa di barang bukti ini (%(cara)s) tidak cukup kuat untuk menyebut nama dengan peluang salah tuduh di bawah batasnya, jadi TAPAK tidak menebak.", cara=media_label|lower) }}{% if leak.cara == "teks" %} {{ _("Teks yang disalin hanya membawa karakter tak terlihat dan varian kalimat; bila aplikasi pesan membuang karakter tak terlihat, yang tersisa terlalu sedikit.") }}{% endif %} {{ _("Coba cara bocor lain.") }}</p>
+      {% endif %}
+
+      {% for n in hasil.v.notes %}
+      <p class="notice notice-warn"><b>{{ _("Perhatian:") }}</b> <b>{{ n.parts[0]|tr|prosa }}</b>{% for s in n.parts[1:] %} {{ s|tr|prosa }}{% endfor %}</p>
+      {% endfor %}
+
+      {% if plot %}
+      {% set z = a.threshold.threshold %}
+      <figure class="dm-plot">
+        <figcaption class="dm-plot-cap">{{ _("Skor setiap salinan") }}</figcaption>
+        <p class="sr-only">{% if hasil.identified %}{{ _("Skor salinan #%(n)s %(skor)s, ambang %(z)s, skor tertinggi penerima lain %(lain)s.", n=a.accused[0].copy.seq, skor=a.accused[0].score|num(1), z=z|num(1), lain=(plot.others_max or 0)|num(1)) }}{% else %}{{ _("Skor tertinggi %(skor)s, di bawah ambang %(z)s.", skor=a.candidates[0].score|num(1), z=z|num(1)) }}{% endif %}</p>
+        <div class="dm-plot-area" aria-hidden="true">
+          {% if plot.z is not none %}<span class="dm-plot-z" style="--x: {{ plot.z }}"><span>{{ _("ambang") }} <b class="tnum">{{ z|num(1) }}</b></span></span>{% endif %}
+          {% for d in plot.dots %}
+          <span class="dm-dot{% if d.seq %} is-named{% endif %}" style="--x: {{ d.x }}; --i: {{ loop.index0 }}{% if d.lane is not none %}; --lane: {{ d.lane }}{% endif %}">{% if d.seq %}<b>#{{ d.seq }}</b>{% endif %}</span>
+          {% endfor %}
+        </div>
+        <p class="dm-plot-key" aria-hidden="true"><span><i class="dm-key-dot"></i>{{ _("penerima lain, tanpa nomor") }}</span>{% if hasil.identified %}<span><i class="dm-key-dot is-named"></i>{{ _("salinan yang disebut") }}</span>{% endif %}<span><i class="dm-key-z"></i>{{ _("ambang, ditetapkan sebelum skor dihitung") }}</span></p>
+      </figure>
+      {% endif %}
+
+      {% if hasil.identified %}
+      {% set top = a.accused[0] %}
+      <dl class="dm-facts">
+        <div><dt>{{ _("Skor salinan #%(n)s", n=top.copy.seq) }}</dt><dd><b class="tnum">{{ top.score|num(1) }}</b>{% if a.threshold.threshold > 0 %}, {{ _("%(k)s kali ambang", k=(top.score / a.threshold.threshold)|num(1)) }}{% endif %}</dd></div>
+        {% if plot and plot.others_max is not none %}<div><dt>{{ _("Skor tertinggi penerima lain") }}</dt><dd><b class="tnum">{{ plot.others_max|num(1) }}</b></dd></div>{% endif %}
+        <div><dt>{{ _("Peluang menunjuk orang yang salah") }}</dt><dd><b aria-hidden="true">&#8804; {{ fap(top, a.candidates|length) }}</b><b class="sr-only">{{ _("paling besar %(p)s", p=fap_lisan(top, a.candidates|length)) }}</b></dd></div>
+      </dl>
       {% endif %}
     </div>
-    {% with o=hasil.o, a=hasil.a, tid=hasil.tid, identified=hasil.identified, redact=hasil.redact, tahap_lanjut=hasil.tahap_lanjut,
-            eps_label=hasil.eps_label, shift_scan=hasil.shift_scan, v=hasil.v, ringkas=true %}
-    <div class="demo-result">{% include "_hasil_lacak.html" %}</div>
-    {% endwith %}
-    {% endif %}
-  </li>
 
-  {# ---------------------------------------------------------------- 4. report #}
-  <li class="demo-step card{% if done3 %} is-current{% else %} is-locked{% endif %}" id="langkah-4" aria-labelledby="langkah-4-h">
-    {{ head(4, "Unduh berita acara", false, not done3, "Terbuka setelah pelacakan.") }}
-    {% if done3 %}
-    <p>Berita acara memuat identitas barang bukti (SHA-256), dokumen induk, parameter kode, skor, ambang, dan batas peluang salah tuduh, siap ditandatangani pemeriksa.</p>
-    <div class="row">
-      <a class="btn btn-primary" href="/lacak/{{ hasil.tid }}/berita-acara.pdf">{{ ikon("download") }}Unduh berita acara PDF</a>
-      <a class="btn btn-ghost" href="#langkah-2">{{ ikon("refresh") }}Ulangi dengan cara bocor lain</a>
-      <a class="btn btn-ghost" href="/terbitkan">{{ ikon("files") }}Pakai dokumen sendiri</a>
-    </div>
-    {% endif %}
-  </li>
-</ol>
-</div>
+    <aside class="dm-ba" aria-labelledby="ba-h">
+      <a class="dm-ba-thumb" href="/lacak/{{ hasil.tid }}/berita-acara.pdf" tabindex="-1" aria-hidden="true"><img src="/demo/berita-acara/{{ hasil.tid }}.png" alt="" width="413" height="584"></a>
+      <h3 id="ba-h">{{ _("Berita acara") }}</h3>
+      <p>{{ _("SHA-256 barang bukti, dokumen induk, parameter kode, skor, ambang, dan batas peluang salah tuduh, siap ditandatangani pemeriksa. Formulirnya berbahasa Indonesia.") }}</p>
+      <a class="btn btn-primary" href="/lacak/{{ hasil.tid }}/berita-acara.pdf">{{ ikon("download") }}{{ _("Unduh berita acara PDF") }}</a>
+    </aside>
+  </div>
+
+  <div class="dm-next">
+    <a class="btn btn-secondary" href="/demo">{{ ikon("refresh") }}{{ _("Coba pembocor atau cara bocor lain") }}</a>
+    <a class="btn btn-ghost" href="/terbitkan">{{ ikon("files") }}{{ _("Pakai dokumen sendiri") }}</a>
+  </div>
+
+  {% with o=hasil.o, a=hasil.a, tid=hasil.tid, identified=hasil.identified, redact=hasil.redact, tahap_lanjut=hasil.tahap_lanjut,
+          eps_label=hasil.eps_label, shift_scan=hasil.shift_scan, v=hasil.v, ringkas=true %}
+  <div class="dm-rincian">{% include "_hasil_lacak.html" %}</div>
+  {% endwith %}
+</section>
+{% endif %}

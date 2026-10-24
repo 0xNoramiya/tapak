@@ -27,7 +27,7 @@ from pathlib import Path
 
 import os
 import time
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
@@ -54,35 +54,39 @@ from tapak.marker.lexical import LexicalSelection, LexPoint
 from tapak.marker.master import MasterDocument
 from tapak.marker.pdf_shift import DEFAULT_SCHEME, SCHEME_CHOICES
 from tapak.marker.raster import GATE_MAX_DIFF as RASTER_GATE_MAX_DIFF
+from tapak.web import i18n
+from tapak.web.i18n import N_
+from tapak.web.i18n import gettext as _
 
 HERE = Path(__file__).resolve().parent
 MAX_UPLOAD = 40 * 1024 * 1024
 # One name per channel on every page: the physical channels of a trace (geser, latar, teks,
 # semantik, leksikal) carry the names of the sub-channels they are made of, as on Terbitkan.
+# Indonesian, like every message here (N_ marks it for the catalog; i18n translates it when shown).
 CHANNEL_NAMES = {
-    "shift": "Geser kata dan baris", "background": "Pola latar", "zw": "Karakter tak terlihat",
-    "homoglyph": "Huruf kembar", "semantic": "Varian kalimat", "canary": "Token kanari",
-    "lexical": "Pilihan kata", "semantic_ocr": "Varian kalimat (OCR gambar)", "lexical_ocr": "Pilihan kata (OCR gambar)",
-    "geser": "Geser kata dan baris", "latar": "Pola latar", "teks": "Karakter tak terlihat dan huruf kembar",
-    "semantik": "Varian kalimat", "leksikal": "Pilihan kata",
+    "shift": N_("Geser kata dan baris"), "background": N_("Pola latar"), "zw": N_("Karakter tak terlihat"),
+    "homoglyph": N_("Huruf kembar"), "semantic": N_("Varian kalimat"), "canary": N_("Token kanari"),
+    "lexical": N_("Pilihan kata"), "semantic_ocr": N_("Varian kalimat (OCR gambar)"),
+    "lexical_ocr": N_("Pilihan kata (OCR gambar)"), "geser": N_("Geser kata dan baris"), "latar": N_("Pola latar"),
+    "teks": N_("Karakter tak terlihat dan huruf kembar"), "semantik": N_("Varian kalimat"), "leksikal": N_("Pilihan kata"),
 }
-EPS_CHOICES = [("1e-4", "1 dari 10.000"), ("1e-6", "1 dari 1.000.000"), ("1e-8", "1 dari 100.000.000")]
+EPS_CHOICES = [("1e-4", N_("1 dari 10.000")), ("1e-6", N_("1 dari 1.000.000")), ("1e-8", N_("1 dari 100.000.000"))]
 # Progress header of Terbitkan. Step 3 covers both text reviews (safe sentences and word choice).
-ISSUE_STEPS = ("Dokumen", "Rencana", "Tinjau teks", "Terbitkan")
-NOTHING_TO_MARK = ("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap halaman "
-                   "pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")
+ISSUE_STEPS = (N_("Dokumen"), N_("Rencana"), N_("Tinjau teks"), N_("Terbitkan"))
+NOTHING_TO_MARK = N_("PDF ini tidak memiliki lapisan teks dan tidak dikenali sebagai hasil pindai (setiap halaman "
+                     "pindaian harus berupa satu gambar halaman penuh). Tidak ada yang dapat ditandai.")
 # What the visual gate found on scanned pages (GateResult.scan_identical, raster.scan_gate):
 # the unmarked copy holds the master page image sample for sample, and its rendered page stays
 # within the text-page gate's limits of the master's (not "renders the same": that is not tested).
 SCAN_GATE_LINES = {
-    True: "Halaman pindaian: gambar halaman salinan tanpa tanda identik piksel demi piksel dengan gambar induk, "
-          f"dan render halamannya berselisih paling banyak {RASTER_GATE_MAX_DIFF} tingkat abu-abu dari halaman induk.",
-    False: "Halaman pindaian: gambar halaman salinan tanpa tanda tidak identik dengan gambar induk, atau render "
-           "halamannya melewati batas gerbang visual; penerbitan ditolak.",
+    True: N_("Halaman pindaian: gambar halaman salinan tanpa tanda identik piksel demi piksel dengan gambar induk, "
+             "dan render halamannya berselisih paling banyak %(n)s tingkat abu-abu dari halaman induk."),
+    False: N_("Halaman pindaian: gambar halaman salinan tanpa tanda tidak identik dengan gambar induk, atau render "
+              "halamannya melewati batas gerbang visual; penerbitan ditolak."),
 }
 # Busy line of the analysis step: Tesseract reads every scanned page once there.
-SCAN_READ_BUSY = "Membaca kotak kata halaman pindaian dengan Tesseract (beberapa detik per halaman)."
-SCAN_ALL_NA = "Tidak berlaku: semua halaman dokumen ini hasil pindai"
+SCAN_READ_BUSY = N_("Membaca kotak kata halaman pindaian dengan Tesseract (beberapa detik per halaman).")
+SCAN_ALL_NA = N_("Tidak berlaku: semua halaman dokumen ini hasil pindai")
 
 
 def _sentence(text: str) -> str:
@@ -188,7 +192,7 @@ async def _same_origin_posts(request: Request, call_next):
             # names count only as the exact host:port of this app. ALLOWED_HOSTS admits the
             # public names a reverse proxy serves.
             if not (same or (host not in _LOOPBACK and _host_allowed(host))):
-                return HTMLResponse('<div class="notice notice-error">Permintaan dari asal lain ditolak.</div>',
+                return HTMLResponse(f'<div class="notice notice-error">{_("Permintaan dari asal lain ditolak.")}</div>',
                                     status_code=403)
     return await call_next(request)
 
@@ -217,6 +221,26 @@ async def _security_headers(request: Request, call_next):
     return response
 
 
+def _request_lang(request: Request) -> str:
+    return i18n.choose(request.query_params.get("lang"), request.cookies.get(i18n.COOKIE))
+
+
+@app.middleware("http")
+async def _language(request: Request, call_next):
+    """The language of everything this request renders (``i18n``); ``?lang=`` also sets the
+    cookie that keeps it for the following pages and htmx requests. Added last, so it runs
+    first: the other middleware's refusals are in the page language too."""
+    token = i18n.use(_request_lang(request))
+    try:
+        response = await call_next(request)
+    finally:
+        i18n.reset(token)
+    if request.query_params.get("lang") in i18n.LANGS:
+        response.set_cookie(i18n.COOKIE, i18n.choose(request.query_params.get("lang"), None),
+                            max_age=365 * 24 * 3600, samesite="lax", httponly=True)
+    return response
+
+
 def _host_allowed(host: str) -> bool:
     host = host.lower()
     for pattern in ALLOWED_HOSTS:
@@ -231,26 +255,43 @@ DEFAULT_GESER = next(k for k, v in SCHEME_CHOICES.items() if v == DEFAULT_SCHEME
 
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
-templates.env.filters["num"] = lambda v, d=0: format_number(float(v), d)
-templates.env.filters["prob"] = lambda p, log10=None: format_probability_html(float(p), log10)
+templates.env.add_extension("jinja2.ext.i18n")
+templates.env.add_extension("jinja2.ext.do")
+templates.env.install_gettext_callables(i18n.translate, i18n.translate_plural, newstyle=True)  # type: ignore[attr-defined]
+templates.env.policies["ext.i18n.trimmed"] = True
+templates.env.globals["bahasa"] = i18n.current
+templates.env.filters["tr"] = i18n.translate_text
+templates.env.filters["num"] = lambda v, d=0: i18n.localize(format_number(float(v), d))
+templates.env.filters["prob"] = lambda p, log10=None: Markup(i18n.localize(format_probability_html(float(p), log10)))
 # A fraction as a percentage, written as the berita acara writes shares of eps: '60,79', '7,35', '90'.
-templates.env.filters["persen"] = lambda v: _strip_zeros(format_number(100 * float(v), 2))
-templates.env.filters["waktu"] = lambda v: format_datetime(str(v))
-templates.env.globals["channel_name"] = lambda c: CHANNEL_NAMES.get(c, c)
+templates.env.filters["persen"] = lambda v: i18n.localize(_strip_zeros(format_number(100 * float(v), 2)))
+templates.env.filters["waktu"] = lambda v: i18n.format_datetime(str(v))
+templates.env.filters["tanggal"] = lambda v: i18n.format_datetime(str(v), with_time=False)
+templates.env.filters["jam"] = lambda v: i18n.format_clock(str(v))
+templates.env.globals["channel_name"] = lambda c: _(CHANNEL_NAMES.get(c, c))
+
+
+def _lang_url(request: Request, lang: str) -> str:
+    """The current page in ``lang``: its path and query with ``lang`` replaced."""
+    query = [(k, v) for k, v in request.query_params.multi_items() if k != "lang"] + [("lang", lang)]
+    return f"{request.url.path}?{urlencode(query)}"
+
+
+templates.env.globals["lang_url"] = _lang_url
 
 
 def _channel_label(ch) -> str:
     """Name of a physical channel row of a trace, with how it was read when that is not the
     obvious way (for example "Pilihan kata (OCR gambar)": word choices read from the OCR text of
     a photo). Never any OCR text."""
-    name = CHANNEL_NAMES.get(ch.channel, ch.channel)
-    return f"{name} ({ch.source_label})" if ch.source_label else name
+    name = _(CHANNEL_NAMES.get(ch.channel, ch.channel))
+    return f"{name} ({i18n.translate_text(ch.source_label)})" if ch.source_label else name
 
 
 def _agreeing_labels(candidate, attribution) -> list[str]:
     """The channels that independently name ``candidate``, labelled like the channel table."""
     rows = {ch.channel: ch for ch in attribution.channels}
-    return [_channel_label(rows[k]) if k in rows else CHANNEL_NAMES.get(k, k) for k in candidate.channels_agreeing]
+    return [_channel_label(rows[k]) if k in rows else _(CHANNEL_NAMES.get(k, k)) for k in candidate.channels_agreeing]
 
 
 templates.env.globals["channel_label"] = _channel_label
@@ -259,6 +300,7 @@ templates.env.globals["inf"] = float("inf")
 templates.env.globals["langkah_terbit"] = ISSUE_STEPS
 templates.env.globals["peringatan_cetak"] = PRINT_BACKGROUND_WARNING
 templates.env.globals["gerbang_pindaian"] = SCAN_GATE_LINES
+templates.env.globals["gerbang_maks"] = RASTER_GATE_MAX_DIFF
 templates.env.globals["sibuk_pindaian"] = SCAN_READ_BUSY
 templates.env.globals["pindaian_na"] = SCAN_ALL_NA
 templates.env.globals["geser_bawaan"] = DEFAULT_GESER
@@ -308,8 +350,8 @@ def _page_note(note: str) -> str:
     """A trace note in the words of this page: a channel pair is named as the channel table
     names its channels (one name per channel), not with the decoder's keys."""
     def pair(m: re.Match) -> str:
-        a, b = (CHANNEL_NAMES.get(k, k).lower() for k in (m[1], m[2]))
-        return f"kanal {a} dan kanal {b}"
+        a, b = (_(CHANNEL_NAMES.get(k, k)).lower() for k in (m[1], m[2]))
+        return _("kanal %(a)s dan kanal %(b)s", a=a, b=b)
 
     return _CHANNEL_PAIR.sub(pair, note)
 
@@ -360,27 +402,29 @@ def _verdict_notes(outcome, attribution, identified: bool, redact) -> dict[str, 
                 rest.remove(note)
                 parts = [_clause(note)]
             else:
-                parts = ["identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.",
-                         "Dokumen ini tidak tercatat di registri."]
+                parts = [_("identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi."),
+                         _("Dokumen ini tidak tercatat di registri.")]
         elif r.chain_ok is not True:
             p = next((p for p in problems if p.startswith(REGISTRY_NO_KEY)), None)
             if p is not None:
                 problems.remove(p)
-            parts = ["identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.",
-                     _sentence(p or "registri tidak diverifikasi karena kunci publik tidak tersedia")]
+            parts = [_("identitas penerima belum dikonfirmasi oleh rantai bertanda tangan."),
+                     _sentence(i18n.translate_text(p) if p else _("registri tidak diverifikasi karena kunci publik "
+                                                                   "tidak tersedia"))]
         elif r.copies_unsigned:
             prefix = f"{r.copies_unsigned} entri salinan dokumen ini belum bertanda tangan"
             p = next((p for p in problems if p.startswith(prefix)), None)
             if p is not None:
                 problems.remove(p)
-            parts = ["identitas penerima belum dilindungi tanda tangan registri.", _sentence(p or prefix)]
+            parts = [_("identitas penerima belum dilindungi tanda tangan registri."),
+                     _sentence(i18n.translate_text(p or prefix))]
         if parts:
             ranked.append((1, {"parts": parts}))
     ranked.sort(key=lambda item: item[0])  # stable: notes of one kind keep their order
     return {"notes": [note for _, note in ranked], "notes_rest": [_page_note(n) for n in rest], "problems": problems}
 
 
-_POWER = re.compile(r"(?:(\d+(?:,\d+)?) x )?10\^(-?)(\d+)")
+_POWER = re.compile(r"(?:(\d+(?:[.,]\d+)?) x )?10\^(-?)(\d+)")
 
 
 def _powers(text: object) -> Markup:
@@ -394,7 +438,8 @@ def _powers(text: object) -> Markup:
         mant, minus, exp = m.group(1), m.group(2), m.group(3)
         sign = "\u2212" if minus else ""
         seen = (f"{mant} \u00d7 " if mant else "") + f"10<sup>{sign}{exp}</sup>"
-        heard = (f"{mant} kali " if mant else "") + f"10 pangkat {'minus ' if minus else ''}{exp}"
+        power = {"m": mant, "minus": _("minus ") if minus else "", "e": exp}
+        heard = _("%(m)s kali 10 pangkat %(minus)s%(e)s", **power) if mant else _("10 pangkat %(minus)s%(e)s", **power)
         out.append(f'<span class="nowrap" aria-hidden="true">{seen}</span><span class="sr-only">{heard}</span>')
         last = m.end()
     out.append(str(escape(raw[last:])))
@@ -431,7 +476,8 @@ def _fap(candidate, n_copies: int):
     import math
 
     log10 = candidate.log10_false_accusation
-    return format_probability_html(candidate.false_accusation_probability, log10 if math.isfinite(log10) else None)
+    return Markup(i18n.localize(format_probability_html(candidate.false_accusation_probability,
+                                                        log10 if math.isfinite(log10) else None)))
 
 
 templates.env.globals["fap"] = _fap
@@ -448,45 +494,49 @@ def _fap_spoken(candidate, n_copies: int) -> str:
     mantissa, exponent = _probability_parts(candidate.false_accusation_probability,
                                             log10 if math.isfinite(log10) else None, True)
     if exponent is None:
-        return mantissa
-    return f"{mantissa} kali 10 pangkat {'minus ' if exponent < 0 else ''}{abs(exponent)}"
+        return i18n.localize(mantissa)
+    return _("%(m)s kali 10 pangkat %(minus)s%(e)s", m=i18n.localize(mantissa), minus=_("minus ") if exponent < 0 else "",
+             e=abs(exponent))
 
 
 templates.env.globals["fap_lisan"] = _fap_spoken
 
 
 def _subchannel_summary(sb) -> str:
-    """Decoder diagnostics of one sub-channel in plain Indonesian (no raw keys or values)."""
+    """Decoder diagnostics of one sub-channel in plain words (no raw keys or values)."""
     from tapak.decoder.report import _noise_text
+
+    def num(value: float, decimals: int = 0) -> str:
+        return i18n.localize(format_number(float(value), decimals))
 
     m = sb.meta
     parts = []
     if isinstance(m.get("page"), int):
-        parts.append(f"halaman {m['page'] + 1}")
+        parts.append(_("halaman %(n)s", n=m["page"] + 1))
     elif isinstance(m.get("pages"), int):
-        parts.append(f"{m['pages']} halaman dibaca")
-    for key, label in (("slots", "slot"), ("bits", "bit")):
+        parts.append(_("%(n)s halaman dibaca", n=m["pages"]))
+    for key, label in (("slots", N_("slot terbaca %(n)s dari %(total)s")), ("bits", N_("bit terbaca %(n)s dari %(total)s"))):
         if isinstance(m.get(f"{key}_read"), int) and isinstance(m.get(f"{key}_total"), int):
-            parts.append(f"{label} terbaca {format_number(m[f'{key}_read'], 0)} dari {format_number(m[f'{key}_total'], 0)}")
+            parts.append(_(label, n=num(m[f"{key}_read"]), total=num(m[f"{key}_total"])))
     if m.get("registered") is False:
-        parts.append("halaman tidak dikenali")
+        parts.append(_("halaman tidak dikenali"))
     if m.get("pattern_found") is False:
-        parts.append("pola tidak terdeteksi")
+        parts.append(_("pola tidak terdeteksi"))
     if isinstance(m.get("slots_outside_image"), int) and m["slots_outside_image"]:
-        parts.append(f"{format_number(m['slots_outside_image'], 0)} tanda di luar gambar, tidak dibaca")
+        parts.append(_("%(n)s tanda di luar gambar, tidak dibaca", n=num(m["slots_outside_image"])))
     if m.get("ocr_failed"):
-        parts.append("OCR gagal membaca halaman")
+        parts.append(_("OCR gagal membaca halaman"))
     elif isinstance(m.get("ocr_seconds"), (int, float)):
-        parts.append(f"dibaca dengan OCR dalam {format_number(float(m['ocr_seconds']), 1)} detik")
+        parts.append(_("dibaca dengan OCR dalam %(s)s detik", s=num(m["ocr_seconds"], 1)))
     if isinstance(m.get("signal_z"), (int, float)):
-        parts.append(f"uji pola z = {format_number(float(m['signal_z']), 1)}")
+        parts.append(_("uji pola z = %(z)s", z=num(m["signal_z"], 1)))
     noise = _noise_text(sb.channel, m)
     if noise not in ("-", ""):
-        parts.append(noise)
+        parts.extend(i18n.translate_text(part) for part in noise.split("; "))
     if isinstance(m.get("correlation"), (int, float)):
-        parts.append(f"korelasi {format_number(float(m['correlation']), 3)}")
+        parts.append(_("korelasi %(r)s", r=num(m["correlation"], 3)))
     if isinstance(m.get("effective_dpi"), (int, float)):
-        parts.append(f"resolusi efektif {format_number(float(m['effective_dpi']), 0)} dpi")
+        parts.append(_("resolusi efektif %(dpi)s dpi", dpi=num(m["effective_dpi"])))
     return "; ".join(parts) or "-"
 
 
@@ -606,8 +656,8 @@ def _registry_status() -> dict[str, object]:
 
 def _verify_status(s: Settings) -> dict[str, object]:
     if not s.registry_path.exists():
-        return {"state": "none", "label": "Belum ada", "entries": 0, "unsigned": 0, "counted": False}
-    unreadable = {"state": "danger", "label": "Tak terbaca", "entries": 0, "unsigned": 0, "counted": False}
+        return {"state": "none", "label": N_("Belum ada"), "entries": 0, "unsigned": 0, "counted": False}
+    unreadable = {"state": "danger", "label": N_("Tak terbaca"), "entries": 0, "unsigned": 0, "counted": False}
     if not s.public_key_path.exists():
         # Entries exist but cannot be verified without the public key: count them read-only.
         import sqlite3
@@ -620,7 +670,7 @@ def _verify_status(s: Settings) -> dict[str, object]:
                 conn.close()
         except sqlite3.Error:
             return unreadable
-        return {"state": "warn", "label": "Tanpa kunci", "entries": entries, "unsigned": 0, "counted": True}
+        return {"state": "warn", "label": N_("Tanpa kunci"), "entries": entries, "unsigned": 0, "counted": True}
     from tapak.registry.verify import verify_registry
 
     try:
@@ -632,7 +682,7 @@ def _verify_status(s: Settings) -> dict[str, object]:
 
 
 def _report_status(report) -> dict[str, object]:
-    return {"state": "ok" if report.ok else "danger", "label": "Utuh" if report.ok else "Rusak",
+    return {"state": "ok" if report.ok else "danger", "label": N_("Utuh") if report.ok else N_("Rusak"),
             "entries": report.entries, "unsigned": report.unsigned, "counted": True}
 
 
@@ -653,15 +703,15 @@ templates.env.globals["pratinjau_url"] = _preview_url
 
 def _notice(request: Request, message: str, status: int, restart: bool = False,
             field: str = "") -> HTMLResponse:
-    """An Indonesian error notice. For htmx requests it is placed in the page-level alert
+    """An error notice in the page language. For htmx requests it is placed in the page-level alert
     region (HX-Retarget) so the current form stays intact; a plain link (a download, an old
     bookmark) gets a full page with navigation. ``field`` names the error slot of the input
     at fault: the message is also put there (out of band), which marks that input invalid."""
     if not request.headers.get("HX-Request"):
-        resp = _page(request, "galat.html", title="Galat", message=message, restart=restart, code=status)
+        resp = _page(request, "galat.html", title=N_("Galat"), message=message, restart=restart, code=status)
         resp.status_code = status
         return resp
-    link = ' <a class="link" href="/terbitkan">Mulai lagi</a>' if restart else ""
+    link = f' <a class="link" href="/terbitkan">{html.escape(_("Mulai lagi"))}</a>' if restart else ""
     body = f'<div class="notice notice-error">{html.escape(message)}{link}</div>'
     if field:
         body += (f'<span id="{field}" hx-swap-oob="innerHTML"><span class="field-error">'
@@ -672,10 +722,10 @@ def _notice(request: Request, message: str, status: int, restart: bool = False,
 
 # Messages for errors raised by Starlette itself (its details are English).
 _FRAMEWORK_MESSAGES = {
-    400: "Permintaan tidak dapat dibaca. Periksa isian dan berkas, lalu kirim lagi.",
-    404: "Halaman tidak ditemukan. Periksa alamatnya, atau pilih tujuan dari menu.",
-    405: "Tindakan ini tidak tersedia di alamat tersebut.",
-    413: "Kiriman terlalu besar (maksimum 40 MB seluruhnya).",
+    400: N_("Permintaan tidak dapat dibaca. Periksa isian dan berkas, lalu kirim lagi."),
+    404: N_("Halaman tidak ditemukan. Periksa alamatnya, atau pilih tujuan dari menu."),
+    405: N_("Tindakan ini tidak tersedia di alamat tersebut."),
+    413: N_("Kiriman terlalu besar (maksimum 40 MB seluruhnya)."),
 }
 
 
@@ -683,37 +733,38 @@ _PATH_SUFFIX = re.compile(r" tidak ditemukan di \S+$")
 
 
 def _public_text(exc: Exception) -> str:
-    """The message of a lookup error for the page: "dokumen <key> tidak ditemukan di <data
-    folder>" loses the folder, which stays in the server log."""
+    """The message of a library error for the page, in the page language: "dokumen <key> tidak
+    ditemukan di <data folder>" loses the folder, which stays in the server log."""
     text = str(exc)
     if _PATH_SUFFIX.search(text):
         import logging
 
         logging.getLogger("tapak.web").info("%s", text)
         text = _PATH_SUFFIX.sub(" tidak ditemukan", text)
-    return text
+    return i18n.translate_text(text)
 
 
 @app.exception_handler(FileNotFoundError)
 async def _not_found(request: Request, exc: FileNotFoundError) -> HTMLResponse:
-    """Missing or invalid documents become a 404 with an Indonesian message, never a 500."""
+    """Missing or invalid documents become a 404 with a message, never a 500."""
     text = _public_text(exc)
     return _notice(request, text[:1].upper() + text[1:], 404)
 
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_error(request: Request, exc: StarletteHTTPException) -> HTMLResponse:
-    """HTTP errors (413, 404, 400) as Indonesian notices instead of JSON. TAPAK's own errors
-    (fastapi.HTTPException) already carry Indonesian text; Starlette's are replaced."""
+    """HTTP errors (413, 404, 400) as notices instead of JSON. TAPAK's own errors
+    (fastapi.HTTPException) already carry text in the page language; Starlette's are replaced."""
     field = ""
     if isinstance(exc, HTTPException):
         message = str(exc.detail)
     elif "maximum size" in str(exc.detail):
-        message = "Teks yang ditempel terlalu panjang (maksimum 1 MB). Simpan sebagai berkas .txt lalu unggah."
+        message = _("Teks yang ditempel terlalu panjang (maksimum 1 MB). Simpan sebagai berkas .txt lalu unggah.")
         if request.url.path == "/lacak":
             field = "teks-err"
     else:
-        message = _FRAMEWORK_MESSAGES.get(exc.status_code, f"Permintaan ditolak (kode {exc.status_code}).")
+        message = (_(_FRAMEWORK_MESSAGES[exc.status_code]) if exc.status_code in _FRAMEWORK_MESSAGES
+                   else _("Permintaan ditolak (kode %(code)s).", code=exc.status_code))
     restart = bool(exc.headers and exc.headers.get("X-Tapak-Mulai-Lagi"))
     return _notice(request, message, exc.status_code, restart=restart, field=field)
 
@@ -722,16 +773,18 @@ async def _http_error(request: Request, exc: StarletteHTTPException) -> HTMLResp
 async def _invalid_form(request: Request, exc: RequestValidationError) -> HTMLResponse:
     """A form field of the wrong type (normally caught by the form itself)."""
     fields = sorted({str(e.get("loc", ["", "?"])[-1]) for e in exc.errors()})
-    return _notice(request, f"Isian tidak sah: {', '.join(fields)}. Periksa lalu kirim lagi.", 422)
+    return _notice(request, _("Isian tidak sah: %(fields)s. Periksa lalu kirim lagi.", fields=", ".join(fields)), 422)
 
 
 @app.exception_handler(Exception)
 async def _unexpected(request: Request, exc: Exception) -> HTMLResponse:
-    """Anything unexpected: a generic Indonesian notice (details stay in the server log)."""
+    """Anything unexpected: a generic notice (details stay in the server log). It runs outside
+    the language middleware, so it sets the language of the request itself."""
     import logging
 
     logging.getLogger("tapak.web").exception("kesalahan tak terduga")
-    return _notice(request, "Terjadi kesalahan tak terduga di server TAPAK. Coba lagi; bila berulang, periksa log server.", 500)
+    i18n.use(_request_lang(request))
+    return _notice(request, _("Terjadi kesalahan tak terduga di server TAPAK. Coba lagi; bila berulang, periksa log server."), 500)
 
 
 def settings() -> Settings:
@@ -753,7 +806,7 @@ async def _read_upload(f: UploadFile | None) -> bytes:
         return b""
     data = await f.read(MAX_UPLOAD + 1)
     if len(data) > MAX_UPLOAD:
-        raise HTTPException(413, "Berkas terlalu besar (maksimum 40 MB)")
+        raise HTTPException(413, _("Berkas terlalu besar (maksimum 40 MB)"))
     return data
 
 
@@ -792,7 +845,7 @@ def beranda(request: Request) -> HTMLResponse:
     s = settings()
     docs = list_workspaces(s)
     alerts = _canary_events(s, docs)
-    return _page(request, "beranda.html", title="Beranda", active="beranda", docs=docs, recent=docs[:5],
+    return _page(request, "beranda.html", title=N_("Beranda"), active="beranda", docs=docs, recent=docs[:5],
                  n_copies=sum(len(m.copies) for m in docs), alerts=alerts, recent_alerts=alerts[:5],
                  registry=_registry_status())
 
@@ -831,10 +884,10 @@ def _thumbnail(pdf: bytes, dpi: int = 60) -> Response:
     try:
         with pymupdf.open(stream=pdf, filetype="pdf") as doc:
             if doc.page_count == 0:
-                raise HTTPException(404, "Dokumen tidak memiliki halaman")
+                raise HTTPException(404, _("Dokumen tidak memiliki halaman"))
             png = doc[0].get_pixmap(dpi=dpi, alpha=False).tobytes("png")
     except (RuntimeError, ValueError) as exc:
-        raise HTTPException(404, "Pratinjau dokumen tidak dapat dibuat") from exc
+        raise HTTPException(404, _("Pratinjau dokumen tidak dapat dibuat")) from exc
     return Response(png, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
@@ -846,9 +899,9 @@ def pratinjau_dokumen(doc: str, ukuran: str = "") -> Response:
     """
     from tapak.service import load_workspace
 
-    _, master, folder = load_workspace(settings(), doc)
+    _manifest, master, folder = load_workspace(settings(), doc)
     if not (folder / "induk.pdf").is_file():
-        raise HTTPException(404, "Pratinjau hanya tersedia untuk dokumen PDF")
+        raise HTTPException(404, _("Pratinjau hanya tersedia untuk dokumen PDF"))
     return _thumbnail(master, dpi=20 if ukuran == "kecil" else 60)
 
 
@@ -858,7 +911,7 @@ def pratinjau_staging(sid: str) -> Response:
     st = _staging(sid)
     master = st.folder / "induk.pdf"
     if not master.is_file():
-        raise HTTPException(404, "Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa.",
+        raise HTTPException(404, _("Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa."),
                             headers={"X-Tapak-Mulai-Lagi": "1"})
     return _thumbnail(master.read_bytes())
 
@@ -869,7 +922,7 @@ def pratinjau_staging(sid: str) -> Response:
 @app.get("/terbitkan", response_class=HTMLResponse)
 def terbitkan_page(request: Request) -> HTMLResponse:
     """Step 1 form."""
-    return _page(request, "terbitkan.html", title="Terbitkan", active="terbitkan", eps_choices=EPS_CHOICES,
+    return _page(request, "terbitkan.html", title=N_("Terbitkan"), active="terbitkan", eps_choices=EPS_CHOICES,
                  canary_domain=settings().canary_domain, errors={}, values={})
 
 
@@ -899,21 +952,21 @@ async def terbitkan_analisis(
     errors: dict[str, str] = {}
     geser = geser or DEFAULT_GESER
     values = {"c": c, "eps": eps, "penerbit": penerbit, "kanari": kanari, "latar": latar, "geser": geser}
-    pdf = await _read_field(dokumen, errors, "dokumen", "PDF ini terlalu besar (maksimum 40 MB).")
-    csv_bytes = await _read_field(penerima, errors, "penerima", "CSV ini terlalu besar (maksimum 40 MB).")
+    pdf = await _read_field(dokumen, errors, "dokumen", _("PDF ini terlalu besar (maksimum 40 MB)."))
+    csv_bytes = await _read_field(penerima, errors, "penerima", _("CSV ini terlalu besar (maksimum 40 MB)."))
     if not pdf and "dokumen" not in errors:
-        errors["dokumen"] = "Pilih berkas PDF dokumen induk."
+        errors["dokumen"] = _("Pilih berkas PDF dokumen induk.")
     elif pdf and b"%PDF-" not in pdf[:1024]:
-        errors["dokumen"] = "Berkas ini bukan PDF. Ekspor dokumen ke PDF lalu unggah lagi."
+        errors["dokumen"] = _("Berkas ini bukan PDF. Ekspor dokumen ke PDF lalu unggah lagi.")
     recipients: list[Recipient] = []
     if not csv_bytes and "penerima" not in errors:
-        errors["penerima"] = "Pilih berkas CSV daftar penerima."
+        errors["penerima"] = _("Pilih berkas CSV daftar penerima.")
     elif csv_bytes:
         try:
             tmp = io.StringIO(csv_bytes.decode("utf-8-sig"))
             rows = list(csv.DictReader(tmp))
             if not rows or "recipient_id" not in rows[0] or "nama" not in rows[0]:
-                raise ValueError("CSV harus memiliki kolom recipient_id dan nama.")
+                raise ValueError(_("CSV harus memiliki kolom recipient_id dan nama."))
             staging_csv = settings().data_dir / "staging"
             staging_csv.mkdir(parents=True, exist_ok=True)
             probe = staging_csv / f"probe-{secrets.token_hex(4)}.csv"
@@ -923,36 +976,36 @@ async def terbitkan_analisis(
             finally:
                 probe.unlink(missing_ok=True)
         except (ValueError, UnicodeDecodeError) as exc:
-            errors["penerima"] = str(exc) if isinstance(exc, ValueError) else "CSV harus berenkode UTF-8."
+            errors["penerima"] = (i18n.translate_text(str(exc)) if isinstance(exc, ValueError)
+                                  else _("CSV harus berenkode UTF-8."))
     c_text = c.strip()
     c = int(c_text) if c_text.isdigit() else 0  # type: ignore[assignment]
     if not 1 <= c <= 10:  # type: ignore[operator]
-        errors["c"] = "Ukuran koalisi harus bilangan bulat antara 1 dan 10."
+        errors["c"] = _("Ukuran koalisi harus bilangan bulat antara 1 dan 10.")
     if eps not in {e for e, _ in EPS_CHOICES}:
-        errors["eps"] = "Pilih salah satu tingkat peluang tuduhan salah."
+        errors["eps"] = _("Pilih salah satu tingkat peluang tuduhan salah.")
     try:
         # No profile name is longer than 5 characters: a crafted long value stays unknown and
         # its echo in the message stays short.
         background = background_profile(latar[:32])
     except ValueError as exc:
-        message = str(exc)
-        errors["latar"] = message[:1].upper() + message[1:] + "."
+        errors["latar"] = _sentence(i18n.translate_text(str(exc)))
     if geser not in SCHEME_CHOICES:
-        errors["geser"] = "Pilih skema geser v1 atau v2."
+        errors["geser"] = _("Pilih skema geser v1 atau v2.")
     master = None
     if pdf and "dokumen" not in errors:
         try:
             master = await run_in_threadpool(load_master, pdf)
             if not master.scans and not list(master.layout.words()):
-                errors["dokumen"] = NOTHING_TO_MARK
+                errors["dokumen"] = _(NOTHING_TO_MARK)
         except Exception:  # noqa: BLE001 - any parse failure is a user-facing input error
-            errors["dokumen"] = "PDF tidak dapat dibaca."
+            errors["dokumen"] = _("PDF tidak dapat dibaca.")
     existing = ""  # key of the already issued document: the error links to Lacak with it preselected
     if master is not None and "dokumen" not in errors:
         from tapak.service import workspace_dir
 
         if (workspace_dir(settings(), master.doc_hash) / "manifest.json").exists():
-            errors["dokumen"] = "Dokumen ini sudah pernah diterbitkan."
+            errors["dokumen"] = _("Dokumen ini sudah pernah diterbitkan.")
             existing = master.doc_hash[:16]
     if errors:
         return _step1_errors(request, errors, values, kanari, existing)
@@ -964,15 +1017,15 @@ async def terbitkan_analisis(
         try:
             scan, scan_boxes = await run_in_threadpool(prepare_scans, master)
         except (ValueError, RuntimeError) as exc:
-            errors["dokumen"] = _sentence(str(exc))
+            errors["dokumen"] = _sentence(i18n.translate_text(str(exc)))
             return _step1_errors(request, errors, values, kanari, "")
     gate = await run_in_threadpool(visual_gate, master)
     if not gate.passed:
         if gate.scan_identical is False:
-            errors["dokumen"] = SCAN_GATE_LINES[False]
+            errors["dokumen"] = _(SCAN_GATE_LINES[False])
         else:
-            errors["dokumen"] = ("Penerbitan ditolak: TAPAK tidak dapat menggambar ulang dokumen ini tanpa "
-                                 f"perubahan yang terlihat (selisih maksimum {gate.max_diff} tingkat abu-abu).")
+            errors["dokumen"] = _("Penerbitan ditolak: TAPAK tidak dapat menggambar ulang dokumen ini tanpa "
+                                  "perubahan yang terlihat (selisih maksimum %(n)s tingkat abu-abu).", n=gate.max_diff)
         return _step1_errors(request, errors, values, kanari, "")
 
     _expire_staging()
@@ -1047,20 +1100,15 @@ def _plan_summary(master, s: IssueSettings, n: int, scan: dict | None = None) ->
     if scan:
         dpi = {int(k): int(d) for k, d in zip(scan["pages"], scan["dpi"])}
         words_on = Counter(w.id[0] for w in master.layout.words())
-
-        def mode_line(k: int, mode: str) -> str:
-            # A page on the text path without a single word (a blank page, or an image page not
-            # recognised as a scan) is not called a text page: it has no word to mark.
-            if mode == "pindaian":
-                return f"Halaman {k + 1}: pindaian, {dpi[k]} dpi"
-            return f"Halaman {k + 1}: " + ("teks" if words_on[k] else "tanpa teks, tidak ada kata untuk ditandai")
-
         out.update(
             scan_pages=len(dpi), text_pages=pages - len(dpi), all_scanned=len(dpi) == pages,
-            scan_dpi=" dan ".join(str(d) for d in sorted(set(dpi.values()))),
+            scan_dpi=sorted(set(dpi.values())),
             scan_words=sum(1 for w in master.shift_layout.words() if w.id[0] in master.scans),
             scan_nums=", ".join(str(k + 1) for k in sorted(dpi)),
-            modes=[(mode, mode_line(k, mode)) for k, mode in enumerate(page_modes(master))],
+            # A page on the text path without a single word (a blank page, or an image page not
+            # recognised as a scan) is not called a text page: it has no word to mark.
+            modes=[{"mode": mode, "page": k + 1, "dpi": dpi.get(k), "words": bool(words_on[k])}
+                   for k, mode in enumerate(page_modes(master))],
             # the first line (page counts) is what the stat tile and the page list show
             scan_lines=plan_lines(scan, pages)[1:])
     return out
@@ -1070,13 +1118,13 @@ def _staging(sid: str) -> Staging:
     """The issuance session ``sid``; every request on it counts as activity."""
     st = _STAGING.get(sid)
     if st is None:
-        raise HTTPException(404, "Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa.",
+        raise HTTPException(404, _("Sesi penerbitan tidak ditemukan atau sudah kedaluwarsa."),
                             headers={"X-Tapak-Mulai-Lagi": "1"})
     st.last_used = time.time()
     return st
 
 
-ISSUING_MESSAGE = "Penerbitan sedang berjalan. Keputusan tidak dapat diubah lagi; tunggu hasilnya."
+ISSUING_MESSAGE = N_("Penerbitan sedang berjalan. Keputusan tidak dapat diubah lagi; tunggu hasilnya.")
 
 
 def _review_session(sid: str) -> Staging:
@@ -1084,7 +1132,7 @@ def _review_session(sid: str) -> Staging:
     copies and their record are made from the same decisions."""
     st = _staging(sid)
     if st.issuing:
-        raise HTTPException(409, ISSUING_MESSAGE)
+        raise HTTPException(409, _(ISSUING_MESSAGE))
     return st
 
 
@@ -1162,7 +1210,7 @@ def _sample_line(words: list, other: list) -> Markup:
             if k < len(theirs) and theirs[k] == text:
                 out.append(f'<mark class="lex-same">{escape(text)}</mark>')
             else:
-                out.append(f'<mark class="diff">{escape(text)}<span class="sr-only"> (berbeda)</span></mark>')
+                out.append(f'<mark class="diff">{escape(text)}<span class="sr-only"> ({escape(_("berbeda"))})</span></mark>')
             k += 1
         else:
             out.append(str(escape(text)))
@@ -1259,7 +1307,7 @@ def _sentence_case(text: str) -> str:
 
 def _keep_units(text: str) -> str:
     """A number and the unit after it (bit, kata) never break across lines."""
-    return re.sub(r"(\d) (bit|kata)\b", "\\1\u00a0\\2", text)
+    return re.sub(r"(\d) (bits?|kata|words?)\b", "\\1\u00a0\\2", text)
 
 
 def _lexical_view(st: Staging) -> dict[str, object]:
@@ -1272,32 +1320,35 @@ def _lexical_view(st: Staging) -> dict[str, object]:
     view: dict[str, object] = {"sel": sel, "bits": bits, "lexicon": None, "lexicon_title": "", "lexicon_error": "",
                                "lone_bits": lx.LONE_LEAKER_BITS, "lone_words": lx.format_count(lx.LONE_LEAKER_WORDS),
                                # the print profile marks a document meant for paper: say what word choice costs there
-                               "print_note": _keep_units(_sentence(lx.PRINT_NOTE)) if st.latar == "cetak" else ""}
+                               "print_note": _keep_units(_sentence(i18n.translate_text(lx.PRINT_NOTE)))
+                               if st.latar == "cetak" else ""}
     try:
         lexicon = view["lexicon"] = lx.load_lexicon(sel.lexicon if sel is not None else lx.DEFAULT_LEXICON)
         # "naskah_dinas_v1" reads "naskah dinas" (the version is shown on its own)
         view["lexicon_title"] = re.sub(r"_v\d+$", "", lexicon.name).replace("_", " ")
     except lx.LexiconError as exc:
-        view["lexicon_error"] = str(exc)
+        view["lexicon_error"] = i18n.translate_text(str(exc))
     if sel is None:
         return view
     pending, total = len(sel.pending()), len(sel.points)
     enough = bits["total"] >= lx.LONE_LEAKER_BITS
     if not total:
-        status = "Tidak ada titik pilihan kata di dokumen ini. Salinan diterbitkan tanpa kanal pilihan kata."
+        status = _("Tidak ada titik pilihan kata di dokumen ini. Salinan diterbitkan tanpa kanal pilihan kata.")
     else:
-        status = ((f"{pending} dari {total} titik pilihan kata menunggu tinjauan Anda. " if pending
-                   else "Semua titik pilihan kata sudah ditinjau. ")
-                  + f"{bits['lex']} bit pilihan kata + {bits['sem']} bit varian kalimat. "
-                  + ("Cukup untuk satu pembocor." if enough else "Belum cukup untuk satu pembocor."))
+        status = " ".join([
+            _("%(n)s dari %(total)s titik pilihan kata menunggu tinjauan Anda.", n=pending, total=total) if pending
+            else _("Semua titik pilihan kata sudah ditinjau."),
+            _("%(lex)s bit pilihan kata + %(sem)s bit varian kalimat.", lex=bits["lex"], sem=bits["sem"]),
+            _("Cukup untuk satu pembocor.") if enough else _("Belum cukup untuk satu pembocor.")])
     view.update(
         groups=_rule_groups(sel, view["lexicon"]), pending=pending, total=total,
         # Body words still to add use the density of the points not rejected (the table average
         # when there are none).
-        verdict=_keep_units(_sentence_case(
-            lx.capacity_verdict(bits["total"], sel.body_words or None, sel.candidate_bits or None))),
+        verdict=_keep_units(_sentence_case(i18n.translate_text(
+            lx.capacity_verdict(bits["total"], sel.body_words or None, sel.candidate_bits or None)))),
         enough=enough,
-        refused=[(_sentence_case(c), n) for c, n in sorted(sel.refused.items(), key=lambda kv: (-kv[1], kv[0]))],
+        refused=[(_sentence_case(i18n.translate_text(c)), n)
+                 for c, n in sorted(sel.refused.items(), key=lambda kv: (-kv[1], kv[0]))],
         refused_total=sum(sel.refused.values()),
         preview=_sample_copies(st, sel),
         status=status)
@@ -1314,7 +1365,7 @@ def _lexical_page(request: Request, st: Staging, **kw: object) -> HTMLResponse:
 
 def _lexical_or_400(st: Staging) -> LexicalSelection:
     if st.lexical is None:
-        raise HTTPException(400, "Permintaan tidak valid")
+        raise HTTPException(400, _("Permintaan tidak valid"))
     return st.lexical
 
 
@@ -1325,15 +1376,17 @@ def terbitkan_leksikal(request: Request, sid: str) -> HTMLResponse:
 
     with _reviewing(sid) as st:
         if not st.pdf:
-            raise HTTPException(400, "Pilihan kata hanya tersedia untuk dokumen induk PDF.")
+            raise HTTPException(400, _("Pilihan kata hanya tersedia untuk dokumen induk PDF."))
         if st.all_scanned:  # no text layer: the scan would find nothing
-            raise HTTPException(400, f"Pilihan kata {SCAN_ALL_NA[:1].lower()}{SCAN_ALL_NA[1:]}.")
+            why = _(SCAN_ALL_NA)
+            raise HTTPException(400, _("Pilihan kata %(why)s.", why=why[:1].lower() + why[1:]))
         scanned = st.lexical is not None
     if not scanned:
         try:
             found = lx.scan_candidates(_staging_master(st), lx.load_lexicon())
         except lx.LexiconError as exc:
-            return _lexical_page(request, st, lex_error=f"Pemindaian tidak dapat dilakukan: {exc}")
+            return _lexical_page(request, st, lex_error=_("Pemindaian tidak dapat dilakukan: %(why)s",
+                                                          why=i18n.translate_text(str(exc))))
         with _reviewing(sid):
             if st.lexical is None:  # a second scan request does not replace the first one's decisions
                 st.lexical = found
@@ -1367,14 +1420,14 @@ def terbitkan_leksikal_aturan(request: Request, sid: str, point_id: str, status:
         try:
             rule_id = sel.point(point_id).rule_id
         except KeyError:
-            raise HTTPException(400, "Permintaan tidak valid") from None
+            raise HTTPException(400, _("Permintaan tidak valid")) from None
         points = [p for p in sel.points if p.rule_id == rule_id]
         if status not in (STATUS_APPROVED, STATUS_REJECTED):
-            raise HTTPException(400, "Permintaan tidak valid")
+            raise HTTPException(400, _("Permintaan tidak valid"))
         if status == STATUS_APPROVED:
             if konfirmasi != "ya":
-                raise HTTPException(400, "Persetujuan sekaligus memerlukan konfirmasi. Baca setiap kalimatnya, lalu "
-                                         "setujui satu per satu atau konfirmasi persetujuan sekaligus.")
+                raise HTTPException(400, _("Persetujuan sekaligus memerlukan konfirmasi. Baca setiap kalimatnya, lalu "
+                                           "setujui satu per satu atau konfirmasi persetujuan sekaligus."))
             points = [p for p in points if p.status == STATUS_PENDING]
         for p in points:
             sel.set_status(p.point_id, status)
@@ -1389,11 +1442,11 @@ def terbitkan_leksikal_putusan(request: Request, sid: str, point_id: str, status
     with _reviewing(sid) as st:
         sel = _lexical_or_400(st)
         if status not in STATUSES:
-            raise HTTPException(400, "Permintaan tidak valid")
+            raise HTTPException(400, _("Permintaan tidak valid"))
         try:
             sel.set_status(point_id, status)
         except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+            raise HTTPException(400, i18n.translate_text(str(exc))) from exc
     return _lexical_page(request, st)
 
 
@@ -1419,7 +1472,8 @@ async def terbitkan_varian(request: Request, sid: str) -> HTMLResponse:
     try:
         generated = await run_in_threadpool(_generate)
     except (RuntimeError, ValueError) as exc:
-        return _page(request, "_semantik.html", oob=True, st=st, block_error=f"Varian tidak dapat dibuat: {exc}")
+        return _page(request, "_semantik.html", oob=True, st=st,
+                     block_error=_("Varian tidak dapat dibuat: %(why)s", why=i18n.translate_text(str(exc))))
     with _reviewing(sid):
         for uid, vs in generated.items():  # keep reviewer decisions for variants whose text is unchanged
             prev = st.sets.get(uid)
@@ -1439,11 +1493,11 @@ def terbitkan_putusan(request: Request, sid: str, unit_id: str, index: int, stat
     with _reviewing(sid) as st:
         vs = st.sets.get(unit_id)
         if vs is None or status not in ("disetujui", "ditolak", "menunggu"):
-            raise HTTPException(400, "Permintaan tidak valid")
+            raise HTTPException(400, _("Permintaan tidak valid"))
         try:
             vs.set_status(index, status)
         except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+            raise HTTPException(400, i18n.translate_text(str(exc))) from exc
     return _page(request, "_semantik.html", oob=True, st=st)
 
 
@@ -1455,9 +1509,9 @@ def terbitkan_setujui_semua(request: Request, sid: str, unit_id: str) -> HTMLRes
     with _reviewing(sid) as st:
         vs = st.sets.get(unit_id)
         if vs is None:
-            raise HTTPException(400, "Permintaan tidak valid")
+            raise HTTPException(400, _("Permintaan tidak valid"))
         if not bulk_approval_allowed(vs):
-            raise HTTPException(400, "Varian dari model bahasa harus disetujui satu per satu.")
+            raise HTTPException(400, _("Varian dari model bahasa harus disetujui satu per satu."))
         for i in vs.pending():
             vs.set_status(i, "disetujui")
     return _page(request, "_semantik.html", oob=True, st=st)
@@ -1489,8 +1543,9 @@ def terbitkan_eksekusi(request: Request, sid: str) -> HTMLResponse:
         # The service would refuse it too, but its message names point ids and the CLI; the
         # list shows points by number.
         shown = ", ".join(str(int(pid[1:]) + 1) for pid in waiting[:10]) + (" ..." if len(waiting) > 10 else "")
-        return _review_error(request, st, f"Penerbitan diblokir: {len(waiting)} titik pilihan kata masih menunggu "
-                                          f"keputusan (titik {shown}). Setujui atau tolak setiap titik terlebih dahulu.")
+        return _review_error(request, st, _("Penerbitan diblokir: %(n)s titik pilihan kata masih menunggu keputusan "
+                                            "(titik %(shown)s). Setujui atau tolak setiap titik terlebih dahulu.",
+                                            n=len(waiting), shown=shown))
     try:
         return _issue(request, st, sets, lexical)
     finally:
@@ -1512,18 +1567,17 @@ def _issue(request: Request, st: Staging, sets: dict, lexical: LexicalSelection 
     try:
         out = issue_document(settings(), st.folder / "induk.pdf", st.recipients, st.settings, st.issuer,
                              semantic=sel, doc_name=st.doc_name, lexical=lexical, latar=st.latar)
-    except IssuanceBlocked as exc:
-        return _review_error(request, st, str(exc))
-    except WorkspaceBusy as exc:
-        return _review_error(request, st, str(exc))
+    except (IssuanceBlocked, WorkspaceBusy) as exc:
+        return _review_error(request, st, i18n.translate_text(str(exc)))
     except (ValueError, RuntimeError) as exc:
-        return _review_error(request, st, f"Penerbitan gagal: {exc}")
+        return _review_error(request, st, _("Penerbitan gagal: %(why)s", why=i18n.translate_text(str(exc))))
     except FileExistsError:
         from tapak.marker.layout import sha256_hex
 
         key = sha256_hex((st.folder / "induk.pdf").read_bytes())[:16]
-        return _page(request, "_galat.html", message="Dokumen ini sudah pernah diterbitkan. Buka halaman Lacak "
-                     "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain.", restart=True, lacak=key)
+        return _page(request, "_galat.html", message=_("Dokumen ini sudah pernah diterbitkan. Buka halaman Lacak "
+                                                       "untuk dokumen tersebut, atau mulai lagi dengan dokumen lain."),
+                     restart=True, lacak=key)
     st.issued_doc = out.manifest.doc_hash
     shutil.rmtree(st.folder, ignore_errors=True)
     with _LOCK:
@@ -1536,7 +1590,7 @@ def _issue(request: Request, st: Staging, sets: dict, lexical: LexicalSelection 
         sem_bits = summary.get("semantic", {}).get("positions", 0)
         verdict = capacity_verdict(lex_bits + sem_bits, lexical.body_words or None, lex_bits or None)
         retype = {"lex": lex_bits, "sem": sem_bits, "enough": lex_bits + sem_bits >= LONE_LEAKER_BITS,
-                  "verdict": _keep_units(_sentence_case(verdict))}
+                  "verdict": _keep_units(_sentence_case(i18n.translate_text(verdict)))}
     resp = _page(request, "_hasil_terbit.html", out=out, manifest=out.manifest, retype=retype,
                  scan=_issued_scan_view(out))
     resp.headers["HX-Trigger"] = "registri-berubah"  # the sidebar reloads its registry state
@@ -1559,7 +1613,8 @@ def _issued_scan_view(out) -> dict[str, object] | None:
     with pymupdf.open(master) as doc:
         pages = doc.page_count
     sizes = [(out.folder / "salinan" / c.file).stat().st_size / 1e6 for c in m.copies]
-    return {"lines": plan_lines(m.scan, pages), "gate": SCAN_GATE_LINES.get(m.gate.get("scan_identical")),
+    gate = SCAN_GATE_LINES.get(m.gate.get("scan_identical"))
+    return {"lines": plan_lines(m.scan, pages), "gate": gate and _(gate, n=RASTER_GATE_MAX_DIFF),
             "mean_mb": sum(sizes) / len(sizes), "max_mb": max(sizes), "master_mb": master.stat().st_size / 1e6}
 
 
@@ -1568,7 +1623,7 @@ def unduh_zip(doc: str) -> StreamingResponse:
     """All copies of a document as one ZIP."""
     from tapak.service import load_workspace
 
-    manifest, _, folder = load_workspace(settings(), doc)
+    manifest, _master, folder = load_workspace(settings(), doc)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for c in manifest.copies:
@@ -1590,10 +1645,10 @@ def unduh_salinan(doc: str, seq: int) -> FileResponse:
     """One copy, looked up by its sequence number (never by a client-supplied path)."""
     from tapak.service import load_workspace
 
-    manifest, _, folder = load_workspace(settings(), doc)
+    manifest, _master, folder = load_workspace(settings(), doc)
     match = [c for c in manifest.copies if c.seq == seq]
     if not match:
-        raise HTTPException(404, "Salinan tidak ditemukan")
+        raise HTTPException(404, _("Salinan tidak ditemukan"))
     return FileResponse(_copy_path(folder, match[0].file), filename=match[0].file)
 
 
@@ -1601,10 +1656,10 @@ def _copy_path(folder: Path, name: str) -> Path:
     """A copy's file inside the workspace; a manifest naming anything else is refused."""
     if (not name or name != Path(name).name or name.startswith(".")
             or Path(name).suffix.lower() not in (".pdf", ".docx")):  # never the manifest or a key
-        raise HTTPException(400, "Nama berkas salinan di catatan penerbitan tidak valid")
+        raise HTTPException(400, _("Nama berkas salinan di catatan penerbitan tidak valid"))
     path = (folder / "salinan" / name).resolve()
     if path.parent != (folder / "salinan").resolve() or not path.is_file():
-        raise HTTPException(404, "Berkas salinan tidak ditemukan")
+        raise HTTPException(404, _("Berkas salinan tidak ditemukan"))
     return path
 
 
@@ -1618,7 +1673,7 @@ def lacak_page(request: Request, dokumen: str = "") -> HTMLResponse:
 
     key = dokumen.strip().lower()[:16]
     selected = key if re.fullmatch(r"[0-9a-f]{16}", key) else ""
-    return _page(request, "lacak.html", title="Lacak", active="lacak", docs=list_workspaces(settings()),
+    return _page(request, "lacak.html", title=N_("Lacak"), active="lacak", docs=list_workspaces(settings()),
                  errors={}, selected=selected)
 
 
@@ -1637,7 +1692,7 @@ async def lacak_run(
     # (berkas-err); missing evidence (bukti-err) concerns the file and the text field alike.
     errors: dict[str, str] = {}
     items: list[tuple[str, bytes]] = []
-    too_big = "Bukti terlalu besar (maksimum 40 MB seluruhnya). Pilih lebih sedikit berkas atau foto yang lebih kecil."
+    too_big = _("Bukti terlalu besar (maksimum 40 MB seluruhnya). Pilih lebih sedikit berkas atau foto yang lebih kecil.")
     total = 0
     for f in bukti or []:
         content = await _read_field(f, errors, "berkas", too_big)
@@ -1649,17 +1704,18 @@ async def lacak_run(
             items.append((Path(f.filename or "bukti").name, content))
     if not items and teks.strip() and "berkas" not in errors:
         items = [("teks_tempel.txt", teks.encode("utf-8"))]
-    for item_name, _ in items:
+    for item_name, _content in items:
         try:
             check_evidence_types([item_name])
         except TraceError:
-            errors["berkas"] = f"{item_name}: jenis berkas tidak dikenal. Unggah foto, tangkapan layar, PDF, DOCX, atau TXT."
+            errors["berkas"] = _("%(name)s: jenis berkas tidak dikenal. Unggah foto, tangkapan layar, PDF, DOCX, atau TXT.",
+                                 name=item_name)
             break
     data, name = (items[0][1], items[0][0]) if items else (b"", "")
     if not dokumen:
-        errors["dokumen"] = "Pilih dokumen yang diduga bocor."
+        errors["dokumen"] = _("Pilih dokumen yang diduga bocor.")
     if not data and "berkas" not in errors:
-        errors["bukti"] = "Unggah foto, tangkapan layar, PDF, atau DOCX, atau tempel teksnya."
+        errors["bukti"] = _("Unggah foto, tangkapan layar, PDF, atau DOCX, atau tempel teksnya.")
     if errors:
         resp = _page(request, "_lacak_form.html", docs=list_workspaces(settings()), errors=errors,
                      selected=dokumen)
@@ -1673,9 +1729,10 @@ async def lacak_run(
     try:
         outcome = await run_in_threadpool(run)
     except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
-        text = _public_text(exc)
         # a refusal already says so ("pelacakan ditolak ..."): not "tidak dapat dilakukan: pelacakan ditolak"
-        message = _sentence(text) if text.startswith("pelacakan ditolak") else f"Pelacakan tidak dapat dilakukan: {text}"
+        refused = str(exc).startswith("pelacakan ditolak")
+        text = _public_text(exc)
+        message = _sentence(text) if refused else _("Pelacakan tidak dapat dilakukan: %(reason)s", reason=text)
         return _page(request, "_galat.html", message=message)
     return _page(request, "_hasil_lacak.html", **_trace_view(outcome))
 
@@ -1703,40 +1760,55 @@ def _trace_view(outcome: object) -> dict[str, object]:
     shift_scan = None
     if getattr(getattr(outcome.ctx, "manifest", None), "scan", None):
         if any(str(n).startswith(SCAN_SHIFT_SKIPPED) for n in a.notes):
-            shift_scan = ("Kanal geser tidak membaca halaman pindaian (lihat peringatan di atas); pola latar halaman "
-                          "itu tetap dibaca.")
+            shift_scan = _("Kanal geser tidak membaca halaman pindaian (lihat peringatan di atas); pola latar halaman "
+                           "itu tetap dibaca.")
         elif any(ch.channel == "geser" for ch in a.channels):
-            shift_scan = ("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
-                          "cocok dengan catatan penerbitan.")
+            shift_scan = _("Kanal geser mencakup halaman pindaian: kotak katanya dibaca ulang dengan Tesseract dan "
+                           "cocok dengan catatan penerbitan.")
     identified = a.verdict == VERDICT_IDENTIFIED
     return dict(o=outcome, a=a, tid=tid, identified=identified, redact=redact, tahap_lanjut=later,
                 eps_label=_eps_label(a.threshold.eps), shift_scan=shift_scan, v=_verdict_notes(outcome, a, identified, redact))
 
 
 def _eps_label(eps: float) -> str:
-    """'1 dari 1.000.000' for the offered choices and any other 1/n; else an Indonesian number."""
+    """'1 dari 1.000.000' (1 in 1,000,000) for the offered choices and any other 1/n; else the number."""
     for value, label in EPS_CHOICES:
         if abs(float(value) - eps) <= 1e-9 * eps:
-            return label
+            return _(label)
     n = 1.0 / eps
     if abs(n - round(n)) < 1e-6 * n:
-        return "1 dari " + f"{round(n):,}".replace(",", ".")
-    return format_number(eps, 6)
+        return _("1 dari %(n)s", n=i18n.localize(format_number(round(n), 0)))
+    return i18n.localize(format_number(eps, 6))
 
 
-@app.get("/lacak/{tid}/berita-acara.pdf")
-def berita_acara(tid: str) -> Response:
-    """The forensic report of a trace."""
+_REPORTS: dict[str, bytes] = {}  # trace id -> its berita acara, so a preview and the download agree
+
+
+def _report_pdf(tid: str) -> bytes:
+    """The berita acara of trace ``tid``, made once (the newest 10 are kept)."""
     from tapak.service import write_report
 
     outcome = _TRACES.get(tid)
     if outcome is None:
-        raise HTTPException(404, "Hasil pelacakan tidak ditemukan; jalankan pelacakan lagi")
-    try:
-        pdf = write_report(outcome)  # type: ignore[arg-type]
-    except (RuntimeError, ValueError) as exc:
-        raise HTTPException(500, f"Berita acara tidak dapat dibuat: {exc}") from exc
-    return Response(pdf, media_type="application/pdf",
+        raise HTTPException(404, _("Hasil pelacakan tidak ditemukan; jalankan pelacakan lagi"))
+    pdf = _REPORTS.get(tid)
+    if pdf is None:
+        try:
+            pdf = write_report(outcome)  # type: ignore[arg-type]
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(500, _("Berita acara tidak dapat dibuat: %(reason)s",
+                                       reason=i18n.translate_text(str(exc)))) from exc
+        with _LOCK:
+            _REPORTS[tid] = pdf
+            while len(_REPORTS) > 10:
+                _REPORTS.pop(next(iter(_REPORTS)))
+    return pdf
+
+
+@app.get("/lacak/{tid}/berita-acara.pdf")
+def berita_acara(tid: str) -> Response:
+    """The forensic report of a trace (in Indonesian in both languages: it is an official form)."""
+    return Response(_report_pdf(tid), media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="berita_acara_{tid}.pdf"'})
 
 
@@ -1747,23 +1819,50 @@ _DEMO_LEAKS: dict[str, dict[str, object]] = {}  # leak id -> name, bytes, copy, 
 
 
 def _demo_state(request: Request, leak_id: str = "", result: dict[str, object] | None = None,
-                seconds: float | None = None, **kw: object) -> dict[str, object]:
+                seconds: float | None = None, baru: int | None = None, **kw: object) -> dict[str, object]:
     """Template values of the guided demo (``_demo_alur.html``): the sandbox issuance, the
-    simulated leak and the trace result, whichever exist so far."""
+    simulated leak and the trace result, whichever exist so far. ``baru`` is the step the
+    request has just opened (it enters with an animation; a page load opens none)."""
     from tapak.web.demo_web import MEDIA, demo_manifest
 
     m = demo_manifest(settings())
     leak = _DEMO_LEAKS.get(leak_id) if leak_id else None
     if leak is not None and m is not None and leak["doc"] != m.doc_hash:
         leak = None  # a leak of an earlier sandbox issuance
+    step = 1 if m is None else 2 if leak is None else 3 if result is None else 4
     return dict(m=m, media=MEDIA, leak=leak, leak_id=leak_id if leak else "", hasil=result, issue_seconds=seconds,
-                **kw)
+                langkah=step, baru=baru if baru == step else None, **kw)
+
+
+def _demo_plot(a) -> dict[str, object] | None:
+    """The score strip of the demo's result: every copy's score and the threshold as positions
+    (0..1) on one scale. Named copies carry their number; the others are anonymous dots, spread
+    over four lanes so that close scores do not hide each other."""
+    import math
+
+    if not a.candidates:
+        return None
+    named = set(a.named_seqs)
+    z = a.threshold.threshold if math.isfinite(a.threshold.threshold) else None
+    scores = [c.score for c in a.candidates]
+    lo = min(0.0, *scores)
+    span = (max(*scores, z or 0.0) - lo) * 1.08 or 1.0
+    others = sorted((c for c in a.candidates if c.copy.seq not in named), key=lambda c: c.score)
+    dots = [{"x": round((c.score - lo) / span, 4), "lane": i % 4, "seq": None} for i, c in enumerate(others)]
+    dots += [{"x": round((c.score - lo) / span, 4), "lane": None, "seq": c.copy.seq}
+             for c in a.candidates if c.copy.seq in named]
+    return {"dots": dots, "z": None if z is None else round((z - lo) / span, 4),
+            "others_max": max((c.score for c in others), default=None)}
+
+
+def _demo_page(request: Request, **kw: object) -> HTMLResponse:
+    return _page(request, "_demo_alur.html", **_demo_state(request, **kw))
 
 
 @app.get("/demo", response_class=HTMLResponse)
 def demo_page(request: Request) -> HTMLResponse:
     """The guided demo: issue the sample to 20 fictional recipients, leak one copy, trace it."""
-    return _page(request, "demo.html", title="Demo", active="demo", **_demo_state(request))
+    return _page(request, "demo.html", **_demo_state(request))
 
 
 @app.post("/demo/terbitkan", response_class=HTMLResponse)
@@ -1773,7 +1872,7 @@ async def demo_issue(request: Request) -> HTMLResponse:
 
     def run() -> float:
         if not _DEMO_LOCK.acquire(blocking=False):
-            raise RuntimeError("penerbitan demo lain sedang berjalan; coba lagi sebentar lagi")
+            raise RuntimeError(_("penerbitan demo lain sedang berjalan; coba lagi sebentar lagi"))
         try:
             return issue_demo(settings())[1]
         finally:
@@ -1782,10 +1881,11 @@ async def demo_issue(request: Request) -> HTMLResponse:
     try:
         seconds = await run_in_threadpool(run)
     except (RuntimeError, ValueError, FileExistsError, FileNotFoundError) as exc:
-        return _page(request, "_galat.html", message=f"Demo tidak dapat diterbitkan: {_public_text(exc)}")
+        return _demo_page(request, galat=_("Demo tidak dapat diterbitkan: %(reason)s",
+                                            reason=i18n.translate_text(_public_text(exc))))
     with _LOCK:
         _DEMO_LEAKS.clear()
-    return _page(request, "_demo_alur.html", **_demo_state(request, seconds=seconds, fokus="langkah-2"))
+    return _demo_page(request, seconds=seconds, baru=2)
 
 
 @app.get("/demo/contoh-penerima.csv")
@@ -1797,6 +1897,20 @@ def demo_recipients_csv() -> Response:
                     headers={"Content-Disposition": 'attachment; filename="contoh_penerima.csv"'})
 
 
+@lru_cache(maxsize=1)
+def _demo_master_png() -> bytes:
+    from tapak.demo import samples_dir
+    from tapak.web.demo_web import SAMPLE, page_png
+
+    return page_png((samples_dir() / SAMPLE).read_bytes(), 60)
+
+
+@app.get("/demo/induk.png")
+def demo_master_preview() -> Response:
+    """Page 1 of the sample nota dinas the demo issues (fictional)."""
+    return Response(_demo_master_png(), media_type="image/png", headers={"Cache-Control": "max-age=3600"})
+
+
 @app.get("/demo/salinan/{seq}/pratinjau.png")
 def demo_copy_preview(seq: int) -> Response:
     """Page 1 of a sandbox copy, small."""
@@ -1804,7 +1918,7 @@ def demo_copy_preview(seq: int) -> Response:
 
     m = demo_manifest(settings())
     if m is None or not 1 <= seq <= len(m.copies):
-        raise HTTPException(404, "Salinan demo tidak ditemukan")
+        raise HTTPException(404, _("Salinan demo tidak ditemukan"))
     return Response(page_png(copy_bytes(settings(), m, seq), 60), media_type="image/png",
                     headers={"Cache-Control": "no-store"})
 
@@ -1816,7 +1930,7 @@ def demo_difference() -> Response:
 
     m = demo_manifest(settings())
     if m is None or len(m.copies) < 2:
-        raise HTTPException(404, "Salinan demo tidak ditemukan")
+        raise HTTPException(404, _("Salinan demo tidak ditemukan"))
     return Response(difference_png(settings(), m, 1, 2), media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
@@ -1828,13 +1942,13 @@ async def demo_leak(request: Request, salinan: int = Form(0), cara: str = Form("
     m = demo_manifest(settings())
     errors: dict[str, str] = {}
     if m is None:
-        return _page(request, "_galat.html", message="Terbitkan salinan demo lebih dulu (langkah 1).")
+        return _demo_page(request, galat=_("Terbitkan salinan demo lebih dulu (langkah 1)."))
     if not 1 <= salinan <= len(m.copies):
-        errors["salinan"] = "Pilih penerima yang membocorkan salinannya."
+        errors["salinan"] = _("Pilih penerima yang membocorkan salinannya.")
     if cara not in MEDIA:
-        errors["cara"] = "Pilih cara salinan itu bocor."
+        errors["cara"] = _("Pilih cara salinan itu bocor.")
     if errors:
-        return _page(request, "_demo_alur.html", **_demo_state(request, errors=errors, pilih=salinan, pilih_cara=cara))
+        return _demo_page(request, errors=errors, pilih=salinan, pilih_cara=cara)
 
     def run() -> tuple[str, bytes]:
         import numpy as np
@@ -1847,7 +1961,7 @@ async def demo_leak(request: Request, salinan: int = Form(0), cara: str = Form("
         _DEMO_LEAKS[lid] = {"name": name, "data": data, "seq": salinan, "cara": cara, "doc": m.doc_hash}
         while len(_DEMO_LEAKS) > 20:
             _DEMO_LEAKS.pop(next(iter(_DEMO_LEAKS)))
-    return _page(request, "_demo_alur.html", **_demo_state(request, leak_id=lid, fokus="langkah-3"))
+    return _demo_page(request, leak_id=lid, baru=3)
 
 
 @app.get("/demo/bukti/{lid}")
@@ -1857,7 +1971,7 @@ def demo_evidence(lid: str, unduh: int = 0) -> Response:
 
     item = _DEMO_LEAKS.get(lid)
     if item is None:
-        raise HTTPException(404, "Bukti demo tidak ditemukan; buat bukti baru di langkah 2")
+        raise HTTPException(404, _("Bukti demo tidak ditemukan; buat bukti baru di langkah 2"))
     name, data = str(item["name"]), bytes(item["data"])  # type: ignore[arg-type]
     if unduh:
         return Response(data, media_type="application/octet-stream",
@@ -1876,7 +1990,7 @@ async def demo_trace(request: Request, bukti: str = Form("")) -> HTMLResponse:
     m = demo_manifest(settings())
     item = _DEMO_LEAKS.get(bukti)
     if m is None or item is None or item["doc"] != m.doc_hash:
-        return _page(request, "_galat.html", message="Bukti demo tidak ditemukan. Buat bukti baru di langkah 2.")
+        return _demo_page(request, galat=_("Bukti demo tidak ditemukan. Buat bukti baru di langkah 2."))
 
     def run() -> object:
         with _TRACE_SLOTS:
@@ -1886,10 +2000,20 @@ async def demo_trace(request: Request, bukti: str = Form("")) -> HTMLResponse:
     try:
         outcome = await run_in_threadpool(run)
     except (TraceError, ValueError, FileNotFoundError, RuntimeError) as exc:
-        return _page(request, "_galat.html", message=f"Pelacakan tidak dapat dilakukan: {_public_text(exc)}")
+        return _demo_page(request, leak_id=bukti, galat=_("Pelacakan tidak dapat dilakukan: %(reason)s",
+                                                           reason=i18n.translate_text(_public_text(exc))))
     view = _trace_view(outcome)
     view["detik"] = time.perf_counter() - t0
-    return _page(request, "_demo_alur.html", **_demo_state(request, leak_id=bukti, result=view, fokus="langkah-3-hasil"))
+    view["plot"] = _demo_plot(view["a"])
+    return _demo_page(request, leak_id=bukti, result=view, baru=4)
+
+
+@app.get("/demo/berita-acara/{tid}.png")
+def demo_report_preview(tid: str) -> Response:
+    """Page 1 of a demo trace's berita acara, small."""
+    from tapak.web.demo_web import page_png
+
+    return Response(page_png(_report_pdf(tid), 50), media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 # --- Registri ------------------------------------------------------------------------------
@@ -1910,17 +2034,17 @@ def registri_page(request: Request) -> HTMLResponse:
         try:
             public_key = normalize_public_key(s.public_key_path.read_text())
         except UnicodeDecodeError:
-            key_error = "isi berkas bukan teks; kunci publik berupa 64 karakter heksadesimal"
+            key_error = _("isi berkas bukan teks; kunci publik berupa 64 karakter heksadesimal")
         except SigningKeyError as exc:
-            key_error = str(exc)
+            key_error = i18n.translate_text(str(exc))
         except OSError as exc:
-            key_error = f"berkas tidak dapat dibaca ({exc.strerror or exc})"
+            key_error = _("berkas tidak dapat dibaca (%(why)s)", why=exc.strerror or exc)
     if public_key and s.registry_path.exists():
         report = verify_registry(s.registry_path, public_key, require_signed=False, anchor_log=s.anchor_log)
         with _LOCK:  # the sidebar of this page reuses the check instead of verifying again
             _REGISTRY_STATUS.update(key=key, value=_report_status(report))
     docs = list_workspaces(s)
-    return _page(request, "registri.html", title="Registri", active="registri", report=report, docs=docs,
+    return _page(request, "registri.html", title=N_("Registri"), active="registri", report=report, docs=docs,
                  alerts=_canary_events(s, docs), registry=_registry_status(), public_key=public_key,
                  key_error=key_error, public_key_path=str(s.public_key_path),
                  canary_log=check_events_chain(s.canary_db) if s.canary_db.exists() else None,

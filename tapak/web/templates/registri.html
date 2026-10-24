@@ -3,15 +3,14 @@
 {% block head %}<link rel="stylesheet" href="/static/css/registri.css?v={{ asset_v() }}">{% endblock %}
 {% macro waktu2(value) -%}
 {# date on the first line, clock time muted below it #}
-{%- set w = (value|waktu).split(" pukul ") -%}
-<span class="waktu"><span>{{ w[0] }}</span>{% if w|length > 1 %}<span class="waktu-jam">{{ w[1] }}</span>{% endif %}</span>
+<span class="waktu"><span>{{ value|tanggal }}</span>{% if value|jam %}<span class="waktu-jam">{{ value|jam }}</span>{% endif %}</span>
 {%- endmacro %}
 {% block content %}
 <div class="page registri">
   <div class="page-head">
-    <p class="eyebrow">Rantai hash · Ed25519</p>
-    <h1>Registri penerbitan</h1>
-    <p>Setiap dokumen dan salinan yang diterbitkan, juga setiap pelacakan, tercatat di sini, tambah-saja. Pemegang berkas registri dan kunci publik dapat memeriksa rantainya tanpa TAPAK.</p>
+    <p class="eyebrow">{{ _("Rantai hash · Ed25519") }}</p>
+    <h1>{{ _("Registri penerbitan") }}</h1>
+    <p>{{ _("Setiap dokumen dan salinan yang diterbitkan, juga setiap pelacakan, tercatat di sini, tambah-saja. Pemegang berkas registri dan kunci publik dapat memeriksa rantainya tanpa TAPAK.") }}</p>
   </div>
 
   {# report is none when registry.db or the public key is missing, or the key is unreadable #}
@@ -21,51 +20,51 @@
   <section class="card integritas {{ 'is-rusak' if key_error else 'is-belum' }}" aria-labelledby="verif-h">
     <div class="integritas-putusan">
       {% if key_error %}
-      <span class="stamp stamp-lg stamp-danger">Tak terbaca</span>
-      <h2 id="verif-h">Kunci publik tidak dapat dibaca</h2>
-      <p class="lead">Rantai registri belum dapat diverifikasi. Ganti berkasnya dengan registry_signing.pub dari pemegang kunci tanda tangan.</p>
+      <span class="stamp stamp-lg stamp-danger">{{ _("Tak terbaca") }}</span>
+      <h2 id="verif-h">{{ _("Kunci publik tidak dapat dibaca") }}</h2>
+      <p class="lead">{{ _("Rantai registri belum dapat diverifikasi. Ganti berkasnya dengan registry_signing.pub dari pemegang kunci tanda tangan.") }}</p>
       {% else %}
-      <span class="stamp stamp-lg stamp-warn">{{ reg.label if reg.state == "warn" else "Belum diperiksa" }}</span>
-      <h2 id="verif-h">Rantai registri belum dapat diverifikasi</h2>
-      <p class="lead">Kunci publik tidak ditemukan{% if reg.counted %}, padahal registri sudah berisi {{ reg.entries|num }} entri{% endif %}. Salin registry_signing.pub dari pemegang kunci tanda tangan ke lokasi di bawah.</p>
+      <span class="stamp stamp-lg stamp-warn">{{ _(reg.label) if reg.state == "warn" else _("Belum diperiksa") }}</span>
+      <h2 id="verif-h">{{ _("Rantai registri belum dapat diverifikasi") }}</h2>
+      <p class="lead">{% if reg.counted %}{{ _("Kunci publik tidak ditemukan, padahal registri sudah berisi %(n)s entri.", n=reg.entries|num) }}{% else %}{{ _("Kunci publik tidak ditemukan.") }}{% endif %} {{ _("Salin registry_signing.pub dari pemegang kunci tanda tangan ke lokasi di bawah.") }}</p>
       {% endif %}
     </div>
     <dl class="kv well integritas-kunci">
-      <dt>Berkas kunci publik</dt>
+      <dt>{{ _("Berkas kunci publik") }}</dt>
       <dd class="mono">{{ public_key_path|default("registry_signing.pub") }}</dd>
-      {% if key_error %}<dt>Galat</dt><dd>{{ key_error }}</dd>{% endif %}
+      {% if key_error %}<dt>{{ _("Galat") }}</dt><dd>{{ key_error|tr }}</dd>{% endif %}
     </dl>
   </section>
   {% elif report is none %}
   <section class="empty-state" aria-labelledby="verif-h">
-    <h2 id="verif-h">Rantai registri dimulai saat dokumen pertama diterbitkan.</h2>
-    <p>Setiap salinan yang dibuat akan dicatat, di-hash ke entri sebelumnya, dan ditandatangani.</p>
-    <a class="btn btn-primary" href="/terbitkan">{{ ikon("files") }}Terbitkan dokumen pertama</a>
+    <h2 id="verif-h">{{ _("Rantai registri dimulai saat dokumen pertama diterbitkan.") }}</h2>
+    <p>{{ _("Setiap salinan yang dibuat akan dicatat, di-hash ke entri sebelumnya, dan ditandatangani.") }}</p>
+    <a class="btn btn-primary" href="/terbitkan">{{ ikon("files") }}{{ _("Terbitkan dokumen pertama") }}</a>
   </section>
   {% else %}
   {% set rusak = not report.ok %}
   <section class="card integritas{% if rusak %} is-rusak{% endif %}" aria-labelledby="verif-h">
     <div class="integritas-putusan">
-      <span class="stamp stamp-lg {{ 'stamp-danger' if rusak else 'stamp-ok' }}">{% if rusak %}Rusak{% else %}Utuh{% endif %}</span>
-      <h2 id="verif-h">{% if rusak %}Rantai registri rusak{% elif report.unsigned %}Rantai hash utuh, sebagian belum bertanda tangan{% else %}Rantai registri utuh{% endif %}</h2>
+      <span class="stamp stamp-lg {{ 'stamp-danger' if rusak else 'stamp-ok' }}">{% if rusak %}{{ _("Rusak") }}{% else %}{{ _("Utuh") }}{% endif %}</span>
+      <h2 id="verif-h">{% if rusak %}{{ _("Rantai registri rusak") }}{% elif report.unsigned %}{{ _("Rantai hash utuh, sebagian belum bertanda tangan") }}{% else %}{{ _("Rantai registri utuh") }}{% endif %}</h2>
       <p class="lead">
-        {%- if rusak %}Ditemukan {{ report.problems|length|num }} masalah. Hasil pelacakan dari registri ini tidak dapat dijadikan bukti sampai penyebabnya jelas.
-        {%- elif report.unsigned %}{{ report.unsigned|num }} dari {{ report.entries|num }} entri belum ditandatangani, sehingga belum terlindungi dari pemalsuan.
-        {%- else %}Hash dan tanda tangan ke-{{ report.entries|num }} entri sah.{% endif %} Diperiksa saat halaman ini dibuka.</p>
+        {%- if rusak %}{{ _("Ditemukan %(n)s masalah. Hasil pelacakan dari registri ini tidak dapat dijadikan bukti sampai penyebabnya jelas.", n=report.problems|length|num) }}
+        {%- elif report.unsigned %}{{ _("%(n)s dari %(total)s entri belum ditandatangani, sehingga belum terlindungi dari pemalsuan.", n=report.unsigned|num, total=report.entries|num) }}
+        {%- else %}{{ _("Hash dan tanda tangan ke-%(n)s entri sah.", n=report.entries|num) }}{% endif %} {{ _("Diperiksa saat halaman ini dibuka.") }}</p>
     </div>
     <div class="stats integritas-angka">
       <div class="stat">
-        <span class="stat-label">Entri</span>
+        <span class="stat-label">{{ _("Entri") }}</span>
         <span class="stat-value">{{ report.entries|num }}</span>
-        <span class="stat-note">{{ report.kinds.get("document", 0)|num }} dokumen, {{ report.kinds.get("copy", 0)|num }} salinan{% if report.kinds.get("trace", 0) %}, {{ report.kinds.get("trace", 0)|num }} pelacakan{% endif %}</span>
+        <span class="stat-note">{{ _("%(docs)s dokumen, %(copies)s salinan", docs=report.kinds.get("document", 0)|num, copies=report.kinds.get("copy", 0)|num) }}{% if report.kinds.get("trace", 0) %}, {{ _("%(n)s pelacakan", n=report.kinds.get("trace", 0)|num) }}{% endif %}</span>
       </div>
       <div class="stat{% if report.unsigned %} stat-warn{% endif %}">
-        <span class="stat-label">Belum ditandatangani</span>
+        <span class="stat-label">{{ _("Belum ditandatangani") }}</span>
         <span class="stat-value">{{ report.unsigned|num }}</span>
-        <span class="stat-note">{% if report.unsigned %}menunggu eselon atas{% else %}semua entri ditandatangani{% endif %}</span>
+        <span class="stat-note">{% if report.unsigned %}{{ _("menunggu eselon atas") }}{% else %}{{ _("semua entri ditandatangani") }}{% endif %}</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Entri terakhir</span>
+        <span class="stat-label">{{ _("Entri terakhir") }}</span>
         <span class="stat-value">{% if report.head_seq %}#{{ report.head_seq }}{% else %}-{% endif %}</span>
         {% if report.head_hash %}<span class="stat-note hash" title="SHA-256 {{ report.head_hash }}">{{ report.head_hash[:8] }}…{{ report.head_hash[-4:] }}</span>{% endif %}
       </div>
@@ -75,12 +74,12 @@
        sentences): here it is named and pointed to, so the page says it once. #}
     {% set log_dirinci = anchor.problems if anchor is defined and anchor is not none and anchor.configured else [] %}
     <div class="notice notice-error integritas-catatan" role="alert">
-      <ul class="notes">{% for seq, text in report.problems %}<li>{% if seq %}<span class="mono">#{{ seq }}</span> {% endif %}{% if not seq and text.startswith("log jangkar: ") and text[13:] in log_dirinci %}log jangkar: rinciannya di bagian <a class="link" href="#jangkar-h">Log jangkar</a> di bawah{% else %}{{ text|prosa }}{% endif %}</li>{% endfor %}</ul>
+      <ul class="notes">{% for seq, text in report.problems %}<li>{% if seq %}<span class="mono">#{{ seq }}</span> {% endif %}{% if not seq and text.startswith("log jangkar: ") and text[13:] in log_dirinci %}{% trans %}log jangkar: rinciannya di bagian <a class="link" href="#jangkar-h">Log jangkar</a> di bawah{% endtrans %}{% else %}{{ text|tr|prosa }}{% endif %}</li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% if report.warnings %}
     <div class="notice notice-warn integritas-catatan">
-      <ul class="notes">{% for w in report.warnings %}<li>{{ w|prosa }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for w in report.warnings %}<li>{{ w|tr|prosa }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
   </section>
@@ -93,67 +92,67 @@
   <section class="card jangkar{% if jangkar_tolak %} is-rusak{% endif %}" aria-labelledby="jangkar-h">
     <div class="card-head">
       <div>
-        <h2 id="jangkar-h">Log jangkar</h2>
-        <p class="lead">Nomor dan hash setiap entri, ditambahkan ke berkas di penyimpanan terpisah. Entri yang dihapus dari ujung registri hanya terlihat dengan log ini, atau dengan jangkar yang tercetak di berita acara.</p>
+        <h2 id="jangkar-h">{{ _("Log jangkar") }}</h2>
+        <p class="lead">{{ _("Nomor dan hash setiap entri, ditambahkan ke berkas di penyimpanan terpisah. Entri yang dihapus dari ujung registri hanya terlihat dengan log ini, atau dengan jangkar yang tercetak di berita acara.") }}</p>
       </div>
       {# unavailable: why a configured log could not be read (AnchorStatus.unavailable) #}
-      {% set tak_terbaca = {"not_started": "Belum dimulai", "missing": "Hilang", "too_large": "Terlalu besar", "unreadable": "Tidak terbaca"} %}
-      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}{{ tak_terbaca.get(jangkar.unavailable, "Tidak terbaca") }}{% elif jangkar.configured and jangkar.problems == jangkar.storage %}{% if jangkar.unwritable %}Tidak dapat ditulis{% else %}Periksa lokasi{% endif %}{% elif jangkar.configured %}Tidak cocok{% else %}Tidak diatur{% endif %}</span>
-      {% elif jangkar.configured %}<span class="stamp stamp-ok">Cocok</span>
-      {% else %}<span class="stamp stamp-neutral">Tidak diatur</span>{% endif %}
+      {% set tak_terbaca = {"not_started": _("Belum dimulai"), "missing": _("Hilang"), "too_large": _("Terlalu besar"), "unreadable": _("Tidak terbaca")} %}
+      {% if jangkar_tolak %}<span class="stamp stamp-danger">{% if jangkar.missing %}{{ tak_terbaca.get(jangkar.unavailable, _("Tidak terbaca")) }}{% elif jangkar.configured and jangkar.problems == jangkar.storage %}{% if jangkar.unwritable %}{{ _("Tidak dapat ditulis") }}{% else %}{{ _("Periksa lokasi") }}{% endif %}{% elif jangkar.configured %}{{ _("Tidak cocok") }}{% else %}{{ _("Tidak diatur") }}{% endif %}</span>
+      {% elif jangkar.configured %}<span class="stamp stamp-ok">{{ _("Cocok") }}</span>
+      {% else %}<span class="stamp stamp-neutral">{{ _("Tidak diatur") }}</span>{% endif %}
     </div>
     {% if jangkar.configured %}
     <dl class="kv">
-      <dt>Lokasi</dt>
+      <dt>{{ _("Lokasi") }}</dt>
       <dd class="mono small">{{ jangkar.path }}</dd>
       {% if jangkar.ok %}
-      <dt>Dijangkarkan</dt>
-      <dd class="tnum">{% if jangkar.anchored_seq %}Sampai entri #{{ jangkar.anchored_seq }}{% else %}Belum ada entri{% endif %}{% if jangkar.lag %}; {{ jangkar.lag|num }} entri terakhir dicatat pada penulisan berikutnya{% endif %}</dd>
+      <dt>{{ _("Dijangkarkan") }}</dt>
+      <dd class="tnum">{% if jangkar.anchored_seq %}{{ _("Sampai entri #%(n)s", n=jangkar.anchored_seq) }}{% else %}{{ _("Belum ada entri") }}{% endif %}{% if jangkar.lag %}; {{ _("%(n)s entri terakhir dicatat pada penulisan berikutnya", n=jangkar.lag|num) }}{% endif %}</dd>
       {% endif %}
       {% if not jangkar.missing %}
-      <dt>Baris</dt>
-      <dd class="tnum">{{ jangkar.lines|num }}, {{ jangkar.signed_lines|num }} bertanda tangan</dd>
+      <dt>{{ _("Baris") }}</dt>
+      <dd class="tnum">{{ _("%(n)s, %(signed)s bertanda tangan", n=jangkar.lines|num, signed=jangkar.signed_lines|num) }}</dd>
       {% endif %}
       {% if jangkar.rotated %}
-      <dt>Segmen</dt>
-      <dd class="tnum">Lanjutan log {{ jangkar.rotated[2][:8] }} sejak entri #{{ jangkar.rotated[0] }}, {{ jangkar.rotated[1] }}</dd>
+      <dt>{{ _("Segmen") }}</dt>
+      <dd class="tnum">{{ _("Lanjutan log %(log)s sejak entri #%(n)s, %(when)s", log=jangkar.rotated[2][:8], n=jangkar.rotated[0], when=jangkar.rotated[1]) }}</dd>
       {% endif %}
       {% if jangkar.restarted %}
-      <dt>Dimulai ulang</dt>
-      <dd class="tnum">Di entri #{{ jangkar.restarted[0] }}, {{ jangkar.restarted[1] }}; penghapusan sebelum itu tidak terlihat oleh log ini</dd>
+      <dt>{{ _("Dimulai ulang") }}</dt>
+      <dd class="tnum">{{ _("Di entri #%(n)s, %(when)s; penghapusan sebelum itu tidak terlihat oleh log ini", n=jangkar.restarted[0], when=jangkar.restarted[1]) }}</dd>
       {% endif %}
       {% if jangkar.acks %}
-      <dt>Pengakuan</dt>
-      <dd class="tnum">{{ jangkar.acks|length|num }} pengakuan pemulihan, {{ jangkar.released|length|num }} entri dilepas{% if jangkar.released_traces %} ({{ jangkar.released_traces|num }} pelacakan){% endif %}</dd>
+      <dt>{{ _("Pengakuan") }}</dt>
+      <dd class="tnum">{{ _("%(acks)s pengakuan pemulihan, %(released)s entri dilepas", acks=jangkar.acks|length|num, released=jangkar.released|length|num) }}{% if jangkar.released_traces %} ({{ _("%(n)s pelacakan", n=jangkar.released_traces|num) }}){% endif %}</dd>
       {% endif %}
     </dl>
     {% if jangkar.problems %}
     <div class="notice notice-error integritas-catatan" role="alert">
       {% if jangkar.unavailable == "too_large" %}
-      <p>Pelacakan dan penerbitan ditolak sampai log ini diteruskan ke segmen baru dengan <span class="mono nowrap">tapak jangkar rotasi BERKAS_BARU</span>. Jangan menghapus atau memotong log ini.</p>
+      <p>{% trans %}Pelacakan dan penerbitan ditolak sampai log ini diteruskan ke segmen baru dengan <span class="mono nowrap">tapak jangkar rotasi BERKAS_BARU</span>. Jangan menghapus atau memotong log ini.{% endtrans %}</p>
       {% elif jangkar.unavailable == "not_started" %}
-      <p>Pelacakan dan penerbitan ditolak sampai log dimulai dengan <span class="mono nowrap">tapak jangkar mulai</span>.</p>
+      <p>{% trans %}Pelacakan dan penerbitan ditolak sampai log dimulai dengan <span class="mono nowrap">tapak jangkar mulai</span>.{% endtrans %}</p>
       {% elif jangkar.missing %}
-      <p>Pelacakan dan penerbitan ditolak sampai log ini dapat dibaca lagi di lokasinya.</p>
+      <p>{{ _("Pelacakan dan penerbitan ditolak sampai log ini dapat dibaca lagi di lokasinya.") }}</p>
       {% elif jangkar.problems == jangkar.storage %}
-      <p>Pelacakan dan penerbitan ditolak sampai lokasi atau penyimpanan log ini diperbaiki.</p>
+      <p>{{ _("Pelacakan dan penerbitan ditolak sampai lokasi atau penyimpanan log ini diperbaiki.") }}</p>
       {% else %}
-      <p>Pelacakan dan penerbitan ditolak sampai perbedaan ini diperiksa dengan <span class="mono nowrap">tapak verify</span>.</p>
+      <p>{% trans %}Pelacakan dan penerbitan ditolak sampai perbedaan ini diperiksa dengan <span class="mono nowrap">tapak verify</span>.{% endtrans %}</p>
       {% endif %}
-      <ul class="notes">{% for p in jangkar.problems %}<li>{{ p|prosa }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for p in jangkar.problems %}<li>{{ p|tr|prosa }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% if jangkar.warnings %}
     <div class="notice notice-warn integritas-catatan">
-      <ul class="notes">{% for w in jangkar.warnings %}<li>{{ w|prosa }}</li>{% endfor %}</ul>
+      <ul class="notes">{% for w in jangkar.warnings %}<li>{{ w|tr|prosa }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% elif jangkar.required_by is not none %}
     <div class="notice notice-error" role="alert">
-      <p>Registri ini memakai log jangkar sejak entri #{{ jangkar.required_by }}, tetapi lokasinya tidak diatur di server ini, jadi pelacakan dan penerbitan ditolak. Jalankan server dengan <span class="mono nowrap">tapak --log-jangkar BERKAS web</span> atau atur TAPAK_ANCHOR_LOG.</p>
+      <p>{% trans n=jangkar.required_by %}Registri ini memakai log jangkar sejak entri #{{ n }}, tetapi lokasinya tidak diatur di server ini, jadi pelacakan dan penerbitan ditolak. Jalankan server dengan <span class="mono nowrap">tapak --log-jangkar BERKAS web</span> atau atur TAPAK_ANCHOR_LOG.{% endtrans %}</p>
     </div>
     {% else %}
-    <p class="empty">Belum dipakai. Pilih berkas di penyimpanan yang tidak dapat disunting orang yang dapat menyunting registri, jalankan <span class="mono nowrap">tapak --log-jangkar BERKAS jangkar mulai</span>, lalu jalankan server dengan lokasi yang sama.</p>
+    <p class="empty">{% trans %}Belum dipakai. Pilih berkas di penyimpanan yang tidak dapat disunting orang yang dapat menyunting registri, jalankan <span class="mono nowrap">tapak --log-jangkar BERKAS jangkar mulai</span>, lalu jalankan server dengan lokasi yang sama.{% endtrans %}</p>
     {% endif %}
   </section>
   {% endif %}
@@ -162,33 +161,33 @@
     <section class="card" aria-labelledby="kunci-h">
       <div class="card-head">
         <div>
-          <h2 id="kunci-h">Kunci publik</h2>
-          <p class="lead">Serahkan bersama berkas registri kepada pemeriksa. Keduanya cukup untuk memverifikasi rantai di luar TAPAK.</p>
+          <h2 id="kunci-h">{{ _("Kunci publik") }}</h2>
+          <p class="lead">{{ _("Serahkan bersama berkas registri kepada pemeriksa. Keduanya cukup untuk memverifikasi rantai di luar TAPAK.") }}</p>
         </div>
       </div>
       {% if key_error %}
-      <p class="empty">Isi berkasnya bukan kunci publik Ed25519 yang sah, jadi tidak ditampilkan.</p>
+      <p class="empty">{{ _("Isi berkasnya bukan kunci publik Ed25519 yang sah, jadi tidak ditampilkan.") }}</p>
       {% elif public_key %}
       <div class="stack-sm">
         <div class="kode">
-          <span class="label">Ed25519, heksadesimal</span>
+          <span class="label">{{ _("Ed25519, heksadesimal") }}</span>
           <div class="code-row">
             <span class="code" id="kunci-publik">{{ public_key }}</span>
-            <button type="button" class="copy-btn" data-copy-target="#kunci-publik" aria-label="Salin kunci publik">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
+            <button type="button" class="copy-btn" data-copy-target="#kunci-publik" aria-label="{{ _('Salin kunci publik') }}">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">{{ _("Salin") }}</span></button>
           </div>
         </div>
         <div class="kode">
-          <span class="label">Perintah verifikasi mandiri</span>
+          <span class="label">{{ _("Perintah verifikasi mandiri") }}</span>
           <div class="code-row">
             <span class="code" id="perintah-verifikasi"><span class="nowrap">tapak-verify-registry</span> registry.db <span class="nowrap">--public-key</span> registry_signing.pub</span>
-            <button type="button" class="copy-btn" data-copy-target="#perintah-verifikasi" aria-label="Salin perintah verifikasi">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">Salin</span></button>
+            <button type="button" class="copy-btn" data-copy-target="#perintah-verifikasi" aria-label="{{ _('Salin perintah verifikasi') }}">{{ ikon("copy") }}{{ ikon("check") }}<span class="copy-label">{{ _("Salin") }}</span></button>
           </div>
         </div>
       </div>
       {% elif has_registry %}
-      <p class="empty">Belum ada di server ini. Jangan membuat kunci baru dengan <span class="mono nowrap">tapak keys init</span>: tanda tangan entri yang ada tidak akan cocok dengannya.</p>
+      <p class="empty">{% trans %}Belum ada di server ini. Jangan membuat kunci baru dengan <span class="mono nowrap">tapak keys init</span>: tanda tangan entri yang ada tidak akan cocok dengannya.{% endtrans %}</p>
       {% else %}
-      <p class="empty">Kunci belum dibuat. Jalankan <span class="mono nowrap">tapak keys init</span> di server ini.</p>
+      <p class="empty">{% trans %}Kunci belum dibuat. Jalankan <span class="mono nowrap">tapak keys init</span> di server ini.{% endtrans %}</p>
       {% endif %}
     </section>
 
@@ -196,13 +195,13 @@
     <section class="card merkle" aria-labelledby="merkle-h">
       <div class="card-head">
         <div>
-          <h2 id="merkle-h">Akar Merkle harian</h2>
-          <p class="lead">Satu akar mengikat semua entri sehari. Kirim berkasnya ke eselon atas sebagai jangkar: entri lama yang diubah tidak akan cocok lagi.</p>
+          <h2 id="merkle-h">{{ _("Akar Merkle harian") }}</h2>
+          <p class="lead">{{ _("Satu akar mengikat semua entri sehari. Kirim berkasnya ke eselon atas sebagai jangkar: entri lama yang diubah tidak akan cocok lagi.") }}</p>
         </div>
       </div>
       <div>
         <button class="btn btn-secondary" type="button" hx-post="/registri/merkle" hx-target="#merkle" hx-disabled-elt="this"
-                data-loading-text="Mengekspor…">{{ ikon("file-text") }}Ekspor akar Merkle harian</button>
+                data-loading-text="{{ _('Mengekspor…') }}">{{ ikon("file-text") }}{{ _("Ekspor akar Merkle harian") }}</button>
       </div>
       <div id="merkle" aria-live="polite"></div>
     </section>
@@ -216,53 +215,53 @@
   <section class="card card-flush kanari{% if log_rusak %} is-rusak{% elif alerts %} has-kueri{% endif %}" aria-labelledby="kanari-h">
     <div class="card-head">
       <div>
-        <h2 id="kanari-h">Kueri DNS kanari</h2>
-        <p class="lead">Setiap salinan membawa nama domain unik. Bila resolver di luar jaringan satuan mencarinya, berkas itu kemungkinan dibuka di sana.</p>
+        <h2 id="kanari-h">{{ _("Kueri DNS kanari") }}</h2>
+        <p class="lead">{{ _("Setiap salinan membawa nama domain unik. Bila resolver di luar jaringan satuan mencarinya, berkas itu kemungkinan dibuka di sana.") }}</p>
       </div>
       {% if alerts or (log is not none and (log.rows or log_rusak)) %}
       <div class="kanari-status">
-        {% if alerts %}<span class="muted small tnum">{{ alerts|length|num }} kueri</span>{% endif %}
-        {% if log_rusak %}<span class="stamp stamp-danger">Log rusak</span>
-        {% elif log is not none and log.rows %}<span class="stamp stamp-ok" title="Rantai hash {{ log.rows|num }} catatan kanari sah">Log utuh</span>{% endif %}
+        {% if alerts %}<span class="muted small tnum">{{ _("%(n)s kueri", n=alerts|length|num) }}</span>{% endif %}
+        {% if log_rusak %}<span class="stamp stamp-danger">{{ _("Log rusak") }}</span>
+        {% elif log is not none and log.rows %}<span class="stamp stamp-ok" title="{{ _('Rantai hash %(n)s catatan kanari sah', n=log.rows|num) }}">{{ _("Log utuh") }}</span>{% endif %}
       </div>
       {% endif %}
     </div>
     {% if log_rusak %}
     <div class="card-section">
       <div class="notice notice-error" role="alert">
-        <p>Rantai hash log kanari tidak utuh. Kueri di bawah tidak dapat dijadikan bukti sampai penyebabnya jelas.</p>
-        <ul class="notes">{% for p in log.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+        <p>{{ _("Rantai hash log kanari tidak utuh. Kueri di bawah tidak dapat dijadikan bukti sampai penyebabnya jelas.") }}</p>
+        <ul class="notes">{% for p in log.problems %}<li>{{ p|tr }}</li>{% endfor %}</ul>
       </div>
     </div>
     {% endif %}
     {% if alerts %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th scope="col">Salinan</th><th scope="col">Waktu</th><th scope="col" class="hide-sm">Resolver</th><th scope="col"><span class="sr-only">Tindakan</span></th></tr></thead>
+        <thead><tr><th scope="col">{{ _("Salinan") }}</th><th scope="col">{{ _("Waktu") }}</th><th scope="col" class="hide-sm">{{ _("Resolver") }}</th><th scope="col"><span class="sr-only">{{ _("Tindakan") }}</span></th></tr></thead>
         <tbody>
           {% for k in alerts %}
           <tr>
             <td class="kanari-salinan">
               <span class="dok-teks">
-                <span class="dok-nama">Salinan #{{ k.seq }}</span>
+                <span class="dok-nama">{{ _("Salinan #%(n)s", n=k.seq) }}</span>
                 {# one opening usually sends an A and an AAAA query: the type tells the two rows apart #}
-                <span class="dok-meta">{{ k.doc_name }}{% if k.qtype %} · kueri {{ k.qtype }}{% endif %}</span>
+                <span class="dok-meta">{{ k.doc_name }}{% if k.qtype %} · {{ _("kueri %(jenis)s", jenis=k.qtype) }}{% endif %}</span>
               </span>
             </td>
             <td>{{ waktu2(k.time) }}</td>
             <td class="mono small nowrap hide-sm">{{ k.src_ip }}</td>
-            <td class="aksi"><a class="btn btn-ghost btn-small" href="/lacak?dokumen={{ k.doc }}" aria-label="Lacak kebocoran {{ k.doc_name }}">{{ ikon("scan") }}Lacak</a></td>
+            <td class="aksi"><a class="btn btn-ghost btn-small" href="/lacak?dokumen={{ k.doc }}" aria-label="{{ _('Lacak kebocoran %(doc)s', doc=k.doc_name) }}">{{ ikon("scan") }}{{ _("Lacak") }}</a></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     <div class="card-section">
-      <p class="hint">Nama penerima sengaja tidak ditampilkan: kueri kanari adalah bukti pendukung, bukan hasil atribusi. Hubungkan nomor salinan dengan penerimanya lewat Lacak.</p>
+      <p class="hint">{{ _("Nama penerima sengaja tidak ditampilkan: kueri kanari adalah bukti pendukung, bukan hasil atribusi. Hubungkan nomor salinan dengan penerimanya lewat Lacak.") }}</p>
     </div>
     {% else %}
     <div class="card-section">
-      <p class="empty">Belum ada kueri.</p>
+      <p class="empty">{{ _("Belum ada kueri.") }}</p>
     </div>
     {% endif %}
   </section>
@@ -270,14 +269,14 @@
   <section class="card card-flush dokumen" aria-labelledby="dok-h">
     <div class="card-head">
       <div>
-        <h2 id="dok-h">Dokumen terbitan</h2>
-        <p class="lead">{{ docs|length|num }} dokumen, {{ docs|map(attribute="copies")|map("length")|sum|num }} salinan bertanda.</p>
+        <h2 id="dok-h">{{ _("Dokumen terbitan") }}</h2>
+        <p class="lead">{{ _("%(docs)s dokumen, %(copies)s salinan bertanda.", docs=docs|length|num, copies=docs|map(attribute="copies")|map("length")|sum|num) }}</p>
       </div>
-      <a class="btn btn-secondary btn-small" href="/terbitkan">{{ ikon("files") }}Terbitkan dokumen</a>
+      <a class="btn btn-secondary btn-small" href="/terbitkan">{{ ikon("files") }}{{ _("Terbitkan dokumen") }}</a>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th scope="col">Dokumen</th><th scope="col" class="kol-lebar">Diterbitkan</th><th scope="col" class="num kol-lebar">Salinan</th><th scope="col" class="kol-hash">SHA-256</th><th scope="col"><span class="sr-only">Tindakan</span></th></tr></thead>
+        <thead><tr><th scope="col">{{ _("Dokumen") }}</th><th scope="col" class="kol-lebar">{{ _("Diterbitkan") }}</th><th scope="col" class="num kol-lebar">{{ _("Salinan") }}</th><th scope="col" class="kol-hash">SHA-256</th><th scope="col"><span class="sr-only">{{ _("Tindakan") }}</span></th></tr></thead>
         <tbody>
           {% for m in docs %}
           {% set key = m.doc_hash[:16] %}
@@ -289,8 +288,9 @@
                 <span class="dok-teks">
                   <span class="dok-nama" title="{{ m.doc_name }}">{{ m.doc_name }}</span>
                   {% set n_lacak = report.traces.get(m.doc_hash, 0) if report else 0 %}
-                  <span class="dok-meta dok-meta-lg">Penerbit: {{ m.issuer }}{% if n_lacak %} · dilacak {{ n_lacak|num }} kali{% endif %}</span>
-                  <span class="dok-meta dok-meta-sm">{{ m.copies|length|num }} salinan · {{ (m.issued_at|waktu).split(" pukul ")[0] }}{% if n_lacak %} · dilacak {{ n_lacak|num }} kali{% endif %}</span>
+                  {% set dilacak = ngettext("dilacak %(num)s kali", "dilacak %(num)s kali", n_lacak, num=n_lacak|num) %}
+                  <span class="dok-meta dok-meta-lg">{{ _("Penerbit: %(who)s", who=m.issuer) }}{% if n_lacak %} · {{ dilacak }}{% endif %}</span>
+                  <span class="dok-meta dok-meta-sm">{{ ngettext("%(num)s salinan", "%(num)s salinan", m.copies|length) }} · {{ m.issued_at|tanggal }}{% if n_lacak %} · {{ dilacak }}{% endif %}</span>
                 </span>
               </div>
             </td>
@@ -299,8 +299,8 @@
             <td class="kol-hash"><span class="hash dok-hash" title="{{ m.doc_hash }}">{{ m.doc_hash[:16] }}…</span></td>
             <td class="aksi">
               <div class="aksi-tombol">
-                <a class="btn btn-ghost btn-small" href="/dokumen/{{ key }}/salinan.zip" aria-label="Unduh ZIP salinan {{ m.doc_name }}">{{ ikon("download") }}ZIP</a>
-                <a class="btn btn-secondary btn-small" href="/lacak?dokumen={{ key }}" aria-label="Lacak kebocoran {{ m.doc_name }}">{{ ikon("scan") }}Lacak</a>
+                <a class="btn btn-ghost btn-small" href="/dokumen/{{ key }}/salinan.zip" aria-label="{{ _('Unduh ZIP salinan %(doc)s', doc=m.doc_name) }}">{{ ikon("download") }}ZIP</a>
+                <a class="btn btn-secondary btn-small" href="/lacak?dokumen={{ key }}" aria-label="{{ _('Lacak kebocoran %(doc)s', doc=m.doc_name) }}">{{ ikon("scan") }}{{ _("Lacak") }}</a>
               </div>
             </td>
           </tr>

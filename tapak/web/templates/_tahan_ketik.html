@@ -3,13 +3,13 @@
    length whatever the counts, so the review below does not move on a decision. #}
 {% set kb = ketik_bits(st) %}
 <div class="stat stat-wide" id="stat-ketik"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <span class="stat-label">Tahan ketik ulang</span>
+  <span class="stat-label">{{ _("Tahan ketik ulang") }}</span>
   <span class="stat-value">{{ kb.total|num }}</span>
   {% if st.all_scanned %}
-  <span class="stat-note">bit. {{ pindaian_na }}.</span>
-  <span class="stat-note stat-explain">Teks yang diketik ulang dari salinan tidak membawa tanda.</span>
+  <span class="stat-note">{{ _("bit.") }} {{ _(pindaian_na) }}.</span>
+  <span class="stat-note stat-explain">{{ _("Teks yang diketik ulang dari salinan tidak membawa tanda.") }}</span>
   {% else %}
-  <span class="stat-note">bit: {{ kb.lex|num }}&nbsp;bit pilihan kata + {{ kb.sem|num }}&nbsp;bit varian kalimat</span>
-  <span class="stat-note stat-explain">Hanya varian kalimat dan pilihan kata, keduanya opsional, bertahan bila teks diketik ulang.{% if st.scan %} Halaman pindaian tidak membawa keduanya.{% endif %}</span>
+  <span class="stat-note">{% trans lex=kb.lex|num, sem=kb.sem|num %}bit: {{ lex }}&nbsp;bit pilihan kata + {{ sem }}&nbsp;bit varian kalimat{% endtrans %}</span>
+  <span class="stat-note stat-explain">{{ _("Hanya varian kalimat dan pilihan kata, keduanya opsional, bertahan bila teks diketik ulang.") }}{% if st.scan %} {{ _("Halaman pindaian tidak membawa keduanya.") }}{% endif %}</span>
   {% endif %}
 </div>

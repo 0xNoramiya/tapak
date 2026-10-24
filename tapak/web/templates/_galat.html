@@ -1,1 +1,1 @@
-<div class="notice notice-error" role="alert" tabindex="-1" data-autofocus>{{ message|prosa }}{% if restart %} <a class="link" href="/terbitkan">Mulai lagi</a> · <a class="link" href="/lacak{% if lacak %}?dokumen={{ lacak }}{% endif %}">Buka Lacak</a>{% endif %}</div>
+<div class="notice notice-error" role="alert" tabindex="-1" data-autofocus>{{ message|prosa }}{% if restart %} <a class="link" href="/terbitkan">{{ _("Mulai lagi") }}</a> · <a class="link" href="/lacak{% if lacak %}?dokumen={{ lacak }}{% endif %}">{{ _("Buka Lacak") }}</a>{% endif %}</div>

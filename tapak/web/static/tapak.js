@@ -5,6 +5,11 @@ document.addEventListener("DOMContentLoaded", function () {
   var fieldErrors = false;
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   var busyCount = 0;
+  // Messages in the page language (_teks_js.html); %(kode)s style placeholders.
+  var TEKS = JSON.parse((document.getElementById("tapak-teks") || {}).textContent || "{}");
+  function teks(key, vars) {
+    return (TEKS[key] || key).replace(/%\((\w+)\)s/g, function (_, name) { return String((vars || {})[name]); });
+  }
 
   // htmx passes its own scroll behaviour to scrollIntoView (show:#hasil:top), which the CSS
   // reduced-motion rule cannot override: follow the setting here.
@@ -23,7 +28,7 @@ document.addEventListener("DOMContentLoaded", function () {
         e.detail.shouldSwap = true;
         e.detail.isError = false;
       } else {
-        showNotice("Permintaan ditolak server (kode " + xhr.status + "). Periksa isian lalu coba lagi.");
+        showNotice(teks("ditolak", { kode: xhr.status }));
       }
     }
   });
@@ -102,7 +107,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Move keyboard focus to a result heading marked data-autofocus after it arrives; bring a
   // page-level notice into view, wherever the user had scrolled to. New content of a step or
   // result container fades in (not the review list, which re-renders on every decision).
-  var ENTER_TARGETS = ["alur", "hasil", "merkle", "galat-global"];
+  var ENTER_TARGETS = ["hasil", "merkle", "galat-global"];
   body.addEventListener("htmx:afterSwap", function (e) {
     var target = e.detail.target;
     if (ENTER_TARGETS.indexOf(target.id) !== -1 || target.hasAttribute("data-enter")) { enter(target.children); }
@@ -173,7 +178,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Network failure: say so.
   body.addEventListener("htmx:sendError", function () {
-    showNotice("Server TAPAK tidak dapat dihubungi. Periksa apakah layanan berjalan, lalu coba lagi.");
+    showNotice(teks("terputus"));
   });
   function showNotice(text) {
     var g = document.getElementById("galat-global");
@@ -283,7 +288,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Several files on a zone that takes one: keep the current choice and say why.
     if (!input.multiple && e.dataTransfer.files.length > 1) {
       e.preventDefault();
-      dropError(input, "Pilih satu berkas.");
+      dropError(input, teks("satu_berkas"));
       return;
     }
     if (e.target !== input) {
@@ -326,15 +331,15 @@ document.addEventListener("DOMContentLoaded", function () {
       var label = btn.querySelector(".copy-label");
       if (label && !btn.hasAttribute("data-copied")) { btn.setAttribute("data-label", label.textContent); }
       btn.setAttribute("data-copied", "");
-      if (label) { label.textContent = "Tersalin"; }
-      announce("Disalin ke papan klip.");
+      if (label) { label.textContent = teks("tersalin"); }
+      announce(teks("disalin"));
       window.clearTimeout(btn._copyTimer);
       btn._copyTimer = window.setTimeout(function () {
         btn.removeAttribute("data-copied");
-        if (label) { label.textContent = btn.getAttribute("data-label") || "Salin"; }
+        if (label) { label.textContent = btn.getAttribute("data-label") || teks("salin"); }
       }, 1500);
     }, function () {
-      announce("Gagal menyalin. Pilih teksnya lalu salin manual.");
+      announce(teks("gagal_salin"));
     });
   });
   function copyText(text) {
