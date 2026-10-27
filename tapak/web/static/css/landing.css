@@ -316,6 +316,70 @@
 @keyframes ld-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes ld-in-ba { from { opacity: 0; transform: rotate(5deg) translateY(12px); } to { opacity: 0.9; transform: rotate(5deg); } }
 
+/* explanations told once when they scroll into view (landing.js adds .ld-animate and then
+   .is-visible to each [data-reveal]): copies fan out of one master, a leak spreads, the loupe
+   finds the copy; TAPAK's column fills; the two score groups rise and the gap between them is
+   named; each bound travels from 1 to its value. Without JavaScript, or with reduced motion,
+   everything is simply drawn in place. */
+@media (prefers-reduced-motion: no-preference) {
+  .ld-animate :is(.ld-hist-safe, .ld-hist-hot, .ld-hist-z) { transform-box: fill-box; transform-origin: 50% 100%; }
+  .ld-animate :is(.ld-art-out-r, .ld-art-found) { transform-box: fill-box; transform-origin: 0 50%; }
+  .ld-animate .ld-art-out-l { transform-box: fill-box; transform-origin: 100% 50%; }
+
+  /* what is hidden until its block is in view: exactly the first frame of its animation */
+  .ld-animate .ld-steps:not(.is-visible) .ld-art-copy { transform: translate(var(--dx), var(--dy)); }
+  .ld-animate .ld-steps:not(.is-visible) :is(.ld-art-arrow, .ld-art-loupe, .ld-art-found),
+  .ld-animate .ld-compare:not(.is-visible) td.ld-compare-us .ld-cell,
+  .ld-animate .ld-hist:not(.is-visible) :is(.ld-hist-safe, .ld-hist-hot, .ld-hist-gap, .ld-hist-gaplabel, .ld-hist-z,
+    .ld-hist-zlabel, .ld-hist-key),
+  .ld-animate .ld-log:not(.is-visible) :is(.ld-log-row, .ld-log-zone, .ld-log-eps, .ld-log-epslabel),
+  .ld-animate .ld-timeline:not(.is-visible) .ld-timeline-num { opacity: 0; }
+  .ld-animate .ld-timeline:not(.is-visible) li::after { transform: scaleX(0); }
+
+  .ld-steps.is-visible .ld-art-copy { animation: ld-fan 560ms var(--ease-enter) both; animation-delay: calc(var(--i) * 70ms); }
+  .ld-steps.is-visible .ld-art-out-r { animation: ld-burst-r 420ms var(--ease-enter) 760ms both; }
+  .ld-steps.is-visible .ld-art-out-l { animation: ld-burst-l 420ms var(--ease-enter) 760ms both; }
+  .ld-steps.is-visible .ld-art-loupe { animation: ld-loupe 620ms var(--ease-run) 1080ms both; }
+  .ld-steps.is-visible .ld-art-found { animation: ld-pop 280ms var(--ease-enter) 1640ms both; }
+
+  .ld-compare.is-visible td.ld-compare-us .ld-cell { animation: ld-pop 280ms var(--ease-enter) both;
+    animation-delay: calc(200ms + var(--i) * 90ms); }
+
+  .ld-hist.is-visible .ld-hist-key-safe { animation: ld-fade 240ms ease-out both; }
+  .ld-hist.is-visible .ld-hist-safe { animation: ld-rise 520ms var(--ease-run) both; animation-delay: calc(var(--i) * 18ms); }
+  .ld-hist.is-visible .ld-hist-key-hot { animation: ld-fade 240ms ease-out 520ms both; }
+  .ld-hist.is-visible .ld-hist-hot { animation: ld-rise 520ms var(--ease-run) both; animation-delay: calc(520ms + var(--i) * 18ms); }
+  .ld-hist.is-visible :is(.ld-hist-gap, .ld-hist-gaplabel) { animation: ld-fade 360ms ease-out 1100ms both; }
+  .ld-hist.is-visible .ld-hist-z { animation: ld-rise 420ms var(--ease-run) 1300ms both; }
+  .ld-hist.is-visible .ld-hist-zlabel { animation: ld-fade 240ms ease-out 1560ms both; }
+
+  .ld-log.is-visible :is(.ld-log-zone, .ld-log-eps, .ld-log-epslabel) { animation: ld-fade 300ms ease-out both; }
+  .ld-log.is-visible .ld-log-median { animation: ld-travel-m 1000ms var(--ease-run) both; animation-delay: calc(240ms + var(--i) * 110ms); }
+  .ld-log.is-visible .ld-log-worst { animation: ld-travel-w 1000ms var(--ease-run) both; animation-delay: calc(240ms + var(--i) * 110ms); }
+  .ld-log.is-visible .ld-log-range { animation: ld-fade 260ms ease-out both; animation-delay: calc(1100ms + var(--i) * 110ms); }
+
+  .ld-timeline.is-visible .ld-timeline-num { animation: ld-pop 300ms var(--ease-enter) both; }
+  .ld-timeline.is-visible li:nth-child(2) .ld-timeline-num { animation-delay: 420ms; }
+  .ld-timeline.is-visible li:nth-child(3) .ld-timeline-num { animation-delay: 840ms; }
+  .ld-timeline.is-visible li::after { transform-origin: 0 50%; animation: ld-grow-x 420ms cubic-bezier(0.65, 0, 0.35, 1) 150ms both; }
+  .ld-timeline.is-visible li:nth-child(2)::after { animation-delay: 570ms; }
+  @media (max-width: 900px) {
+    .ld-animate .ld-timeline:not(.is-visible) li::after { transform: scaleY(0); }
+    .ld-timeline.is-visible li::after { transform-origin: 50% 0; animation-name: ld-grow-y; }
+  }
+}
+@keyframes ld-fan { from { transform: translate(var(--dx), var(--dy)); } }
+@keyframes ld-burst-r { from { opacity: 0; transform: translateX(-6px) scaleX(0.4); } }
+@keyframes ld-burst-l { from { opacity: 0; transform: translateX(6px) scaleX(0.4); } }
+@keyframes ld-loupe { from { opacity: 0; transform: translate(-34px, 14px); } }
+@keyframes ld-pop { from { opacity: 0; transform: scale(0.6); } }
+@keyframes ld-fade { from { opacity: 0; } }
+@keyframes ld-rise { from { transform: scaleY(0); } }
+@keyframes ld-grow-x { from { transform: scaleX(0); } }
+@keyframes ld-grow-y { from { transform: scaleY(0); } }
+@keyframes ld-travel-m { from { transform: translateX(var(--dm)); } }
+@keyframes ld-travel-w { from { transform: translateX(var(--dw)); } }
+
 /* comparison with the usual ways (after the problem) */
 .ld-section-tight { padding-block: 0 var(--ld-section); }
 .ld-h2-sm { font-size: clamp(22px, 2.4vw, 30px); }

@@ -106,11 +106,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Move keyboard focus to a result heading marked data-autofocus after it arrives; bring a
   // page-level notice into view, wherever the user had scrolled to. New content of a step or
-  // result container fades in (not the review list, which re-renders on every decision).
-  var ENTER_TARGETS = ["hasil", "merkle", "galat-global"];
+  // result container fades in (not the review list, which re-renders on every decision); a
+  // verdict or a list of issued copies gets its own entrance (.is-new, tapak.css).
+  var ENTER_TARGETS = ["hasil", "merkle", "galat-global", "alur"];
   body.addEventListener("htmx:afterSwap", function (e) {
     var target = e.detail.target;
     if (ENTER_TARGETS.indexOf(target.id) !== -1 || target.hasAttribute("data-enter")) { enter(target.children); }
+    target.querySelectorAll(".verdict, .copies").forEach(function (el) { el.classList.add("is-new"); });
     if (target.id === "galat-global") { revealNotice(); return; }
     var h = target.querySelector("[data-autofocus]");
     if (h) {
@@ -162,6 +164,17 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   body.addEventListener("htmx:afterSettle", markInvalid);
   body.addEventListener("htmx:oobAfterSwap", markInvalid);
+
+  // Steps of the issuing stepper that a swap (main or out of band) has just finished are
+  // marked .just-done, so their check and connector play once (tapak.css).
+  var stepsDone = 0;
+  function doneSteps() { return document.querySelectorAll("#stepper .stepper-item.is-done"); }
+  body.addEventListener("htmx:beforeSwap", function () { stepsDone = doneSteps().length; });
+  body.addEventListener("htmx:afterSettle", function () {
+    var done = doneSteps();
+    for (var i = stepsDone; i < done.length; i += 1) { done[i].classList.add("just-done"); }
+    stepsDone = done.length;
+  });
 
   // A request's button is disabled while it runs, which sends focus to <body>; when the swap
   // brings no heading to focus, put it back on the button (if it survived the swap) or on the
@@ -249,6 +262,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var zone = zoneOf(e.target);
     if (zone && e.target.type === "file") {
       renderFiles(zone);
+      zone.querySelector("[data-dropzone-files]").classList.add("is-new");  // the chosen files ease in
       var slot = errorSlot(e.target);  // a new choice replaces the drop message
       if (slot && slot.querySelector("[data-drop-error]")) { slot.innerHTML = ""; markInvalid(); }
     }

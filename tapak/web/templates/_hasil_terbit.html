@@ -59,7 +59,7 @@
       <thead><tr><th scope="col" class="num">{{ _("No.") }}</th><th scope="col">{{ _("Penerima") }}</th><th scope="col" class="hide-sm">{{ _("Satuan") }}</th><th scope="col" class="num hide-sm">{{ _("Kalimat diubah") }}</th><th scope="col" class="hide-sm">{{ _("Komitmen kode") }}</th><th scope="col"><span class="sr-only">{{ _("Unduh") }}</span></th></tr></thead>
       <tbody>
       {% for c in manifest.copies %}
-        <tr>
+        <tr style="--i: {{ loop.index0 }}">
           <td class="num seq">{{ c.seq }}</td>
           <td><span class="who">{{ c.recipient.nama }}</span><span class="who-id mono">{{ c.recipient.recipient_id }}</span></td>
           <td class="muted hide-sm">{{ c.recipient.satuan or "-" }}</td>

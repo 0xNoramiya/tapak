@@ -28,7 +28,7 @@
 {% for c in p.anggota %}{% set ns.top = [ns.top, c / p.n_anggota]|max %}{% endfor %}
 {% set sy = (B - T - 18) / ns.top %}
 {% set zx = L + (1.0 - x0) * sx %}
-<figure class="ld-chart ld-hist">
+<figure class="ld-chart ld-hist" data-reveal>
   <svg viewBox="0 0 {{ W }} {{ H }}" role="img" aria-labelledby="hist-t hist-d">
     <title id="hist-t">{{ _("Skor tuduhan dibagi ambang: orang tak bersalah dan anggota persekongkolan") }}</title>
     <desc id="hist-d">{{ _("Skor %(n)s penerima tak bersalah paling tinggi %(pct)s persen dari ambang.", n=p.n_tak_bersalah|num, pct=(100 * p.maks_tak_bersalah)|round(0)|int) }}
@@ -38,12 +38,14 @@
     {% set gx0, gx1 = L + (p.maks_tak_bersalah - x0) * sx, L + (p.min_anggota - x0) * sx %}
     <rect class="ld-hist-gap" x="{{ gx0|round(1) }}" y="{{ T }}" width="{{ (gx1 - gx0)|round(1) }}" height="{{ B - T }}"/>
     <text class="ld-hist-gaplabel" x="{{ ((gx0 + gx1) / 2)|round(1) }}" y="{{ T - 12 }}" text-anchor="middle">{{ _("celah kosong") }}</text>
+    {# each group's bars are numbered within the group: they rise in turn (landing.css) #}
+    {% set k = namespace(safe=0, hot=0) %}
     {% for i in range(p.tak_bersalah|length) %}
       {% set bx = L + (p.tepi[i] - x0) * sx %}
       {% set hi = p.tak_bersalah[i] / p.n_tak_bersalah * sy %}
       {% set ha = p.anggota[i] / p.n_anggota * sy %}
-      {% if hi > 0 %}<rect class="ld-hist-safe" x="{{ (bx + 1)|round(1) }}" y="{{ (B - hi)|round(1) }}" width="{{ (sx * 0.1 - 2)|round(1) }}" height="{{ [hi, 1.5]|max|round(1) }}"/>{% endif %}
-      {% if ha > 0 %}<rect class="ld-hist-hot" x="{{ (bx + 1)|round(1) }}" y="{{ (B - ha)|round(1) }}" width="{{ (sx * 0.1 - 2)|round(1) }}" height="{{ [ha, 1.5]|max|round(1) }}"/>{% endif %}
+      {% if hi > 0 %}<rect class="ld-hist-safe" style="--i: {{ k.safe }}" x="{{ (bx + 1)|round(1) }}" y="{{ (B - hi)|round(1) }}" width="{{ (sx * 0.1 - 2)|round(1) }}" height="{{ [hi, 1.5]|max|round(1) }}"/>{% set k.safe = k.safe + 1 %}{% endif %}
+      {% if ha > 0 %}<rect class="ld-hist-hot" style="--i: {{ k.hot }}" x="{{ (bx + 1)|round(1) }}" y="{{ (B - ha)|round(1) }}" width="{{ (sx * 0.1 - 2)|round(1) }}" height="{{ [ha, 1.5]|max|round(1) }}"/>{% set k.hot = k.hot + 1 %}{% endif %}
     {% endfor %}
     <line class="ld-hist-axis" x1="{{ L }}" y1="{{ B }}" x2="{{ R }}" y2="{{ B }}"/>
     <line class="ld-hist-z" x1="{{ zx|round(1) }}" y1="{{ T - 4 }}" x2="{{ zx|round(1) }}" y2="{{ B + 6 }}"/>
@@ -70,7 +72,7 @@
 {% set H = T + ROW * rows|length + 46 %}
 {% set lo, hi = 0, -100 %}
 {% set sx = (R - L) / (lo - hi) %}
-<figure class="ld-chart ld-log">
+<figure class="ld-chart ld-log" data-reveal>
   <svg viewBox="0 0 {{ W }} {{ H }}" role="img" aria-labelledby="log-t log-d">
     <title id="log-t">{{ _("Batas peluang salah tuduh per jenis bukti, skala logaritmik") }}</title>
     <desc id="log-d">{{ _("Nama baru disebut bila batasnya di bawah 10 pangkat minus 6.") }}
@@ -88,9 +90,11 @@
       {% set y = T + ROW * loop.index0 + ROW / 2 %}
       {% set xw, xm = L + (lo - b.terburuk) * sx, L + (lo - b.median) * sx %}
       <text class="ld-log-label" x="{{ L - 14 }}" y="{{ (y + 4)|round(1) }}" text-anchor="end">{{ _(b.label) }}</text>
+      {# the dots travel from 1 (the left edge) to their bound (landing.css) #}
+      <g class="ld-log-row" style="--i: {{ loop.index0 }}; --dw: {{ (L - xw)|round(1) }}px; --dm: {{ (L - xm)|round(1) }}px">
       <line class="ld-log-range" x1="{{ xw|round(1) }}" y1="{{ y|round(1) }}" x2="{{ xm|round(1) }}" y2="{{ y|round(1) }}"/>
       <circle class="ld-log-worst" cx="{{ xw|round(1) }}" cy="{{ y|round(1) }}" r="4"/>
-      <circle class="ld-log-median" cx="{{ xm|round(1) }}" cy="{{ y|round(1) }}" r="6.5"/>
+      <circle class="ld-log-median" cx="{{ xm|round(1) }}" cy="{{ y|round(1) }}" r="6.5"/></g>
     {% endfor %}
     <text class="ld-log-axislabel" x="{{ R }}" y="{{ H - 4 }}" text-anchor="end">{{ _("makin ke kanan, makin kecil") }} &#8594;</text>
   </svg>
