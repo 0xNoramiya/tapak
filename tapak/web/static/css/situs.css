@@ -44,7 +44,7 @@ body.ld { background: var(--paper); color: var(--ink); overflow-x: clip; }
   border-bottom: 1px solid var(--ld-night-line);
 }
 .ld-nav-inner { display: flex; align-items: center; gap: 24px; min-height: 64px; }
-.ld-brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none;
+.ld-brand { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: inherit; text-decoration: none;
   font-weight: 600; letter-spacing: 0.14em; font-size: 17px; }
 .ld-nav .brand-mark { color: var(--ld-night-ink); --accent: var(--ld-olive-bright); width: 28px; height: 28px; }
 .ld-nav-links { display: flex; gap: 4px; margin-inline-start: 12px; }
@@ -54,7 +54,8 @@ body.ld { background: var(--paper); color: var(--ink); overflow-x: clip; }
 .ld-nav-actions { margin-inline-start: auto; display: flex; gap: 8px; align-items: center; }
 .ld-nav .btn-ghost { color: var(--ld-night-ink); }
 .ld-nav .btn-ghost:hover { background: oklch(1 0 0 / 0.08); }
-.ld .btn-primary { --accent: oklch(0.52 0.1 122); }
+/* light text on this olive in both themes (about 5:1; the dark theme's own pair would give 3.5:1) */
+.ld .btn-primary { --accent: oklch(0.52 0.1 122); --accent-hover: oklch(0.47 0.095 122); --on-accent: oklch(0.985 0.006 100); }
 .ld-nav .btn-primary, .ld-hero .btn-primary, .ld-cta .btn-primary {
   background: var(--ld-olive-bright); color: oklch(0.2 0.03 118); border-color: transparent; }
 .ld-nav .btn-primary:hover, .ld-hero .btn-primary:hover, .ld-cta .btn-primary:hover {

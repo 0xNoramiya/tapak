@@ -109,9 +109,9 @@
   <section class="ld-section ld-section-tight" id="banding" aria-labelledby="banding-h">
     <div class="ld-wrap">
       <h2 id="banding-h" class="ld-h2 ld-h2-sm">{{ _("Dibanding cara yang biasa dipakai") }}</h2>
-      <div class="ld-matrix-wrap ld-compare" data-reveal>
+      <div class="ld-matrix-wrap ld-compare" data-reveal role="region" aria-labelledby="banding-tabel">
         <table class="ld-matrix">
-          <caption class="sr-only">{{ _("Cara melacak kebocoran dan apa yang dapat dilakukannya") }}</caption>
+          <caption class="sr-only" id="banding-tabel">{{ _("Cara melacak kebocoran dan apa yang dapat dilakukannya") }}</caption>
           <thead>
             <tr><th scope="col">{{ _("Pertanyaan") }}</th>
               {% for h in [_("Watermark nama terlihat"), _("Metadata dan log akses"), _("Pengamanan jaringan (DLP)"), "TAPAK"] %}<th scope="col"{% if loop.last %} class="ld-compare-us"{% endif %}><span>{{ h }}</span></th>{% endfor %}
@@ -197,9 +197,9 @@
           <h2 id="kanal-h" class="ld-h2">{{ _("Lima lapis sidik. Satu hilang, yang lain tetap bicara.") }}</h2>
           <p class="ld-lead">{{ _("Kata yang digeser 0,025 milimeter, pola titik samar di latar, karakter tak terlihat, parafrasa kalimat, dan alamat kanari. Setiap lapis bertahan pada cara bocor yang berbeda, dan dekoder menggabungkan apa pun yang tersisa.") }}</p>
         </div>
-        <div class="ld-matrix-wrap">
+        <div class="ld-matrix-wrap" role="region" aria-labelledby="kanal-tabel">
           <table class="ld-matrix">
-            <caption class="sr-only">{{ _("Lapis sidik dan cara bocor yang dapat dilaluinya") }}</caption>
+            <caption class="sr-only" id="kanal-tabel">{{ _("Lapis sidik dan cara bocor yang dapat dilaluinya") }}</caption>
             <thead>
               <tr><th scope="col">{{ _("Lapis") }}</th>
                 {% for h in [_("PDF diteruskan"), _("Tangkapan layar"), _("Foto"), _("Cetakan"), _("Teks disalin"), _("Diketik ulang")] %}<th scope="col"><span>{{ h }}</span></th>{% endfor %}
@@ -314,24 +314,6 @@
         <li><span class="ld-timeline-num">2</span><div><h3>{{ _("Pelatihan operator") }}</h3><p>{{ _("Operator belajar menerbitkan, melacak, membaca hasil, dan memverifikasi registri. Demo terpandu di aplikasi menjadi bahan latihannya.") }}</p></div></li>
         <li><span class="ld-timeline-num">3</span><div><h3>{{ _("Perluasan bertahap") }}</h3><p>{{ _("Hubungkan dengan alur tata naskah dinas, tambahkan satuan, simpan log jangkar registri di tempat terpisah, dan pasang pendengar kanari di jaringan luar.") }}</p></div></li>
       </ol>
-    </div>
-  </section>
-
-  {# ------------------------------------------------------------------ honest limits #}
-  <section class="ld-section ld-section-alt" id="batasan" aria-labelledby="batasan-h">
-    <div class="ld-wrap ld-split ld-split-limits">
-      <div>
-        <p class="ld-eyebrow"><span>07</span>{{ _("Batasan") }}</p>
-        <h2 id="batasan-h" class="ld-h2">{{ _("Yang belum bisa dilakukan TAPAK") }}</h2>
-        <p class="ld-lead">{% trans %}TAPAK menjawab <q>tidak cukup bukti</q> setiap kali buktinya kurang. Halaman ini pun menyebut terus terang di mana batasnya.{% endtrans %}</p>
-      </div>
-      <ul class="ld-limits">
-        <li>{{ _("Semua uji memakai foto, cetakan, dan tangkapan layar sintetis. Kamera, monitor, dan printer sungguhan belum diuji.") }}</li>
-        <li>{% trans %}Dokumen yang diketik ulang hanya menyisakan sedikit sidik. Dokumen satu sampai dua halaman biasanya berakhir <q>tidak cukup bukti</q>.{% endtrans %}</li>
-        <li>{{ _("Cetakan satu halaman disebut pada %(benar)s dari %(n)s foto uji; dua halaman bersama selalu disebut.", benar=angka.media[4].benar, n=angka.media[4].n) }}</li>
-        <li>{{ _("Lawan yang memahami TAPAK dapat merusak sidik sehingga tidak ada nama yang disebut. Batas salah tuduh tetap berlaku selama kunci rahasia aman.") }}</li>
-        <li>{{ _("Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word.") }}</li>
-      </ul>
     </div>
   </section>
 

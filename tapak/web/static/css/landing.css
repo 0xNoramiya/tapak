@@ -267,13 +267,6 @@
   .ld-timeline li { flex-direction: row; }
 }
 
-/* limits */
-.ld-limits { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
-.ld-limits li { position: relative; padding: 16px 18px 16px 44px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2);
-  line-height: 1.6; color: var(--ink-muted); }
-.ld-limits li::before { content: ""; position: absolute; left: 18px; top: 24px; width: 10px; height: 10px; border-radius: 2px;
-  border: 1.5px solid var(--warn); transform: rotate(45deg); }
-
 /* final call */
 .ld-cta { background: var(--accent); color: var(--on-accent); padding-block: clamp(56px, 7vw, 88px); }
 .ld-cta-inner { display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }

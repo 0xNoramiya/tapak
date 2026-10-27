@@ -238,28 +238,6 @@ EN: dict[str, str | tuple[str, str]] = {
     "dan pasang pendengar kanari di jaringan luar.":
         "Connect it to the official correspondence workflow, add units, keep the registry anchor log somewhere "
         "separate, and run the canary listener on an outside network.",
-    "Batasan": "Limits",
-    "Yang belum bisa dilakukan TAPAK": "What TAPAK cannot do yet",
-    "TAPAK menjawab <q>tidak cukup bukti</q> setiap kali buktinya kurang. Halaman ini pun menyebut terus terang di "
-    "mana batasnya.":
-        "TAPAK answers <q>not enough evidence</q> whenever the evidence falls short. This page is just as plain "
-        "about where its limits are.",
-    "Semua uji memakai foto, cetakan, dan tangkapan layar sintetis. Kamera, monitor, dan printer sungguhan belum "
-    "diuji.":
-        "Every test used synthetic photos, prints and screenshots. Real cameras, monitors and printers have not "
-        "been tested yet.",
-    "Dokumen yang diketik ulang hanya menyisakan sedikit sidik. Dokumen satu sampai dua halaman biasanya berakhir "
-    "<q>tidak cukup bukti</q>.":
-        "A retyped document keeps little of its fingerprint. One- and two-page documents usually end in "
-        "<q>not enough evidence</q>.",
-    "Cetakan satu halaman disebut pada %(benar)s dari %(n)s foto uji; dua halaman bersama selalu disebut.":
-        "A single printed page was named in %(benar)s of %(n)s test photos; two pages together were always named.",
-    "Lawan yang memahami TAPAK dapat merusak sidik sehingga tidak ada nama yang disebut. Batas salah tuduh tetap "
-    "berlaku selama kunci rahasia aman.":
-        "An adversary who understands TAPAK can damage the fingerprint until no name is given. The "
-        "false-accusation bound still holds as long as the secret key is safe.",
-    "Kanari hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word.":
-        "A canary only goes off in viewers that fetch outside content, such as Adobe Reader and Word.",
     "Lihat sendiri dalam tiga menit.": "See it for yourself in three minutes.",
     "Demo terpandu memakai dokumen fiktif: terbitkan 20 salinan, bocorkan satu sebagai foto ponsel, lalu lacak "
     "pembocornya.":

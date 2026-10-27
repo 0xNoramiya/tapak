@@ -1,6 +1,20 @@
-// Landing page (/): the evidence bars grow, and each [data-reveal] block tells its part once,
-// when it comes into view (landing.css). Without JavaScript, or with reduced motion, they are
-// simply drawn in place.
+// Landing page (/): a table that scrolls sideways (on a phone) takes keyboard focus, so it can
+// be scrolled without a pointer; it leaves the tab order again when it fits.
+(function () {
+  "use strict";
+  var regions = document.querySelectorAll(".ld-matrix-wrap");
+  function sync() {
+    regions.forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth) el.setAttribute("tabindex", "0");
+      else el.removeAttribute("tabindex");
+    });
+  }
+  sync();
+  window.addEventListener("resize", sync);
+})();
+
+// The evidence bars grow, and each [data-reveal] block tells its part once, when it comes into
+// view (landing.css). Without JavaScript, or with reduced motion, they are simply drawn in place.
 (function () {
   "use strict";
   if (!("IntersectionObserver" in window)) return;
