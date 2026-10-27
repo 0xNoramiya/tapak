@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="README.md">Bahasa Indonesia</a> · <b>English</b><br>
+  <a href="https://tapak.fly.dev/demo?lang=en">Live demo</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#results">Results</a> ·
   <a href="#quick-start">Quick start</a> ·
