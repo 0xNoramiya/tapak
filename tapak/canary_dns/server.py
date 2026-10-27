@@ -83,6 +83,8 @@ POLL_S = 0.1  # seconds, how often the serve loops check for stop()
 BATCH_MAX = 256  # events written per transaction at most
 MAX_RECENT = 10_000  # (token, source, type) keys remembered for deduplication
 UDP_RCVBUF = 4 * 1024 * 1024  # bytes requested for the UDP receive buffer
+PROXY_V2_SIGNATURE = b"\r\n\r\n\x00\r\nQUIT\n"  # PROXY protocol v2; v1 is a text line "PROXY ..."
+PROXY_V1_MAX = 107  # bytes of a v1 header line, CRLF included
 
 
 def _ipv4(value: str, what: str) -> str:
@@ -399,6 +401,7 @@ class _TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     slots: threading.BoundedSemaphore | None = None  # set by CanaryDNSServer before serving
     tcp_timeout = 5.0
     rejected = 0
+    proxy_protocol = False  # a PROXY protocol header in front of every query names the client
 
     def __init__(self, server_address: tuple[str, int], handler: type[DNSHandler]) -> None:
         if ":" in server_address[0]:
@@ -439,16 +442,47 @@ class _TCPHandler(DNSHandler):
             buf += chunk
         return buf
 
+    def _proxied_client(self, deadline: float) -> tuple[str, int]:
+        """The client a PROXY protocol header (v1 or v2) names; a missing or malformed header
+        drops the connection (ValueError). A v2 LOCAL header (the proxy's own health check)
+        keeps the connection's address."""
+        head = self._recv_exact(12, deadline)
+        if head == PROXY_V2_SIGNATURE:
+            ver_cmd, family, length = struct.unpack("!BBH", self._recv_exact(4, deadline))
+            body = self._recv_exact(length, deadline)
+            if ver_cmd >> 4 != 2:
+                raise ValueError("versi PROXY v2 tidak dikenal")
+            if ver_cmd & 0xF == 0:
+                return self.client_address[0], int(self.client_address[1])
+            if family == 0x11 and length >= 12:
+                return socket.inet_ntop(socket.AF_INET, body[:4]), struct.unpack("!H", body[8:10])[0]
+            if family == 0x21 and length >= 36:
+                return socket.inet_ntop(socket.AF_INET6, body[:16]), struct.unpack("!H", body[32:34])[0]
+            raise ValueError("keluarga alamat PROXY v2 tidak didukung")
+        if not head.startswith(b"PROXY "):
+            raise ValueError("header PROXY tidak ada")
+        line = head
+        while not line.endswith(b"\r\n"):
+            if len(line) >= PROXY_V1_MAX:
+                raise ValueError("header PROXY v1 terlalu panjang")
+            line += self._recv_exact(1, deadline)
+        parts = line[:-2].decode("ascii").split(" ")
+        if len(parts) == 6 and parts[1] in ("TCP4", "TCP6"):
+            return str(ipaddress.ip_address(parts[2])), int(parts[4])
+        raise ValueError("header PROXY v1 tidak sah")
+
     def handle(self) -> None:
         """Read one query, answer it, close (a slow or idle client is cut off at the deadline)."""
         self.protocol = "tcp"
         deadline = time.monotonic() + self.server.tcp_timeout
         try:
+            if self.server.proxy_protocol:
+                self.client_address = self._proxied_client(deadline)
             (length,) = struct.unpack("!H", self._recv_exact(2, deadline))
             reply = self.get_reply(self._recv_exact(length, deadline))
             self.request.settimeout(max(0.1, deadline - time.monotonic()))
             self.request.sendall(struct.pack("!H", len(reply)) + reply)
-        except (OSError, DNSError) as exc:
+        except (OSError, DNSError, ValueError) as exc:
             log.debug("koneksi DNS TCP dari %s dihentikan: %s", self.client_address[0], exc)
 
 
@@ -459,6 +493,9 @@ class CanaryDNSServer:
     after :meth:`start`. Usable as a context manager. ``on_hit`` runs on the writer
     thread after each event is stored. ``tcp_host`` binds TCP to another address than UDP
     (Fly.io delivers UDP only to ``fly-global-services`` and TCP to the machine's own address).
+    With ``proxy_protocol`` every TCP connection must start with a PROXY protocol header (v1 or
+    v2), whose client address is logged instead of the proxy's; enable it only behind a proxy
+    that always sends one, or anyone could name any source address.
     """
 
     def __init__(self, domain: str, db_path: str | Path, host: str = "0.0.0.0", port: int = 53,
@@ -466,7 +503,7 @@ class CanaryDNSServer:
                  on_hit: Callable[[CanaryEvent], None] | None = None, *, ns_ip: str | None = None,
                  dedupe_s: float = 1.0, queue_size: int = 10_000, tcp_timeout: float = 5.0,
                  max_tcp: int = 64, allowlist: str | Path | None = None,
-                 per_source_per_min: int = 0, tcp_host: str | None = None) -> None:
+                 per_source_per_min: int = 0, tcp_host: str | None = None, proxy_protocol: bool = False) -> None:
         if not isinstance(port, int) or not 0 <= port <= 65535:
             raise ValueError(f"port harus antara 0 dan 65535: {port!r}")
         if tcp_timeout <= 0 or max_tcp < 1:
@@ -490,6 +527,7 @@ class CanaryDNSServer:
         self.db_path = db_path
         self.host = host
         self.tcp_host = tcp_host or host
+        self.proxy_protocol = proxy_protocol
         self.port = port
         self.tcp_timeout = tcp_timeout
         self.max_tcp = max_tcp
@@ -519,6 +557,7 @@ class CanaryDNSServer:
             raise
         tcp.server.slots = threading.BoundedSemaphore(self.max_tcp)
         tcp.server.tcp_timeout = self.tcp_timeout
+        tcp.server.proxy_protocol = self.proxy_protocol
         return [udp, tcp]
 
     def start(self) -> "CanaryDNSServer":

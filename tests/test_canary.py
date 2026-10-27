@@ -8,6 +8,7 @@ import re
 import signal
 import socket
 import sqlite3
+import struct
 import subprocess
 import sys
 import threading
@@ -418,6 +419,29 @@ def test_tcp_can_listen_on_another_address(db):
         assert str(tcp.rr[0].rdata) == "127.0.0.1"
         with pytest.raises(TimeoutError):  # UDP stays on 127.0.0.1 only
             DNSRecord.question(host).send("127.0.0.2", srv.port, timeout=0.5)
+
+
+def test_tcp_behind_a_proxy_logs_the_client_the_proxy_names(db):
+    # Fly.io's TCP proxy (handlers proxy_proto) puts the resolver's address in a PROXY header
+    query = DNSRecord.question(canary_hostname(TOKEN, DOMAIN)).pack()
+    framed = struct.pack("!H", len(query)) + query
+    v1 = b"PROXY TCP4 203.0.113.9 10.0.0.1 40001 53\r\n"
+    v2 = (b"\r\n\r\n\x00\r\nQUIT\n" + bytes([0x21, 0x11]) + struct.pack("!H", 12) + socket.inet_aton("198.51.100.7")
+          + socket.inet_aton("10.0.0.1") + struct.pack("!HH", 40002, 53))
+    with CanaryDNSServer(DOMAIN, db, host="127.0.0.1", port=0, proxy_protocol=True, dedupe_s=0) as srv:
+        def ask(header: bytes) -> bytes:
+            with socket.create_connection(("127.0.0.1", srv.port), timeout=2) as s:
+                s.sendall(header + framed)
+                data = b""
+                while chunk := s.recv(4096):
+                    data += chunk
+                return data
+        assert str(DNSRecord.parse(ask(v1)[2:]).rr[0].rdata) == "127.0.0.1"
+        assert str(DNSRecord.parse(ask(v2)[2:]).rr[0].rdata) == "127.0.0.1"
+        assert ask(b"") == b""  # no header: dropped unanswered, nothing logged
+        assert ask(b"PROXY TCP4 bukan-ip 10.0.0.1 1 53\r\n") == b""
+        _flush(srv)
+    assert [(e.src_ip, e.src_port) for e in events(db, token=TOKEN)] == [("203.0.113.9", 40001), ("198.51.100.7", 40002)]
 
 
 def test_tcp_and_non_a_queries_are_logged(server, db):

@@ -16,8 +16,9 @@ fi
 tapak keys init >/dev/null
 
 # Fly delivers UDP only to the address fly-global-services, on the external port (and the
-# replies must leave from it), and TCP to the machine's own address.
-python -m tapak.canary_dns --host fly-global-services --tcp-host 0.0.0.0 --port 53 \
+# replies must leave from it), and TCP to the machine's own address behind its proxy, which names
+# the resolver in a PROXY protocol header.
+python -m tapak.canary_dns --host fly-global-services --tcp-host 0.0.0.0 --tcp-proxy-protocol --port 53 \
     --ns-ip "${TAPAK_CANARY_NS_IP:?set TAPAK_CANARY_NS_IP to the dedicated IPv4 of the app}" \
     --answer-ip "${TAPAK_CANARY_ANSWER_IP:-127.0.0.1}" &
 dns=$!

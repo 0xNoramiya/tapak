@@ -48,11 +48,15 @@ kill_timeout = 10
   [[services.ports]]
     port = 53
 
+# TCP comes through Fly's proxy, which names the resolver in a PROXY protocol header (v2);
+# the listener logs that address instead of the proxy's (--tcp-proxy-protocol).
 [[services]]
   protocol = "tcp"
   internal_port = 53
   [[services.ports]]
     port = 53
+    handlers = ["proxy_proto"]
+    proxy_proto_options = { version = "v2" }
 
 [[vm]]
   size = "shared-cpu-2x"

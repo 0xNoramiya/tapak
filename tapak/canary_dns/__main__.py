@@ -128,6 +128,10 @@ def _parser() -> _Parser:
     g.add_argument("--tcp-host", default=None,
                    help="alamat TCP bila berbeda dari --host (bawaan: sama dengan --host); di Fly.io UDP "
                         "hanya tiba di fly-global-services, TCP di alamat mesin")
+    g.add_argument("--tcp-proxy-protocol", action="store_true",
+                   help="setiap koneksi TCP diawali header PROXY protocol (v1 atau v2) dari proksi di depannya, "
+                        "dan alamat klien di header itu yang dicatat; hanya untuk pendengar di belakang proksi "
+                        "yang selalu mengirimnya (Fly.io: handlers proxy_proto)")
     g.add_argument("--port", type=_port, default=53, help="port UDP dan TCP (bawaan: 53; 0 = port bebas)")
     g.add_argument("--answer-ip", default="127.0.0.1",
                    help="alamat IPv4 jawaban untuk nama kanari (bawaan: 127.0.0.1)")
@@ -194,7 +198,7 @@ def _listen(args: argparse.Namespace) -> int:
         server = CanaryDNSServer(args.domain, args.db, host=args.host, port=args.port, answer_ip=args.answer_ip,
                                  ttl=args.ttl, on_hit=on_hit, ns_ip=args.ns_ip, dedupe_s=args.dedupe,
                                  allowlist=args.allowlist or None, per_source_per_min=args.per_sumber,
-                                 tcp_host=args.tcp_host)
+                                 tcp_host=args.tcp_host, proxy_protocol=args.tcp_proxy_protocol)
         if args.allowlist and not Path(args.allowlist).exists():
             print(f"PERINGATAN: daftar izin token {args.allowlist} belum ada; semua token dicatat sampai "
                   "berkas itu dibuat oleh penerbitan pertama", file=sys.stderr, flush=True)
