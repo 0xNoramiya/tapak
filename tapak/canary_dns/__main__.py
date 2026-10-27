@@ -125,6 +125,9 @@ def _parser() -> _Parser:
                    help="maksimum kejadian tercatat per alamat sumber per menit (bawaan: 0, tanpa batas; "
                         "daftar izin token sudah mencegah log membengkak)")
     g.add_argument("--host", default="0.0.0.0", help="alamat yang didengarkan (bawaan: 0.0.0.0)")
+    g.add_argument("--tcp-host", default=None,
+                   help="alamat TCP bila berbeda dari --host (bawaan: sama dengan --host); di Fly.io UDP "
+                        "hanya tiba di fly-global-services, TCP di alamat mesin")
     g.add_argument("--port", type=_port, default=53, help="port UDP dan TCP (bawaan: 53; 0 = port bebas)")
     g.add_argument("--answer-ip", default="127.0.0.1",
                    help="alamat IPv4 jawaban untuk nama kanari (bawaan: 127.0.0.1)")
@@ -190,7 +193,8 @@ def _listen(args: argparse.Namespace) -> int:
     try:
         server = CanaryDNSServer(args.domain, args.db, host=args.host, port=args.port, answer_ip=args.answer_ip,
                                  ttl=args.ttl, on_hit=on_hit, ns_ip=args.ns_ip, dedupe_s=args.dedupe,
-                                 allowlist=args.allowlist or None, per_source_per_min=args.per_sumber)
+                                 allowlist=args.allowlist or None, per_source_per_min=args.per_sumber,
+                                 tcp_host=args.tcp_host)
         if args.allowlist and not Path(args.allowlist).exists():
             print(f"PERINGATAN: daftar izin token {args.allowlist} belum ada; semua token dicatat sampai "
                   "berkas itu dibuat oleh penerbitan pertama", file=sys.stderr, flush=True)
@@ -209,8 +213,10 @@ def _listen(args: argparse.Namespace) -> int:
         for sig in (signal.SIGINT, signal.SIGTERM):
             previous[sig] = signal.signal(sig, lambda *_: stop.set())
     ns = server.resolver.ns_ip or "tidak diisi"
-    print(f"Pendengar DNS kanari aktif: nama *.c.{server.domain} di {args.host}:{server.port} "
-          f"(UDP dan TCP), jawaban A {args.answer_ip} TTL {args.ttl}, ns1 {ns}, catatan di {args.db}", flush=True)
+    where = (f"{args.host}:{server.port} (UDP dan TCP)" if server.tcp_host == args.host
+             else f"{args.host}:{server.port} (UDP) dan {server.tcp_host}:{server.port} (TCP)")
+    print(f"Pendengar DNS kanari aktif: nama *.c.{server.domain} di {where}, jawaban A {args.answer_ip} "
+          f"TTL {args.ttl}, ns1 {ns}, catatan di {args.db}", flush=True)
     for warning in server.warnings:
         print(f"PERINGATAN: {warning}", flush=True)
     try:

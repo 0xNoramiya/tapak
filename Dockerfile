@@ -14,7 +14,7 @@
 # build if the lock misses a dependency. Refresh it with make kunci-versi.
 # TAPAK_WORKERS (docker-compose.yml) caps the worker processes: os.cpu_count() in a container
 # counts every CPU of the host.
-FROM python:3.12-slim-trixie
+FROM python:3.12-slim-trixie AS tapak
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -41,3 +41,13 @@ ENV TAPAK_DATA=/data \
 USER tapak
 EXPOSE 8000
 CMD ["uvicorn", "tapak.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Fly.io (fly.toml builds this target): starts as root only to hand the volume at /data to the
+# user tapak, then runs the web app and the canary listener as tapak (scripts/fly_mulai.sh).
+FROM tapak AS fly
+USER root
+COPY --chmod=0755 scripts/fly_mulai.sh /usr/local/bin/tapak-fly
+CMD ["/usr/local/bin/tapak-fly"]
+
+# The default target (docker build, docker compose) is the image above, unchanged.
+FROM tapak

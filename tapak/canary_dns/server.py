@@ -457,7 +457,8 @@ class CanaryDNSServer:
 
     ``port=0`` picks a free port (the same one for UDP and TCP); read it from ``port``
     after :meth:`start`. Usable as a context manager. ``on_hit`` runs on the writer
-    thread after each event is stored.
+    thread after each event is stored. ``tcp_host`` binds TCP to another address than UDP
+    (Fly.io delivers UDP only to ``fly-global-services`` and TCP to the machine's own address).
     """
 
     def __init__(self, domain: str, db_path: str | Path, host: str = "0.0.0.0", port: int = 53,
@@ -465,7 +466,7 @@ class CanaryDNSServer:
                  on_hit: Callable[[CanaryEvent], None] | None = None, *, ns_ip: str | None = None,
                  dedupe_s: float = 1.0, queue_size: int = 10_000, tcp_timeout: float = 5.0,
                  max_tcp: int = 64, allowlist: str | Path | None = None,
-                 per_source_per_min: int = 0) -> None:
+                 per_source_per_min: int = 0, tcp_host: str | None = None) -> None:
         if not isinstance(port, int) or not 0 <= port <= 65535:
             raise ValueError(f"port harus antara 0 dan 65535: {port!r}")
         if tcp_timeout <= 0 or max_tcp < 1:
@@ -488,6 +489,7 @@ class CanaryDNSServer:
         self.resolver = CanaryResolver(domain, answer_ip, ns_ip, ttl, on_query=self.hits.submit)
         self.db_path = db_path
         self.host = host
+        self.tcp_host = tcp_host or host
         self.port = port
         self.tcp_timeout = tcp_timeout
         self.max_tcp = max_tcp
@@ -510,7 +512,7 @@ class CanaryDNSServer:
         udp = DNSServer(self.resolver, address=self.host, port=port, logger=_QuietLogger(), server=_UDPServer)
         actual = udp.server.server_address[1]
         try:
-            tcp = DNSServer(self.resolver, address=self.host, port=actual, tcp=True, logger=_QuietLogger(),
+            tcp = DNSServer(self.resolver, address=self.tcp_host, port=actual, tcp=True, logger=_QuietLogger(),
                             handler=_TCPHandler, server=_TCPServer)
         except OSError:
             udp.server.server_close()

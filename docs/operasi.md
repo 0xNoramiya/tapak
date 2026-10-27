@@ -127,6 +127,7 @@ Variabel lingkungan:
 | `TAPAK_LLM_URL` | alamat `llama-server` lokal, misalnya `http://127.0.0.1:8799`; bawaan `http://127.0.0.1:8080`; alamat selain loopback ditolak |
 | `TAPAK_LLM_TIMEOUT` | batas waktu per permintaan ke LLM dalam detik; bawaan 120 |
 | `TAPAK_ALLOWED_HOSTS` | nama host yang dilayani aplikasi web; bawaan `127.0.0.1,localhost` |
+| `TAPAK_OPERATOR_PASSWORD` | kata sandi halaman operator di alamat publik (HTTP Basic, pengguna `operator`); halaman produk, demo, dan berkas statis tetap terbuka; kosong = tanpa kata sandi ([Fly.io](#flyio)) |
 | `TAPAK_SIGNING_KEY`, `TAPAK_PUBLIC_KEY` | lokasi kunci tanda tangan dan kunci publik registri; bawaan di `TAPAK_KEY_DIR` |
 | `TAPAK_ANCHOR_LOG` | berkas [log jangkar](#log-jangkar-eksternal-opsional) di penyimpanan terpisah (sama dengan `tapak --log-jangkar`); kosong = tidak dipakai |
 | `TAPAK_WORKERS` | jumlah proses kerja paling banyak untuk setiap penerbitan (CLI, web, demo; juga membatasi `--workers`) dan untuk pelacakan web yang berjalan bersamaan (paling banyak 2); bilangan bulat positif; kosong = sebanyak CPU, paling banyak 8; docker-compose: bawaan 4 ([Docker](#docker)) |
@@ -205,6 +206,25 @@ Hasil 22 Oktober 2026 di mesin uji yang dipakai bersama (8 CPU, WSL2, Docker 29.
 Uji sebelumnya pada hari yang sama, dengan image tanpa kunci (pip mengambil rilis terbaru, misalnya FastAPI 0.159), lulus 32 dari 32 dalam 10 sampai 15 menit; pembangunan tanpa cache 184 sampai 223 detik. Salah satunya dijalankan dengan `TAPAK_CANARY_DOMAIN`, `TAPAK_LLM`, dan `TAPAK_CANARY_ANSWER_IP` lain di lingkungan host, dan hasilnya sama. Pada penerapan compose terpisah dengan `docker-compose.jangkar.yml` (halaman web, pelacakan lewat web, dan kueri DNS termasuk nama di luar zona), seluruh lalu lintas jembatan jaringan kedua kontainer direkam sejak sebelum kontainer menyala: kontainer hanya membalas di port 8000 dan 5353, tanpa koneksi keluar dan tanpa kueri DNS sendiri.
 
 FastAPI versi baru (0.156.4 di `.venv` dan di image) membawa kait OpenTelemetry dan memasang `opentelemetry-api` (1.45.1, ada di kunci). Tanpa SDK dan tanpa pengaturan, kait itu tidak mengirim apa pun; image juga menyetel `OTEL_SDK_DISABLED=true`.
+
+### Fly.io
+
+`fly.toml` menjalankan aplikasi web dan pendengar kanari di satu mesin Fly dari target image `fly` (`scripts/fly_mulai.sh`). Registri, kunci, dan log kanari ada di volume `tapak_data` (`/data`), dan kunci dibuat saat mesin pertama kali menyala. Fly hanya meneruskan UDP lewat IPv4 khusus, ke alamat `fly-global-services` dan ke port yang sama dengan port luar, jadi pendengar kanari memerlukan IPv4 khusus dan mendengarkan port 53 di mesin (UDP di `fly-global-services`, TCP di `0.0.0.0` lewat `--tcp-host`). Skrip menurunkan batas port tanpa hak istimewa ke 53 sebelum beralih ke pengguna `tapak`.
+
+```bash
+fly apps create tapak                            # perintah berikutnya membaca nama aplikasi dari fly.toml
+fly ips allocate-v4                              # IPv4 khusus (berbayar): UDP 53 untuk kanari
+fly ips allocate-v6
+fly secrets set --stage TAPAK_OPERATOR_PASSWORD=...
+fly deploy --ha=false                            # satu mesin: volume tidak dibagi antarmesin
+fly ssh console -C "tapak verify"                # perintah tapak di mesin itu
+```
+
+Isi `TAPAK_CANARY_NS_IP` di `fly.toml` dengan IPv4 itu. Bila nama `tapak` sudah dipakai, ganti `app` dan `TAPAK_ALLOWED_HOSTS`. Halaman produk, demo, dan berkas statis terbuka untuk umum. Halaman operator (Beranda, Terbitkan, Lacak, Registri, unduhan salinan dan berita acara) meminta `TAPAK_OPERATOR_PASSWORD` dengan pengguna `operator`.
+
+Supaya token kanari terpicu dari internet, delegasikan domain kanari ke mesin ini di DNS domain induknya, misalnya rekaman NS `kanari.contoh.id` ke nama yang beralamat IPv4 tadi, lalu isi `TAPAK_CANARY_DOMAIN` dengan domain itu. Tanpa delegasi, pendengar tetap menjawab kueri yang dikirim langsung ke IPv4 itu (`dig @IPV4 <token>.c.<domain>`), sama seperti yang dilakukan resolver setelah mengikuti delegasi.
+
+Di Fly, pendengar dan aplikasi web berbagi satu mesin dan satu volume, termasuk kunci tanda tangan registri. Pemisahan jaringan docker-compose tidak ada di sini, tetapi keduanya tetap berjalan sebagai pengguna tanpa hak istimewa (uid 10001). Untuk pemakaian sungguhan, simpan kunci tanda tangan di eselon atas ([Kunci dan konfigurasi](#kunci-dan-konfigurasi)).
 
 ## Log jangkar eksternal (opsional)
 

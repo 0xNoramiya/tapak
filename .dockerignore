@@ -1,4 +1,5 @@
-# Build context: the image copies only requirements.lock, pyproject.toml, README.md, tapak/ and samples/.
+# Build context: the image copies only requirements.lock, pyproject.toml, README.md, tapak/ and samples/
+# (and the Fly target scripts/fly_mulai.sh).
 # .claude holds agent worktrees (gigabytes); generated samples and photo sets are not needed.
 .venv
 .git

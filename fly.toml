@@ -1,0 +1,59 @@
+# TAPAK on Fly.io: the web app and the canary DNS listener on one machine (scripts/fly_mulai.sh),
+# with the registry, keys and canary log on the volume tapak_data. Steps: docs/operasi.md, Fly.io.
+# The operator password is a secret: fly secrets set TAPAK_OPERATOR_PASSWORD=...
+app = "tapak"
+primary_region = "sin"
+kill_timeout = 10
+
+[build]
+  dockerfile = "Dockerfile"
+  build-target = "fly"
+
+[env]
+  TAPAK_DATA = "/data"
+  TAPAK_KEY_DIR = "/data/keys"
+  TAPAK_ALLOWED_HOSTS = "tapak.fly.dev,localhost,127.0.0.1"
+  TAPAK_CANARY_DOMAIN = "kanari.tapak.test"
+  # The dedicated IPv4 of the app (fly ips list): the address of ns1.<canary domain>.
+  TAPAK_CANARY_NS_IP = "149.248.205.214"
+  TAPAK_WORKERS = "2"
+
+[[mounts]]
+  source = "tapak_data"
+  destination = "/data"
+  initial_size = "3gb"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # The canary listener must answer at any time, so the machine never stops.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    [http_service.checks.headers]
+      Host = "localhost"
+
+# Canary names, port 53. UDP needs a dedicated IPv4 (fly ips allocate-v4), and Fly keeps the
+# port of a UDP packet, so the listener binds 53 inside as well.
+[[services]]
+  protocol = "udp"
+  internal_port = 53
+  [[services.ports]]
+    port = 53
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 53
+  [[services.ports]]
+    port = 53
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

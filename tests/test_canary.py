@@ -408,6 +408,18 @@ def test_public_listener_rejects_a_loopback_ns_ip_and_warns_without_one(tmp_path
     assert CanaryDNSServer(DOMAIN, tmp_path / "x.db", host="203.0.113.5", port=53).resolver.ns_ip == "203.0.113.5"
 
 
+def test_tcp_can_listen_on_another_address(db):
+    # Fly.io: UDP arrives only at fly-global-services, TCP at the machine's own address.
+    host = canary_hostname(TOKEN, DOMAIN)
+    with CanaryDNSServer(DOMAIN, db, host="127.0.0.1", port=0, tcp_host="0.0.0.0") as srv:
+        assert srv.tcp_host == "0.0.0.0"
+        assert str(_query(srv, host).rr[0].rdata) == "127.0.0.1"
+        tcp = DNSRecord.parse(DNSRecord.question(host).send("127.0.0.2", srv.port, tcp=True, timeout=2))
+        assert str(tcp.rr[0].rdata) == "127.0.0.1"
+        with pytest.raises(TimeoutError):  # UDP stays on 127.0.0.1 only
+            DNSRecord.question(host).send("127.0.0.2", srv.port, timeout=0.5)
+
+
 def test_tcp_and_non_a_queries_are_logged(server, db):
     host = canary_hostname(TOKEN, DOMAIN)
     tcp = _query(server, host, tcp=True)

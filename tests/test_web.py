@@ -179,6 +179,31 @@ def test_foreign_host_and_origin_refused(client):
     assert r.status_code == 403
 
 
+def test_operator_password_guards_all_but_public_pages(client, monkeypatch):
+    import base64
+    import importlib
+
+    web = importlib.import_module("tapak.web.app")
+    assert client.get("/registri").status_code == 200  # no password configured: open
+    monkeypatch.setattr(web, "OPERATOR_PASSWORD", "rahasia-uji")
+    for path in ("/", "/demo", "/healthz", "/static/css/situs.css", "/demo/contoh-penerima.csv"):
+        assert client.get(path).status_code == 200, path
+    for path in ("/beranda", "/terbitkan", "/lacak", "/registri", "/dokumen/0123456789abcdef/salinan.zip"):
+        r = client.get(path)
+        assert r.status_code == 401 and r.headers["www-authenticate"].startswith("Basic "), path
+        assert "memerlukan kata sandi" in r.text
+    assert client.post("/registri/merkle").status_code == 401
+
+    def basic(user: str, password: str) -> dict[str, str]:
+        return {"authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()}
+
+    assert client.get("/registri", headers=basic("operator", "rahasia-uji")).status_code == 200
+    for wrong in (basic("operator", "salah"), basic("tamu", "rahasia-uji"), {"authorization": "Basic !!"},
+                  {"authorization": "Bearer rahasia-uji"}):
+        assert client.get("/registri", headers=wrong).status_code == 401
+    assert "need a password" in client.get("/lacak?lang=en").text
+
+
 def test_document_keys_cannot_escape_data_dir(client):
     for bad in ("..%2F..%2Fetc", "....", "ZZZZZZZZZZZZZZZZ", "%2e%2e"):
         r = client.get(f"/dokumen/{bad}/salinan.zip")

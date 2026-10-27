@@ -6,6 +6,7 @@ sent to the internet; HTMX is served from ./static.
 
 from __future__ import annotations
 
+import base64
 import copy
 import csv
 import difflib
@@ -168,6 +169,10 @@ STAGING_TTL_S = 2 * 3600
 # TAPAK_ALLOWED_HOSTS=127.0.0.1,localhost,tapak.satuan.mil
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
     "TAPAK_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h.strip()]
+# On a public address the operator's pages ask for this password (HTTP Basic, user "operator");
+# the product page, the sandboxed demo and the static files stay open. Unset: no password.
+OPERATOR_PASSWORD = os.environ.get("TAPAK_OPERATOR_PASSWORD", "")
+OPERATOR_USER = "operator"
 
 app = FastAPI(title="TAPAK", docs_url=None, redoc_url=None, openapi_url=None)
 # Host allowlist: a page on another site cannot reach this app through DNS rebinding.
@@ -198,6 +203,33 @@ async def _same_origin_posts(request: Request, call_next):
 
 
 _LOOPBACK = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _public_path(path: str) -> bool:
+    """Pages anyone may open when the operator's pages need a password."""
+    return path in ("/", "/healthz", "/demo") or path.startswith(("/static/", "/demo/"))
+
+
+def _is_operator(authorization: str) -> bool:
+    scheme, _space, encoded = authorization.partition(" ")
+    try:
+        user, _colon, password = base64.b64decode(encoded, validate=True).decode().partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return (scheme.lower() == "basic" and user == OPERATOR_USER
+            and secrets.compare_digest(password.encode(), OPERATOR_PASSWORD.encode()))
+
+
+@app.middleware("http")
+async def _operator_password(request: Request, call_next):
+    """With TAPAK_OPERATOR_PASSWORD set, every page but the public ones needs the operator's
+    password; the browser asks for it."""
+    if (OPERATOR_PASSWORD and not _public_path(request.url.path)
+            and not _is_operator(request.headers.get("authorization", ""))):
+        resp = _notice(request, _("Halaman operator memerlukan kata sandi."), 401)
+        resp.headers["WWW-Authenticate"] = 'Basic realm="TAPAK", charset="UTF-8"'
+        return resp
+    return await call_next(request)
 
 # No page of another site may frame TAPAK (clickjacking of "Terbitkan" or the review buttons),
 # and the browser itself keeps the app offline: data, images, fonts and form posts go to this

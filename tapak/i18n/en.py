@@ -1105,6 +1105,7 @@ EN: dict[str, str | tuple[str, str]] = {
         "This PDF has no text layer and is not recognised as a scan (every scanned page must be one full-page image). There is nothing to mark.",
     "Penerbitan sedang berjalan. Keputusan tidak dapat diubah lagi; tunggu hasilnya.": "Issuing is running. Decisions can no longer change; wait for the result.",
     "Permintaan dari asal lain ditolak.": "A request from another origin was refused.",
+    "Halaman operator memerlukan kata sandi.": "The operator pages need a password.",
     "identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.": "the recipient\u2019s identity comes from local records only and is not confirmed.",
     "Dokumen ini tidak tercatat di registri.": "This document is not recorded in the registry.",
     "identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.": "the recipient\u2019s identity is not yet confirmed by a signed chain.",
