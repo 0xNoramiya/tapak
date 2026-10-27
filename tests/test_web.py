@@ -1619,13 +1619,48 @@ def test_demo_settings_stay_in_their_sandbox(tmp_path):
     from tapak.web.demo_web import demo_settings, issue_demo, size_label
 
     base = Settings(data_dir=tmp_path / "data", key_dir=tmp_path / "keys")
-    s = demo_settings(base)
-    assert s.data_dir == tmp_path / "data" / "demo" / "data" and s.key_dir == tmp_path / "data" / "demo" / "keys"
+    s = demo_settings(base, "0123456789abcdef")
+    box = tmp_path / "data" / "demo" / "0123456789abcdef"
+    assert s.data_dir == box / "data" and s.key_dir == box / "keys"
     assert s.registry_path != base.registry_path and s.anchor_log is None
-    (tmp_path / "data" / "demo").mkdir(parents=True)  # a folder the demo did not create
+    for bad in ("../../etc", "0123456789ABCDEF", "", "0123456789abcdef/.."):
+        with pytest.raises(ValueError):
+            demo_settings(base, bad)
+    box.mkdir(parents=True)  # a folder the demo did not create
     with pytest.raises(FileExistsError):
-        issue_demo(base)
+        issue_demo(base, "0123456789abcdef")
     assert size_label(412_345) == "412 KB" and size_label(1_234_567) == "1,2 MB" and size_label(10) == "1 KB"
+
+
+def test_old_and_surplus_demo_sandboxes_are_pruned(tmp_path, monkeypatch):
+    import os
+
+    from tapak.config import Settings
+    from tapak.web import demo_web
+
+    base = Settings(data_dir=tmp_path / "data", key_dir=tmp_path / "keys")
+    parent = tmp_path / "data" / "demo"
+    now = 1_800_000_000.0
+
+    def sandbox(visitor: str, age_s: float, marker: bool = True) -> None:
+        (parent / visitor / "data").mkdir(parents=True)
+        if marker:
+            (parent / visitor / demo_web.MARKER).write_text("x")
+            os.utime(parent / visitor / demo_web.MARKER, (now - age_s, now - age_s))
+
+    monkeypatch.setattr(demo_web, "MAX_SANDBOXES", 3)
+    sandbox("a" * 16, 7 * 3600)       # older than the TTL
+    sandbox("b" * 16, 60)
+    sandbox("c" * 16, 120)
+    sandbox("d" * 16, 180)            # the oldest beyond the newest MAX_SANDBOXES - 1 others
+    sandbox("e" * 16, 9 * 3600)       # the visitor issuing now: never removed
+    sandbox("f" * 16, 9 * 3600, marker=False)  # not made by the demo: never removed
+    for name in ("data", "keys"):     # the shared sandbox of earlier versions
+        (parent / name).mkdir()
+    (parent / demo_web.MARKER).write_text("x")
+    removed = demo_web.prune_sandboxes(base, keep="e" * 16, now=now)
+    assert sorted(removed) == ["a" * 16, "d" * 16]
+    assert sorted(p.name for p in parent.iterdir()) == ["b" * 16, "c" * 16, "e" * 16, "f" * 16]
 
 
 @pytest.mark.slow
@@ -1653,4 +1688,21 @@ def test_demo_issues_leaks_and_traces_in_its_sandbox(client, tmp_path):
     bad = client.post("/demo/bocorkan", data={"salinan": "99", "cara": "faks"})
     assert "Pilih penerima" in bad.text and "Pilih cara" in bad.text
     assert not (tmp_path / "data" / "registry.db").exists()
-    assert (tmp_path / "data" / "demo" / "data" / "registry.db").exists()
+    assert (tmp_path / "data" / "demo" / client.cookies["demo"] / "data" / "registry.db").exists()
+
+
+@pytest.mark.slow
+def test_demo_visitors_have_sandboxes_of_their_own(client):
+    """A second visitor issuing does not replace the first visitor's copies or leaks."""
+    from tapak.web.app import app
+
+    other = TestClient(app, base_url="http://127.0.0.1")
+    client.post("/demo/terbitkan")
+    r = client.post("/demo/bocorkan", data={"salinan": "7", "cara": "pdf"})
+    lid = re.search(r"/demo/bukti/([0-9a-f]{16})", r.text).group(1)
+    assert "dm-step-2" in other.post("/demo/terbitkan").text
+    assert client.cookies["demo"] != other.cookies["demo"]
+    assert other.get(f"/demo/bukti/{lid}").status_code == 404
+    assert "tidak ditemukan" in other.post("/demo/lacak", data={"bukti": lid}).text
+    r = client.post("/demo/lacak", data={"bukti": lid})
+    assert "<b>Tepat.</b>" in r.text and ">Salinan #7 <span" in r.text

@@ -2448,6 +2448,7 @@ RULES: list[tuple[str, str]] = [
     # demo sandbox (web/demo_web.py)
     ("{f} bukan folder demo TAPAK; folder itu tidak disentuh", "{f} is not a TAPAK demo folder; it was left untouched"),
     ("cara bocor tidak dikenal: {m}", "unknown kind of leak: {m}"),
+    ("id pengunjung demo tidak sah: {v}", "invalid demo visitor id: {v}"),
     ("{name} harus bilangan bulat positif (jumlah proses kerja paling banyak), bukan {v}",
      "{name} must be a positive whole number (the largest number of worker processes), not {v}"),
 

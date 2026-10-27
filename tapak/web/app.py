@@ -253,6 +253,28 @@ async def _security_headers(request: Request, call_next):
     return response
 
 
+DEMO_COOKIE = "demo"
+
+
+@app.middleware("http")
+async def _demo_visitor(request: Request, call_next):
+    """Each visitor of the guided demo has a sandbox of their own, named by the demo cookie
+    (``request.state.demo_visitor``); a visitor without a valid cookie gets a new one."""
+    path = request.url.path
+    if path != "/demo" and not path.startswith("/demo/"):
+        return await call_next(request)
+    from tapak.web.demo_web import SANDBOX_TTL_S, VISITOR
+
+    visitor = request.cookies.get(DEMO_COOKIE, "")
+    fresh = not VISITOR.fullmatch(visitor)
+    request.state.demo_visitor = secrets.token_hex(8) if fresh else visitor
+    response = await call_next(request)
+    if fresh:
+        response.set_cookie(DEMO_COOKIE, request.state.demo_visitor, max_age=SANDBOX_TTL_S, samesite="lax",
+                            httponly=True)
+    return response
+
+
 def _request_lang(request: Request) -> str:
     return i18n.choose(request.query_params.get("lang"), request.cookies.get(i18n.COOKIE))
 
@@ -1854,8 +1876,18 @@ def berita_acara(tid: str, asli: int = 0) -> Response:
 
 # --- Demo ----------------------------------------------------------------------------------
 
-_DEMO_LOCK = threading.Lock()   # one sandbox issuance at a time
-_DEMO_LEAKS: dict[str, dict[str, object]] = {}  # leak id -> name, bytes, copy, medium (newest 20)
+_DEMO_LOCK = threading.Lock()   # one sandbox issuance at a time; the next visitor waits for it
+_DEMO_LEAKS: dict[str, dict[str, object]] = {}  # leak id -> visitor, name, bytes, copy, medium (newest 40)
+
+
+def _visitor(request: Request) -> str:
+    return request.state.demo_visitor
+
+
+def _demo_leak(request: Request, lid: str) -> dict[str, object] | None:
+    """A simulated leak of this visitor; another visitor's leak is not found."""
+    item = _DEMO_LEAKS.get(lid)
+    return item if item is not None and item["visitor"] == _visitor(request) else None
 
 
 def _demo_state(request: Request, leak_id: str = "", result: dict[str, object] | None = None,
@@ -1865,8 +1897,8 @@ def _demo_state(request: Request, leak_id: str = "", result: dict[str, object] |
     request has just opened (it enters with an animation; a page load opens none)."""
     from tapak.web.demo_web import MEDIA, demo_manifest
 
-    m = demo_manifest(settings())
-    leak = _DEMO_LEAKS.get(leak_id) if leak_id else None
+    m = demo_manifest(settings(), _visitor(request))
+    leak = _demo_leak(request, leak_id) if leak_id else None
     if leak is not None and m is not None and leak["doc"] != m.doc_hash:
         leak = None  # a leak of an earlier sandbox issuance
     step = 1 if m is None else 2 if leak is None else 3 if result is None else 4
@@ -1910,11 +1942,13 @@ async def demo_issue(request: Request) -> HTMLResponse:
     """Step 1: a fresh sandbox issuance of the sample nota dinas."""
     from tapak.web.demo_web import issue_demo
 
+    visitor = _visitor(request)
+
     def run() -> float:
-        if not _DEMO_LOCK.acquire(blocking=False):
+        if not _DEMO_LOCK.acquire(timeout=60):
             raise RuntimeError(_("penerbitan demo lain sedang berjalan; coba lagi sebentar lagi"))
         try:
-            return issue_demo(settings())[1]
+            return issue_demo(settings(), visitor)[1]
         finally:
             _DEMO_LOCK.release()
 
@@ -1923,8 +1957,9 @@ async def demo_issue(request: Request) -> HTMLResponse:
     except (RuntimeError, ValueError, FileExistsError, FileNotFoundError) as exc:
         return _demo_page(request, galat=_("Demo tidak dapat diterbitkan: %(reason)s",
                                             reason=i18n.translate_text(_public_text(exc))))
-    with _LOCK:
-        _DEMO_LEAKS.clear()
+    with _LOCK:  # leaks of the visitor's earlier sandbox
+        for lid in [k for k, v in _DEMO_LEAKS.items() if v["visitor"] == visitor]:
+            del _DEMO_LEAKS[lid]
     return _demo_page(request, seconds=seconds, baru=2)
 
 
@@ -1952,26 +1987,27 @@ def demo_master_preview() -> Response:
 
 
 @app.get("/demo/salinan/{seq}/pratinjau.png")
-def demo_copy_preview(seq: int) -> Response:
+def demo_copy_preview(request: Request, seq: int) -> Response:
     """Page 1 of a sandbox copy, small."""
     from tapak.web.demo_web import copy_bytes, demo_manifest, page_png
 
-    m = demo_manifest(settings())
+    m = demo_manifest(settings(), _visitor(request))
     if m is None or not 1 <= seq <= len(m.copies):
         raise HTTPException(404, _("Salinan demo tidak ditemukan"))
-    return Response(page_png(copy_bytes(settings(), m, seq), 60), media_type="image/png",
+    return Response(page_png(copy_bytes(settings(), _visitor(request), m, seq), 60), media_type="image/png",
                     headers={"Cache-Control": "no-store"})
 
 
 @app.get("/demo/selisih.png")
-def demo_difference() -> Response:
+def demo_difference(request: Request) -> Response:
     """Where sandbox copies 1 and 2 differ (top half of page 1), amplified 40 times."""
     from tapak.web.demo_web import demo_manifest, difference_png
 
-    m = demo_manifest(settings())
+    m = demo_manifest(settings(), _visitor(request))
     if m is None or len(m.copies) < 2:
         raise HTTPException(404, _("Salinan demo tidak ditemukan"))
-    return Response(difference_png(settings(), m, 1, 2), media_type="image/png", headers={"Cache-Control": "no-store"})
+    return Response(difference_png(settings(), _visitor(request), m, 1, 2), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
 
 
 @app.post("/demo/bocorkan", response_class=HTMLResponse)
@@ -1979,7 +2015,8 @@ async def demo_leak(request: Request, salinan: int = Form(0), cara: str = Form("
     """Step 2: leak one sandbox copy through a simulated medium."""
     from tapak.web.demo_web import MEDIA, demo_manifest, leak
 
-    m = demo_manifest(settings())
+    visitor = _visitor(request)
+    m = demo_manifest(settings(), visitor)
     errors: dict[str, str] = {}
     if m is None:
         return _demo_page(request, galat=_("Terbitkan salinan demo lebih dulu (langkah 1)."))
@@ -1993,23 +2030,24 @@ async def demo_leak(request: Request, salinan: int = Form(0), cara: str = Form("
     def run() -> tuple[str, bytes]:
         import numpy as np
 
-        return leak(settings(), m, salinan, cara, np.random.default_rng(secrets.randbits(64)))
+        return leak(settings(), visitor, m, salinan, cara, np.random.default_rng(secrets.randbits(64)))
 
     name, data = await run_in_threadpool(run)
     lid = secrets.token_hex(8)
     with _LOCK:
-        _DEMO_LEAKS[lid] = {"name": name, "data": data, "seq": salinan, "cara": cara, "doc": m.doc_hash}
-        while len(_DEMO_LEAKS) > 20:
+        _DEMO_LEAKS[lid] = {"visitor": visitor, "name": name, "data": data, "seq": salinan, "cara": cara,
+                            "doc": m.doc_hash}
+        while len(_DEMO_LEAKS) > 40:
             _DEMO_LEAKS.pop(next(iter(_DEMO_LEAKS)))
     return _demo_page(request, leak_id=lid, baru=3)
 
 
 @app.get("/demo/bukti/{lid}")
-def demo_evidence(lid: str, unduh: int = 0) -> Response:
+def demo_evidence(request: Request, lid: str, unduh: int = 0) -> Response:
     """A simulated leak: a preview image, or with ``unduh=1`` the file itself."""
     from tapak.web.demo_web import evidence_preview
 
-    item = _DEMO_LEAKS.get(lid)
+    item = _demo_leak(request, lid)
     if item is None:
         raise HTTPException(404, _("Bukti demo tidak ditemukan; buat bukti baru di langkah 2"))
     name, data = str(item["name"]), bytes(item["data"])  # type: ignore[arg-type]
@@ -2027,14 +2065,16 @@ async def demo_trace(request: Request, bukti: str = Form("")) -> HTMLResponse:
     from tapak.service import trace_evidence
     from tapak.web.demo_web import demo_manifest, demo_settings
 
-    m = demo_manifest(settings())
-    item = _DEMO_LEAKS.get(bukti)
+    visitor = _visitor(request)
+    m = demo_manifest(settings(), visitor)
+    item = _demo_leak(request, bukti)
     if m is None or item is None or item["doc"] != m.doc_hash:
         return _demo_page(request, galat=_("Bukti demo tidak ditemukan. Buat bukti baru di langkah 2."))
 
     def run() -> object:
         with _TRACE_SLOTS:
-            return trace_evidence(demo_settings(settings()), m.doc_hash, str(item["name"]), bytes(item["data"]))
+            return trace_evidence(demo_settings(settings(), visitor), m.doc_hash, str(item["name"]),
+                                  bytes(item["data"]))
 
     t0 = time.perf_counter()
     try:

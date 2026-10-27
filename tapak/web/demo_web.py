@@ -1,7 +1,9 @@
 """The guided demo of the web UI (``/demo``).
 
-Everything happens in a sandbox next to the operator's data, ``<data>/demo`` (own registry,
-own code secret and signing key), so the demo never touches the real registry or keys:
+Everything happens in a sandbox next to the operator's data, ``<data>/demo/<visitor>`` (own
+registry, own code secret and signing key), so the demo never touches the real registry or keys.
+Each visitor (the ``demo`` cookie) has a sandbox of their own, so visitors at the same time do
+not replace each other's copies:
 
 1. the sample nota dinas is issued to the 20 fictional sample recipients, with the semantic
    variants approved by a simulated reviewer, as in ``tapak demo``;
@@ -15,6 +17,7 @@ All documents, names and evidence are synthetic.
 from __future__ import annotations
 
 import dataclasses
+import re
 import shutil
 import time
 from pathlib import Path
@@ -26,6 +29,9 @@ from tapak.i18n import N_, localize
 
 DEMO_DIR = "demo"
 MARKER = ".tapak-demo"
+VISITOR = re.compile(r"[0-9a-f]{16}")  # a visitor id: the value of the demo cookie
+SANDBOX_TTL_S = 6 * 3600  # a sandbox older than this is removed at the next demo issuance
+MAX_SANDBOXES = 30        # and only the newest are kept
 ISSUER = "Kasi Ops Brigif 9905 (fiktif)"
 SAMPLE = "nota_dinas.pdf"
 RECIPIENTS = "recipients.csv"
@@ -43,34 +49,59 @@ MEDIA: dict[str, tuple[str, str, str]] = {
 }
 
 
-def demo_settings(base: Settings) -> Settings:
-    """Settings of the sandbox: ``<data>/demo/data`` and ``<data>/demo/keys``, no anchor log."""
-    root = base.data_dir / DEMO_DIR
+def demo_root(base: Settings, visitor: str) -> Path:
+    """The sandbox folder of one visitor (16 hexadecimal characters; anything else is refused,
+    so a cookie cannot point outside ``<data>/demo``)."""
+    if not VISITOR.fullmatch(visitor):
+        raise ValueError(f"id pengunjung demo tidak sah: {visitor!r}")
+    return base.data_dir / DEMO_DIR / visitor
+
+
+def demo_settings(base: Settings, visitor: str) -> Settings:
+    """Settings of a visitor's sandbox: ``data`` and ``keys`` in :func:`demo_root`, no anchor log."""
+    root = demo_root(base, visitor)
     return dataclasses.replace(base, data_dir=root / "data", key_dir=root / "keys", signing_key=None,
                                public_key=None, anchor_log=None)
 
 
-def demo_root(base: Settings) -> Path:
-    """The sandbox folder."""
-    return base.data_dir / DEMO_DIR
-
-
-def demo_manifest(base: Settings):
-    """The sandbox issuance (an ``IssueManifest``), or None when there is none yet."""
+def demo_manifest(base: Settings, visitor: str):
+    """The visitor's sandbox issuance (an ``IssueManifest``), or None when there is none yet."""
     from tapak.service import list_workspaces
 
-    s = demo_settings(base)
+    s = demo_settings(base, visitor)
     if not s.workspaces.exists():
         return None
     docs = list_workspaces(s)
     return docs[0] if docs else None
 
 
-def issue_demo(base: Settings):
-    """Issue the sample nota dinas to the 20 sample recipients in a fresh sandbox.
+def prune_sandboxes(base: Settings, keep: str, now: float | None = None) -> list[str]:
+    """Remove the sandboxes of other visitors that are older than :data:`SANDBOX_TTL_S` or beyond
+    the newest :data:`MAX_SANDBOXES`, and the single shared sandbox of earlier versions. Only
+    folders that carry the demo marker are removed. Returns the visitor ids removed."""
+    parent = base.data_dir / DEMO_DIR
+    if not parent.is_dir():
+        return []
+    if (parent / MARKER).exists():  # the shared sandbox of earlier versions: data/ and keys/
+        for name in ("data", "keys"):
+            shutil.rmtree(parent / name, ignore_errors=True)
+        (parent / MARKER).unlink()
+    now = time.time() if now is None else now
+    boxes = sorted(((d / MARKER).stat().st_mtime, d.name) for d in parent.iterdir()
+                   if VISITOR.fullmatch(d.name) and d.name != keep and (d / MARKER).is_file())
+    stale = [name for i, (made, name) in enumerate(reversed(boxes))
+             if now - made > SANDBOX_TTL_S or i >= MAX_SANDBOXES - 1]
+    for name in stale:
+        shutil.rmtree(parent / name)
+    return stale
 
-    Returns (manifest, seconds). An earlier sandbox is removed first, but only a folder that
-    carries the demo marker: a folder the demo did not create is never deleted."""
+
+def issue_demo(base: Settings, visitor: str):
+    """Issue the sample nota dinas to the 20 sample recipients in a fresh sandbox of ``visitor``.
+
+    Returns (manifest, seconds). The visitor's earlier sandbox is removed first, but only a
+    folder that carries the demo marker: a folder the demo did not create is never deleted.
+    Stale sandboxes of other visitors go too (:func:`prune_sandboxes`)."""
     from tapak.demo import samples_dir
     from tapak.llm.provider import get_provider
     from tapak.marker.issue import IssueSettings, SemanticSelection, read_recipients
@@ -78,14 +109,15 @@ def issue_demo(base: Settings):
     from tapak.marker.semantic import STATUS_APPROVED, find_candidate_units, generate_variant_set
     from tapak.service import ensure_keys, issue_document
 
-    root = demo_root(base)
+    root = demo_root(base, visitor)
+    prune_sandboxes(base, keep=visitor)
     if root.exists():
         if not (root / MARKER).exists():
             raise FileExistsError(f"{root} bukan folder demo TAPAK; folder itu tidak disentuh")
         shutil.rmtree(root)
     root.mkdir(parents=True)
     (root / MARKER).write_text("folder demo TAPAK; boleh dihapus\n", encoding="utf-8")
-    s = demo_settings(base)
+    s = demo_settings(base, visitor)
     s.data_dir.mkdir(parents=True, exist_ok=True)
     samples = samples_dir()
     t0 = time.perf_counter()
@@ -103,11 +135,11 @@ def issue_demo(base: Settings):
     return out.manifest, time.perf_counter() - t0
 
 
-def copy_bytes(base: Settings, manifest, seq: int) -> bytes:
-    """The PDF of copy ``seq`` (1-based) of the sandbox issuance."""
+def copy_bytes(base: Settings, visitor: str, manifest, seq: int) -> bytes:
+    """The PDF of copy ``seq`` (1-based) of the visitor's sandbox issuance."""
     from tapak.service import load_workspace
 
-    _, _, folder = load_workspace(demo_settings(base), manifest.doc_hash)
+    _, _, folder = load_workspace(demo_settings(base, visitor), manifest.doc_hash)
     return (folder / "salinan" / manifest.copies[seq - 1].file).read_bytes()
 
 
@@ -119,15 +151,15 @@ def page_png(pdf: bytes, dpi: float) -> bytes:
         return doc[0].get_pixmap(dpi=dpi, alpha=False).tobytes("png")
 
 
-def difference_png(base: Settings, manifest, a: int, b: int, gain: float = 40.0) -> bytes:
+def difference_png(base: Settings, visitor: str, manifest, a: int, b: int, gain: float = 40.0) -> bytes:
     """Where copies ``a`` and ``b`` differ on page 1 (top half), amplified ``gain`` times: dark
     is no difference. Rendered at 100 dpi."""
     import cv2
 
     from tapak.marker.render import render_pages
 
-    pa = render_pages(copy_bytes(base, manifest, a), 100, [0])[0].astype(np.float32)
-    pb = render_pages(copy_bytes(base, manifest, b), 100, [0])[0].astype(np.float32)
+    pa = render_pages(copy_bytes(base, visitor, manifest, a), 100, [0])[0].astype(np.float32)
+    pb = render_pages(copy_bytes(base, visitor, manifest, b), 100, [0])[0].astype(np.float32)
     h = pa.shape[0] // 2
     diff = np.clip(np.abs(pa[:h] - pb[:h]) * gain, 0, 255).astype(np.uint8)
     ok, buf = cv2.imencode(".png", 255 - diff)
@@ -136,7 +168,7 @@ def difference_png(base: Settings, manifest, a: int, b: int, gain: float = 40.0)
     return buf.tobytes()
 
 
-def leak(base: Settings, manifest, seq: int, medium: str, rng: np.random.Generator) -> tuple[str, bytes]:
+def leak(base: Settings, visitor: str, manifest, seq: int, medium: str, rng: np.random.Generator) -> tuple[str, bytes]:
     """(file name, bytes) of copy ``seq`` leaked through ``medium`` (a key of MEDIA)."""
     from tapak.marker.render import render_pages
     from tapak.photos import PhotoParams, ScreenshotParams, decode_jpeg, encode_jpeg, photo_jpeg, \
@@ -145,7 +177,7 @@ def leak(base: Settings, manifest, seq: int, medium: str, rng: np.random.Generat
 
     if medium not in MEDIA:
         raise ValueError(f"cara bocor tidak dikenal: {medium}")
-    pdf = copy_bytes(base, manifest, seq)
+    pdf = copy_bytes(base, visitor, manifest, seq)
     if medium == "pdf":
         return "salinan_bocor.pdf", pdf
     if medium == "teks":
