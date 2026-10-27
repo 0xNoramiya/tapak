@@ -445,7 +445,8 @@ def anchor_head(db_path: str | Path, signer: Signer | None = None,
     this while older entries are unsigned); without it the entry stays pending until the
     key holder signs pending entries, so the internet-facing listener never needs the
     private key. Refuses (ValueError) to anchor a log that fails :func:`check_events_chain`.
-    Nothing is written while the log is empty.
+    Nothing is written while the log is empty, or when the registry's latest canary anchor
+    already holds this head (a periodic run adds an entry only after new events).
     """
     from tapak.registry.chain import Registry
 
@@ -455,6 +456,9 @@ def anchor_head(db_path: str | Path, signer: Signer | None = None,
     if report.head[0] == 0:
         return report.head
     with Registry.open(registry_path or db_path) as reg:
+        last = reg.entries(ANCHOR_KIND)[-1:]
+        if last and (last[0].payload.get("events_seq"), last[0].payload.get("events_hash")) == report.head:
+            return report.head
         reg.append(ANCHOR_KIND, {"events_seq": report.head[0], "events_hash": report.head[1]}, signer=signer)
     return report.head
 

@@ -23,10 +23,14 @@ python -m tapak.canary_dns --host fly-global-services --tcp-host 0.0.0.0 --port 
 dns=$!
 uvicorn tapak.web.app:app --host 0.0.0.0 --port 8000 &
 web=$!
+# Every hour the head of the canary log is anchored (and signed) in the registry, so a later
+# rewrite of the log shows; a run without new events writes nothing. Errors go to the log.
+(while sleep 3600; do python -m tapak.canary_dns --anchor >/dev/null || true; done) &
+anchor=$!
 
-trap 'kill -TERM "$dns" "$web" 2>/dev/null' TERM INT
+trap 'kill -TERM "$dns" "$web" "$anchor" 2>/dev/null' TERM INT
 status=0
 wait -n "$dns" "$web" || status=$?
-kill -TERM "$dns" "$web" 2>/dev/null || true
+kill -TERM "$dns" "$web" "$anchor" 2>/dev/null || true
 wait || true
 exit "$status"

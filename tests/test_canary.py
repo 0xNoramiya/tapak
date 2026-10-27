@@ -645,6 +645,19 @@ def test_anchor_catches_a_recomputed_chain_and_a_truncated_tail(tmp_path):
     assert not verify_events_chain(db, expected_head=read_anchors(db, signer.public_key_hex)[0][0])
 
 
+def test_anchoring_an_unchanged_head_writes_nothing(tmp_path):
+    db = tmp_path / "registry.db"
+    _record(db, 2)
+    anchor_head(db)
+    anchor_head(db)  # an hourly run without new events
+    with Registry.open(db) as reg:
+        assert len(reg.entries("canary_anchor")) == 1
+    _record(db, 1)
+    assert anchor_head(db) == chain_head(db)
+    with Registry.open(db) as reg:
+        assert [e.payload["events_seq"] for e in reg.entries("canary_anchor")] == [2, 3]
+
+
 def test_unsigned_anchor_counts_only_after_the_key_holder_signs(tmp_path):
     signer = Signer.generate()
     db = tmp_path / "registry.db"
