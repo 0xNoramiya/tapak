@@ -186,8 +186,11 @@
 .dm-ba { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--r-2); background: var(--surface-sunken); }
 .dm-ba h3 { margin: 6px 0 0; font-size: var(--fs-h2); }
 .dm-ba p { margin: 0; font-size: var(--fs-sm); }
-.dm-ba-thumb { display: block; }
-.dm-ba-thumb img { display: block; width: 100%; height: auto; border-radius: 3px; background: white;
+/* the report page is rendered on request (about two seconds): until it arrives, its box shows
+   the outline of a page of text instead of a blank sheet */
+.dm-ba-thumb { display: block; border-radius: 3px; background: white
+  repeating-linear-gradient(transparent 0 5.6%, oklch(0.9 0.008 90) 5.6% 6.8%, transparent 6.8% 8%) 12% 10% / 76% 80% no-repeat; }
+.dm-ba-thumb img { display: block; width: 100%; height: auto; border-radius: 3px;
   box-shadow: 0 0 0 1px oklch(0 0 0 / 0.08), 0 10px 24px -12px oklch(0 0 0 / 0.35); }
 .dm-ba .btn { align-self: stretch; justify-content: center; }
 @media (max-width: 860px) {
