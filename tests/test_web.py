@@ -1080,12 +1080,14 @@ def _analyse_scan(client, pdf: bytes, name: str = "nota_pindaian.pdf") -> tuple[
 def _source_words() -> set[str]:
     """Longer words of the sample's page 1 that neither the templates ("Rencana", "dengan") nor the
     recipient list ("Sintetis") contain: the scan shows them as ink and its OCR layer holds them
-    as invisible text, but no page may print them."""
+    as invisible text, but no page may print them. Month names are left out: the sample is dated
+    November, and so is every page that prints today's date in a November."""
+    from tapak.decoder.report import _MONTHS
     from tapak.marker.layout import extract_layout
 
     sources = [*(ROOT / "tapak" / "web" / "templates").glob("*.html"), ROOT / "samples" / "recipients.csv"]
     ui = " ".join(p.read_text(encoding="utf-8") for p in sources)
-    words = {w.text.strip(".,;:()") for w in extract_layout(_one_page(SAMPLE.read_bytes())).words()}
+    words = {w.text.strip(".,;:()") for w in extract_layout(_one_page(SAMPLE.read_bytes())).words()} - set(_MONTHS)
     return {w for w in words if len(w) >= 6 and w.isalpha() and not re.search(rf"\b{w}\b", ui)}
 
 
