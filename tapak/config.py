@@ -46,6 +46,37 @@ def available_cpus() -> int:
         return os.cpu_count() or 1
 
 
+def total_memory_mb() -> int | None:
+    """Memory this process may use, in MB: the container's limit (cgroup) when one is set, else
+    the machine's; None when neither can be read (not Linux)."""
+    found = []
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            raw = Path(path).read_text(encoding="ascii").strip()
+        except (OSError, ValueError):
+            continue
+        if raw.isdigit() and int(raw) < 1 << 50:  # "max", or the huge number cgroup v1 gives for no limit
+            found.append(int(raw) // (1 << 20))
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
+            if line.startswith("MemTotal:"):
+                found.append(int(line.split()[1]) // 1024)
+    except (OSError, ValueError, IndexError):
+        pass
+    return min(found) if found else None
+
+
+TRACE_MEMORY_MB = 2000  # a phone photo of 9 megapixels and more takes up to 1.4 GB to trace
+
+
+def trace_slots(limit: int | None, memory_mb: int | None) -> int:
+    """Traces the web server runs at once: two, no more than ``limit`` (``TAPAK_WORKERS``), and
+    one at a time on a host with less than ``TRACE_MEMORY_MB`` for each (``memory_mb``:
+    :func:`total_memory_mb`; None when it is not known)."""
+    slots = min(2, limit or 2)
+    return slots if memory_mb is None else max(1, min(slots, memory_mb // TRACE_MEMORY_MB))
+
+
 def pool_size(jobs: int, requested: int | None = None) -> int:
     """Worker processes for ``jobs`` independent jobs.
 

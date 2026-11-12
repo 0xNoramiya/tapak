@@ -94,11 +94,25 @@ def _render(pdf_bytes: bytes, page: int, dpi: float, supersample: int) -> np.nda
         h = int(round(p.rect.height * dpi / 72.0))
         mat = pymupdf.Matrix(dpi * supersample / 72.0, dpi * supersample / 72.0)
         pix = p.get_pixmap(matrix=mat, colorspace=pymupdf.csGRAY, alpha=False)
-        hi = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).astype(np.float32)
+        # samples_mv: the pixmap's own buffer; ``samples`` would copy it (140 MB at 300 dpi)
+        hi = np.frombuffer(pix.samples_mv, dtype=np.uint8).reshape(pix.height, pix.width).astype(np.float32)
     return cv2.resize(hi, (w, h), interpolation=cv2.INTER_AREA)
 
 
-_render_cached = lru_cache(maxsize=16)(_render)
+CACHE_FULL_MEMORY_MB = 8000  # hosts with at least this much memory keep the caches at their full budgets
+
+
+def _cache_share() -> float:
+    """Share of a cache budget this host keeps: all of it with ``CACHE_FULL_MEMORY_MB`` or more
+    (or when the memory cannot be read), proportionally less below (a quarter on a 2 GB host),
+    so that the caches leave room for a trace. Caches only save time: results do not change."""
+    from tapak.config import total_memory_mb
+
+    total = total_memory_mb()
+    return 1.0 if total is None else min(1.0, total / CACHE_FULL_MEMORY_MB)
+
+
+_render_cached = lru_cache(maxsize=max(2, round(16 * _cache_share())))(_render)
 
 
 # MuPDF caches small glyphs as bitmaps and draws a cached glyph at a whole device pixel
@@ -254,7 +268,7 @@ class _ByteBudgetCache:
         return len(self._items)
 
 
-_EXACT_CACHE = _ByteBudgetCache(EXACT_CACHE_BYTES)
+_EXACT_CACHE = _ByteBudgetCache(int(EXACT_CACHE_BYTES * _cache_share()))
 
 
 def flatten_illumination(gray: np.ndarray, sigma: float) -> np.ndarray:
@@ -339,7 +353,7 @@ class _ArrayCache(_ByteBudgetCache):
 # illumination blur behind ``_prep`` (a Gaussian of a thirtieth of the page) is most of the
 # cost of a registration that has to try every page, so each master page is prepared once.
 MASTER_CACHE_BYTES = 200_000_000
-_MASTER_CACHE = _ArrayCache(MASTER_CACHE_BYTES)
+_MASTER_CACHE = _ArrayCache(int(MASTER_CACHE_BYTES * _cache_share()))
 
 
 def master_ink(pdf_bytes: bytes, page: int, dpi: float) -> np.ndarray:
@@ -946,12 +960,24 @@ def pose_is_sane(h_init: np.ndarray, dpi_init: float, h_found: np.ndarray, dpi_f
     return 1.0 / RESCUE_SCALE_CHANGE <= change <= RESCUE_SCALE_CHANGE and float(s1.max() / s1.min()) <= RESCUE_SCALE_SPREAD
 
 
-def rescue_threads(jobs: int) -> int:
+# ECC against a master page takes about 100 bytes per master pixel: 0.9 GB at 300 dpi (8.7
+# megapixels), and a phone photo that is not the document went through up to four such tries at
+# once (3.1 GB; a 2 GB server was killed). The rescue's tries are therefore refined at no more
+# than RESCUE_ECC_MAX_DPI, and run side by side only while their masters add up to no more than
+# RESCUE_PARALLEL_MP. The stage exists for crops and low resolutions; a pose refined at 200 dpi
+# is mapped to the analysis resolution like any other.
+RESCUE_ECC_MAX_DPI = 200.0
+RESCUE_PARALLEL_MP = 6.0
+
+
+def rescue_threads(jobs: int, megapixels: float = 0.0) -> int:
     """Threads for the rescue tries: the available CPUs (at most 4, and at most
-    ``TAPAK_WORKERS``), never more than the tries."""
+    ``TAPAK_WORKERS``), never more than the tries, and no more than keep the masters refined
+    side by side within ``RESCUE_PARALLEL_MP`` (``megapixels``: the largest master of a try)."""
     from tapak.config import pool_size
 
-    return pool_size(jobs, min(4, jobs) if jobs else 1)
+    threads = pool_size(jobs, min(4, jobs) if jobs else 1)
+    return threads if megapixels <= 0 else max(1, min(threads, int(RESCUE_PARALLEL_MP / megapixels)))
 
 
 def _tilted(h_page_to_img: np.ndarray, points_img: np.ndarray, dpi: float) -> bool:
@@ -1082,16 +1108,23 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
     else:
         part = (image.shape[1], image.shape[0])
 
+    def resolution(page: int, h0: np.ndarray) -> tuple[float, float, float]:
+        """(resolution of the initial pose, analysis dpi, dpi of the master ECC refines against)."""
+        w_pt, h_pt = page_sizes[page]
+        eff0 = effective_dpi(h0, w_pt * probe / 72.0, h_pt * probe / 72.0, probe)
+        dpi = float(np.clip(round(eff0 / 10) * 10, DPI_MIN, DPI_MAX))
+        # Evidence below the analysis resolution is refined against a master drawn at its own
+        # resolution (measured in its own pixels), then mapped to the analysis resolution; so is
+        # evidence above RESCUE_ECC_MAX_DPI, against a master at that resolution.
+        if eff0 < RESCUE_NATIVE_DPI:
+            return eff0, dpi, float(max(TEMPLATE_EFF_DPI[0], round(eff0)))
+        return eff0, dpi, min(dpi, RESCUE_ECC_MAX_DPI)
+
     def attempt(job: tuple[str, int, np.ndarray, bool]) -> dict:
         """Refine one initial pose and verify the result (the whole master, or its footprint)."""
         origin, page, h0, footprint = job
         w_pt, h_pt = page_sizes[page]
-        wp, hp = w_pt * probe / 72.0, h_pt * probe / 72.0
-        eff0 = effective_dpi(h0, wp, hp, probe)
-        dpi = float(np.clip(round(eff0 / 10) * 10, DPI_MIN, DPI_MAX))
-        # Evidence below the analysis resolution is refined against a master drawn at its own
-        # resolution (measured in its own pixels), then mapped to the analysis resolution.
-        edpi = dpi if eff0 >= RESCUE_NATIVE_DPI else float(max(TEMPLATE_EFF_DPI[0], round(eff0)))
+        eff0, dpi, edpi = resolution(page, h0)
         s = edpi / probe
         side = min(part) * edpi / max(eff0, 1e-6)
         levels = tuple((lv, it) for lv, it in RESCUE_LEVELS if lv == 1.0 or side * lv >= RESCUE_MIN_SIDE)
@@ -1133,7 +1166,9 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
         jobs += [(origin, page, h0, True) for origin, page, h0 in pool if _tilted(h0, box, probe)]
     # The tries are independent: they run side by side (OpenCV releases the GIL), and their
     # results are kept in the order above, so the outcome does not depend on the threads.
-    with ThreadPoolExecutor(max_workers=rescue_threads(len(jobs))) as ex:
+    largest = max((page_sizes[page][0] * page_sizes[page][1] * (resolution(page, h0)[2] / 72.0) ** 2 / 1e6
+                   for _, page, h0, _ in jobs), default=0.0)
+    with ThreadPoolExecutor(max_workers=rescue_threads(len(jobs), largest)) as ex:
         tries = list(ex.map(attempt, jobs))
     log["tries"].extend(tries)
     best, outcome, rival = rescue_decision(tries, centre)
@@ -1207,7 +1242,9 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
     A plane fit below ``BEND_BELOW`` is followed by ``estimate_bend``: a real sheet of paper does
     not lie in a plane. When the bent page correlates better by ``BEND_GAIN``, that correlation
     is the one ``min_correlation`` is compared with, the image is resampled with the smooth
-    field (``Registration.bend``) and the method ends in "+lengkung".
+    field (``Registration.bend``) and the method ends in "+lengkung". A pose whose plane fit
+    falls short of ``min_correlation`` is read as bent at once, and when that registers it the
+    other candidate is not refined.
     """
     probe_dpi, score_dpi = 100.0, 30.0
     log: dict = {} if diag is None else diag
@@ -1251,7 +1288,20 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
         log["outcome"] = "tanpa_kandidat"
         return _rescue(image, pdf_bytes, page_sizes, cands, log) if rescue else None
     cands.sort(key=lambda c: c[0], reverse=True)
+
+    def bent(cc: float, page: int, h: np.ndarray, dpi: float) -> tuple[Bend, float] | None:
+        """The smooth field and the correlation of a plane fit's page read as bent, when that
+        correlates better by ``BEND_GAIN``; ``log["bend"]`` keeps the last fit tried."""
+        note: dict = {"plane": cc}
+        log["bend"] = note
+        found = estimate_bend(img_ink, master_ink(pdf_bytes, page, dpi), h, dpi, page_sizes[page], note)
+        if found is None:
+            return None
+        note.update(cc=found[2], fine_mm=found[0].largest_mm(), smooth_mm=found[1].largest_mm())
+        return (found[1], found[2]) if found[2] >= cc + BEND_GAIN else None
+
     best: tuple[float, int, np.ndarray, str, float] | None = None
+    bend: Bend | None = None
     for _, page, h0, method in cands[:2]:
         w_pt, h_pt = page_sizes[page]
         wp, hp = w_pt * probe_dpi / 72.0, h_pt * probe_dpi / 72.0
@@ -1264,16 +1314,20 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
             best = (cc, page, h, method, dpi)
         if cc > 0.85:
             break
+        if 0.0 < cc < min(min_correlation, BEND_BELOW) and best[0] == cc:
+            # A real sheet of paper does not lie in a plane. When this pose is the page read as
+            # bent, the other pose is not refined: a second ECC at full resolution costs a
+            # quarter of a minute and most of a gigabyte on a phone photo.
+            found = bent(cc, page, h, dpi)
+            if found is not None and found[1] >= min_correlation:
+                bend, best = found[0], (found[1], page, h, f"{method}+lengkung", dpi)
+                break
     assert best is not None
     cc, page, h, method, dpi = best
-    bend: Bend | None = None
-    if 0.0 < cc < BEND_BELOW:  # a real sheet of paper does not lie in a plane
-        log["bend"] = {"plane": cc}
-        found = estimate_bend(img_ink, master_ink(pdf_bytes, page, dpi), h, dpi, page_sizes[page], log["bend"])
+    if bend is None and min_correlation <= cc < BEND_BELOW:  # registered, yet not flat: read it as bent too
+        found = bent(cc, page, h, dpi)
         if found is not None:
-            log["bend"].update(cc=found[2], fine_mm=found[0].largest_mm(), smooth_mm=found[1].largest_mm())
-            if found[2] >= cc + BEND_GAIN:
-                bend, cc, method = found[1], found[2], f"{method}+lengkung"
+            bend, cc, method = found[0], found[1], f"{method}+lengkung"
     if cc < min_correlation:
         log["outcome"] = "korelasi_rendah"
         return _rescue(image, pdf_bytes, page_sizes, cands, log) if rescue else None

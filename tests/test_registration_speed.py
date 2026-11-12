@@ -56,6 +56,9 @@ def test_rescue_threads_respect_the_limit(monkeypatch):
     assert rescue_threads(7) == 2 and rescue_threads(1) == 1
     monkeypatch.delenv("TAPAK_WORKERS")
     assert 1 <= rescue_threads(9) <= 4
+    # masters refined side by side stay within RESCUE_PARALLEL_MP megapixels together
+    assert rescue_threads(9, 3.9) == 1 and rescue_threads(9, 8.7) == 1
+    assert rescue_threads(9, 1.0) == rescue_threads(9)
 
 
 def _try(page, agreement, dx=0.0, dpi=100.0):

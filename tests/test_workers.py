@@ -243,6 +243,17 @@ def test_cli_web_and_demo_check_the_cap_before_starting(monkeypatch, tmp_path, c
     assert "TAPAK_WORKERS" in capsys.readouterr().err and not (tmp_path / "demo").exists()
 
 
+def test_trace_slots_follow_the_worker_limit_and_the_memory():
+    from tapak.config import TRACE_MEMORY_MB, total_memory_mb, trace_slots
+
+    assert trace_slots(None, None) == 2 and trace_slots(8, None) == 2 and trace_slots(1, None) == 1
+    assert trace_slots(None, 2 * TRACE_MEMORY_MB) == 2
+    assert trace_slots(None, 2 * TRACE_MEMORY_MB - 1) == 1  # a 2 GB or 3.9 GB host: one photo at a time
+    assert trace_slots(None, 100) == 1 and trace_slots(1, 64_000) == 1
+    total = total_memory_mb()
+    assert total is None or total > 100
+
+
 def _import_web(value: str | None) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "TAPAK_WORKERS"}
     env["PYTHONPATH"] = str(ROOT)
@@ -254,9 +265,12 @@ def _import_web(value: str | None) -> subprocess.CompletedProcess:
 
 def test_web_server_caps_traces_and_stops_on_a_bad_value():
     """uvicorn tapak.web.app:app (the container's command) reads TAPAK_WORKERS when it starts."""
-    assert _import_web(None).stdout.strip() == "2"
+    from tapak.config import total_memory_mb, trace_slots
+
+    two = str(trace_slots(None, total_memory_mb()))  # "2", or "1" on a host too small for two traces
+    assert _import_web(None).stdout.strip() == two
     assert _import_web("1").stdout.strip() == "1"
-    assert _import_web("8").stdout.strip() == "2"
+    assert _import_web("8").stdout.strip() == two
     bad = _import_web("2,5")
     assert bad.returncode == 1 and "Traceback" not in bad.stderr and not bad.stdout
     assert ("galat: TAPAK_WORKERS harus bilangan bulat positif (jumlah proses kerja paling banyak), bukan '2,5'"

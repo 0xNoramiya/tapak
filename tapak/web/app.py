@@ -40,7 +40,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from tapak.config import Settings, load_settings, worker_limit
+from tapak.config import Settings, load_settings, total_memory_mb, trace_slots, worker_limit
 from tapak.decoder.accuse import VERDICT_IDENTIFIED
 from tapak.decoder.report import (
     _strip_zeros,
@@ -155,9 +155,9 @@ try:
     WORKER_LIMIT = worker_limit()
 except ValueError as _exc:
     raise SystemExit(f"galat: {_exc}") from None
-# Image decoding and registration take hundreds of MB and a CPU each: at most two traces at a
-# time, and no more than TAPAK_WORKERS.
-TRACE_SLOTS = min(2, WORKER_LIMIT or 2)
+# Image decoding and registration take a CPU each and, for a phone photo, more than a gigabyte:
+# at most two traces at a time, no more than TAPAK_WORKERS, and one at a time on a small host.
+TRACE_SLOTS = trace_slots(WORKER_LIMIT, total_memory_mb())
 _TRACE_SLOTS = threading.BoundedSemaphore(TRACE_SLOTS)
 
 # Files written by the app (masters, copies, manifests) are readable by the operator only.

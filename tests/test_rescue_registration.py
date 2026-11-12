@@ -232,3 +232,19 @@ def test_paper_mask_survives_messenger_jpeg(sample_pdf, dark):
     assert mask is not None
     ys, xs = np.nonzero(mask)
     assert abs(xs.min() - ox) <= 2 and abs(ys.min() - oy) <= 2
+
+
+def test_rescue_refines_a_high_resolution_pose_against_a_smaller_master(sample_pdf):
+    """Evidence above RESCUE_ECC_MAX_DPI is refined against the master at that resolution (ECC
+    takes about 100 bytes per master pixel) and the pose is mapped to the analysis resolution."""
+    dpi = 250.0
+    image = render_page(sample_pdf, 0, dpi)
+    start = np.diag([dpi / 100.0, dpi / 100.0, 1.0]) @ np.array([[1.0, 0.0, 1.5], [0.0, 1.0, -1.0], [0.0, 0.0, 1.0]])
+    log: dict = {}
+    reg = rescue_register(image, sample_pdf, [A4, A4], [(0.5, 0, start, "fitur")], log)
+    assert reg is not None and reg.page == 0 and reg.dpi == dpi
+    tries = [t for t in log["tries"] if t["origin"] == "fitur"]
+    assert tries and all(t["dpi"] == dpi and t["ecc_dpi"] == rectify.RESCUE_ECC_MAX_DPI for t in tries)
+    corners = np.array([[[0.0, 0.0]], [[image.shape[1] - 1.0, image.shape[0] - 1.0]]])
+    # masters are drawn on whole pixels at each resolution: up to half a pixel across the page
+    assert float(np.abs(cv2.perspectiveTransform(corners, reg.h_page_to_img) - corners).max()) < 1.0
