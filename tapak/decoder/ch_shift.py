@@ -48,6 +48,7 @@ from functools import lru_cache
 import cv2
 import numpy as np
 
+from tapak.decoder.rectify import parabolic_peak
 from tapak.decoder.softbits import SoftBits, Strengths, gaussian_llr
 from tapak.marker.layout import DocumentLayout, RowId, WordId, extract_layout
 from tapak.marker.master import MasterDocument
@@ -1181,12 +1182,6 @@ def decode_vector(
 ECC_TRANSLATION = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 60, 1e-5)
 
 
-def _parabolic(c_m: float, c_0: float, c_p: float) -> float:
-    """Sub-sample offset of a peak from three samples around it."""
-    den = c_m - 2.0 * c_0 + c_p
-    return 0.0 if den >= 0 else 0.5 * (c_m - c_p) / den
-
-
 def match_offset(tmpl: np.ndarray, win: np.ndarray, m: int) -> tuple[float, float, float] | None:
     """(dx, dy, peak correlation) of ``tmpl`` inside ``win`` (``win`` is larger by m on each side).
 
@@ -1199,8 +1194,8 @@ def match_offset(tmpl: np.ndarray, win: np.ndarray, m: int) -> tuple[float, floa
     _, peak, _, (ix, iy) = cv2.minMaxLoc(res)
     if not (0 < ix < res.shape[1] - 1 and 0 < iy < res.shape[0] - 1):
         return None
-    fx = ix + _parabolic(res[iy, ix - 1], res[iy, ix], res[iy, ix + 1])
-    fy = iy + _parabolic(res[iy - 1, ix], res[iy, ix], res[iy + 1, ix])
+    fx = ix + parabolic_peak(res[iy, ix - 1], res[iy, ix], res[iy, ix + 1])
+    fy = iy + parabolic_peak(res[iy - 1, ix], res[iy, ix], res[iy + 1, ix])
     warp = np.array([[1, 0, fx], [0, 1, fy]], dtype=np.float32)
     try:
         _, warp = cv2.findTransformECC(tmpl, win, warp, cv2.MOTION_TRANSLATION, ECC_TRANSLATION, None, 1)

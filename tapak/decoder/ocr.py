@@ -165,7 +165,7 @@ def page_image(gray: np.ndarray, reg: "Registration", page_size_pt: tuple[float,
         s = dpi / float(reg.dpi)
         h = reg.h_page_to_img @ np.diag([1.0 / s, 1.0 / s, 1.0])
         size = (int(round(page_size_pt[0] * dpi / 72.0)), int(round(page_size_pt[1] * dpi / 72.0)))
-        img, valid = warp_to_page(np.asarray(gray, dtype=np.float32), h, size)
+        img, valid = warp_to_page(np.asarray(gray, dtype=np.float32), h, size, reg.bend)
     img = np.asarray(img, dtype=np.float32)
     if settings.flatten:
         img = 255.0 * np.clip(flatten_illumination(img, FLATTEN_SIGMA_IN * dpi), 0.0, 1.0)

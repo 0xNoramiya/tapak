@@ -1419,6 +1419,8 @@ EN: dict[str, str | tuple[str, str]] = {
     "baris dan posisinya harus sama panjang; delta, rentang, dan langkah positif":
         "the lines and their positions must have the same length; delta, range and step must be positive",
     "kisi piksel memerlukan homografi 3x3 dan resolusi positif": "a pixel grid needs a 3x3 homography and a positive resolution",
+    "medan lengkung memerlukan kisi (baris, kolom, 2) dan ukuran halaman positif":
+        "a bend field needs a lattice (rows, columns, 2) and a positive page size",
     "pemeriksaan bacaan jelas tanpa nama tidak berbunyi": "the check for clear readings that name no one did not fire",
     "jumlah statistik minimal 1": "at least 1 statistic is needed",
     "pemeriksaan pola penghapusan tidak berbunyi": "the erasure pattern check did not fire",

@@ -475,15 +475,197 @@ class Registration:
     rectified: np.ndarray
     valid: np.ndarray
     effective_dpi: float
+    bend: Bend | None = None  # set when the page did not lie in the plane of ``h_page_to_img``
 
 
-def warp_to_page(image: np.ndarray, h_page_to_img: np.ndarray, size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
-    """Resample the image into page coordinates; also return the mask of valid pixels."""
+@dataclass(frozen=True)
+class Bend:
+    """Where the content of a page that does not lie in a plane sits, relative to the plane of
+    its homography: page point p is found in the image at H(p + displacement(p)).
+
+    Attributes:
+        field: (rows, cols, 2) displacements (dx, dy) in page points on a lattice over the
+            page; cell (i, j) is centred at ((j + 0.5) / cols, (i + 0.5) / rows) of the page.
+        page_size: page width and height in points.
+    """
+
+    field: np.ndarray
+    page_size: tuple[float, float]
+
+    def __post_init__(self) -> None:
+        f = np.asarray(self.field)
+        if f.ndim != 3 or f.shape[2] != 2 or min(f.shape[:2]) < 2 or min(self.page_size) <= 0:
+            raise ValueError("medan lengkung memerlukan kisi (baris, kolom, 2) dan ukuran halaman positif")
+
+    def pixels(self, size: tuple[int, int]) -> np.ndarray:
+        """(height, width, 2) displacements in pixels of a page frame of ``size`` (width, height)."""
+        f = np.asarray(self.field, dtype=np.float32) * (size[0] / self.page_size[0])
+        return np.dstack([cv2.resize(np.ascontiguousarray(f[..., k]), size, interpolation=cv2.INTER_CUBIC)
+                          for k in range(2)])
+
+    def largest_mm(self) -> float:
+        """Largest displacement on the lattice, in millimetres."""
+        return float(np.hypot(self.field[..., 0], self.field[..., 1]).max()) * 25.4 / 72.0
+
+
+def _bend_maps(h_page_to_img: np.ndarray, size: tuple[int, int], shift_px: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Image coordinates of every pixel of a page frame of ``size`` whose content is displaced
+    by ``shift_px`` (height, width, 2) from the plane of ``h_page_to_img``."""
+    ys, xs = np.mgrid[0:size[1], 0:size[0]].astype(np.float32)
+    px, py = xs + shift_px[..., 0], ys + shift_px[..., 1]
+    h = np.asarray(h_page_to_img, dtype=np.float64)
+    den = h[2, 0] * px + h[2, 1] * py + h[2, 2]
+    return (((h[0, 0] * px + h[0, 1] * py + h[0, 2]) / den).astype(np.float32),
+            ((h[1, 0] * px + h[1, 1] * py + h[1, 2]) / den).astype(np.float32))
+
+
+def warp_to_page(image: np.ndarray, h_page_to_img: np.ndarray, size: tuple[int, int],
+                 bend: Bend | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Resample the image into page coordinates; also return the mask of valid pixels. With
+    ``bend`` (a page that does not lie in a plane) every page pixel is read where the bent page
+    shows it."""
+    if bend is not None:
+        mx, my = _bend_maps(h_page_to_img, size, bend.pixels(size))
+        rect = cv2.remap(image, mx, my, cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+        return rect, (mx >= 0) & (my >= 0) & (mx <= image.shape[1] - 1) & (my <= image.shape[0] - 1)
     flags = cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP
     rect = cv2.warpPerspective(image, h_page_to_img, size, flags=flags, borderMode=cv2.BORDER_REPLICATE)
     valid = cv2.warpPerspective(np.ones_like(image, dtype=np.uint8), h_page_to_img, size,
                                 flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP, borderValue=0)
     return rect, valid.astype(bool)
+
+
+# --- Pages that do not lie in a plane (real paper) ------------------------------------------------
+# A printed sheet photographed on a table is curled, cockled or creased, and a phone lens bends
+# straight lines, so one homography leaves parts of a real page a millimetre and more off the
+# master. ECC then stays below ``min_correlation`` although the page was found: 12 of 13 phone
+# photos of a printed sample page (two phones, 2026-11-12) against 0.92 and more for simulated
+# photos, which are planar. ``estimate_bend`` measures what the plane fit left over, block by
+# block and coarse to fine, and gives two fields from the same measurements. The fine one only
+# answers "is this the master page?": the gate reads the correlation after it. The smooth one
+# resamples the image for the decoders. It averages over BEND_SMOOTH_MM, more than a word group
+# and several text rows, so it cannot follow (and so erase) the shift marks.
+BEND_BELOW = 0.9          # a plane fit that correlates at least this well is kept as it is
+# Levels: resolution (dpi, at most the analysis dpi), block side (mm), search range (mm). The
+# search ranges add up to 5.6 mm: no content is ever looked for further from the plane fit.
+BEND_LEVELS = ((60.0, 20.0, 3.5), (125.0, 13.0, 1.2), (300.0, 13.0, 0.5), (300.0, 6.5, 0.4))
+BEND_MIN_BLOCK_PX = 32    # a block is at least this many pixels across ...
+BEND_MIN_SEARCH_PX = 2    # ... and is searched at least this far
+BEND_MIN_TEXT = 0.03      # blocks whose master ink varies less than this (blank paper) are not measured
+BEND_MIN_PEAK = 0.45      # a block whose best correlation is below this says nothing
+BEND_MIN_BLOCKS = 6       # a level with fewer measured blocks is skipped
+BEND_OUTLIER = 1.0 / 3.0  # a block this share of the search range off its neighbours' median is dropped ...
+BEND_OUTLIER_PX = 1.5     # ... when that is more than this many pixels
+BEND_FINE_STEPS = 1.2     # Gaussian sigma of a level's measurements, in grid steps (half blocks)
+BEND_SMOOTH_MM = 15.0     # Gaussian sigma of the field the decoders' image is resampled with
+BEND_LATTICE_MM = 2.0     # spacing of the lattice the fields are kept on
+BEND_GAIN = 0.02          # the bent page must correlate this much better than the plane fit
+
+
+def parabolic_peak(c_m: float, c_0: float, c_p: float) -> float:
+    """Sub-sample offset of a peak from three samples around it."""
+    den = c_m - 2.0 * c_0 + c_p
+    return 0.0 if den >= 0 else 0.5 * (c_m - c_p) / den
+
+
+def _block_shifts(template: np.ndarray, warped: np.ndarray, block: int,
+                  search: int) -> tuple[np.ndarray, np.ndarray]:
+    """Where each block of ``template`` (half-overlapping, ``block`` px) is found in ``warped``
+    within ``search`` px: shifts (ny, nx, 2) and weights (ny, nx), zero for blocks that say
+    nothing (blank, weak or at the edge of the search range) or disagree with their neighbours."""
+    hh, ww = template.shape
+    step = block // 2
+    ny, nx = max(1, (hh - block) // step + 1), max(1, (ww - block) // step + 1)
+    d = np.zeros((ny, nx, 2), dtype=np.float32)
+    wgt = np.zeros((ny, nx), dtype=np.float32)
+    for r in range(ny):
+        for c in range(nx):
+            y0, x0 = r * step, c * step
+            tb = template[y0:y0 + block, x0:x0 + block]
+            if float(tb.std()) < BEND_MIN_TEXT:
+                continue
+            ys0, xs0 = max(0, y0 - search), max(0, x0 - search)
+            res = cv2.matchTemplate(warped[ys0:min(hh, y0 + block + search), xs0:min(ww, x0 + block + search)],
+                                    tb, cv2.TM_CCOEFF_NORMED)
+            _, peak, _, (ix, iy) = cv2.minMaxLoc(res)
+            if peak < BEND_MIN_PEAK or not (0 < ix < res.shape[1] - 1 and 0 < iy < res.shape[0] - 1):
+                continue
+            d[r, c] = (ix + parabolic_peak(res[iy, ix - 1], res[iy, ix], res[iy, ix + 1]) - (x0 - xs0),
+                       iy + parabolic_peak(res[iy - 1, ix], res[iy, ix], res[iy + 1, ix]) - (y0 - ys0))
+            wgt[r, c] = peak - BEND_MIN_PEAK + 0.05
+    measured = wgt > 0
+    limit = max(BEND_OUTLIER_PX, BEND_OUTLIER * search)
+    for r, c in zip(*np.nonzero(measured)):
+        near = (slice(max(0, r - 1), r + 2), slice(max(0, c - 1), c + 2))
+        if measured[near].sum() >= 3 and float(np.abs(d[r, c] - np.median(d[near][measured[near]], axis=0)).max()) > limit:
+            wgt[r, c] = 0.0
+    return d, wgt
+
+
+def _correlation(a: np.ndarray, b: np.ndarray, where: np.ndarray) -> float:
+    """Correlation coefficient of two images over the pixels ``where``."""
+    if int(where.sum()) < 2:
+        return -1.0
+    x, y = a[where] - a[where].mean(), b[where] - b[where].mean()
+    den = float(np.sqrt((x * x).sum() * (y * y).sum()))
+    return float((x * y).sum() / den) if den > 0 else -1.0
+
+
+def estimate_bend(image_ink: np.ndarray, template_ink: np.ndarray, h_page_to_img: np.ndarray, dpi: float,
+                  page_size: tuple[float, float], log: dict | None = None) -> tuple[Bend, Bend, float] | None:
+    """What a plane fit left over on a page that does not lie in a plane.
+
+    ``image_ink`` and ``template_ink`` are ``_prep`` of the evidence and of the master page at
+    the analysis ``dpi``, ``h_page_to_img`` the plane fit (page pixels at ``dpi`` to image).
+    Level by level (``BEND_LEVELS``) the evidence is resampled with the field so far, each block
+    of the master is looked for around its place, and the blocks' shifts, smoothed and filled
+    in where nothing was measured, are added to the field. Returns (fine, smooth, correlation):
+    the field as measured, the same field averaged over ``BEND_SMOOTH_MM`` (what the decoders'
+    image is resampled with, see above), and the correlation of the evidence resampled with the
+    fine field with the master. None when no level could be measured. ``log``, when given,
+    receives ``levels`` (per level its resolution and the measured share of its blocks).
+    """
+    hh, ww = template_ink.shape
+    size = (ww, hh)
+    mm = dpi / 25.4
+    fw, fh = max(2, int(np.ceil(ww / (BEND_LATTICE_MM * mm)))), max(2, int(np.ceil(hh / (BEND_LATTICE_MM * mm))))
+    field = np.zeros((fh, fw, 2), dtype=np.float32)  # page pixels at ``dpi``
+    gx, gy = (np.arange(fw) + 0.5) * ww / fw, (np.arange(fh) + 0.5) * hh / fh
+    notes: list[dict] = []
+    for level_dpi, block_mm, search_mm in BEND_LEVELS:
+        lv = min(1.0, level_dpi / dpi)
+        block = max(BEND_MIN_BLOCK_PX, int(round(block_mm * mm * lv)))
+        search = max(BEND_MIN_SEARCH_PX, int(round(search_mm * mm * lv)))
+        t = cv2.resize(template_ink, None, fx=lv, fy=lv, interpolation=cv2.INTER_AREA) if lv != 1.0 else template_ink
+        i = cv2.resize(image_ink, None, fx=lv, fy=lv, interpolation=cv2.INTER_AREA) if lv != 1.0 else image_ink
+        level_size = (t.shape[1], t.shape[0])
+        shift = Bend(field * (72.0 / dpi), page_size).pixels(level_size) if field.any() else \
+            np.zeros((level_size[1], level_size[0], 2), dtype=np.float32)
+        mx, my = _bend_maps(_scale_h(h_page_to_img, lv, lv), level_size, shift)
+        warped = cv2.remap(i, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+        d, wgt = _block_shifts(t, warped, block, search)
+        measured = int((wgt > 0).sum())
+        notes.append({"dpi": dpi * lv, "block": block, "search": search, "measured": measured, "blocks": int(wgt.size)})
+        if measured < BEND_MIN_BLOCKS:
+            continue
+        num = cv2.GaussianBlur(d * wgt[..., None], (0, 0), BEND_FINE_STEPS, borderType=cv2.BORDER_REPLICATE)
+        den = cv2.GaussianBlur(wgt, (0, 0), BEND_FINE_STEPS, borderType=cv2.BORDER_REPLICATE)
+        smooth = np.where(den[..., None] > 1e-4, num / np.maximum(den, 1e-6)[..., None], 0.0).astype(np.float32)
+        step = block // 2
+        ix = np.interp(gx, (np.arange(d.shape[1]) * step + block / 2.0) / lv, np.arange(d.shape[1])).astype(np.float32)
+        iy = np.interp(gy, (np.arange(d.shape[0]) * step + block / 2.0) / lv, np.arange(d.shape[0])).astype(np.float32)
+        field += cv2.remap(smooth / lv, *np.meshgrid(ix, iy), cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    if log is not None:
+        log["levels"] = notes
+    if not field.any():
+        return None
+    fine = Bend(field * (72.0 / dpi), page_size)
+    sigma = BEND_SMOOTH_MM / BEND_LATTICE_MM
+    smooth_field = cv2.GaussianBlur(field, (0, 0), sigma, borderType=cv2.BORDER_REPLICATE)
+    mx, my = _bend_maps(h_page_to_img, size, fine.pixels(size))
+    warped = cv2.remap(image_ink, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+    inside = (mx >= 0) & (my >= 0) & (mx <= image_ink.shape[1] - 1) & (my <= image_ink.shape[0] - 1)
+    return fine, Bend(smooth_field * (72.0 / dpi), page_size), _correlation(warped, template_ink, inside)
 
 
 # --- Rescue stage (research/registrasi) ---------------------------------------------------------
@@ -1018,8 +1200,14 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
     (the outline found, or None), ``candidates`` (method, page, quick score and initial
     homography at 100 dpi of every candidate), ``refined`` (method, page, analysis dpi, ECC
     correlation and homography of every ECC run), ``outcome`` of the earlier stages
-    ("terdaftar", "tanpa_kandidat" or "korelasi_rendah") and ``rescue`` (the rescue stage's
-    log, when it ran). It never changes the result.
+    ("terdaftar", "tanpa_kandidat" or "korelasi_rendah"), ``bend`` (when the plane fit stayed
+    below ``BEND_BELOW``: its correlation, the bent page's, and the largest displacements) and
+    ``rescue`` (the rescue stage's log, when it ran). It never changes the result.
+
+    A plane fit below ``BEND_BELOW`` is followed by ``estimate_bend``: a real sheet of paper does
+    not lie in a plane. When the bent page correlates better by ``BEND_GAIN``, that correlation
+    is the one ``min_correlation`` is compared with, the image is resampled with the smooth
+    field (``Registration.bend``) and the method ends in "+lengkung".
     """
     probe_dpi, score_dpi = 100.0, 30.0
     log: dict = {} if diag is None else diag
@@ -1078,13 +1266,21 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
             break
     assert best is not None
     cc, page, h, method, dpi = best
+    bend: Bend | None = None
+    if 0.0 < cc < BEND_BELOW:  # a real sheet of paper does not lie in a plane
+        log["bend"] = {"plane": cc}
+        found = estimate_bend(img_ink, master_ink(pdf_bytes, page, dpi), h, dpi, page_sizes[page], log["bend"])
+        if found is not None:
+            log["bend"].update(cc=found[2], fine_mm=found[0].largest_mm(), smooth_mm=found[1].largest_mm())
+            if found[2] >= cc + BEND_GAIN:
+                bend, cc, method = found[1], found[2], f"{method}+lengkung"
     if cc < min_correlation:
         log["outcome"] = "korelasi_rendah"
         return _rescue(image, pdf_bytes, page_sizes, cands, log) if rescue else None
     log["outcome"] = "terdaftar"
     w_pt, h_pt = page_sizes[page]
     size = (int(round(w_pt * dpi / 72.0)), int(round(h_pt * dpi / 72.0)))
-    rect, valid = warp_to_page(image, h, size)
+    rect, valid = warp_to_page(image, h, size, bend)
     return Registration(page=page, dpi=dpi, h_page_to_img=h, correlation=cc, method=method,
                         rectified=rect, valid=valid,
-                        effective_dpi=effective_dpi(h, size[0], size[1], dpi))
+                        effective_dpi=effective_dpi(h, size[0], size[1], dpi), bend=bend)
