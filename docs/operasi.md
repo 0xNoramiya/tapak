@@ -107,7 +107,7 @@ Pelacakan foto atau pindaian pertama untuk setiap halaman dan resolusi analisis 
 
 Host dengan 2 GB cukup untuk satu foto ponsel pada satu waktu; untuk pemakaian rutin dengan foto 12 megapiksel sediakan 4 GB.
 
-**Waktu untuk foto yang ditolak.** Foto ponsel 9 megapiksel yang halamannya ditemukan dilacak dalam sekitar 40 detik di mesin uji (8 CPU) dan 51 detik di mesin Fly. Foto sebesar itu yang bukan dokumennya, atau terlalu buram, baru ditolak setelah semua pose dicoba: 1,5 sampai 2 menit di mesin uji, tetapi 14 menit di mesin Fly dengan CPU bersama, yang dibatasi pada pekerjaan panjang. Selama itu slot pelacakan kedua tetap melayani pelacakan lain. Untuk pemakaian dengan banyak foto ponsel, pakai CPU yang tidak dibagi.
+**Waktu untuk foto ponsel.** Foto ponsel 9 megapiksel yang halamannya ditemukan dilacak dalam sekitar 35 detik di mesin uji (8 CPU) dan 43 detik di mesin Fly. Foto sebesar itu yang bukan dokumennya, atau terlalu buram, ditolak setelah semua pose dicoba: sekitar 35 detik di mesin uji dan 55 detik di mesin Fly, sejak pose yang tidak menjanjikan dibuang pada tingkat ECC kasar (sebelumnya 1,5 sampai 2 menit, dan 14 menit di mesin Fly). Mesin Fly memakai CPU bersama, yang dibatasi pada pekerjaan panjang: pelacakan foto besar kedua yang langsung menyusul yang pertama berjalan beberapa menit. Selama itu slot pelacakan kedua tetap melayani pelacakan lain; untuk banyak foto ponsel berturut-turut, pakai CPU yang tidak dibagi atau lacak di mesin sendiri.
 
 Port 53 harus bebas di komputer pendengar. Di banyak distro Linux, `systemd-resolved` sudah memakai 127.0.0.53:53. Ikat pendengar ke alamat publik, atau jalankan di port lain lalu teruskan port 53 ke sana seperti di Docker.
 
