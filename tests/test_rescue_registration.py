@@ -248,3 +248,20 @@ def test_rescue_refines_a_high_resolution_pose_against_a_smaller_master(sample_p
     corners = np.array([[[0.0, 0.0]], [[image.shape[1] - 1.0, image.shape[0] - 1.0]]])
     # masters are drawn on whole pixels at each resolution: up to half a pixel across the page
     assert float(np.abs(cv2.perspectiveTransform(corners, reg.h_page_to_img) - corners).max()) < 1.0
+
+
+def test_ecc_refine_abandons_a_hopeless_pose_after_a_coarse_level(sample_pdf):
+    """A pose that is not the page stops after the first level; the page's own pose is refined
+    exactly as without the rule."""
+    dpi = 100.0
+    page = render_page(sample_pdf, 0, dpi)
+    other = render_page(sample_pdf, 1, dpi)
+    start = np.array([[1.0, 0.0, 1.5], [0.0, 1.0, -1.0], [0.0, 0.0, 1.0]])
+    h_full, cc_full = ecc_refine(page, page, start)
+    h_same, cc_same = ecc_refine(page, page, start, abandon_below=rectify.ECC_ABANDON)
+    assert cc_same == cc_full > 0.95 and np.array_equal(h_same, h_full)
+    h_stop, cc_stop = ecc_refine(page, other, start, abandon_below=rectify.ECC_ABANDON)
+    h_first, cc_first = ecc_refine(page, other, start, levels=((0.25, 60),))
+    assert cc_stop == cc_first < rectify.ECC_ABANDON and np.array_equal(h_stop, h_first)
+    _, cc_all = ecc_refine(page, other, start)
+    assert cc_all < rectify.ECC_ABANDON  # the finer levels would not have saved it

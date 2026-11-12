@@ -398,10 +398,19 @@ def master_ink(pdf_bytes: bytes, page: int, dpi: float) -> np.ndarray:
     return ink
 
 
+# A pose that still correlates below this after a coarse ECC level is not the page: the finer
+# levels, which take most of the time and memory, are not run for it. Every pose that went on to
+# register was far above it at half resolution (real phone photos: 0.50 and more, where a photo
+# of another document reached 0.40 at most; the rescue tries that verified in research/registrasi
+# ended at 0.77 and more).
+ECC_ABANDON = 0.3
+
+
 def ecc_refine(template: np.ndarray, image: np.ndarray, h_init: np.ndarray,
                levels: tuple[tuple[float, int], ...] = ((0.25, 60), (0.5, 40), (1.0, 15)),
                mask: np.ndarray | None = None, affine: bool = False,
-               template_ink: np.ndarray | None = None, image_ink: np.ndarray | None = None) -> tuple[np.ndarray, float]:
+               template_ink: np.ndarray | None = None, image_ink: np.ndarray | None = None,
+               abandon_below: float | None = None) -> tuple[np.ndarray, float]:
     """Refine a page-to-image homography with ECC, coarse to fine. Returns (H, correlation).
 
     ``levels`` lists (scale, maximum iterations); the finest level starts close to the
@@ -412,7 +421,9 @@ def ecc_refine(template: np.ndarray, image: np.ndarray, h_init: np.ndarray,
     homography, so a page part with little text cannot tilt the pose. Without them (the
     default) nothing changes. ``template_ink`` and ``image_ink``, when given, are ``_prep`` of
     ``template`` and ``image`` computed beforehand (``master_ink``): the same result, without
-    preparing the same images again for every page and pose.
+    preparing the same images again for every page and pose. With ``abandon_below`` a pose whose
+    correlation after a level that is not the last is below it is returned as it stands, and
+    the finer levels are not run.
     """
     h = h_init.astype(np.float64)
     cc = -1.0
@@ -438,6 +449,8 @@ def ecc_refine(template: np.ndarray, image: np.ndarray, h_init: np.ndarray,
             return h, -1.0
         h = _scale_h(warp.astype(np.float64), 1 / lv, 1 / lv)
         h /= h[2, 2]
+        if abandon_below is not None and cc < abandon_below and (lv, iters) != levels[-1]:
+            break
     return h, float(cc)
 
 
@@ -1177,12 +1190,13 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
                         "sane": False, "agreement": -1.0, "pixels": 0, "h": h0e / h0e[2, 2]}
             x0, y0, x1, y1 = cut
             shift = np.array([[1.0, 0.0, x0], [0.0, 1.0, y0], [0.0, 0.0, 1.0]])
-            h_c, cc = ecc_refine(template[y0:y1, x0:x1], work, h0e @ shift, levels, mask=mask, image_ink=ink)
+            h_c, cc = ecc_refine(template[y0:y1, x0:x1], work, h0e @ shift, levels, mask=mask, image_ink=ink,
+                                 abandon_below=ECC_ABANDON)
             h_e = h_c @ np.linalg.inv(shift)
             origin = f"{origin}:jejak"
         else:
             h_e, cc = ecc_refine(template, work, h0e, levels, mask=mask, affine=screen, template_ink=template_ink,
-                                 image_ink=ink)
+                                 image_ink=ink, abandon_below=ECC_ABANDON)
         sane = cc > 0 and pose_is_sane(h0e, edpi, h_e, edpi, box)
         if sane and footprint:
             # fitted on part of the page, a homography can run off far from it: the page centre's
@@ -1341,13 +1355,13 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
         dpi = float(np.clip(round(effective_dpi(h0, wp, hp, probe_dpi) / 10) * 10, DPI_MIN, DPI_MAX))
         s = dpi / probe_dpi
         h, cc = ecc_refine(render_page(pdf_bytes, page, dpi), image, h0 @ np.diag([1 / s, 1 / s, 1.0]),
-                           template_ink=master_ink(pdf_bytes, page, dpi), image_ink=img_ink)
+                           template_ink=master_ink(pdf_bytes, page, dpi), image_ink=img_ink, abandon_below=ECC_ABANDON)
         log["refined"].append({"method": method, "page": page, "dpi": dpi, "cc": cc, "h": h})
         if best is None or cc > best[0]:
             best = (cc, page, h, method, dpi)
         if cc > 0.85:
             break
-        if 0.0 < cc < min(min_correlation, BEND_BELOW) and best[0] == cc:
+        if ECC_ABANDON <= cc < min(min_correlation, BEND_BELOW) and best[0] == cc:
             # A real sheet of paper does not lie in a plane. When this pose is the page read as
             # bent, the other pose is not refined: a second ECC at full resolution costs a
             # quarter of a minute and most of a gigabyte on a phone photo.
