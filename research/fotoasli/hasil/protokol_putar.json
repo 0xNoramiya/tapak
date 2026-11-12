@@ -1,0 +1,45 @@
+{
+ "c": 3,
+ "eps": 1e-06,
+ "n": 20,
+ "spending": "not logged (all of eps), one stage, as in make bench",
+ "secret": "sha256('TAPAK-riset-fotoasli-putar-v1')",
+ "copy_id_seed": 61201,
+ "evidence_seed": 61211,
+ "variants": {
+  "v2": [
+   "geser-v2",
+   "layar"
+  ],
+  "v2_cetak": [
+   "geser-v2",
+   "cetak"
+  ],
+  "v1": [
+   "geser-v1",
+   "layar"
+  ]
+ },
+ "pages": [
+  [
+   "surat_telegram",
+   1
+  ],
+  [
+   "nota_dinas",
+   1
+  ]
+ ],
+ "fields": [
+  "miring/175559",
+  "miring/180124",
+  "basah/G_3332",
+  "kusut/G_3339"
+ ],
+ "seqs": [
+  3,
+  11
+ ],
+ "res": 4000,
+ "printer": "laser (tapak.photos.PrintParams())"
+}

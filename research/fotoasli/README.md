@@ -54,12 +54,31 @@ Pada foto yang diperiksa blok demi blok (basah/G_3332), setelah homografi terbai
 * **Kertasnya yang bergerak.** Setelah medan mulus registrasi dan gangguan baris (geser dan kemiringan per baris) dibuang, kelompok kata masih meleset 0,13 sampai 0,30 pt pada lembar datar, basah, dan sobek, dan 0,32 sampai 0,36 pt pada lembar kusut: dua sampai lima kali geser v2. Pada dy, yang tidak membawa tanda kata, besarnya sama, jadi itu bentuk kertas, bukan tanda.
 * **Baris tetangga meramalkan sebagian besar bentuk itu.** Bila geseran setiap kelompok diramal dari kelompok di baris lain di dekatnya (kernel Gauss, baris sendiri tidak ikut), sisa pada dy turun menjadi 0,05 sampai 0,06 pt pada lembar basah dan sobek (iPhone), 0,07 sampai 0,09 pt pada lembar datar (vivo), dan 0,19 sampai 0,22 pt pada lembar kusut (kernel 8 mm sepanjang baris dan 4 mm antarbaris, yang menyisakan paling sedikit pada dy); pada dx sisanya 0,07 sampai 0,12 pt, dan 0,22 sampai 0,25 pt pada lembar kusut. Sisa itu juga melekat pada lembar, bukan pada foto. Karena lembarnya tanpa tanda, seluruhnya derau cetakan: bentuk kertas yang lebih halus dari jarak baris dan letak glif printer. Dekoder sekarang memakai satu polinomial derajat 3 per halaman dan melaporkan sigma kata 0,08 sampai 0,12 pt pada foto ini, di atas geser v2.
 
-Kesimpulan sementara: pada cetakan sungguhan tanpa tanda, kelompok kata sudah bergeser 0,07 sampai 0,12 pt pada arah tanda (dx) setelah bentuk kertas diramal dari baris tetangga, sebesar atau lebih besar dari geser kata v2 (0,071 pt, 25 um), dan dekoder sekarang melihat 0,08 sampai 0,12 pt. Tanda geser kata v2 karena itu kemungkinan besar tidak terbaca dari satu lembar cetak sungguhan; geser v1 (0,142 pt) hanya 1,2 sampai 2 kali derau itu. Satu percobaan pengembangan dengan bentuk lembar ini (`hasil/medan.json`) pada salinan simulasi yang diketahui searah: bit kata yang salah naik dari 3,5 % (lembar datar, disebut) menjadi 35 % (tidak disebut); studi lengkapnya belum ada di repositori. Bagaimana geser baris dan pola latar profil cetak bertahan hanya dapat diukur dengan cetakan dari salinan yang diketahui.
+Kesimpulan sementara: pada cetakan sungguhan tanpa tanda, kelompok kata sudah bergeser 0,07 sampai 0,12 pt pada arah tanda (dx) setelah bentuk kertas diramal dari baris tetangga, sebesar atau lebih besar dari geser kata v2 (0,071 pt, 25 um), dan dekoder sekarang melihat 0,08 sampai 0,12 pt. Tanda geser kata v2 karena itu kemungkinan besar tidak terbaca dari satu lembar cetak sungguhan; geser v1 (0,142 pt) hanya 1,2 sampai 2 kali derau itu. Bentuk lembar ini pada salinan simulasi yang diketahui memberi jawaban yang sama ([bagian berikut](#bentuk-lembar-sungguhan-pada-salinan-yang-diketahui)). Bagaimana geser baris dan pola latar profil cetak bertahan hanya dapat diukur dengan cetakan dari salinan yang diketahui.
+
+## Bentuk lembar sungguhan pada salinan yang diketahui
+
+Lembar yang difoto tidak bertanda, jadi tidak dapat menjawab apakah sebuah tanda terbaca. Tetapi setiap foto memberi bentuk lembarnya di bawah kamera: medan halus registrasi (`hasil/medan.json`, tanpa tanda di dalamnya). `putar.py` menaruh bentuk itu pada salinan simulasi yang penerimanya diketahui: halaman dicetak printer laser simulasi, isinya digeser menurut medan itu, lalu difoto ponsel simulasi pada 4000 px (sekitar 250 dpi, seperti foto iPhone). Yang sungguhan hanya geometrinya (lengkung, gelombang, lipatan, lensa ponsel); printer, derau kamera, dan cahaya tetap simulasi. Tidak ada yang dipilih di sini: dekoder apa adanya, protokol ditetapkan sebelum dijalankan (`hasil/protokol_putar.json`).
+
+Tiga penerbitan dari salinan yang sama, yaitu tiga jenis yang dicetak tim: skema v2 bawaan, skema v2 dengan profil latar cetak, dan skema v1. Dua dokumen contoh (halaman 1), dua salinan, lembar datar dan empat bentuk lembar sungguhan (dua foto lembar datar yang difoto miring, satu lembar basah, satu lembar kusut): 60 foto.
+
+| Penerbitan | Lembar datar (simulasi biasa) | Bentuk lembar sungguhan | Bit salah pada bentuk sungguhan |
+|---|---|---|---|
+| skema v2, latar bawaan | disebut 4 dari 4 (skor 1,2 sampai 1,4 kali ambang) | disebut **0 dari 16** (skor paling tinggi 0,48 kali ambang) | kata 43 % (37 sampai 49 % per lembar; datar 2,9 %), baris 23 % (datar 0 %) |
+| skema v2, profil latar cetak | disebut 4 dari 4 (2,4 sampai 4,6 kali) | disebut **16 dari 16** (1,5 sampai 4,6 kali) | latar 8,7 % (5 sampai 14 % per lembar; datar 6,7 %) dari sekitar 1.860 bit per foto |
+| skema v1, latar bawaan | disebut 0 dari 4 (semua bit benar, tetapi hanya 97 posisi: 0,67 sampai 0,81 kali ambang) | disebut 0 dari 16 (paling tinggi 0,52 kali) | kata 32 %, baris 22 % |
+
+* **Tanda geser tidak bertahan pada kertas sungguhan.** Dengan bentuk lembar sungguhan bit kata skema v2 hampir sama dengan menebak (43 % salah), juga pada lembar yang hanya datar di meja, dan bit baris 23 % salah. Angka cetak kami selama ini (satu halaman v2 disebut pada semua foto 4000 px) berlaku untuk lembar yang datar sempurna saja.
+* **Pola latar profil cetak bertahan**, juga pada lembar kusut: pola dua dimensi itu dibaca per petak dan tidak peka terhadap geseran sepersekian milimeter. Yang belum diketahui: apakah printer sungguhan mencetak pola abu-abu muda itu (simulator mengasumsikan ya).
+* **Tidak ada tuduhan salah** dalam 60 pelacakan (skor orang lain paling tinggi 0,34 kali ambang), dan ke-60 halaman ditemukan (48 lewat langkah halaman tidak datar).
+
+Batasnya: 4 bentuk lembar dari satu sesi foto, satu printer simulasi, dua dokumen pendek, dua salinan. Medan halus juga sudah dihaluskan (blok 6,5 mm), jadi gerak kertas yang lebih halus dari itu tidak ikut diputar ulang; cetakan sungguhan dapat lebih buruk bagi tanda geser, tidak lebih baik.
 
 ## Yang berikutnya
 
 1. Mencetak dan memotret tiga salinan yang diketahui (sudah diterbitkan dan diserahkan ke tim, 12 November 2026): skema v2 bawaan, skema v2 dengan profil latar cetak, dan skema v1. Dari situ angka "salinan benar disebut" untuk cetakan sungguhan dapat diukur per kanal.
-2. Dengan foto itu: apakah pola latar profil cetak tercetak pada printer sungguhan, dan model bentuk kertas di dekoder geser. Meramal bentuk dari baris tetangga pada tingkat kelompok kata belum cukup (percobaan pengembangan di atas: 35 % menjadi 31 % bit salah); pengukuran per kata, yang lebih rapat dari bentuk kertas, belum dicoba.
+2. Dengan foto itu: apakah pola latar profil cetak tercetak pada printer sungguhan. Bila ya, profil cetak adalah jawaban untuk dokumen yang akan dicetak.
+3. Model bentuk kertas di dekoder geser. Meramal bentuk dari baris tetangga pada tingkat kelompok kata belum cukup (satu percobaan pengembangan, tidak di repositori: 35 % menjadi 31 % bit kata salah); pengukuran per kata, yang lebih rapat dari bentuk kertas, belum dicoba. Letak glif printer sungguhan (kisi 42 um pada 600 dpi) mungkin sudah membatasi tanda 25 um.
 
 ## Mengulang
 
@@ -69,6 +88,8 @@ tapak --data DATA --keys KEYS issue samples/surat_telegram.pdf samples/recipient
 PYTHONPATH=. python research/fotoasli/ukur.py foto FOLDER_FOTO --induk samples/surat_telegram.pdf \
     --lain samples/nota_dinas.pdf --data DATA --keys KEYS --doc HASH
 PYTHONPATH=. python research/fotoasli/ukur.py geser
+PYTHONPATH=. python research/fotoasli/putar.py jalan     # 60 foto, sekitar 45 menit dengan 3 proses
+PYTHONPATH=. python research/fotoasli/putar.py ringkas
 ```
 
 Angka lacak (skor dan ambang) bergantung pada penerbitan yang dibuat untuk studi; registrasi dan geseran tidak.

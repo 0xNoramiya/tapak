@@ -1,0 +1,174 @@
+{
+ "jobs": 60,
+ "errors": 0,
+ "cells": {
+  "v2 | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.029,
+    "baris": 0.0,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 20,
+    "latar": 0
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2 | lembar sungguhan": {
+   "n": 16,
+   "benar": 0,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.432,
+    "baris": 0.228,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 160,
+    "baris": 17,
+    "latar": 0
+   },
+   "by_field": {
+    "basah/G_3332": [
+     0,
+     4
+    ],
+    "kusut/G_3339": [
+     0,
+     4
+    ],
+    "miring/175559": [
+     0,
+     4
+    ],
+    "miring/180124": [
+     0,
+     4
+    ]
+   }
+  },
+  "v2_cetak | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.034,
+    "baris": 0.0,
+    "latar": 0.067
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 20,
+    "latar": 1823
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_cetak | lembar sungguhan": {
+   "n": 16,
+   "benar": 16,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.428,
+    "baris": 0.227,
+    "latar": 0.087
+   },
+   "bits_read_per_photo": {
+    "kata": 160,
+    "baris": 17,
+    "latar": 1859
+   },
+   "by_field": {
+    "basah/G_3332": [
+     4,
+     4
+    ],
+    "kusut/G_3339": [
+     4,
+     4
+    ],
+    "miring/175559": [
+     4,
+     4
+    ],
+    "miring/180124": [
+     4,
+     4
+    ]
+   }
+  },
+  "v1 | datar": {
+   "n": 4,
+   "benar": 0,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.0,
+    "baris": 0.0,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 77,
+    "baris": 20,
+    "latar": 0
+   },
+   "by_field": {
+    "datar": [
+     0,
+     4
+    ]
+   }
+  },
+  "v1 | lembar sungguhan": {
+   "n": 16,
+   "benar": 0,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.317,
+    "baris": 0.222,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 57,
+    "baris": 17,
+    "latar": 0
+   },
+   "by_field": {
+    "basah/G_3332": [
+     0,
+     4
+    ],
+    "kusut/G_3339": [
+     0,
+     4
+    ],
+    "miring/175559": [
+     0,
+     4
+    ],
+    "miring/180124": [
+     0,
+     4
+    ]
+   }
+  }
+ }
+}
