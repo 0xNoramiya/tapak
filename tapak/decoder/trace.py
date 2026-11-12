@@ -512,6 +512,13 @@ def check_evidence_types(names: list[str]) -> None:
             raise TraceError(f"jenis berkas tidak dikenal: {suffix}")
 
 
+def _screen_profile(ctx: TraceContext) -> bool:
+    """Whether the document's background pattern is the default screen profile, which a print drops."""
+    from tapak.marker.background import profile_name
+
+    return ctx.background is not None and profile_name(ctx.background) == "layar"
+
+
 def collect_file(name: str, data: bytes, ctx: TraceContext,
                  budget: RasterBudget | None = None) -> tuple[list[SoftBits], list[str]]:
     """Observations and notes from one evidence file (PDF, DOCX, text or image). ``budget``
@@ -565,6 +572,11 @@ def collect_file(name: str, data: bytes, ctx: TraceContext,
                         else "kanal geser")
                 notes.append(f"{name}: pola latar tidak terdeteksi (kertas cetak, foto terlalu terang, atau "
                              f"bukan salinan bertanda); hanya {used} yang dipakai")
+                if reg and str(reg["method"]).endswith("+lengkung") and _screen_profile(ctx):
+                    # the page did not lie flat: most likely a sheet of paper (research/fotoasli)
+                    notes.append(f"{name}: halaman tidak datar, seperti lembar kertas; dokumen ini memakai profil "
+                                 "latar layar, yang hilang saat dicetak, dan tanda geser jarang terbaca dari kertas "
+                                 "sungguhan, jadi cetakan salinan ini praktis tidak terlacak")
     else:
         raise TraceError(f"jenis berkas tidak dikenal: {suffix or '(tanpa akhiran)'}")
     return obs, notes

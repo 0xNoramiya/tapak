@@ -2021,6 +2021,11 @@ RULES: list[tuple[str, str]] = [
      "{used:t} yang dipakai",
      "{name}: background pattern not detected (printed paper, a photo too bright, or not a marked copy); only {used} "
      "was used"),
+    ("{name}: halaman tidak datar, seperti lembar kertas; dokumen ini memakai profil latar layar, yang hilang saat "
+     "dicetak, dan tanda geser jarang terbaca dari kertas sungguhan, jadi cetakan salinan ini praktis tidak terlacak",
+     "{name}: the page is not flat, like a sheet of paper; this document uses the screen background profile, which "
+     "is lost in print, and shift marks are rarely readable from real paper, so a printout of this copy is "
+     "practically untraceable"),
     ("{name}: halaman dokumen induk tidak ditemukan pada gambar (bukan dokumen ini, terlalu buram, atau terpotong)",
      "{name}: no page of the master document was found in the image (not this document, too blurry, or cropped)"),
     ("{name}: sebagian karakter tidak dapat diterjemahkan (pengodean teks tidak dikenal)",

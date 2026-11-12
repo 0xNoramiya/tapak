@@ -132,3 +132,28 @@ def test_bend_does_not_register_another_page(sample_pdf):
     photo, _, plane = _bent_photo(sample_pdf, page=1)
     found = estimate_bend(rectify._prep(photo), rectify.master_ink(sample_pdf, 0, DPI), plane, DPI, A4)
     assert found is None or found[2] < 0.6
+
+
+def test_a_sheet_of_paper_from_a_screen_profile_document_is_explained(sample_pdf, ctx):
+    """A page that is not flat and shows no background pattern, traced against a document issued
+    with the default profile: the notes say why a printout of such a copy is not traced."""
+    from tapak import i18n
+    from tapak.decoder.trace import collect_file
+
+    def png(image: np.ndarray) -> bytes:
+        return cv2.imencode(".png", np.clip(image, 0, 255).astype(np.uint8))[1].tobytes()
+
+    photo, _, _ = _bent_photo(sample_pdf, amplitude_mm=2.5)
+    _, notes = collect_file("foto.png", png(photo), ctx)
+    note = next(n for n in notes if "tidak datar" in n)
+    assert "+lengkung" in " ".join(notes) and "praktis tidak terlacak" in note
+    token = i18n.use("en")
+    try:
+        assert "practically untraceable" in i18n.translate_text(note)
+    finally:
+        i18n.reset(token)
+    flat = render_page(sample_pdf, 0, DPI)
+    table = np.full((flat.shape[0] + 2 * TABLE, flat.shape[1] + 2 * TABLE), 45.0, dtype=np.float32)
+    table[TABLE:-TABLE, TABLE:-TABLE] = flat
+    _, notes = collect_file("foto.png", png(table), ctx)
+    assert not any("tidak datar" in n for n in notes)
