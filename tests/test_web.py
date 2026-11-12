@@ -835,7 +835,7 @@ def test_background_profile_defaults_to_layar(client):
     assert "<legend" in page and ">Pola latar</legend>" in page
     assert " checked" in _radio(page, "layar") and " checked" not in _radio(page, "cetak")
     layar, cetak = _plain(_choice(page, "layar")), _plain(_choice(page, "cetak"))
-    assert "Layar" in layar and "(bawaan)" in layar and "Tidak terlihat, tetapi hilang bila salinan dicetak." in layar
+    assert "Layar" in layar and "(bawaan)" in layar and "Tidak terlihat, tetapi hilang bila salinan dicetak: cetakan salinan ini praktis tidak terlacak." in layar
     assert "Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda." in cetak
     # the print profile is never called invisible
     invisible = re.compile(r"\b(tidak|tak) terlihat", re.I)

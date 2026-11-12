@@ -565,7 +565,8 @@ EN: dict[str, str | tuple[str, str]] = {
     "Lapisan kode di bawah teks halaman. Pilih menurut cara salinan akan dibagikan.":
         "A layer of code under the page text. Choose by how the copies will be shared.",
     'Layar <span class="field-optional">(bawaan)</span>': 'Screen <span class="field-optional">(default)</span>',
-    "Tidak terlihat, tetapi hilang bila salinan dicetak.": "Invisible, but lost when a copy is printed.",
+    "Tidak terlihat, tetapi hilang bila salinan dicetak: cetakan salinan ini praktis tidak terlacak.":
+        "Invisible, but lost when a copy is printed: a printout of this copy is practically untraceable.",
     "Cetak": "Print",
     "Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda.":
         "Survives on paper in the simulated printer tests, but the page looks light grey.",
