@@ -1,0 +1,67 @@
+{
+ "c": 3,
+ "eps": 1e-06,
+ "n": 20,
+ "spending": "not logged (all of eps), one stage, as in make bench",
+ "secret": "sha256('TAPAK-riset-fotoasli-putar-v1')",
+ "copy_id_seed": 61201,
+ "pages": [
+  [
+   "surat_telegram",
+   1
+  ],
+  [
+   "nota_dinas",
+   1
+  ]
+ ],
+ "fields": [
+  "miring/175559",
+  "miring/180124",
+  "basah/G_3332",
+  "kusut/G_3339"
+ ],
+ "seqs": [
+  3,
+  11
+ ],
+ "printer": "laser (tapak.photos.PrintParams())",
+ "evidence_seed": 61212,
+ "variants": {
+  "v2_cetak": [
+   "geser-v2",
+   "cetak"
+  ],
+  "v2_050": [
+   "geser-v2",
+   "layar",
+   0.05
+  ],
+  "v2_100": [
+   "geser-v2",
+   "layar",
+   0.1
+  ],
+  "v2_150": [
+   "geser-v2",
+   "layar",
+   0.15
+  ]
+ },
+ "grid": {
+  "v2_cetak": [
+   1600,
+   2400
+  ],
+  "v2_050": [
+   4000
+  ],
+  "v2_100": [
+   4000
+  ],
+  "v2_150": [
+   4000
+  ]
+ },
+ "word_shift": "third entry of a variant: geser-v2 word shift in mm (rows keep 0.05 mm); study only"
+}

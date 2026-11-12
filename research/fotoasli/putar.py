@@ -14,12 +14,18 @@ Nothing is chosen here: it measures the decoder as it is on three issuances of t
 before the run. Photos of the same sheet in the same state are near duplicates
 (``hasil/geser.json``), so each state gives one field.
 
+A second round (``PROTOCOL2``, fixed after the first round's result and before its own run)
+asks two things the first left open: whether the print profile still names the copy on smaller
+photos (1600 px as a messaging app sends them, 2400 px), and how large a geser-v2 word shift
+would have to be on real paper. Shifts above the issuance limit (0.025 mm) exist in this study
+only: the limits of ``pdf_shift`` are lifted inside this script, nothing is issued that way.
+
 Issued copies and photos go to ``out/riset_fotoasli/`` (not committed); rows to ``hasil/``.
 Process pools are capped at 3, BLAS and OpenCV at one thread per worker (shared machine).
 Usage, from the repository root:
 
-    PYTHONPATH=. python research/fotoasli/putar.py jalan
-    PYTHONPATH=. python research/fotoasli/putar.py ringkas
+    PYTHONPATH=. python research/fotoasli/putar.py jalan [--putaran 2]
+    PYTHONPATH=. python research/fotoasli/putar.py ringkas [--putaran 2]
 """
 
 from __future__ import annotations
@@ -61,7 +67,28 @@ PROTOCOL: dict = {
     "res": 4000,  # long side (px): about 250 dpi on the page, as the iPhone photos gave
     "printer": "laser (tapak.photos.PrintParams())",
 }
+PROTOCOL2: dict = {
+    **{k: PROTOCOL[k] for k in ("c", "eps", "n", "spending", "secret", "copy_id_seed", "pages", "fields", "seqs", "printer")},
+    "evidence_seed": 61212,
+    "variants": {"v2_cetak": ["geser-v2", "cetak"], "v2_050": ["geser-v2", "layar", 0.05],
+                 "v2_100": ["geser-v2", "layar", 0.10], "v2_150": ["geser-v2", "layar", 0.15]},
+    "grid": {"v2_cetak": [1600, 2400], "v2_050": [4000], "v2_100": [4000], "v2_150": [4000]},  # long sides (px)
+    "word_shift": "third entry of a variant: geser-v2 word shift in mm (rows keep 0.05 mm); study only",
+}
+ROUNDS = {1: PROTOCOL, 2: PROTOCOL2}
 SECRET = hashlib.sha256(b"TAPAK-riset-fotoasli-putar-v1").digest()
+
+
+def _lift_limits() -> None:
+    """Allow the larger word shifts of round 2 (in this process only)."""
+    from tapak.marker import pdf_shift
+
+    pdf_shift.MAX_SHIFT_MM = max(pdf_shift.MAX_SHIFT_MM, 0.2)
+    pdf_shift.V2_MAX_WORD_SHIFT_MM = max(pdf_shift.V2_MAX_WORD_SHIFT_MM, 0.2)
+
+
+def variant_spec(variant: str) -> list:
+    return {**PROTOCOL["variants"], **PROTOCOL2["variants"]}[variant]
 
 
 def issuance_dir(variant: str, doc: str) -> Path:
@@ -77,12 +104,14 @@ def ensure_issued(variant: str, doc: str) -> None:
     folder = issuance_dir(variant, doc)
     if (folder / "salinan" / "manifest.json").exists():
         return
-    scheme, profile = PROTOCOL["variants"][variant]
+    scheme, profile, *word_mm = variant_spec(variant)
+    _lift_limits()
+    shift = ShiftSettings(word_mm=word_mm[0], row_mm=0.05, scheme=scheme) if word_mm else ShiftSettings.for_scheme(scheme)
     n = PROTOCOL["n"]
     rng = np.random.default_rng([PROTOCOL["copy_id_seed"], DOCS.index(doc)])
     people = [Recipient(f"R{i:03d}", f"Penerima Fiktif {i:03d}", "Jabatan Uji", "Satuan Uji") for i in range(1, n + 1)]
     settings = IssueSettings(c=PROTOCOL["c"], eps=PROTOCOL["eps"], n_max=n, workers=WORKERS, canary_domain=None,
-                             shift=ShiftSettings.for_scheme(scheme), background=background_profile(profile))
+                             shift=shift, background=background_profile(profile))
     issue(ROOT / "samples" / f"{doc}.pdf", people, folder / "salinan", SECRET, settings,
           issuer="riset-fotoasli", copy_ids=[rng.bytes(8).hex() for _ in range(n)])
 
@@ -96,6 +125,7 @@ def context(variant: str, doc: str):
         from tapak.decoder.trace import load_context
         from tapak.marker.issue import IssueManifest
 
+        _lift_limits()
         folder = issuance_dir(variant, doc) / "salinan"
         manifest = IssueManifest.from_json((folder / "manifest.json").read_text(encoding="utf-8"))
         ctx = load_context((ROOT / "samples" / f"{doc}.pdf").read_bytes(), manifest, SECRET)
@@ -125,7 +155,11 @@ def make_evidence(job: dict) -> tuple[bytes, dict]:
 
     doc, page, seq = job["doc"], job["page"], job["seq"]
     fields = [FLAT] + PROTOCOL["fields"]
-    rng = np.random.default_rng([PROTOCOL["evidence_seed"], DOCS.index(doc), page, seq, fields.index(job["field"])])
+    res = job.get("res", PROTOCOL["res"])
+    seed = [PROTOCOL["evidence_seed"], DOCS.index(doc), page, seq, fields.index(job["field"])]
+    if "res" in job:  # round 2: its own photos, one per resolution
+        seed = [PROTOCOL2["evidence_seed"], *seed[1:], res]
+    rng = np.random.default_rng(seed)
     _, manifest, folder = context(job["variant"], doc)
     pdf = (folder / manifest.copies[seq - 1].file).read_bytes()
     prm = PrintParams()
@@ -134,7 +168,6 @@ def make_evidence(job: dict) -> tuple[bytes, dict]:
     del text, tint
     if job["field"] != FLAT:
         sheet = bend_sheet(sheet, job["field"])
-    res = PROTOCOL["res"]
     data, meta = photo_jpeg(sheet, rng, PhotoParams(sensor_long_side=max(2400, res), long_side=res))
     return data, {"view_angle": round(meta["view_angle_deg"], 1)}
 
@@ -187,22 +220,28 @@ def run_job(job: dict) -> dict:
         return {**job, "error": traceback.format_exc()}
 
 
-def jobs() -> list[dict]:
-    return [{"variant": v, "doc": doc, "page": page, "seq": seq, "field": f}
-            for doc, page in PROTOCOL["pages"] for seq in PROTOCOL["seqs"]
-            for f in [FLAT] + PROTOCOL["fields"] for v in PROTOCOL["variants"]]
+def jobs(rnd: int) -> list[dict]:
+    base = [{"doc": doc, "page": page, "seq": seq, "field": f}
+            for doc, page in PROTOCOL["pages"] for seq in PROTOCOL["seqs"] for f in [FLAT] + PROTOCOL["fields"]]
+    if rnd == 1:
+        return [{"variant": v, **b} for b in base for v in PROTOCOL["variants"]]
+    return [{"variant": v, **b, "res": res} for b in base for v, sizes in PROTOCOL2["grid"].items() for res in sizes]
 
 
-def run() -> None:
+def _name(rnd: int, stem: str) -> Path:
+    return HASIL / (f"{stem}.json" if rnd == 1 else f"{stem}{rnd}.json")
+
+
+def run(rnd: int) -> None:
     HASIL.mkdir(parents=True, exist_ok=True)
-    for variant in PROTOCOL["variants"]:
+    for variant in ROUNDS[rnd]["variants"]:
         for doc in {d for d, _ in PROTOCOL["pages"]}:
             ensure_issued(variant, doc)
-    path = HASIL / "putar.jsonl"
-    key = lambda r: json.dumps([r[k] for k in ("variant", "doc", "page", "seq", "field")])  # noqa: E731
+    path = _name(rnd, "putar").with_suffix(".jsonl")
+    key = lambda r: json.dumps([r.get(k) for k in ("variant", "doc", "page", "seq", "field", "res")])  # noqa: E731
     done = {key(json.loads(line)) for line in path.read_text(encoding="utf-8").splitlines()} if path.exists() else set()
-    todo = [j for j in jobs() if key(j) not in done]
-    (HASIL / "protokol_putar.json").write_text(json.dumps(PROTOCOL, indent=1) + "\n", encoding="utf-8")
+    todo = [j for j in jobs(rnd) if key(j) not in done]
+    _name(rnd, "protokol_putar").write_text(json.dumps(ROUNDS[rnd], indent=1) + "\n", encoding="utf-8")
     print(f"{len(todo)} pekerjaan ({len(done)} sudah ada)", flush=True)
     with ProcessPoolExecutor(WORKERS) as pool, path.open("a", encoding="utf-8") as out:
         for n, fut in enumerate(as_completed([pool.submit(run_job, j) for j in todo]), 1):
@@ -213,26 +252,27 @@ def run() -> None:
             print(f"[{n}/{len(todo)}] {row['variant']} {row['doc']} s{row['seq']} {row['field']}: {note}", flush=True)
 
 
-def summarize() -> None:
-    rows = [json.loads(line) for line in (HASIL / "putar.jsonl").read_text(encoding="utf-8").splitlines()]
+def summarize(rnd: int) -> None:
+    rows = [json.loads(line) for line in _name(rnd, "putar").with_suffix(".jsonl").read_text(encoding="utf-8").splitlines()]
     bad = [r for r in rows if "error" in r]
     rows = [r for r in rows if "error" not in r]
     out: dict = {"jobs": len(rows), "errors": len(bad), "cells": {}}
-    for variant in PROTOCOL["variants"]:
+    sizes = sorted({r.get("res", PROTOCOL["res"]) for r in rows})
+    for variant, res in [(v, x) for v in ROUNDS[rnd]["variants"] for x in sizes]:
         for kind, pick in (("datar", lambda r: r["field"] == FLAT), ("lembar sungguhan", lambda r: r["field"] != FLAT)):
-            cell = [r for r in rows if r["variant"] == variant and pick(r)]
+            cell = [r for r in rows if r["variant"] == variant and r.get("res", PROTOCOL["res"]) == res and pick(r)]
             if not cell:
                 continue
             ch = {k: [sum(r["channels"][k]["read"] for r in cell), sum(r["channels"][k]["errors"] for r in cell)]
                   for k in ("kata", "baris", "latar")}
-            out["cells"][f"{variant} | {kind}"] = {
+            out["cells"][f"{variant} {res} px | {kind}"] = {
                 "n": len(cell), "benar": sum(r["verdict"] == "benar" for r in cell),
                 "salah": sum(r["verdict"] == "salah" for r in cell), "registered": sum(r["registered"] for r in cell),
                 "wrong_bit_share": {k: (round(e / n, 3) if n else None) for k, (n, e) in ch.items()},
                 "bits_read_per_photo": {k: round(n / len(cell)) for k, (n, _) in ch.items()},
                 "by_field": {f: [sum(r["verdict"] == "benar" for r in cell if r["field"] == f),
                                  sum(r["field"] == f for r in cell)] for f in sorted({r["field"] for r in cell})}}
-    (HASIL / "ringkas_putar.json").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
+    _name(rnd, "ringkas_putar").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
     for name, c in out["cells"].items():
         print(f"{name:30s} benar {c['benar']}/{c['n']} salah {c['salah']} terdaftar {c['registered']} "
               f"bit salah {c['wrong_bit_share']} per foto {c['bits_read_per_photo']} {c['by_field']}")
@@ -241,8 +281,9 @@ def summarize() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("cmd", choices=("jalan", "ringkas"))
+    parser.add_argument("--putaran", type=int, choices=(1, 2), default=1)
     args = parser.parse_args()
-    run() if args.cmd == "jalan" else summarize()
+    run(args.putaran) if args.cmd == "jalan" else summarize(args.putaran)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
  "jobs": 60,
  "errors": 0,
  "cells": {
-  "v2 | datar": {
+  "v2 4000 px | datar": {
    "n": 4,
    "benar": 4,
    "salah": 0,
@@ -24,7 +24,7 @@
     ]
    }
   },
-  "v2 | lembar sungguhan": {
+  "v2 4000 px | lembar sungguhan": {
    "n": 16,
    "benar": 0,
    "salah": 0,
@@ -58,7 +58,7 @@
     ]
    }
   },
-  "v2_cetak | datar": {
+  "v2_cetak 4000 px | datar": {
    "n": 4,
    "benar": 4,
    "salah": 0,
@@ -80,7 +80,7 @@
     ]
    }
   },
-  "v2_cetak | lembar sungguhan": {
+  "v2_cetak 4000 px | lembar sungguhan": {
    "n": 16,
    "benar": 16,
    "salah": 0,
@@ -114,7 +114,7 @@
     ]
    }
   },
-  "v1 | datar": {
+  "v1 4000 px | datar": {
    "n": 4,
    "benar": 0,
    "salah": 0,
@@ -136,7 +136,7 @@
     ]
    }
   },
-  "v1 | lembar sungguhan": {
+  "v1 4000 px | lembar sungguhan": {
    "n": 16,
    "benar": 0,
    "salah": 0,

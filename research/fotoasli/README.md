@@ -74,6 +74,20 @@ Tiga penerbitan dari salinan yang sama, yaitu tiga jenis yang dicetak tim: skema
 * **Pola latar profil cetak bertahan**, juga pada lembar kusut: pola dua dimensi itu dibaca per petak dan tidak peka terhadap geseran sepersekian milimeter. Yang belum diketahui: apakah printer sungguhan mencetak pola abu-abu muda itu (simulator mengasumsikan ya).
 * **Tidak ada tuduhan salah** dalam 60 pelacakan (skor orang lain paling tinggi 0,34 kali ambang), dan ke-60 halaman ditemukan (48 lewat langkah halaman tidak datar).
 
+**Putaran kedua** (`putar.py jalan --putaran 2`, protokol `hasil/protokol_putar2.json` ditetapkan setelah hasil di atas dan sebelum dijalankan; 100 foto baru, dokumen, salinan, dan bentuk lembar yang sama) menjawab dua pertanyaan yang tersisa:
+
+| Pertanyaan | Lembar datar | Bentuk lembar sungguhan |
+|---|---|---|
+| Profil latar cetak pada foto 1600 px (ukuran kiriman aplikasi pesan, sekitar 100 dpi) | disebut 4 dari 4 | disebut **16 dari 16** (skor 4,3 sampai 4,7 kali ambang; bit latar 1,2 % salah) |
+| Profil latar cetak pada foto 2400 px (sekitar 150 dpi) | disebut 4 dari 4 | disebut **16 dari 16** (1,1 sampai 4,7 kali; bit latar 5,8 % salah) |
+| Geser kata v2 diperbesar menjadi 0,05 mm, foto 4000 px | disebut 4 dari 4 | disebut 0 dari 16 (bit kata 34 % salah) |
+| Geser kata v2 0,10 mm | disebut 4 dari 4 | disebut 1 dari 16 (24 % salah) |
+| Geser kata v2 0,15 mm, enam kali bawaan | disebut 4 dari 4 | disebut 3 dari 16 (18 % salah) |
+
+* **Profil cetak tidak bergantung pada foto tajam.** Juga foto sekecil kiriman aplikasi pesan menyebut salinan yang benar pada setiap bentuk lembar.
+* **Memperbesar geser kata bukan jalan keluar.** Geser 0,15 mm sudah mengubah celah kata sampai 0,3 mm, dan tetap hanya 3 dari 16. Geser di atas batas penerbitan (0,025 mm) hanya ada di studi ini: batas `pdf_shift` dilonggarkan di dalam skrip, tidak ada yang diterbitkan begitu.
+* Tidak ada tuduhan salah dalam 100 pelacakan itu (skor orang lain paling tinggi 0,36 kali ambang), dan semua halaman ditemukan.
+
 Batasnya: 4 bentuk lembar dari satu sesi foto, satu printer simulasi, dua dokumen pendek, dua salinan. Medan halus juga sudah dihaluskan (blok 6,5 mm), jadi gerak kertas yang lebih halus dari itu tidak ikut diputar ulang; cetakan sungguhan dapat lebih buruk bagi tanda geser, tidak lebih baik.
 
 ## Yang berikutnya

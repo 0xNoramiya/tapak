@@ -1,0 +1,286 @@
+{
+ "jobs": 100,
+ "errors": 0,
+ "cells": {
+  "v2_cetak 1600 px | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.153,
+    "baris": 0.025,
+    "latar": 0.035
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 20,
+    "latar": 1939
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_cetak 1600 px | lembar sungguhan": {
+   "n": 16,
+   "benar": 16,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.446,
+    "baris": 0.226,
+    "latar": 0.012
+   },
+   "bits_read_per_photo": {
+    "kata": 164,
+    "baris": 17,
+    "latar": 1942
+   },
+   "by_field": {
+    "basah/G_3332": [
+     4,
+     4
+    ],
+    "kusut/G_3339": [
+     4,
+     4
+    ],
+    "miring/175559": [
+     4,
+     4
+    ],
+    "miring/180124": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_cetak 2400 px | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.058,
+    "baris": 0.025,
+    "latar": 0.008
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 20,
+    "latar": 1942
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_cetak 2400 px | lembar sungguhan": {
+   "n": 16,
+   "benar": 16,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.439,
+    "baris": 0.237,
+    "latar": 0.058
+   },
+   "bits_read_per_photo": {
+    "kata": 161,
+    "baris": 17,
+    "latar": 1852
+   },
+   "by_field": {
+    "basah/G_3332": [
+     4,
+     4
+    ],
+    "kusut/G_3339": [
+     4,
+     4
+    ],
+    "miring/175559": [
+     4,
+     4
+    ],
+    "miring/180124": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_050 4000 px | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.019,
+    "baris": 0.0,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 20,
+    "latar": 0
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_050 4000 px | lembar sungguhan": {
+   "n": 16,
+   "benar": 0,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.343,
+    "baris": 0.255,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 196,
+    "baris": 17,
+    "latar": 0
+   },
+   "by_field": {
+    "basah/G_3332": [
+     0,
+     4
+    ],
+    "kusut/G_3339": [
+     0,
+     4
+    ],
+    "miring/175559": [
+     0,
+     4
+    ],
+    "miring/180124": [
+     0,
+     4
+    ]
+   }
+  },
+  "v2_100 4000 px | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.024,
+    "baris": 0.0,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 218,
+    "baris": 20,
+    "latar": 0
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_100 4000 px | lembar sungguhan": {
+   "n": 16,
+   "benar": 1,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.239,
+    "baris": 0.251,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 212,
+    "baris": 17,
+    "latar": 0
+   },
+   "by_field": {
+    "basah/G_3332": [
+     0,
+     4
+    ],
+    "kusut/G_3339": [
+     0,
+     4
+    ],
+    "miring/175559": [
+     0,
+     4
+    ],
+    "miring/180124": [
+     1,
+     4
+    ]
+   }
+  },
+  "v2_150 4000 px | datar": {
+   "n": 4,
+   "benar": 4,
+   "salah": 0,
+   "registered": 4,
+   "wrong_bit_share": {
+    "kata": 0.026,
+    "baris": 0.0,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 20,
+    "latar": 0
+   },
+   "by_field": {
+    "datar": [
+     4,
+     4
+    ]
+   }
+  },
+  "v2_150 4000 px | lembar sungguhan": {
+   "n": 16,
+   "benar": 3,
+   "salah": 0,
+   "registered": 16,
+   "wrong_bit_share": {
+    "kata": 0.18,
+    "baris": 0.254,
+    "latar": null
+   },
+   "bits_read_per_photo": {
+    "kata": 212,
+    "baris": 17,
+    "latar": 0
+   },
+   "by_field": {
+    "basah/G_3332": [
+     2,
+     4
+    ],
+    "kusut/G_3339": [
+     0,
+     4
+    ],
+    "miring/175559": [
+     0,
+     4
+    ],
+    "miring/180124": [
+     1,
+     4
+    ]
+   }
+  }
+ }
+}
