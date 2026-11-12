@@ -90,10 +90,16 @@ Tiga penerbitan dari salinan yang sama, yaitu tiga jenis yang dicetak tim: skema
 
 Batasnya: 4 bentuk lembar dari satu sesi foto, satu printer simulasi, dua dokumen pendek, dua salinan. Medan halus juga sudah dihaluskan (blok 6,5 mm), jadi gerak kertas yang lebih halus dari itu tidak ikut diputar ulang; cetakan sungguhan dapat lebih buruk bagi tanda geser, tidak lebih baik.
 
+## Lembar kalibrasi printer
+
+Yang tidak dapat dijawab `putar.py`: apakah printer sungguhan mencetak pola abu-abu muda itu. Printernya di sana simulasi, dan ambang sorotannya (tingkat di atas sekitar 250 tercetak sebagai kertas polos) tidak pernah diukur. `kalibrasi.py buat` membuat satu lembar A4 untuk mengukurnya: 18 petak pola yang sama jenisnya (sel 2 mm, tanda per sel, digambar seperti `pattern_image`), dari dasar 253 (profil bawaan) sampai 238, dengan amplitudo 2, 3, dan 5. Lembar itu tidak memuat isi dokumen. `kalibrasi.py ukur` meregistrasi foto lembar yang dicetak dan melaporkan per petak: seberapa gelap tercetak, korelasi sel yang difoto dengan tandanya, dan bagian bit salah yang akan dimiliki satu posisi kode dari delapan sel.
+
+Pemeriksaan alatnya sendiri (tanpa printer sungguhan): pada render bersih ke-18 petak terbaca dengan korelasi 0,97 sampai 0,99. Pada cetakan laser simulasi dengan bentuk lembar sungguhan, difoto ponsel simulasi 4000 px, petak profil bawaan (253 +/- 2) hilang (korelasi -0,07), seperti yang diasumsikan simulator, dan setiap petak dari 251 +/- 3 ke bawah terbaca (korelasi 0,57 sampai 0,94). Lembar ini sudah diserahkan ke tim bersama tiga salinan uji; hasil printer sungguhan belum ada.
+
 ## Yang berikutnya
 
 1. Mencetak dan memotret tiga salinan yang diketahui (sudah diterbitkan dan diserahkan ke tim, 12 November 2026): skema v2 bawaan, skema v2 dengan profil latar cetak, dan skema v1. Dari situ angka "salinan benar disebut" untuk cetakan sungguhan dapat diukur per kanal.
-2. Dengan foto itu: apakah pola latar profil cetak tercetak pada printer sungguhan. Bila ya, profil cetak adalah jawaban untuk dokumen yang akan dicetak.
+2. Dengan foto itu dan lembar kalibrasi: apakah pola latar profil cetak tercetak pada printer sungguhan, dan seberapa samar pola yang masih terbaca. Bila profil cetak terbaca, itulah jawaban untuk dokumen yang akan dicetak; bila pola yang lebih samar juga terbaca, profilnya dapat dibuat kurang terlihat.
 3. Model bentuk kertas di dekoder geser. Meramal bentuk dari baris tetangga pada tingkat kelompok kata belum cukup (satu percobaan pengembangan, tidak di repositori: 35 % menjadi 31 % bit kata salah); pengukuran per kata, yang lebih rapat dari bentuk kertas, belum dicoba. Letak glif printer sungguhan (kisi 42 um pada 600 dpi) mungkin sudah membatasi tanda 25 um.
 
 ## Mengulang
@@ -106,6 +112,8 @@ PYTHONPATH=. python research/fotoasli/ukur.py foto FOLDER_FOTO --induk samples/s
 PYTHONPATH=. python research/fotoasli/ukur.py geser
 PYTHONPATH=. python research/fotoasli/putar.py jalan     # 60 foto, sekitar 45 menit dengan 3 proses
 PYTHONPATH=. python research/fotoasli/putar.py ringkas
+PYTHONPATH=. python research/fotoasli/kalibrasi.py buat lembar_K.pdf
+PYTHONPATH=. python research/fotoasli/kalibrasi.py ukur lembar_K.pdf FOTO_LEMBAR_K.jpg
 ```
 
 Angka lacak (skor dan ambang) bergantung pada penerbitan yang dibuat untuk studi; registrasi dan geseran tidak.
