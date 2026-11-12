@@ -66,13 +66,13 @@ def total_memory_mb() -> int | None:
     return min(found) if found else None
 
 
-TRACE_MEMORY_MB = 2000  # a phone photo of 9 megapixels and more takes up to 1.4 GB to trace
+TRACE_MEMORY_MB = 1500  # a phone photo of 9 megapixels and more takes up to 1.4 GB to trace
 
 
 def trace_slots(limit: int | None, memory_mb: int | None) -> int:
     """Traces the web server runs at once: two, no more than ``limit`` (``TAPAK_WORKERS``), and
     one at a time on a host with less than ``TRACE_MEMORY_MB`` for each (``memory_mb``:
-    :func:`total_memory_mb`; None when it is not known)."""
+    :func:`total_memory_mb`; None when it is not known): one on a 2 GB host, two from 3 GB."""
     slots = min(2, limit or 2)
     return slots if memory_mb is None else max(1, min(slots, memory_mb // TRACE_MEMORY_MB))
 

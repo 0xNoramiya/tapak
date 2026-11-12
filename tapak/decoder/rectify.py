@@ -1034,7 +1034,8 @@ def _visible_box(mask: np.ndarray | None, shape: tuple[int, int]) -> np.ndarray:
 
 
 def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, float]],
-                    prior: list[tuple[float, int, np.ndarray, str]], log: dict | None = None) -> Registration | None:
+                    prior: list[tuple[float, int, np.ndarray, str]], log: dict | None = None,
+                    image_ink: np.ndarray | None = None) -> Registration | None:
     """The rescue stage: find the page when ``register``'s stages did not, and refuse a pose
     that cannot be verified.
 
@@ -1060,7 +1061,8 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
        it: a wrong or ambiguous pose is refused rather than decoded.
 
     Code-blind: it uses the evidence and the master PDF only. ``log`` receives the tries and
-    the outcome ("terdaftar", "tanpa_pose", "tidak_terverifikasi" or "ambigu").
+    the outcome ("terdaftar", "tanpa_pose", "tidak_terverifikasi" or "ambigu"). ``image_ink``,
+    when given, is ``_prep(image)`` computed beforehand (used when no chrome is masked out).
     """
     probe = 100.0
     log = {} if log is None else log
@@ -1068,7 +1070,7 @@ def rescue_register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[
     screen = RESCUE_AFFINE and is_screen_capture(image)
     paper = float(np.percentile(image, 99))
     work = image if mask is None else np.where(mask > 0, image, np.float32(paper)).astype(np.float32)
-    ink = _prep(work)
+    ink = image_ink if mask is None and image_ink is not None else _prep(work)
     pool: list[tuple[str, int, np.ndarray]] = []
     box = _visible_box(mask, image.shape)
     centre = box[:1]
@@ -1213,10 +1215,10 @@ def rescue_decision(tries: list[dict], centre: np.ndarray) -> tuple[dict | None,
 
 
 def _rescue(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, float]],
-            cands: list[tuple[float, int, np.ndarray, str]], log: dict) -> Registration | None:
+            cands: list[tuple[float, int, np.ndarray, str]], log: dict, image_ink: np.ndarray) -> Registration | None:
     """Run ``rescue_register`` after the earlier stages failed; its log goes to ``log["rescue"]``."""
     log["rescue"] = {}
-    return rescue_register(image, pdf_bytes, page_sizes, cands, log["rescue"])
+    return rescue_register(image, pdf_bytes, page_sizes, cands, log["rescue"], image_ink)
 
 
 def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, float]],
@@ -1286,7 +1288,7 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
                 add(page, th, "tesseract")
     if not cands:
         log["outcome"] = "tanpa_kandidat"
-        return _rescue(image, pdf_bytes, page_sizes, cands, log) if rescue else None
+        return _rescue(image, pdf_bytes, page_sizes, cands, log, img_ink) if rescue else None
     cands.sort(key=lambda c: c[0], reverse=True)
 
     def bent(cc: float, page: int, h: np.ndarray, dpi: float) -> tuple[Bend, float] | None:
@@ -1330,7 +1332,7 @@ def register(image: np.ndarray, pdf_bytes: bytes, page_sizes: list[tuple[float, 
             bend, cc, method = found[0], found[1], f"{method}+lengkung"
     if cc < min_correlation:
         log["outcome"] = "korelasi_rendah"
-        return _rescue(image, pdf_bytes, page_sizes, cands, log) if rescue else None
+        return _rescue(image, pdf_bytes, page_sizes, cands, log, img_ink) if rescue else None
     log["outcome"] = "terdaftar"
     w_pt, h_pt = page_sizes[page]
     size = (int(round(w_pt * dpi / 72.0)), int(round(h_pt * dpi / 72.0)))

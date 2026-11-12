@@ -248,7 +248,8 @@ def test_trace_slots_follow_the_worker_limit_and_the_memory():
 
     assert trace_slots(None, None) == 2 and trace_slots(8, None) == 2 and trace_slots(1, None) == 1
     assert trace_slots(None, 2 * TRACE_MEMORY_MB) == 2
-    assert trace_slots(None, 2 * TRACE_MEMORY_MB - 1) == 1  # a 2 GB or 3.9 GB host: one photo at a time
+    assert trace_slots(None, 2 * TRACE_MEMORY_MB - 1) == 1 and trace_slots(None, 1960) == 1  # a 2 GB host
+    assert trace_slots(None, 3900) == 2  # a 4 GB host
     assert trace_slots(None, 100) == 1 and trace_slots(1, 64_000) == 1
     total = total_memory_mb()
     assert total is None or total > 100
