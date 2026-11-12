@@ -31,8 +31,33 @@ DPI_MAX = 300
 MAX_PIXELS = 60_000_000  # a 60 megapixel photo is far beyond any phone camera output
 
 
+# HEIC and HEIF photos (what an iPhone saves by default): the major brand of the ISO media file.
+# OpenCV does not read them; pillow-heif (libheif with libde265) does.
+HEIF_BRANDS = (b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1")
+
+
+def is_heif(data: bytes) -> bool:
+    """Whether the bytes start like a HEIC or HEIF image file."""
+    return len(data) >= 12 and data[4:8] == b"ftyp" and data[8:12] in HEIF_BRANDS
+
+
+def _open_heif(data: bytes):
+    """The HEIF file opened without decoding its pixels (ValueError when it cannot be read)."""
+    import pillow_heif
+
+    try:
+        return pillow_heif.open_heif(data, convert_hdr_to_8bit=True)
+    except (ValueError, EOFError, OSError, SyntaxError) as exc:
+        raise ValueError("berkas gambar tidak dapat dibaca") from exc
+
+
 def image_size(data: bytes) -> tuple[int, int] | None:
-    """(width, height) from a PNG or JPEG header without decoding; None for other formats."""
+    """(width, height) from a PNG, JPEG or HEIF header without decoding; None for other formats."""
+    if is_heif(data):
+        try:
+            return tuple(_open_heif(data).size)  # type: ignore[return-value]
+        except ValueError:
+            return None
     if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
         return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
     if data[:2] == b"\xff\xd8":
@@ -53,7 +78,7 @@ def image_size(data: bytes) -> tuple[int, int] | None:
 
 
 def load_gray(data: bytes) -> np.ndarray:
-    """Decode an image file (JPEG, PNG, ...) to a float32 grayscale array.
+    """Decode an image file (JPEG, PNG, HEIC, ...) to a float32 grayscale array.
 
     Images whose header declares more than MAX_PIXELS are refused before decoding, so a small
     file cannot make the decoder allocate gigabytes: PNG and JPEG here, every other format by
@@ -62,6 +87,12 @@ def load_gray(data: bytes) -> np.ndarray:
     size = image_size(data)
     if size is not None and size[0] * size[1] > MAX_PIXELS:
         raise ValueError(f"gambar terlalu besar ({size[0]}x{size[1]} piksel); maksimum 60 megapiksel")
+    if is_heif(data):
+        from PIL import ImageOps
+
+        # upright as the phone shows it: libheif applies the file's rotation, exif_transpose the
+        # EXIF orientation of a file that carries only that
+        return np.asarray(ImageOps.exif_transpose(_open_heif(data).to_pillow()).convert("L"), dtype=np.float32)
     arr = np.frombuffer(data, dtype=np.uint8)
     try:
         img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)

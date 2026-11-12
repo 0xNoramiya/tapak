@@ -40,7 +40,7 @@ from tapak.tardos.code import code_digest, derive_bias, derive_codeword
 from tapak.tardos.params import TardosParams
 from tapak.tardos.spending import TraceSpending
 
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 TEXT_SUFFIXES = {".txt", ".md", ""}
 EVIDENCE_SUFFIXES = {".pdf", ".docx"} | TEXT_SUFFIXES | IMAGE_SUFFIXES
 

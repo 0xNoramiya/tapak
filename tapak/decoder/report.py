@@ -87,7 +87,7 @@ STYLESHEET_NAME = "berita_acara.css"
 MONO_FONT_FILE = "DejaVuSansMono.ttf"
 
 EVIDENCE_TYPES = ("foto", "tangkapan layar", "berkas PDF", "teks")
-_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 
 # Marker that replaces an identifier of a copy that is not accused.
 REDACTED = "[disamarkan]"

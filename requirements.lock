@@ -43,7 +43,9 @@ packaging==26.3
 pikepdf==10.17.0
     # via pyproject.toml
 pillow==13.0.0
-    # via pikepdf, pytesseract, weasyprint
+    # via pikepdf, pillow-heif, pytesseract, weasyprint
+pillow-heif==1.8.1
+    # via pyproject.toml
 pycparser==3.11
     # via cffi
 pydantic==2.14.1

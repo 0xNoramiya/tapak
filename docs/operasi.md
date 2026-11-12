@@ -95,6 +95,8 @@ tapak deteksi --sebaran research/deteksi/hasil/llr_foto.json --target 1e-6   # b
 
 `--geser` memilih skema geser kata. `v2` (bawaan) menggeser setiap kelompok kata 0,025 mm dan membaca lebih dari dua kali jumlah posisi per halaman `v1`, sehingga foto salinan cetak yang tajam sering cukup dari satu halaman penuh teks dalam uji printer simulasi (benchmark README: halaman 1 pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 2 dari 8; angkanya bergantung pada rahasia kode, [batasan 3](keamanan.md#batasan-3), dan [cara kerja](cara-kerja.md#skema-geser-v2)). `v1` adalah skema semua dokumen yang terbit sebelumnya; catatan penerbitannya tidak menyebut skema dan tetap dibaca seperti dulu. Catatan penerbitan dan registri dokumen v2 hanya menyimpan nama skemanya. Di antarmuka web pilihan yang sama ada di langkah pertama Terbitkan (Skema geser kata, bawaan v2).
 
+Bukti gambar dibaca dari JPEG, PNG, WebP, BMP, TIFF, dan HEIC atau HEIF (format bawaan foto iPhone, dibaca dengan pustaka `pillow-heif`; putaran HEIC dan orientasi EXIF diterapkan, jadi foto tegak seperti di ponsel). Rodanya memuat pustaka libheif dan libde265 (LGPL) serta x265 (GPL, hanya untuk menulis HEIC, yang tidak dipakai TAPAK).
+
 Pelacakan foto atau pindaian pertama untuk setiap halaman dan resolusi analisis merender templat induk tepat untuk kanal geser, sekitar 5 sampai 7 detik CPU per halaman penuh teks. `tapak web` menyimpannya di memori untuk pelacakan berikutnya, sedangkan setiap perintah `tapak trace` merendernya lagi.
 
 **Memori untuk foto ponsel.** Foto ponsel 9 megapiksel (halaman pada sekitar 250 dpi) memakan sampai 1,2 GB selama registrasi, kira-kira 100 byte per piksel halaman induk pada resolusi analisis; halaman pada 300 dpi sekitar 1,4 GB. Karena itu:

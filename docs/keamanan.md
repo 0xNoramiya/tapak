@@ -61,7 +61,7 @@ Pendengar DNS kanari adalah satu-satunya bagian yang menghadap internet.
 * Aplikasi web tidak memiliki login. Jalankan hanya di 127.0.0.1 (bawaan) atau di belakang proksi yang mengautentikasi.
 * Aplikasi menolak header Host asing, sebagai perlindungan dari DNS rebinding. Aplikasi juga menolak permintaan POST dari asal lain, termasuk aplikasi lain di port localhost yang berbeda.
 * Berkas data dibuat dengan izin hanya-pemilik (umask 077).
-* TAPAK menolak gambar bukti di atas 60 megapiksel hanya dengan membaca kepala berkasnya. PNG dan JPEG diperiksa TAPAK; format lain dibatasi oleh `OPENCV_IO_MAX_IMAGE_PIXELS`.
+* TAPAK menolak gambar bukti di atas 60 megapiksel hanya dengan membaca kepala berkasnya. PNG, JPEG, dan HEIC diperiksa TAPAK (HEIC lewat libheif, sebelum pikselnya didekode); format lain dibatasi oleh `OPENCV_IO_MAX_IMAGE_PIXELS`.
 * Halaman PDF yang dibaca sebagai gambar dibatasi per pelacakan:
   * paling banyak dua kali jumlah halaman induk, minimal 4;
   * 60 megapiksel total;

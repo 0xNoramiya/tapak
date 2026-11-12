@@ -118,4 +118,4 @@ We would rather answer "not enough evidence" than guess. All thirteen limitation
 
 ---
 
-<sub>Made for Kartika Cyber Hackathon 2026, Core Infra category. Every sample page is marked "CONTOH SINTETIS - BUKAN DOKUMEN ASLI" (synthetic sample, not a real document). The DejaVu fonts for documents and forensic reports (Bitstream Vera license, `tapak/assets/fonts/LICENSE-DejaVu.txt`), the IBM Plex fonts for the interface (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`) and HTMX 1.9.12 (BSD license, `tapak/web/static/`) are included in the repository.</sub>
+<sub>Made for Kartika Cyber Hackathon 2026, Core Infra category. Every sample page is marked "CONTOH SINTETIS - BUKAN DOKUMEN ASLI" (synthetic sample, not a real document). The DejaVu fonts for documents and forensic reports (Bitstream Vera license, `tapak/assets/fonts/LICENSE-DejaVu.txt`), the IBM Plex fonts for the interface (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`) and HTMX 1.9.12 (BSD license, `tapak/web/static/`) are included in the repository. HEIC photos are read with pillow-heif (BSD), whose wheel bundles libheif and libde265 (LGPL) and x265 (GPL).</sub>

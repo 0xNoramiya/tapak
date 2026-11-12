@@ -212,6 +212,25 @@ def test_document_keys_cannot_escape_data_dir(client):
     assert "tidak valid" in r.text or "tidak dapat" in r.text
 
 
+def test_lacak_reads_a_heic_photo(client):
+    """An iPhone saves HEIC by default; the Lacak page takes the file as it is."""
+    import io
+
+    import numpy as np
+    import pillow_heif
+    from PIL import Image
+
+    from tapak.marker.render import render_pages
+
+    doc = _issue(client)
+    copy = client.get(f"/dokumen/{doc}/salinan/13").content
+    page = np.clip(render_pages(copy, 110, [0])[0], 0, 255).astype(np.uint8)
+    buf = io.BytesIO()
+    pillow_heif.from_pillow(Image.fromarray(page).convert("RGB")).save(buf, quality=92)
+    r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("IMG_0042.HEIC", buf.getvalue(), "image/heic")})
+    assert r.status_code == 200 and "Salinan #13" in r.text and "jenis berkas tidak dikenal" not in r.text
+
+
 def test_lacak_requires_inputs(client):
     _issue(client)
     r = client.post("/lacak", data={"dokumen": ""})

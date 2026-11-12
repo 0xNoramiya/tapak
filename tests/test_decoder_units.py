@@ -37,6 +37,61 @@ def test_load_gray_roundtrip_and_error():
         load_gray(b"not an image")
 
 
+def _heic(img: np.ndarray, orientation: int | None = None) -> bytes:
+    """The array as a HEIC file, as an iPhone saves a photo (optionally with an EXIF orientation)."""
+    import io
+
+    import pillow_heif
+    from PIL import Image
+
+    options = {}
+    if orientation is not None:
+        exif = Image.Exif()
+        exif[274] = orientation
+        options["exif"] = exif.tobytes()
+    buf = io.BytesIO()
+    pillow_heif.from_pillow(Image.fromarray(img).convert("RGB")).save(buf, quality=95, **options)
+    return buf.getvalue()
+
+
+def test_load_gray_reads_a_heic_photo_upright(sample_pdf):
+    """HEIC is what an iPhone saves by default; OpenCV does not read it."""
+    from tapak.decoder.rectify import image_size, is_heif
+
+    page = np.clip(render_page(sample_pdf, 0, 60), 0, 255).astype(np.uint8)
+    data = _heic(page)
+    assert is_heif(data) and not is_heif(b"\x89PNG\r\n\x1a\n" + bytes(16)) and not is_heif(b"")
+    assert image_size(data) == (page.shape[1], page.shape[0])
+    gray = load_gray(data)
+    assert gray.dtype == np.float32 and gray.shape == page.shape
+    assert float(np.abs(gray - page).mean()) < 1.0  # lossy, but the page
+    # a landscape frame the camera marked "rotate a quarter turn clockwise": its top-left corner shows top-right
+    frame = np.zeros((200, 300), dtype=np.uint8)
+    frame[:50, :80] = 255
+    turned = load_gray(_heic(frame, orientation=6))
+    assert turned.shape == (300, 200) and turned[:40, -40:].mean() > 250 and turned[:40, :40].mean() < 5
+    broken = data[:12] + bytes(40)
+    assert is_heif(broken) and image_size(broken) is None
+    with pytest.raises(ValueError, match="tidak dapat dibaca"):
+        load_gray(broken)
+
+
+def test_a_heic_photo_is_traced_like_a_jpeg(issued, ctx):
+    from tapak.decoder.report import evidence_type_for
+    from tapak.decoder.trace import check_evidence_types, collect_file
+    from tapak.marker.render import render_pages
+
+    folder, manifest = issued
+    page = render_pages((folder / manifest.copies[2].file).read_bytes(), 100, [0])[0]
+    check_evidence_types(["IMG_0042.HEIC", "foto.heif"])
+    assert evidence_type_for("IMG_0042.HEIC") == "foto"
+    obs, notes = collect_file("IMG_0042.HEIC", _heic(np.clip(page, 0, 255).astype(np.uint8)), ctx)
+    assert any("dipetakan ke halaman 1" in n for n in notes)
+    shift = next(sb for sb in obs if sb.channel == "shift")
+    right = (shift.llr > 0) == (ctx.codewords[2][shift.positions] == 1)
+    assert len(shift) > 100 and right.mean() > 0.9
+
+
 def test_render_page_size_and_supersampling(sample_pdf):
     a = render_page(sample_pdf, 0, 72)
     assert a.shape == (842, 595)
