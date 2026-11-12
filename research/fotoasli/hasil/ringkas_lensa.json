@@ -1,0 +1,173 @@
+{
+ "jobs": 32,
+ "cells": {
+  "1600 px, k1 0.0": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    4.49,
+    4.674
+   ],
+   "wrong_bit_share": {
+    "kata": 0.061,
+    "baris": 0.365,
+    "latar": 0.015
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 16,
+    "latar": 1942
+   }
+  },
+  "1600 px, k1 0.003": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    4.471,
+    4.679
+   ],
+   "wrong_bit_share": {
+    "kata": 0.067,
+    "baris": 0.387,
+    "latar": 0.016
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 16,
+    "latar": 1942
+   }
+  },
+  "1600 px, k1 0.01": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    4.466,
+    4.662
+   ],
+   "wrong_bit_share": {
+    "kata": 0.083,
+    "baris": 0.4,
+    "latar": 0.015
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 16,
+    "latar": 1942
+   }
+  },
+  "1600 px, k1 -0.01": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    4.462,
+    4.624
+   ],
+   "wrong_bit_share": {
+    "kata": 0.11,
+    "baris": 0.292,
+    "latar": 0.017
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 16,
+    "latar": 1942
+   }
+  },
+  "4000 px, k1 0.0": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    2.027,
+    4.73
+   ],
+   "wrong_bit_share": {
+    "kata": 0.031,
+    "baris": 0.317,
+    "latar": 0.016
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 16,
+    "latar": 1585
+   }
+  },
+  "4000 px, k1 0.003": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    3.385,
+    4.726
+   ],
+   "wrong_bit_share": {
+    "kata": 0.029,
+    "baris": 0.295,
+    "latar": 0.029
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 15,
+    "latar": 1860
+   }
+  },
+  "4000 px, k1 0.01": {
+   "n": 4,
+   "registered": 4,
+   "bent": 0,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    3.558,
+    4.727
+   ],
+   "wrong_bit_share": {
+    "kata": 0.034,
+    "baris": 0.397,
+    "latar": 0.033
+   },
+   "bits_read_per_photo": {
+    "kata": 219,
+    "baris": 16,
+    "latar": 1866
+   }
+  },
+  "4000 px, k1 -0.01": {
+   "n": 4,
+   "registered": 4,
+   "bent": 1,
+   "benar": 4,
+   "salah": 0,
+   "score_z": [
+    3.562,
+    4.724
+   ],
+   "wrong_bit_share": {
+    "kata": 0.036,
+    "baris": 0.203,
+    "latar": 0.028
+   },
+   "bits_read_per_photo": {
+    "kata": 220,
+    "baris": 16,
+    "latar": 1868
+   }
+  }
+ }
+}

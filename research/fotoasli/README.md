@@ -90,6 +90,12 @@ Tiga penerbitan dari salinan yang sama, yaitu tiga jenis yang dicetak tim: skema
 
 Batasnya: 4 bentuk lembar dari satu sesi foto, satu printer simulasi, dua dokumen pendek, dua salinan. Medan halus juga sudah dihaluskan (blok 6,5 mm), jadi gerak kertas yang lebih halus dari itu tidak ikut diputar ulang; cetakan sungguhan dapat lebih buruk bagi tanda geser, tidak lebih baik.
 
+## Distorsi lensa pada foto layar
+
+Simulator foto punya lensa yang mengaburkan tetapi sempurna secara geometri: garis lurus tetap lurus. Lensa ponsel membengkokkannya, juga setelah koreksi ponsel sendiri (beberapa persepuluh persen sampai sekitar satu persen di sudut bingkai). Foto sungguhan di atas memuat distorsi itu bersama bentuk kertas. `lensa.py` memisahkannya: foto salinan di layar (profil latar bawaan, seperti benchmark README) diberi distorsi radial 0, 0,3 %, dan 1 % (bantal dan tong) lalu dilacak apa adanya; 32 foto, 1600 px dan 4000 px, protokol ditetapkan sebelum dijalankan (`hasil/protokol_lensa.json`).
+
+Semua 32 foto menyebut salinan yang benar (skor 2,0 sampai 4,7 kali ambang), dengan dan tanpa distorsi. Bit latar 1,5 sampai 3,3 % salah dan bit kata 3 sampai 11 % (tanpa distorsi 1,6 % dan 3 sampai 6 %); hanya satu foto yang memerlukan langkah halaman tidak datar. Distorsi lensa saja karena itu bukan yang menggagalkan foto sungguhan; bentuk kertaslah penyebabnya, dan skenario utama (foto layar) tidak terganggu olehnya dalam simulasi. Foto layar sungguhan sudah diminta dari tim.
+
 ## Lembar kalibrasi printer
 
 Yang tidak dapat dijawab `putar.py`: apakah printer sungguhan mencetak pola abu-abu muda itu. Printernya di sana simulasi, dan ambang sorotannya (tingkat di atas sekitar 250 tercetak sebagai kertas polos) tidak pernah diukur. `kalibrasi.py buat` membuat satu lembar A4 untuk mengukurnya: 18 petak pola yang sama jenisnya (sel 2 mm, tanda per sel, digambar seperti `pattern_image`), dari dasar 253 (profil bawaan) sampai 238, dengan amplitudo 2, 3, dan 5. Lembar itu tidak memuat isi dokumen. `kalibrasi.py ukur` meregistrasi foto lembar yang dicetak dan melaporkan per petak: seberapa gelap tercetak, korelasi sel yang difoto dengan tandanya, dan bagian bit salah yang akan dimiliki satu posisi kode dari delapan sel.

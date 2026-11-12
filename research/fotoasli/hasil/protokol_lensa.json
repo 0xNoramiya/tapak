@@ -1,0 +1,29 @@
+{
+ "issuance": "putar.py variant v2 (geser-v2, default background), copies 3 and 11",
+ "pages": [
+  [
+   "surat_telegram",
+   1
+  ],
+  [
+   "nota_dinas",
+   1
+  ]
+ ],
+ "seqs": [
+  3,
+  11
+ ],
+ "evidence": "photo of the copy on a screen (tapak.photos.photo_jpeg on the page rendered at 150 dpi)",
+ "evidence_seed": 61221,
+ "res": [
+  1600,
+  4000
+ ],
+ "k1": [
+  0.0,
+  0.003,
+  0.01,
+  -0.01
+ ]
+}
