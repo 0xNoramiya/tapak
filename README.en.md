@@ -33,8 +33,8 @@ The fingerprint is a Tardos code. In code-level simulation, the merged codes of 
   <img alt="Three of the five channels on a real copy: word shifts, the background pattern and invisible characters" src="docs/img/kanal-light.png" width="100%">
 </picture>
 
-- **Word and line shifts** survive prints, photos and screenshots.
-- **The background pattern** survives photos of a screen and screenshots, but is lost in print. The optional print profile survives on paper in the simulated printer tests, at the price of pages that look light grey.
+- **Word and line shifts** survive screenshots and photos of a screen. On real paper they are read with many errors and do not name a copy by themselves.
+- **The background pattern** survives screenshots and photos of a screen. On paper the very faint default pattern depends on the printer: the one real printer tested printed it, and every photo of a printed copy was named through it. The optional print profile is read almost without errors on paper, at the price of pages that look light grey.
 - **Invisible characters** travel with copied text and forwarded PDFs.
 - **Sentence variants**, rewordings of opening and closing sentences made by a local LLM and approved by a person, survive retyping but carry only a few bits.
 - **A DNS canary**, a unique subdomain per copy, goes off when the file is opened outside the unit's network. Canaries play no part in the score.
@@ -55,7 +55,7 @@ The threshold comes from a Chernoff bound, not from this simulation. Zero false 
   <img alt="Synthetic tests: photos of a screen 40 of 40 right; photos of paper from a simulated printer 10 of 16 with one page and 8 of 8 with two pages; photos with a simulated phone ISP 32 of 32; photos of a simulated monitor 32 of 32; 0 wrong" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-The print row photographs pages from a simulated laser printer. The default background pattern is lost on paper, so only the shift channel is left. With shift scheme v2, the default for new issuances, page 1 names the right copy in 8 of 8 photos, the shorter page 2 in 2 of 8, and both pages together in 8 of 8 (scheme v1: 0 of 16 and 8 of 8). All of this is simulation, with one code secret and perfectly flat sheets. On real prints (one printer, 18 phone photos of three copies) every photo names the right copy, through the background pattern and not the shift channel ([limitation 3](docs/keamanan.md#batasan-3)).
+The print row photographs pages from a simulated laser printer. That simulated printer drops the default background pattern, so only the shift channel is left. With shift scheme v2, the default for new issuances, page 1 names the right copy in 8 of 8 photos, the shorter page 2 in 2 of 8, and both pages together in 8 of 8 (scheme v1: 0 of 16 and 8 of 8). All of this is simulation, with one code secret and perfectly flat sheets. On real prints (one printer, 18 phone photos of three copies) every photo names the right copy, through the background pattern and not the shift channel ([limitation 3](docs/keamanan.md#batasan-3)).
 
 One photo of a screen with 95 % of the paper saturated white loses its background pattern ([limitation 4](docs/keamanan.md#batasan-4)). That photo is named through the shift channel alone, just above the threshold (as the first recorded trace, with a smaller eps share, the answer is "not enough evidence"), and the threshold is not lowered. For the other 39 right answers on photos of a screen, the false-accusation bound is at most 6.3 &times; 10<sup>-26</sup>.
 

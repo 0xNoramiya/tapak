@@ -33,8 +33,8 @@ Sidiknya memakai kode Tardos. Dalam simulasi tingkat kode, gabungan kode tiga pe
   <img alt="Tiga dari lima kanal pada salinan sungguhan: geser kata, pola latar, dan karakter tak terlihat" src="docs/img/kanal-light.png" width="100%">
 </picture>
 
-- **Geser kata dan baris** bertahan pada cetakan, foto, dan tangkapan layar.
-- **Pola latar** bertahan pada foto layar dan tangkapan layar, tetapi hilang saat dicetak. Profil latar cetak (opsional) bertahan di kertas dalam uji printer simulasi, dengan harga halaman tampak abu-abu muda.
+- **Geser kata dan baris** bertahan pada tangkapan layar dan foto layar. Di kertas sungguhan kanal ini terbaca dengan banyak galat dan sendirian belum cukup untuk menyebut salinan.
+- **Pola latar** bertahan pada tangkapan layar dan foto layar. Di kertas pola bawaan yang sangat pucat bergantung pada printer: pada satu printer sungguhan yang diuji pola itu tercetak, dan setiap foto cetakan disebut lewat pola ini. Profil latar cetak (opsional) terbaca hampir tanpa galat di kertas, dengan harga halaman tampak abu-abu muda.
 - **Karakter tak terlihat** ikut terbawa saat teks disalin atau PDF diteruskan.
 - **Varian kalimat**, parafrasa kalimat pembuka dan penutup yang dibuat LLM lokal lalu disetujui manusia, bertahan saat dokumen diketik ulang, tetapi hanya membawa beberapa bit.
 - **Kanari DNS**, subdomain unik per salinan, berbunyi bila berkas dibuka di luar jaringan satuan. Kanari tidak ikut dalam skor.
@@ -55,7 +55,7 @@ Ambangnya berasal dari batas Chernoff, bukan dari simulasi ini. Nol tuduhan sala
   <img alt="Uji sintetis: foto layar 40 dari 40 benar; foto kertas cetak dari printer simulasi 10 dari 16 dengan satu halaman dan 8 dari 8 dengan dua halaman; foto dengan ISP ponsel simulasi 32 dari 32; foto monitor simulasi 32 dari 32; 0 salah" src="docs/img/benchmark-light.svg" width="100%">
 </picture>
 
-Baris cetak memotret halaman yang dicetak printer laser simulasi. Pola latar bawaan hilang di kertas, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 2 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Semua ini simulasi, dengan satu rahasia kode dan lembar yang datar sempurna. Pada cetakan sungguhan (satu printer, 18 foto ponsel dari tiga salinan) setiap foto menyebut salinan yang benar, lewat pola latar dan bukan kanal geser ([batasan 3](docs/keamanan.md#batasan-3)).
+Baris cetak memotret halaman yang dicetak printer laser simulasi. Printer simulasi itu membuang pola latar bawaan, jadi hanya kanal geser yang tersisa. Dengan skema geser v2, bawaan penerbitan baru, halaman 1 menyebut salinan yang benar pada 8 dari 8 foto, halaman 2 yang lebih pendek pada 2 dari 8, dan kedua halaman bersama pada 8 dari 8 (skema v1: 0 dari 16 dan 8 dari 8). Semua ini simulasi, dengan satu rahasia kode dan lembar yang datar sempurna. Pada cetakan sungguhan (satu printer, 18 foto ponsel dari tiga salinan) setiap foto menyebut salinan yang benar, lewat pola latar dan bukan kanal geser ([batasan 3](docs/keamanan.md#batasan-3)).
 
 Satu foto layar dengan 95 % kertas jenuh putih kehilangan pola latarnya ([batasan 4](docs/keamanan.md#batasan-4)). Foto itu disebut lewat kanal geser saja, tipis di atas ambang (sebagai pelacakan tercatat pertama, dengan jatah eps lebih kecil, jawabannya "tidak cukup bukti"), dan ambangnya tidak diturunkan. Untuk 39 jawaban benar lainnya pada foto layar, batas peluang tuduhan salahnya paling besar 6,3 &times; 10<sup>-26</sup>.
 
