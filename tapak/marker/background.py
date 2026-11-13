@@ -18,11 +18,13 @@ erased), which is the marking-assumption behaviour Tardos codes are built for.
 
 Two profiles. The default (``SCREEN_BACKGROUND``, "layar") is meant for screens,
 screenshots and photos of screens. The printer model assumes office printers render levels
-above about 250 as plain paper (no manufacturer figure; not measured on a real printer), so
-on a printed copy the default pattern vanishes and only channel 1 remains. The opt-in print
-profile (``PRINT_BACKGROUND``, "cetak") keeps every cell below that assumed cutoff
-(242 +/- 5, levels 237 to 247) and survives a simulated office print with the same decoder,
-at a price: the page looks light gray and its texture may be noticed
+above about 250 as plain paper (no manufacturer figure), so in simulation the default pattern
+vanishes on a printed copy. The one real printer measured (research/fotoasli, 2026-11-12) did
+print it: about a fifth of the default profile's bits were read wrong from a page of text, and
+the copy was still named from one phone photo. So on paper the default profile depends on the
+printer. The opt-in print profile (``PRINT_BACKGROUND``, "cetak") keeps every cell below the
+assumed cutoff (242 +/- 5, levels 237 to 247); on that printer 2 % of its bits were wrong.
+Its price: the page looks light gray and its texture may be noticed
 (``PRINT_BACKGROUND_WARNING``).
 """
 
@@ -80,7 +82,8 @@ class BackgroundSettings:
 
 SCREEN_BACKGROUND = BackgroundSettings()
 """Default profile "layar": invisible on screen and on paper; its levels (251 to 255) lie above
-the assumed printer highlight cutoff, so a (simulated) print drops it."""
+the assumed printer highlight cutoff, so a simulated print drops it (the one real printer measured
+printed it, see the module docstring)."""
 
 PRINT_BACKGROUND = BackgroundSettings(base=242.0, amplitude=5.0)
 """Opt-in profile "cetak": levels 237 to 247, below the assumed highlight cutoff of office

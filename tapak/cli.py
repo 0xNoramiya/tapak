@@ -1030,8 +1030,8 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--canary-domain", default=None, help="domain kanari (kosongkan untuk menonaktifkan)")
     i.add_argument("--semantic", default=None, help="varian.json yang sudah disetujui")
     i.add_argument("--latar", choices=["layar", "cetak"], default="layar",
-                   help="profil pola latar: layar (bawaan, tak terlihat, hilang saat dicetak) atau cetak "
-                        "(bertahan saat dicetak, halaman tampak abu-abu muda)")
+                   help="profil pola latar: layar (bawaan, tak terlihat; di kertas bergantung pada printer) atau "
+                        "cetak (paling kuat di kertas, halaman tampak abu-abu muda)")
     i.add_argument("--leksikal", default=None, metavar="BERKAS",
                    help="leksikal.json yang setiap titiknya sudah disetujui atau ditolak (kanal pilihan kata, "
                         "opsional); ditolak bila masih ada titik menunggu atau titik dan bentuknya diubah di luar "

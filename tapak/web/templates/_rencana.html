@@ -42,8 +42,8 @@
           <thead><tr><th scope="col">{{ _("Kanal") }}</th><th scope="col" class="num hide-sm">{{ _("Slot") }}</th><th scope="col" class="cov-head">{{ _("Cakupan kode") }}</th></tr></thead>
           <tbody>
             {% set cetak = st.latar == "cetak" %}
-            {% set survives = {"shift": _("cetak, foto, tangkapan layar"),
-                               "background": _("cetak dalam uji printer simulasi, layar, tangkapan layar, foto layar") if cetak else _("layar, tangkapan layar, foto layar"),
+            {% set survives = {"shift": _("foto, tangkapan layar; lemah di kertas"),
+                               "background": _("cetak, layar, tangkapan layar, foto layar") if cetak else _("layar, tangkapan layar, foto layar; di kertas bergantung pada printer"),
                                "zw": _("salin-tempel, berkas diteruskan"), "homoglyph": _("salin-tempel, teks dinormalkan sebagian")} %}
             {# scanned pages carry shift and background in the page image; the text channels have no slots there #}
             {% set on_scan = {"shift": _("; di halaman pindaian: digeser di piksel gambar"),

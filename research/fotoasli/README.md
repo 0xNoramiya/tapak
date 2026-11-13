@@ -14,6 +14,24 @@ Foto tidak ada di repositori: selain halaman contoh fiktif, terlihat meja dan ru
 
 **Lembar itu dokumen induk tanpa tanda.** Tim mencetak berkas contoh dari folder `samples/` repositori (`surat_telegram.pdf`), bukan salinan terbitan; ini baru diketahui setelah pengukuran selesai. Studi ini karena itu menjawab tiga hal: apakah halaman ditemukan, apakah ada yang tertuduh padahal tidak ada salinan yang bocor, dan seberapa jauh cetakan dan kertas sungguhan menggeser kata tanpa tanda apa pun, yaitu derau yang harus dilampaui sebuah tanda. **Apakah salinan yang benar disebut dari cetakan sungguhan belum terjawab** dan menunggu cetakan dari salinan yang diketahui ([yang berikutnya](#yang-berikutnya)).
 
+## Hasil utama: cetakan sungguhan dari salinan yang diketahui
+
+Setelah foto pertama itu, tim mencetak tiga salinan yang penerimanya hanya diketahui studi, kedua halaman masing-masing, dengan printer sungguhan yang sama, dan memotret setiap lembar rata dengan iPhone 11 (12 megapiksel, halaman pada sekitar 330 dpi): 18 foto. `salinan.py` melacak setiap foto terhadap penerbitannya, sekali lagi setelah foto itu diperkecil seperti kiriman aplikasi pesan (sisi panjang 1600 px, JPEG kualitas 75 dua kali, sekitar 130 dpi), dan sekali terhadap penerbitan lain (`hasil/salinan.jsonl`).
+
+| Salinan | Foto asli: disebut benar (skor / ambang) | Setelah aplikasi pesan | Bit latar salah, hal. 1 / hal. 2 | Bit kata salah | Bit baris salah |
+|---|---|---|---|---|---|
+| A: skema v2, profil latar bawaan (253 +/- 2) | 6 dari 6 (3,2 sampai 4,1) | 6 dari 6 (3,7 sampai 4,1) | 19,8 % / 8,3 % | 25 % | 0 dari 63 |
+| B: skema v2, profil latar cetak (242 +/- 5) | 6 dari 6 (4,5 sampai 4,6) | 6 dari 6 (4,6) | 1,9 % / 0,1 % | 25 % | 3 dari 60 |
+| C: skema v1, profil latar bawaan | 6 dari 6 (3,1 sampai 3,8) | 6 dari 6 (3,7 sampai 3,9) | 19,2 % / 8,6 % | 5,3 % | 4 dari 63 |
+
+* **36 dari 36 pelacakan menyebut salinan yang benar**, dari satu foto satu halaman, dan tidak satu pun menyebut orang lain (skor orang lain paling tinggi 0,52 kali ambang).
+* **Terhadap penerbitan lain tidak ada yang tertuduh**: 0 dari 18 (paling tinggi 0,39 kali ambang). Salinan di sana punya kode lain di bawah vektor bias yang sama.
+* **Pola latarlah yang membawa pelacakan di kertas.** Dengan kanal latar saja 18 dari 18 disebut; dengan kanal geser saja 0 dari 18 (paling dekat 0,97 kali ambang, halaman 1 salinan A). Bit kata skema v2 seperempatnya salah juga pada lembar baru yang rata; bit kata skema v1 (geser dua kali lebih besar) 5,3 % salah, tetapi posisinya terlalu sedikit.
+* **Printer ini mencetak pola profil bawaan.** Simulator kami mengasumsikan tingkat abu-abu di atas sekitar 250 tercetak sebagai kertas polos, sehingga pola bawaan (251 sampai 255) hilang di kertas. Pada printer ini pola itu tercetak dan terbaca, dengan seperlima bitnya salah di halaman penuh teks. Profil cetak terbaca hampir tanpa galat. Jadi di kertas profil bawaan bergantung pada printer; profil cetak pilihan yang kuat.
+* **Foto yang diperkecil tidak lebih buruk.** Bit latar profil bawaan malah lebih sedikit salah setelah diperkecil (11 sampai 13 % di halaman 1), dan pelacakannya 4 detik, bukan 47.
+
+Batasnya: satu printer (tipe belum dicatat), satu ponsel, lembar baru yang rata dan difoto tegak lurus, satu dokumen, tiga salinan. Lembar kusut, basah, atau sobek dari salinan bertanda, printer lain, dan mode hemat toner belum diuji.
+
 ## Halaman tidak ditemukan
 
 Dengan registrasi sebelum studi ini, 12 dari 13 foto dijawab "halaman dokumen induk tidak ditemukan", juga foto iPhone yang tajam dan hampir tegak lurus dari lembar yang hampir rata. Pose awalnya benar: SIFT dan kontur menemukan halaman 1 pada 130 sampai 270 dpi. Yang gagal adalah ambang korelasi ECC 0,75: korelasi bidang datar hanya 0,42 sampai 0,70 (satu foto 0,80).
@@ -59,11 +77,13 @@ Pada foto yang diperiksa blok demi blok (basah/G_3332), setelah homografi terbai
 
 * **Batas fisik, bukan kekurangan dekoder.** Kelompok geser skema v2 hampir semuanya satu kata (229 kata terukur per kata, 228 kelompok pada halaman ini), jadi tidak ada pengukuran yang lebih rapat yang dapat memisahkan bentuk kertas dari tanda. Sisa 0,07 sampai 0,12 pt pada dx itu seukuran kisi letak printer 600 dpi: satu piksel perangkat 42 um, dan pembulatan letak kata ke piksel utuh saja sudah memberi sekitar 0,035 pt per kata. Tanda 25 um berada di dalam derau itu.
 
-Kesimpulan sementara: pada cetakan sungguhan tanpa tanda, kelompok kata sudah bergeser 0,07 sampai 0,12 pt pada arah tanda (dx) setelah bentuk kertas diramal dari baris tetangga, sebesar atau lebih besar dari geser kata v2 (0,071 pt, 25 um), dan dekoder sekarang melihat 0,08 sampai 0,12 pt. Tanda geser kata v2 karena itu kemungkinan besar tidak terbaca dari satu lembar cetak sungguhan; geser v1 (0,142 pt) hanya 1,2 sampai 2 kali derau itu. Bentuk lembar ini pada salinan simulasi yang diketahui memberi jawaban yang sama ([bagian berikut](#bentuk-lembar-sungguhan-pada-salinan-yang-diketahui)). Bagaimana geser baris dan pola latar profil cetak bertahan hanya dapat diukur dengan cetakan dari salinan yang diketahui.
+Kesimpulan: pada cetakan sungguhan tanpa tanda, kelompok kata sudah bergeser 0,07 sampai 0,12 pt pada arah tanda (dx) setelah bentuk kertas diramal dari baris tetangga, sebesar atau lebih besar dari geser kata v2 (0,071 pt, 25 um). Cetakan salinan yang diketahui membenarkannya ([hasil utama](#hasil-utama-cetakan-sungguhan-dari-salinan-yang-diketahui)): seperempat bit kata v2 salah, kanal geser saja tidak pernah menyebut siapa pun, dan yang membawa pelacakan di kertas adalah pola latar.
 
 ## Bentuk lembar sungguhan pada salinan yang diketahui
 
 Lembar yang difoto tidak bertanda, jadi tidak dapat menjawab apakah sebuah tanda terbaca. Tetapi setiap foto memberi bentuk lembarnya di bawah kamera: medan halus registrasi (`hasil/medan.json`, tanpa tanda di dalamnya). `putar.py` menaruh bentuk itu pada salinan simulasi yang penerimanya diketahui: halaman dicetak printer laser simulasi, isinya digeser menurut medan itu, lalu difoto ponsel simulasi pada 4000 px (sekitar 250 dpi, seperti foto iPhone). Yang sungguhan hanya geometrinya (lengkung, gelombang, lipatan, lensa ponsel); printer, derau kamera, dan cahaya tetap simulasi. Tidak ada yang dipilih di sini: dekoder apa adanya, protokol ditetapkan sebelum dijalankan (`hasil/protokol_putar.json`).
+
+Catatan sesudah cetakan sungguhan: printer simulasi di bagian ini membuang pola profil bawaan (asumsi ambang sorotan), sedangkan printer sungguhan yang diuji mencetaknya. Angka "skema v2, latar bawaan: 0 dari 16" di bawah karena itu berlaku untuk printer yang tidak mencetak pola bawaan; yang tetap berlaku umum adalah kesimpulan tentang kanal geser dan tentang profil cetak.
 
 Tiga penerbitan dari salinan yang sama, yaitu tiga jenis yang dicetak tim: skema v2 bawaan, skema v2 dengan profil latar cetak, dan skema v1. Dua dokumen contoh (halaman 1), dua salinan, lembar datar dan empat bentuk lembar sungguhan (dua foto lembar datar yang difoto miring, satu lembar basah, satu lembar kusut): 60 foto.
 
@@ -103,13 +123,14 @@ Semua 32 foto menyebut salinan yang benar (skor 2,0 sampai 4,7 kali ambang), den
 
 Yang tidak dapat dijawab `putar.py`: apakah printer sungguhan mencetak pola abu-abu muda itu. Printernya di sana simulasi, dan ambang sorotannya (tingkat di atas sekitar 250 tercetak sebagai kertas polos) tidak pernah diukur. `kalibrasi.py buat` membuat satu lembar A4 untuk mengukurnya: 18 petak pola yang sama jenisnya (sel 2 mm, tanda per sel, digambar seperti `pattern_image`), dari dasar 253 (profil bawaan) sampai 238, dengan amplitudo 2, 3, dan 5. Lembar itu tidak memuat isi dokumen. `kalibrasi.py ukur` meregistrasi foto lembar yang dicetak dan melaporkan per petak: seberapa gelap tercetak, korelasi sel yang difoto dengan tandanya, dan bagian bit salah yang akan dimiliki satu posisi kode dari delapan sel.
 
-Pemeriksaan alatnya sendiri (tanpa printer sungguhan): pada render bersih ke-18 petak terbaca dengan korelasi 0,97 sampai 0,99. Pada cetakan laser simulasi dengan bentuk lembar sungguhan, difoto ponsel simulasi 4000 px, petak profil bawaan (253 +/- 2) hilang (korelasi -0,07), seperti yang diasumsikan simulator, dan setiap petak dari 251 +/- 3 ke bawah terbaca (korelasi 0,57 sampai 0,94). Lembar ini sudah diserahkan ke tim bersama tiga salinan uji; hasil printer sungguhan belum ada.
+Pemeriksaan alatnya sendiri (tanpa printer sungguhan): pada render bersih ke-18 petak terbaca dengan korelasi 0,97 sampai 0,99. Pada cetakan laser simulasi dengan bentuk lembar sungguhan, difoto ponsel simulasi 4000 px, petak profil bawaan (253 +/- 2) hilang (korelasi -0,07), seperti yang diasumsikan simulator, dan setiap petak dari 251 +/- 3 ke bawah terbaca (korelasi 0,57 sampai 0,94). Lembar ini sudah diserahkan ke tim bersama tiga salinan uji; fotonya belum ada. Cetakan salinan A dan C sudah menunjukkan bahwa printer tim mencetak pola 253 +/- 2.
 
 ## Yang berikutnya
 
-1. Mencetak dan memotret tiga salinan yang diketahui (sudah diterbitkan dan diserahkan ke tim, 12 November 2026): skema v2 bawaan, skema v2 dengan profil latar cetak, dan skema v1. Dari situ angka "salinan benar disebut" untuk cetakan sungguhan dapat diukur per kanal.
-2. Dengan foto itu dan lembar kalibrasi: apakah pola latar profil cetak tercetak pada printer sungguhan, dan seberapa samar pola yang masih terbaca. Bila profil cetak terbaca, itulah jawaban untuk dokumen yang akan dicetak; bila pola yang lebih samar juga terbaca, profilnya dapat dibuat kurang terlihat.
-3. Model bentuk kertas di dekoder geser. Meramal bentuk dari baris tetangga pada tingkat kelompok kata belum cukup (satu percobaan pengembangan, tidak di repositori: 35 % menjadi 31 % bit kata salah); pengukuran per kata, yang lebih rapat dari bentuk kertas, belum dicoba. Letak glif printer sungguhan (kisi 42 um pada 600 dpi) mungkin sudah membatasi tanda 25 um.
+1. Printer lain, terutama laser kantor dan mode hemat toner: profil bawaan di kertas bergantung pada printer, dan baru satu yang diuji. Lembar kalibrasi mengukurnya dengan satu cetakan.
+2. Cetakan salinan bertanda yang tidak rata (kusut, basah, sobek) dan difoto miring; simulasi dengan bentuk lembar sungguhan memperkirakan profil cetak bertahan.
+3. Foto layar sungguhan (skenario utama demo); sudah diminta dari tim.
+4. Model bentuk kertas di dekoder geser. Meramal bentuk dari baris tetangga pada tingkat kelompok kata belum cukup (satu percobaan pengembangan, tidak di repositori: 35 % menjadi 31 % bit kata salah); pengukuran per kata, yang lebih rapat dari bentuk kertas, belum dicoba. Letak glif printer sungguhan (kisi 42 um pada 600 dpi) mungkin sudah membatasi tanda 25 um.
 
 ## Mengulang
 
@@ -121,6 +142,8 @@ PYTHONPATH=. python research/fotoasli/ukur.py foto FOLDER_FOTO --induk samples/s
 PYTHONPATH=. python research/fotoasli/ukur.py geser
 PYTHONPATH=. python research/fotoasli/putar.py jalan     # 60 foto, sekitar 45 menit dengan 3 proses
 PYTHONPATH=. python research/fotoasli/putar.py ringkas
+PYTHONPATH=. python research/fotoasli/salinan.py FOLDER_FOTO --isu A=DIR_A:7,B=DIR_B:13,C=DIR_C:4 --kunci code_secret.key
+PYTHONPATH=. python research/fotoasli/salinan.py --ringkas
 PYTHONPATH=. python research/fotoasli/kalibrasi.py buat lembar_K.pdf
 PYTHONPATH=. python research/fotoasli/kalibrasi.py ukur lembar_K.pdf FOTO_LEMBAR_K.jpg
 ```

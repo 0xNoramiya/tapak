@@ -835,8 +835,8 @@ def test_background_profile_defaults_to_layar(client):
     assert "<legend" in page and ">Pola latar</legend>" in page
     assert " checked" in _radio(page, "layar") and " checked" not in _radio(page, "cetak")
     layar, cetak = _plain(_choice(page, "layar")), _plain(_choice(page, "cetak"))
-    assert "Layar" in layar and "(bawaan)" in layar and "Tidak terlihat, tetapi hilang bila salinan dicetak: cetakan salinan ini praktis tidak terlacak." in layar
-    assert "Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda." in cetak
+    assert "Layar" in layar and "(bawaan)" in layar and "Tidak terlihat. Di kertas bergantung pada printer: terbaca pada printer yang diuji, lebih lemah daripada profil cetak." in layar
+    assert "Paling kuat di kertas: terbaca hampir tanpa galat pada printer yang diuji. Halaman tampak abu-abu muda." in cetak
     # the print profile is never called invisible
     invisible = re.compile(r"\b(tidak|tak) terlihat", re.I)
     assert not invisible.search(cetak) and not invisible.search(PRINT_BACKGROUND_WARNING)
@@ -849,7 +849,7 @@ def test_background_profile_defaults_to_layar(client):
 
     r = client.post("/terbitkan/analisis", files=_files(), data={"c": "3", "eps": "1e-6"})  # no choice sent
     assert r.status_code == 200 and 'class="ch-profil">profil layar</span>' in r.text
-    assert PRINT_BACKGROUND_WARNING not in r.text and "uji printer simulasi" not in r.text
+    assert PRINT_BACKGROUND_WARNING not in r.text and "Bertahan: cetak, layar" not in r.text
     sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
     r = client.post(f"/terbitkan/{sid}/terbitkan")
     assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text and "notice-warn" not in r.text
@@ -874,7 +874,7 @@ def test_print_profile_warns_in_form_plan_and_result(client):
     # The plan names the profile at the background channel, with the warning in the row below it.
     row = re.search(r'<tr class="has-note">.*?</tr>\s*<tr class="ch-peringatan">.*?</tr>', r.text, re.S).group(0)
     assert 'class="ch-profil">profil cetak</span>' in row and PRINT_BACKGROUND_WARNING in row
-    assert "Pola latar" in row and "Bertahan: cetak dalam uji printer simulasi, layar" in row
+    assert "Pola latar" in row and "Bertahan: cetak, layar, tangkapan layar" in row
     sid = re.search(r"/terbitkan/([0-9a-f]{16})/varian", r.text).group(1)
     r = client.post(f"/terbitkan/{sid}/terbitkan")
     assert r.status_code == 200 and "20 salinan siap dibagikan" in r.text
@@ -1135,8 +1135,8 @@ def test_scanned_master_is_accepted_and_the_plan_shows_page_modes(client, scans)
     # the gate: pixel-identical scanned page only (the gray-level sentence is about text pages)
     assert f'id="gerbang-pindaian">{gate_line}</span>' in page and "selisih maksimum" not in text
     # channels: shift and background in the page image; no text channel has slots on a scan
-    assert "Bertahan: cetak, foto, tangkapan layar; di halaman pindaian: digeser di piksel gambar" in text
-    assert "foto layar; di halaman pindaian: ditambahkan ke piksel kertas" in text
+    assert "Bertahan: foto, tangkapan layar; lemah di kertas; di halaman pindaian: digeser di piksel gambar" in text
+    assert "bergantung pada printer; di halaman pindaian: ditambahkan ke piksel kertas" in text
     assert '<span class="ch-name">Karakter tak terlihat' not in page and '<span class="ch-name">Huruf kembar' not in page
     # not one word of the document (scan or OCR layer) reaches the page
     leaked = sorted(w for w in _source_words() if re.search(rf"\b{w}\b", text))

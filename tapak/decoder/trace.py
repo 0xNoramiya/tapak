@@ -513,7 +513,8 @@ def check_evidence_types(names: list[str]) -> None:
 
 
 def _screen_profile(ctx: TraceContext) -> bool:
-    """Whether the document's background pattern is the default screen profile, which a print drops."""
+    """Whether the document's background pattern is the default screen profile, which not every
+    printer prints."""
     from tapak.marker.background import profile_name
 
     return ctx.background is not None and profile_name(ctx.background) == "layar"
@@ -574,9 +575,10 @@ def collect_file(name: str, data: bytes, ctx: TraceContext,
                              f"bukan salinan bertanda); hanya {used} yang dipakai")
                 if reg and str(reg["method"]).endswith("+lengkung") and _screen_profile(ctx):
                     # the page did not lie flat: most likely a sheet of paper (research/fotoasli)
-                    notes.append(f"{name}: halaman tidak datar, seperti lembar kertas; dokumen ini memakai profil "
-                                 "latar layar, yang hilang saat dicetak, dan tanda geser jarang terbaca dari kertas "
-                                 "sungguhan, jadi cetakan salinan ini praktis tidak terlacak")
+                    notes.append(f"{name}: halaman tidak datar, seperti lembar kertas, dan pola latarnya tidak "
+                                 "ditemukan; pola latar profil layar tidak tercetak pada setiap printer, dan tanda "
+                                 "geser saja jarang cukup dari kertas sungguhan (profil latar cetak lebih kuat di "
+                                 "kertas)")
     else:
         raise TraceError(f"jenis berkas tidak dikenal: {suffix or '(tanpa akhiran)'}")
     return obs, notes

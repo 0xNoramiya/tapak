@@ -565,11 +565,12 @@ EN: dict[str, str | tuple[str, str]] = {
     "Lapisan kode di bawah teks halaman. Pilih menurut cara salinan akan dibagikan.":
         "A layer of code under the page text. Choose by how the copies will be shared.",
     'Layar <span class="field-optional">(bawaan)</span>': 'Screen <span class="field-optional">(default)</span>',
-    "Tidak terlihat, tetapi hilang bila salinan dicetak: cetakan salinan ini praktis tidak terlacak.":
-        "Invisible, but lost when a copy is printed: a printout of this copy is practically untraceable.",
+    "Tidak terlihat. Di kertas bergantung pada printer: terbaca pada printer yang diuji, lebih lemah daripada profil cetak.":
+        "Invisible. On paper it depends on the printer: it was read on the printer tested, more weakly than the print "
+        "profile.",
     "Cetak": "Print",
-    "Bertahan di kertas dalam uji printer simulasi, tetapi halaman tampak abu-abu muda.":
-        "Survives on paper in the simulated printer tests, but the page looks light grey.",
+    "Paling kuat di kertas: terbaca hampir tanpa galat pada printer yang diuji. Halaman tampak abu-abu muda.":
+        "Strongest on paper: read almost without errors on the printer tested. The page looks light grey.",
     "Skema geser kata": "Word shift scheme",
     "Geser kata dan baris yang tetap terbaca pada foto kertas cetak.":
         "Word and line shifts that can still be read in a photo of a printed page.",
@@ -619,10 +620,10 @@ EN: dict[str, str | tuple[str, str]] = {
     "Kanal": "Channel",
     "Slot": "Slots",
     "Cakupan kode": "Code coverage",
-    "cetak, foto, tangkapan layar": "print, photo, screenshot",
-    "cetak dalam uji printer simulasi, layar, tangkapan layar, foto layar":
-        "print in the simulated printer tests, screen, screenshot, photo of a screen",
-    "layar, tangkapan layar, foto layar": "screen, screenshot, photo of a screen",
+    "foto, tangkapan layar; lemah di kertas": "photo, screenshot; weak on paper",
+    "cetak, layar, tangkapan layar, foto layar": "print, screen, screenshot, photo of a screen",
+    "layar, tangkapan layar, foto layar; di kertas bergantung pada printer":
+        "screen, screenshot, photo of a screen; on paper it depends on the printer",
     "salin-tempel, berkas diteruskan": "copy and paste, forwarded file",
     "salin-tempel, teks dinormalkan sebagian": "copy and paste, partly normalised text",
     "; di halaman pindaian: digeser di piksel gambar": "; on scanned pages: shifted in the image pixels",
@@ -2021,11 +2022,12 @@ RULES: list[tuple[str, str]] = [
      "{used:t} yang dipakai",
      "{name}: background pattern not detected (printed paper, a photo too bright, or not a marked copy); only {used} "
      "was used"),
-    ("{name}: halaman tidak datar, seperti lembar kertas; dokumen ini memakai profil latar layar, yang hilang saat "
-     "dicetak, dan tanda geser jarang terbaca dari kertas sungguhan, jadi cetakan salinan ini praktis tidak terlacak",
-     "{name}: the page is not flat, like a sheet of paper; this document uses the screen background profile, which "
-     "is lost in print, and shift marks are rarely readable from real paper, so a printout of this copy is "
-     "practically untraceable"),
+    ("{name}: halaman tidak datar, seperti lembar kertas, dan pola latarnya tidak ditemukan; pola latar profil layar "
+     "tidak tercetak pada setiap printer, dan tanda geser saja jarang cukup dari kertas sungguhan (profil latar cetak "
+     "lebih kuat di kertas)",
+     "{name}: the page is not flat, like a sheet of paper, and its background pattern was not found; not every printer "
+     "prints the screen profile's pattern, and shift marks alone are rarely enough from real paper (the print "
+     "background profile is stronger on paper)"),
     ("{name}: halaman dokumen induk tidak ditemukan pada gambar (bukan dokumen ini, terlalu buram, atau terpotong)",
      "{name}: no page of the master document was found in the image (not this document, too blurry, or cropped)"),
     ("{name}: sebagian karakter tidak dapat diterjemahkan (pengodean teks tidak dikenal)",
