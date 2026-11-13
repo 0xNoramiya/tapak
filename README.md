@@ -90,6 +90,7 @@ Butuh Python 3.11 atau lebih baru dan [uv](https://docs.astral.sh/uv/). Di Ubunt
 sudo apt-get install -y \
   tesseract-ocr tesseract-ocr-ind poppler-utils \
   libpango-1.0-0 libharfbuzz-subset0
+git clone https://github.com/0xNoramiya/tapak && cd tapak
 make setup  # sekali, perlu jaringan
 make demo   # skenario lengkap, sekitar 30 detik
 make web    # halaman produk http://127.0.0.1:8000, demo terpandu di /demo

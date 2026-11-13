@@ -90,6 +90,7 @@ You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). On Ubuntu:
 sudo apt-get install -y \
   tesseract-ocr tesseract-ocr-ind poppler-utils \
   libpango-1.0-0 libharfbuzz-subset0
+git clone https://github.com/0xNoramiya/tapak && cd tapak
 make setup  # once, needs the network
 make demo   # the whole scenario, about 30 seconds
 make web    # product page at http://127.0.0.1:8000, guided demo at /demo
