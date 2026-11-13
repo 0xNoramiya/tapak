@@ -76,6 +76,8 @@ Angka lengkap, termasuk kanal berderau dan koalisi 5 orang, ada di [cara kerja](
 
 Halaman produk di `/` menjelaskan TAPAK untuk instansi pemerintah dengan angka dan grafik dari berkas hasil di repositori. **Demo** terpandu di `/demo` menerbitkan nota dinas contoh untuk 20 penerima fiktif, membocorkan satu salinan (foto ponsel, tangkapan layar, potongan halaman, PDF, atau teks), lalu melacaknya sampai berita acara, di ruang kerja terpisah yang tidak menyentuh registri Anda.
 
+Instans uji coba di [tapak.fly.dev](https://tapak.fly.dev) terbuka tanpa kata sandi selama penjurian: halaman operator (Beranda, Terbitkan, Lacak, Registri) dapat dicoba langsung. Siapa pun dapat melihat isinya, jadi pakai dokumen contoh saja.
+
 Semua halaman tersedia dalam bahasa Indonesia dan Inggris: pilihan ID | EN ada di navigasi dan diingat lewat cookie. Berita acara PDF mengikuti bahasa halaman; versi Inggrisnya terjemahan, dan yang resmi tetap versi Indonesia.
 
 Halaman **Lacak** di atas membaca foto yang sama dengan gambar alur. Di sini hanya pola latar yang sendirian menunjuk salinan #13 (kanal sepakat: 1), dan pola itu tidak ada pada foto salinan yang dicetak. Halaman **Terbitkan** menerima PDF (berlapis teks atau hasil pindai) dan daftar penerima, menawarkan profil pola latar (layar atau cetak) dan skema geser (v2 atau v1), meminta peninjauan setiap varian dan setiap titik pilihan kata (opsional), lalu menghasilkan ZIP salinan.
@@ -118,4 +120,4 @@ Kami memilih menjawab "tidak cukup bukti" daripada menebak. Ketiga belas batasan
 
 ---
 
-<sub>Dibuat untuk Kartika Cyber Hackathon 2026, kategori Core Infra. Setiap halaman contoh bertanda "CONTOH SINTETIS - BUKAN DOKUMEN ASLI". Font DejaVu untuk dokumen dan berita acara (lisensi Bitstream Vera, `tapak/assets/fonts/LICENSE-DejaVu.txt`), font IBM Plex untuk antarmuka (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`), dan HTMX 1.9.12 (lisensi BSD, `tapak/web/static/`) disertakan di repositori. Foto HEIC dibaca dengan pillow-heif (BSD), yang rodanya memuat libheif dan libde265 (LGPL) serta x265 (GPL).</sub>
+<sub>Dibuat oleh tim In Kudaliar We Trust untuk Kartika Cyber Hackathon 2026. Asal karya, pustaka, alat bantu, dan lisensinya ada di [atribusi](docs/atribusi.md). Setiap halaman contoh bertanda "CONTOH SINTETIS - BUKAN DOKUMEN ASLI". Font DejaVu untuk dokumen dan berita acara (lisensi Bitstream Vera, `tapak/assets/fonts/LICENSE-DejaVu.txt`), font IBM Plex untuk antarmuka (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`), dan HTMX 1.9.12 (lisensi BSD, `tapak/web/static/`) disertakan di repositori. Foto HEIC dibaca dengan pillow-heif (BSD), yang rodanya memuat libheif dan libde265 (LGPL) serta x265 (GPL).</sub>

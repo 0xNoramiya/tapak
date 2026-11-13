@@ -76,6 +76,8 @@ The full numbers, including noisy channels and coalitions of 5, are in [how it w
 
 The product page at `/` explains TAPAK for government agencies with numbers and charts from the result files in this repository. The guided **demo** at `/demo` issues a sample memo to 20 fictional recipients, lets you leak one copy (a phone photo, a screenshot, part of a page, the PDF, or its text), and traces it to a forensic report, in a separate workspace that does not touch your registry.
 
+The trial instance at [tapak.fly.dev](https://tapak.fly.dev) is open without a password while the hackathon is judged: the operator pages (Home, Issue, Trace, Registry) can be tried directly. Anyone can see what is there, so use sample documents only.
+
 Every page is in Indonesian and English: the ID | EN switch sits in the navigation and the choice is kept in a cookie. The forensic report PDF follows the page language; the English one is a rendition, and the Indonesian form stays the official version.
 
 The **Trace** page above reads the same photo as the flow figure. Here only the background pattern names copy #13 on its own (channels agreeing: 1), and that pattern is absent from photos of printed copies. The **Issue** page takes a PDF (with a text layer, or scanned) and a recipient list, offers a background profile (screen or print) and a shift scheme (v2 or v1), asks for a review of every variant and every word-choice point (optional), and produces a ZIP of copies.
@@ -118,4 +120,4 @@ We would rather answer "not enough evidence" than guess. All thirteen limitation
 
 ---
 
-<sub>Made for Kartika Cyber Hackathon 2026, Core Infra category. Every sample page is marked "CONTOH SINTETIS - BUKAN DOKUMEN ASLI" (synthetic sample, not a real document). The DejaVu fonts for documents and forensic reports (Bitstream Vera license, `tapak/assets/fonts/LICENSE-DejaVu.txt`), the IBM Plex fonts for the interface (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`) and HTMX 1.9.12 (BSD license, `tapak/web/static/`) are included in the repository. HEIC photos are read with pillow-heif (BSD), whose wheel bundles libheif and libde265 (LGPL) and x265 (GPL).</sub>
+<sub>Made by team In Kudaliar We Trust for Kartika Cyber Hackathon 2026. Origin of the work, libraries, tools and their licenses are in [atribusi](docs/atribusi.md) (Indonesian). Every sample page is marked "CONTOH SINTETIS - BUKAN DOKUMEN ASLI" (synthetic sample, not a real document). The DejaVu fonts for documents and forensic reports (Bitstream Vera license, `tapak/assets/fonts/LICENSE-DejaVu.txt`), the IBM Plex fonts for the interface (SIL OFL 1.1, `tapak/web/static/fonts/LICENSE-IBM-Plex.txt`) and HTMX 1.9.12 (BSD license, `tapak/web/static/`) are included in the repository. HEIC photos are read with pillow-heif (BSD), whose wheel bundles libheif and libde265 (LGPL) and x265 (GPL).</sub>
