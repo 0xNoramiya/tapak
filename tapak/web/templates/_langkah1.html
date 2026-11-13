@@ -73,7 +73,7 @@
     {% set geser = values.geser if values.geser is defined and values.geser else geser_bawaan %}
     <fieldset class="field latar geser" aria-describedby="hint-geser">
       <legend class="field-label">{{ _("Skema geser kata") }}</legend>
-      <span class="hint" id="hint-geser">{{ _("Geser kata dan baris yang tetap terbaca pada foto kertas cetak.") }}</span>
+      <span class="hint" id="hint-geser">{{ _("Geser kata dan baris. Di kertas cetak kanal ini menambah bukti; yang menyebut salinan di sana pola latar.") }}</span>
       <div class="choices">
         <label class="choice">
           <input type="radio" name="geser" value="v1" {% if geser == "v1" %}checked{% endif %}

@@ -8,6 +8,8 @@ reads them and writes ``tapak/web/landing.json``, which the page draws its chart
 * ``media``: verdicts per kind of evidence, from the README benchmark
   (docs/results/bench_photos.json) and the held-out runs of research/registrasi and
   research/fotopotong;
+* ``sungguhan``: the real phone photos of real prints of known copies (research/fotoasli),
+  as taken and as a messaging app forwards them;
 * ``batas``: the false-accusation bound of the README benchmark per set (median and worst);
 * ``uji``: honest held-out traces of the studies and how many named someone else.
 
@@ -89,6 +91,15 @@ def media_and_bounds() -> tuple[list, list]:
     return media, bounds
 
 
+def real_prints() -> list:
+    """Real phone photos of real prints of known copies: rows as in ``media``."""
+    rows = _jsonl("research/fotoasli/hasil/salinan.jsonl")
+    return [{"label": label, "n": len(rows), "benar": sum(r[kind]["verdict"] == "benar" for r in rows),
+             "salah": sum(r[kind]["verdict"] == "salah" for r in rows), "sumber": "research/fotoasli/hasil/salinan.jsonl"}
+            for kind, label in (("asli", "Foto ponsel dari cetakan sungguhan"),
+                                ("pesan", "Foto yang sama setelah aplikasi pesan"))]
+
+
 def _jsonl(rel: str) -> list[dict]:
     return [json.loads(x) for x in (ROOT / rel).read_text(encoding="utf-8").splitlines() if x.strip()]
 
@@ -167,8 +178,8 @@ def channel_pictures() -> None:
 
 def main() -> int:
     media, bounds = media_and_bounds()
-    data = {"pemisahan": pemisahan(), "media": media, "batas": bounds, "uji": honest_traces(),
-            "contoh": example_and_pictures()}
+    data = {"pemisahan": pemisahan(), "media": media, "sungguhan": real_prints(), "batas": bounds,
+            "uji": honest_traces(), "contoh": example_and_pictures()}
     OUT.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     channel_pictures()
     print(OUT)

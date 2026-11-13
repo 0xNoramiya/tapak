@@ -158,13 +158,15 @@ EN: dict[str, str | tuple[str, str]] = {
     "induknya.":
         "Three layers on a real copy, magnified. Without magnification the copy looks exactly like its master.",
     "Diuji ribuan kali. Nol orang tak bersalah tertuduh.": "Tested thousands of times. Zero innocent people accused.",
-    "Semua angka di bawah berasal dari uji yang dapat diulang di repositori: dokumen fiktif, bukti sintetis, dan "
-    "set uji yang dijalankan sekali setelah aturannya dikunci.":
-        "Every number below comes from a test you can rerun from the repository: fictional documents, synthetic "
-        "evidence, and test sets run once after the rules were locked.",
+    "Semua angka di bawah berasal dari berkas hasil di repositori: dokumen fiktif, bukti sintetis ditambah foto "
+    "ponsel dari cetakan sungguhan, dan set uji yang dijalankan sekali setelah aturannya dikunci.":
+        "Every number below comes from a result file in the repository: fictional documents, synthetic evidence "
+        "plus phone photos of real prints, and test sets run once after the rules were locked.",
     "Seberapa sering TAPAK menyebut penerima yang benar": "How often TAPAK names the right recipient",
     "Bukti yang tidak cukup dijawab <q>tidak cukup bukti</q>. Tidak satu pun menunjuk orang lain.":
         "Evidence that falls short gets <q>not enough evidence</q>. Not one result named someone else.",
+    "Cetakan sungguhan: tiga salinan, satu printer, difoto dengan ponsel":
+        "Real prints: three copies, one printer, photographed with a phone",
     "Uji benchmark: foto dan cetakan sintetis": "Benchmark: synthetic photos and prints",
     "Studi registrasi: bukti sebagian dan buram, set uji tertahan": "Registration study: partial and blurry evidence, held-out set",
     "Studi foto yang dipotong pembocor, set uji tertahan": "Study of photos cropped by the leaker, held-out set",
@@ -283,6 +285,8 @@ EN: dict[str, str | tuple[str, str]] = {
     "Foto ponsel sebagian halaman": "Phone photos of part of a page",
     "Satu paragraf saja": "A single paragraph",
     "Foto ponsel dipotong lalu diperkecil": "Phone photos cropped and then shrunk",
+    "Foto ponsel dari cetakan sungguhan": "Phone photos of real prints",
+    "Foto yang sama setelah aplikasi pesan": "The same photos after a messaging app",
     "Foto layar": "Screen photo",
     "Foto ISP ponsel": "Phone ISP photo",
     "Foto monitor": "Monitor photo",
@@ -572,8 +576,8 @@ EN: dict[str, str | tuple[str, str]] = {
     "Paling kuat di kertas: terbaca hampir tanpa galat pada printer yang diuji. Halaman tampak abu-abu muda.":
         "Strongest on paper: read almost without errors on the printer tested. The page looks light grey.",
     "Skema geser kata": "Word shift scheme",
-    "Geser kata dan baris yang tetap terbaca pada foto kertas cetak.":
-        "Word and line shifts that can still be read in a photo of a printed page.",
+    "Geser kata dan baris. Di kertas cetak kanal ini menambah bukti; yang menyebut salinan di sana pola latar.":
+        "Word and line shifts. On paper they add evidence; it is the background pattern that names the copy there.",
     "(bawaan)": "(default)",
     "Kelompok kata kontrol dan data berselang-seling, geser 0,05 mm.":
         "Control and data word groups alternate, 0.05 mm shifts.",

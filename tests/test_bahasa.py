@@ -47,8 +47,9 @@ def _messages() -> dict[str, str]:
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("_", "N_")
                     and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
                 found.setdefault(node.args[0].value, f"{module.name}:{node.lineno}")
-    for row in json.loads((WEB / "landing.json").read_text(encoding="utf-8"))["media"]:
-        found.setdefault(row["label"], "landing.json")
+    for key in ("media", "sungguhan"):
+        for row in json.loads((WEB / "landing.json").read_text(encoding="utf-8"))[key]:
+            found.setdefault(row["label"], "landing.json")
     for row in json.loads((WEB / "landing.json").read_text(encoding="utf-8"))["batas"]:
         found.setdefault(row["label"], "landing.json")
     return found

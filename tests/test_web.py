@@ -1606,12 +1606,14 @@ def test_landing_page_tells_the_numbers_of_the_result_files(client):
     assert "\u2014" not in r.text  # no em dashes in user-facing text
     data = landing_numbers()
     assert f"{data['uji']['n']:,}".replace(",", ".") in r.text and r.text.count("<svg") >= 3
-    assert data["uji"]["tuduhan_salah"] == 0 and all(m["salah"] == 0 for m in data["media"])
+    assert data["uji"]["tuduhan_salah"] == 0 and all(m["salah"] == 0 for m in data["media"] + data["sungguhan"])
+    assert "Cetakan sungguhan" in r.text and all(m["label"] in r.text for m in data["sungguhan"])
     sys.path.insert(0, str(ROOT / "docs" / "figures"))
     import fig_landing
 
     media, bounds = fig_landing.media_and_bounds()
     assert media == data["media"] and bounds == data["batas"] and fig_landing.honest_traces() == data["uji"]
+    assert fig_landing.real_prints() == data["sungguhan"]
     p = data["pemisahan"]
     assert sum(p["tak_bersalah"]) == p["n_tak_bersalah"] and sum(p["anggota"]) == p["n_anggota"]
     assert p["maks_tak_bersalah"] < 1.0 < p["min_anggota"]

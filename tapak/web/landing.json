@@ -190,6 +190,22 @@
    "sumber": "research/fotopotong/hasil/uji.jsonl"
   }
  ],
+ "sungguhan": [
+  {
+   "label": "Foto ponsel dari cetakan sungguhan",
+   "n": 18,
+   "benar": 18,
+   "salah": 0,
+   "sumber": "research/fotoasli/hasil/salinan.jsonl"
+  },
+  {
+   "label": "Foto yang sama setelah aplikasi pesan",
+   "n": 18,
+   "benar": 18,
+   "salah": 0,
+   "sumber": "research/fotoasli/hasil/salinan.jsonl"
+  }
+ ],
  "batas": [
   {
    "label": "Foto layar",

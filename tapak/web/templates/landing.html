@@ -240,7 +240,7 @@
     <div class="ld-wrap">
       <p class="ld-eyebrow"><span>04</span>{{ _("Bukti") }}</p>
       <h2 id="bukti-h" class="ld-h2">{{ _("Diuji ribuan kali. Nol orang tak bersalah tertuduh.") }}</h2>
-      <p class="ld-lead">{{ _("Semua angka di bawah berasal dari uji yang dapat diulang di repositori: dokumen fiktif, bukti sintetis, dan set uji yang dijalankan sekali setelah aturannya dikunci.") }}</p>
+      <p class="ld-lead">{{ _("Semua angka di bawah berasal dari berkas hasil di repositori: dokumen fiktif, bukti sintetis ditambah foto ponsel dari cetakan sungguhan, dan set uji yang dijalankan sekali setelah aturannya dikunci.") }}</p>
 
       <div class="ld-evidence">
         <article class="ld-panel ld-panel-wide">
@@ -248,6 +248,8 @@
             <h3>{{ _("Seberapa sering TAPAK menyebut penerima yang benar") }}</h3>
             <p>{% trans %}Bukti yang tidak cukup dijawab <q>tidak cukup bukti</q>. Tidak satu pun menunjuk orang lain.{% endtrans %}</p>
           </header>
+          <h4 class="ld-panel-sub">{{ _("Cetakan sungguhan: tiga salinan, satu printer, difoto dengan ponsel") }}</h4>
+          {{ batang_media(angka.sungguhan) }}
           <h4 class="ld-panel-sub">{{ _("Uji benchmark: foto dan cetakan sintetis") }}</h4>
           {{ batang_media(angka.media[:5]) }}
           <h4 class="ld-panel-sub">{{ _("Studi registrasi: bukti sebagian dan buram, set uji tertahan") }}</h4>
