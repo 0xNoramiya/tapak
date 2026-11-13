@@ -32,7 +32,7 @@ Prototipe di luar repositori menilai kalibrasi kelompok kata saja pada putaran 1
 
 ## Hasil (set uji)
 
-Dijalankan sekali dengan kode komit pilihan (`5f258a5`, hash sumber dekoder di `hasil/uji_dekoder.json`) pada empat terbitan baru (G1 sampai G4, benih 13401 sampai 13419): 520 pelacakan, termasuk 36 induk tanpa tanda. Setiap registrasi juga didekode dengan dekoder sebelumnya, jadi sebelum dan sesudah berpasangan. Jalannya berhenti sekali setelah 5 pelacakan PDF, karena skrip studi memuat `kandidat.py` studi kalibrasi (nama modul yang sama) di proses pekerja; skrip diperbaiki tanpa mengubah dekoder, dan jalannya dilanjutkan. Kelima pelacakan yang tercatat adalah hasil kode yang sama.
+Dijalankan sekali dengan kode komit pilihan (`c262c89`, hash sumber dekoder di `hasil/uji_dekoder.json`) pada empat terbitan baru (G1 sampai G4, benih 13401 sampai 13419): 520 pelacakan, termasuk 36 induk tanpa tanda. Setiap registrasi juga didekode dengan dekoder sebelumnya, jadi sebelum dan sesudah berpasangan. Jalannya berhenti sekali setelah 5 pelacakan PDF, karena skrip studi memuat `kandidat.py` studi kalibrasi (nama modul yang sama) di proses pekerja; skrip diperbaiki tanpa mengubah dekoder, dan jalannya dilanjutkan. Kelima pelacakan yang tercatat adalah hasil kode yang sama.
 
 **Kelompok kata, bobot di atas 0,99** (salah / posisi; laju, terkalibrasi E / n):
 

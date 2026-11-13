@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def paraphrase_prompt_v1(sentence: str, n: int) -> str:
-    """The paraphrase prompt shipped at commit b3fd8fa (free rewording)."""
+    """The paraphrase prompt shipped at commit 92faa35 (free rewording)."""
     return (
         "Anda adalah penyunting naskah dinas berbahasa Indonesia.\n"
         f"Tuliskan {n} parafrase dari kalimat di bawah ini dengan makna yang sama persis.\n"
@@ -48,7 +48,7 @@ def paraphrase_prompt_v1(sentence: str, n: int) -> str:
 
 
 def judge_prompt_v1(original: str, candidate: str) -> str:
-    """The judge prompt shipped at commit b3fd8fa ("bermakna sama persis")."""
+    """The judge prompt shipped at commit 92faa35 ("bermakna sama persis")."""
     return (
         "Anda adalah pemeriksa kesetaraan makna naskah dinas berbahasa Indonesia.\n"
         "Apakah kalimat B bermakna sama persis dengan kalimat A, tanpa menambah, menghapus, "
@@ -228,7 +228,7 @@ def main() -> None:
     ap.add_argument("--skip-judge", action="store_true")
     ap.add_argument("--skip-pipeline", action="store_true")
     ap.add_argument("--timeout", type=float, default=300.0)
-    # v1: prompts shipped at b3fd8fa ("shipped" in the limits report); v2: the current provider prompts
+    # v1: prompts shipped at 92faa35 ("shipped" in the limits report); v2: the current provider prompts
     ap.add_argument("--prompt", choices=["v1", "v2"], default="v2")
     ap.add_argument("--judge", choices=["v1", "v2"], default="v2")
     ap.add_argument("--out", required=True)

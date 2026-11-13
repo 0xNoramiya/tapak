@@ -75,7 +75,7 @@ def _without_file_id(data: bytes) -> bytes:
     return data[:start] + data[end:]
 
 
-# Default issuance as written by the code before the print profile existed (commit 3500a5d),
+# Default issuance as written by the code before the print profile existed (commit 6be81e2),
 # recorded with PyMuPDF 1.28.2 from the sample tapak.samplegen writes: SHA-256 of copies 1 and
 # 2 (copy ids 0 and 1, trailer /ID cut out).
 GOLDEN_PYMUPDF = "1.28.2"

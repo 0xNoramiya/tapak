@@ -57,7 +57,7 @@
   ],
   "design": "copy s (1..20) or master image k: i = s - 1 or k; monitor = monitors[i % 4], distance = distances[(i // 4) % 3], angle = angles[(i + i // 4) % 4]",
   "generators": "photo: default_rng([split seed, document index, s, 11]), ISP default_rng([..., 12]); monitor: [..., 21] and [..., 22]; master image k uses s = 1000 + k",
-  "base_commit": "0de1e9752ca3fa5e8c9a436402409ab73db50003",
+  "base_commit": "5943fbd5d880525b9c4113ab03d71db4afe16921",
   "spending": "tidak dicatat (seluruh eps), seperti make bench",
   "script_sha256": "7bd3073f674b83e87844f2d889862ed6de14fe598e86a28b274e1316ed6c48db"
 }

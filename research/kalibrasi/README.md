@@ -6,7 +6,7 @@ Tidak ada ambang tuduhan, eps, aturan pembagian eps, atau aturan putusan yang be
 
 ## Protokol
 
-Protokol, benih, media, dan catatan per bukti ditulis di docstring `ukur.py` (`PROTOCOL`, juga `hasil/protokol.json`) dan dicatat di git sebelum pengukuran pertama (komit `501fd41`). Aturan pemilihan (`kandidat.py`, `ATURAN`) dicatat sebelum kandidat pertama dinilai (`d33c264`) dan tidak berubah antarputaran.
+Protokol, benih, media, dan catatan per bukti ditulis di docstring `ukur.py` (`PROTOCOL`, juga `hasil/protokol.json`) dan dicatat di git sebelum pengukuran pertama (komit `ea213b1`). Aturan pemilihan (`kandidat.py`, `ATURAN`) dicatat sebelum kandidat pertama dinilai (`47520d9`) dan tidak berubah antarputaran.
 
 * **Penerbitan.** `tapak issue --benih-riset`, N = 20, c = 3, eps = 10^-6, skema geser v2. Pengembangan: nota dinas (13101) dan surat telegram (13102) dengan profil latar bawaan, keduanya lagi (13103, 13104) dengan profil latar cetak. Uji: 13201 sampai 13204 dengan pembagian yang sama. Benih ini tidak dipakai studi lain.
 * **Medium** (halaman 1 kecuali cetakan): PDF yang diteruskan; tangkapan layar dari MuPDF, Poppler Splash, dan Poppler Cairo pada 28 sampai 150 dpi dengan fungsi `research/layar` tanpa perubahan, sebagai PNG, lewat aplikasi pesan (`pesan`), atau digambar 1,5 kali lebih rapat lalu diperkecil aplikasi pesan (`kecil`), halaman saja atau di jendela penampil; tangkapan simulator `tapak/photos.py` (`layar_sim`, tangkapan benchmark README); foto ponsel dasar (`foto`), foto lewat ISP ponsel simulasi (`ponsel`), foto monitor dengan ISP (`monitor`); dan foto cetakan laser profil latar cetak (`cetak`), halaman 1 atau 2.
@@ -34,7 +34,7 @@ Tanpa batas per sel, kandidat yang sama masih terlalu yakin di 5 kelompok bobot 
 
 ## Hasil (set uji)
 
-Dijalankan sekali dari ekspor `git archive` komit pilihan (`d87a48e`; hash sumber dekoder di `hasil/uji_dekoder.json`). Jalannya terputus sekali pada pelacakan 889 dari 1.024 karena sesi mesin uji berhenti, lalu dilanjutkan dengan kode yang sama (hash sumber dekoder diperiksa ulang sebelum dilanjutkan); pelacakan yang sudah tercatat dilewati, dan setiap bukti memakai benihnya sendiri, jadi hasilnya sama dengan satu jalan tanpa henti. Sebelum dan sesudah dihitung pada registrasi yang sama: pendekodean ulang dengan model terpasang mengulang setiap keluaran latar yang tersimpan (952 bukti gambar), lalu dekoder sebelumnya mendekode registrasi yang sama dan menuduh dengan cara yang sama.
+Dijalankan sekali dari ekspor `git archive` komit pilihan (`754470f`; hash sumber dekoder di `hasil/uji_dekoder.json`). Jalannya terputus sekali pada pelacakan 889 dari 1.024 karena sesi mesin uji berhenti, lalu dilanjutkan dengan kode yang sama (hash sumber dekoder diperiksa ulang sebelum dilanjutkan); pelacakan yang sudah tercatat dilewati, dan setiap bukti memakai benihnya sendiri, jadi hasilnya sama dengan satu jalan tanpa henti. Sebelum dan sesudah dihitung pada registrasi yang sama: pendekodean ulang dengan model terpasang mengulang setiap keluaran latar yang tersimpan (952 bukti gambar), lalu dekoder sebelumnya mendekode registrasi yang sama dan menuduh dengan cara yang sama.
 
 **Pola latar, bobot di atas 0,95** (salah / posisi; laju terukur, terkalibrasi E / n):
 

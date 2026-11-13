@@ -93,7 +93,7 @@ PROTOCOL = {
               "distance = distances[(i // 4) % 3], angle = angles[(i + i // 4) % 4]",
     "generators": "photo: default_rng([split seed, document index, s, 11]), ISP default_rng([..., 12]); "
                   "monitor: [..., 21] and [..., 22]; master image k uses s = 1000 + k",
-    "base_commit": "0de1e9752ca3fa5e8c9a436402409ab73db50003",
+    "base_commit": "5943fbd5d880525b9c4113ab03d71db4afe16921",
     "spending": "tidak dicatat (seluruh eps), seperti make bench",
 }
 SECRET = hashlib.sha256(b"TAPAK-riset-ponsel-v1").digest()

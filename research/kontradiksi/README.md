@@ -9,7 +9,7 @@ Semua dokumen dan penerima fiktif. Semua foto dan cetakan sintetis.
 
 ## Protokol
 
-Protokol, benih, media, aturan keputusan, dan analisis ditulis di docstring `ukur.py` dan dicatat di git sebelum pengukuran (komit `1c2a2b6`, perbaikan uji coba kering `5425649`). Benih pengembangan (9101 sampai 9115) dipakai untuk dua pilihan; benih uji (9201 sampai 9229) dijalankan sekali, setelah kedua pilihan ditulis di kode dan dicatat (komit `279f1fb`).
+Protokol, benih, media, aturan keputusan, dan analisis ditulis di docstring `ukur.py` dan dicatat di git sebelum pengukuran (komit `f8cdb9f`, perbaikan uji coba kering `efd8a93`). Benih pengembangan (9101 sampai 9115) dipakai untuk dua pilihan; benih uji (9201 sampai 9229) dijalankan sekali, setelah kedua pilihan ditulis di kode dan dicatat (komit `6669c7c`).
 
 * **Pilihan 1, faktor peredam tau.** Plafon laju salah 1 / (1 + exp(tau |L|)) dari LLR gabungan. Aturan: tau terbesar pada kisi 1,0; 0,9; ...; 0,1 yang plafonnya menutupi laju salah terukur di setiap medium dan setiap kelompok |L| (uji Poisson satu sisi, 1 %). Hasil: **tau = 0,3** (`hasil/pilihan_dev.json`).
 * **Pilihan 2, bacaan "pola ditemukan".** Dua kandidat: keputusan dekoder sendiri (`pola`) atau salah satu uji kehadiran lolos (`uji`). Keduanya menandai 24 dari 48 bukti hapus pengembangan tanpa alarm jujur, jadi seri dimenangkan **`pola`**. Protokol tidak membandingkan keduanya dengan perilaku lama (`semua`, setiap kekuatan baca latar dihitung), yang pada benih pengembangan yang sama menandai 35 dari 48 (PDF 12, tangkapan layar 12, foto 11, cetakan 0; `pola`: 9, 6, 5, 4).

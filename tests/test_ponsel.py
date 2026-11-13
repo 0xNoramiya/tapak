@@ -1,7 +1,7 @@
 """Phone ISP and monitor photos (tapak.ponsel, opt-in in tapak.photos).
 
 The default photo stream must not change: the golden hashes below were taken from the
-simulator before tapak.ponsel existed (commit 0de1e97). They depend on the versions of
+simulator before tapak.ponsel existed (commit 5943fbd). They depend on the versions of
 OpenCV, numpy and PyMuPDF in the environment (JPEG encoder, resampling, rendering); after an
 upgrade, regenerate them from that commit, not from the current code.
 """

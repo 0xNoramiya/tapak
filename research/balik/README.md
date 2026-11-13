@@ -10,12 +10,12 @@ Ketiga peringatan digabung menjadi satu blok di bawah putusan (`tapak/decoder/ma
 
 ## Protokol
 
-Protokol, benih, media, laju, aturan rekomendasi, dan analisis ditulis di docstring `ukur.py` dan dicatat di git sebelum benih uji dijalankan (komit `9e85222`). Benih pengembangan (9401 sampai 9415) hanya dipakai untuk uji coba kering (`hasil/dev.jsonl`); tidak ada laju, ambang, atau aturan yang dipilih darinya. Benih uji (9601 sampai 9640) baru: tidak dipakai `research/sepakat`, `research/kontradiksi`, atau protokol lain.
+Protokol, benih, media, laju, aturan rekomendasi, dan analisis ditulis di docstring `ukur.py` dan dicatat di git sebelum benih uji dijalankan (komit `63bbc95`). Benih pengembangan (9401 sampai 9415) hanya dipakai untuk uji coba kering (`hasil/dev.jsonl`); tidak ada laju, ambang, atau aturan yang dipilih darinya. Benih uji (9601 sampai 9640) baru: tidak dipakai `research/sepakat`, `research/kontradiksi`, atau protokol lain.
 
 ## Pelaksanaan
 
 * **Uji coba kering** (benih pengembangan, 158 pelacakan, 0 tuduhan salah). Tidak ada peringatan pada bukti jujur. Pada induk tanpa tanda surat telegram skema v1, z tanda -2,97 dan -3,04 (tangkapan layar dan foto dokumen yang sama): bacaan geser induk sebagian ditentukan tipografinya, jadi satu dokumen tanpa tanda punya pusat z tandanya sendiri, seperti pusat Z pola penghapusan. Laju 10^-3 karena itu berlaku rata-rata atas dokumen; protokol tidak diubah.
-* **Dijalankan sekali, dengan kode komit protokol.** Benih uji diterbitkan dari salinan kerja, lalu pelari dihentikan di awal bagian `jujur` (belum ada baris) dan dijalankan ulang dari ekspor `git archive` komit `9e85222`, supaya penyuntingan teks di salinan kerja selama pengukuran tidak menyentuh kode yang diukur. Setiap tugas memakai benihnya sendiri, jadi hasilnya sama dengan satu jalan tanpa henti. Bagian `bench` memakai gambar benchmark README yang dibuat `make bench-check` di ekspor yang sama; `bench_photos.json` di sana sama byte demi byte dengan `docs/results/bench_photos.json`.
+* **Dijalankan sekali, dengan kode komit protokol.** Benih uji diterbitkan dari salinan kerja, lalu pelari dihentikan di awal bagian `jujur` (belum ada baris) dan dijalankan ulang dari ekspor `git archive` komit `63bbc95`, supaya penyuntingan teks di salinan kerja selama pengukuran tidak menyentuh kode yang diukur. Setiap tugas memakai benihnya sendiri, jadi hasilnya sama dengan satu jalan tanpa henti. Bagian `bench` memakai gambar benchmark README yang dibuat `make bench-check` di ekspor yang sama; `bench_photos.json` di sana sama byte demi byte dengan `docs/results/bench_photos.json`.
 * **Di luar protokol:** hanya [peninjauan](#peninjauan-di-luar-protokol) dengan benih baru, setelah pengukuran ini.
 
 ## Hasil (benih uji)
