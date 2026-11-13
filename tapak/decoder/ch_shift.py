@@ -52,7 +52,7 @@ from tapak.decoder.rectify import parabolic_peak
 from tapak.decoder.softbits import SoftBits, Strengths, gaussian_llr
 from tapak.marker.layout import DocumentLayout, RowId, WordId, extract_layout
 from tapak.marker.master import MasterDocument
-from tapak.marker.pdf_shift import SCHEME_V2, ShiftSettings, eligible_rows, relative_offset
+from tapak.marker.pdf_shift import MM_TO_PT, SCHEME_V2, ShiftSettings, eligible_rows, relative_offset
 from tapak.marker.pdf_zerowidth import normalize_text
 from tapak.marker.plan import CHANNEL_SHIFT, EmbeddingPlan
 
@@ -457,6 +457,91 @@ def fit_page_field(x: np.ndarray, y: np.ndarray, d: np.ndarray, degree: int = 3,
     return a @ coef
 
 
+# A printed sheet is not the master moved rigidly. On the first real prints of known copies
+# (research/fotoasli) the word groups of a fresh, flat sheet sat 0.09 pt off after the
+# registration's bend field, the cubic page field and the row nuisance: more than the geser-v2
+# mark (0.071 pt), nine tenths of it the same on every photo of a sheet and four fifths shared
+# by two sheets from the same printer. It is a displacement of the print itself that changes
+# over about a centimetre, which a row's offset and slope cannot follow. Neighbouring rows share
+# it and do not share their marks, so each group's part is read from the groups of the other
+# rows nearby. How far "nearby" reaches is chosen per page from the evidence alone: the kernel
+# whose field predicts the displacements best. A field made of about ten neighbours carries a
+# tenth of their scatter itself, so it is used only when it explains at least a quarter of the
+# displacements' sum of squares (LOCAL_FIELD_KEEP): on the real prints it explained 60 to 67 %,
+# on simulated flat sheets and the README benchmark's prints 0 to 12 %, where the page is then
+# read exactly as before. No codeword enters.
+LOCAL_FIELD_MM: tuple[float, ...] = (6.0, 9.0, 13.0, 20.0)  # candidate kernel sigmas (image evidence)
+LOCAL_FIELD_KEEP = 0.75       # a field is used when it leaves less than this share of the sum of squares
+LOCAL_FIELD_MIN_WEIGHT = 0.5  # kernel weight of the other rows a group needs to get a local field
+LOCAL_FIELD_CLIP = 3.0        # displacements further than this many robust sigmas from the median are clipped
+
+
+def _clipped(d: np.ndarray) -> np.ndarray:
+    """``d`` with the values beyond LOCAL_FIELD_CLIP robust standard deviations of its median
+    pulled back to that distance (a slipped match must not pull a whole neighbourhood)."""
+    med = float(np.median(d))
+    mad = 1.4826 * float(np.median(np.abs(d - med)))
+    return d if mad <= 0 else np.clip(d, med - LOCAL_FIELD_CLIP * mad, med + LOCAL_FIELD_CLIP * mad)
+
+
+def local_field(x: np.ndarray, y: np.ndarray, row: np.ndarray, d: np.ndarray, kernel: float) -> np.ndarray:
+    """What the groups of the other rows nearby say about each group's displacement: the
+    Gaussian-kernel mean (sigma ``kernel``, in the unit of ``x`` and ``y``) of the displacements
+    ``d`` at (``x``, ``y``) over the groups whose ``row`` differs, after clipping ``d`` at
+    LOCAL_FIELD_CLIP robust standard deviations around its median. A group's own row never
+    enters its value, so the marks its row carries are not averaged away. Zero for a group with
+    less than LOCAL_FIELD_MIN_WEIGHT of kernel weight around it."""
+    x, y, d = (np.asarray(v, dtype=np.float64).reshape(-1) for v in (x, y, d))
+    row = np.asarray(row).reshape(-1)
+    if not (x.size == y.size == d.size == row.size):
+        raise ValueError("satu posisi, baris, dan geseran per kelompok")
+    if kernel <= 0:
+        raise ValueError("lebar kernel medan lokal harus positif")
+    if d.size == 0:
+        return np.zeros(0)
+    d = _clipped(d)
+    w = np.exp(-0.5 * ((x[:, None] - x[None, :]) ** 2 + (y[:, None] - y[None, :]) ** 2) / (kernel * kernel))
+    w[row[:, None] == row[None, :]] = 0.0
+    total = w.sum(axis=1)
+    return np.where(total >= LOCAL_FIELD_MIN_WEIGHT, (w @ d) / np.maximum(total, 1e-12), 0.0)
+
+
+def _off_row_lines(x: np.ndarray, row: np.ndarray, v: np.ndarray, degree: int = JOINT_DEGREE) -> np.ndarray:
+    """``v`` minus, row by row, the polynomial of ``degree`` along the row fitted to it (the row
+    nuisance the decoder projects out anyway); zero in rows too short to leave anything."""
+    out = np.zeros(v.size)
+    for r in np.unique(row):
+        idx = np.flatnonzero(row == r)
+        if idx.size > degree + 1:
+            out[idx] = row_projector(x[idx], degree) @ v[idx]
+    return out
+
+
+def choose_local_field(x: np.ndarray, y: np.ndarray, row: np.ndarray, d: np.ndarray,
+                       kernels: tuple[float, ...]) -> tuple[np.ndarray, float | None]:
+    """The :func:`local_field` that predicts the displacements ``d`` best, and its kernel.
+
+    What counts is what the row nuisance cannot take: ``d`` and ``d`` minus each kernel's field
+    are compared after the line along every row is taken off both. Of ``kernels`` the one with
+    the smallest sum of squares left is chosen, or zeros and None when none leaves less than
+    LOCAL_FIELD_KEEP of what ``d`` alone leaves. Every field value comes from other rows, so the
+    comparison is out of sample, and it sees only the evidence."""
+    x, y, d = (np.asarray(v, dtype=np.float64).reshape(-1) for v in (x, y, d))
+    row = np.asarray(row).reshape(-1)
+    if d.size == 0:
+        return np.zeros(0), None
+    d = _clipped(d)  # the comparison too: one slipped match must not decide it
+    plain = _off_row_lines(x, row, d)
+    best, chosen, least = np.zeros(d.size), None, LOCAL_FIELD_KEEP * float(np.sum(plain * plain))
+    for kernel in kernels:
+        field = local_field(x, y, row, d, kernel)
+        left = plain - _off_row_lines(x, row, field)
+        left = float(np.sum(left * left))
+        if left < least:
+            best, chosen, least = field, kernel, left
+    return best, chosen
+
+
 def _word_units(master: MasterDocument, plan: EmbeddingPlan,
                 disp: Displacements) -> dict[tuple[int, int], list[tuple[int, int, float, float]]]:
     """Measured geser-v2 word slots by (page, row): (position, whitening, group centre, dx)."""
@@ -525,6 +610,7 @@ def joint_decode(
     degree: int = JOINT_DEGREE,
     field_degree: int | None = FIELD_DEGREE,
     rounds: int = FIELD_ROUNDS,
+    local_mm: tuple[float, ...] | None = None,
 ) -> tuple[list[list[tuple[int, int, float, float]]], list[np.ndarray], float, int]:
     """geser-v2 word groups of an evidence file: (rows of units as in :func:`joint_measurements`,
     their sign LLRs, the fitted noise sigma, groups dropped as slipped matches).
@@ -532,9 +618,12 @@ def joint_decode(
     With ``field_degree`` a page field (:func:`fit_page_field`) is fitted ``rounds`` times, each
     time to the measured displacements minus delta times the posterior mean of every sign from
     the previous decode (zero before the first), and subtracted before decoding. Without it, one
-    decode with the per-row nuisance only.
+    decode with the per-row nuisance only. With ``local_mm`` (candidate kernels in millimetres,
+    ``delta`` then being in points; needs ``field_degree``) the local field of what the page
+    field left (:func:`choose_local_field`) is subtracted as well in every round.
     """
-    rows, llrs, sigma, dropped = _joint_decode(master, plan, disp, delta, floor, degree, field_degree, rounds)
+    rows, llrs, sigma, dropped = _joint_decode(master, plan, disp, delta, floor, degree, field_degree, rounds,
+                                               local_mm)
     return rows, llrs, sigma, len(dropped)
 
 
@@ -547,8 +636,11 @@ def _joint_decode(
     degree: int,
     field_degree: int | None,
     rounds: int,
+    local_mm: tuple[float, ...] | None = None,
+    chosen: dict[int, float | None] | None = None,
 ) -> tuple[list[list[tuple[int, int, float, float]]], list[np.ndarray], float, list[int]]:
-    """:func:`joint_decode` with the code positions of the dropped groups (last round)."""
+    """:func:`joint_decode` with the code positions of the dropped groups (last round).
+    ``chosen`` receives the local field's kernel (mm, None for no field) per page."""
     layout = master.shift_layout
     units = _word_units(master, plan, disp)
     means: dict[int, float] = {}
@@ -559,8 +651,14 @@ def _joint_decode(
             for page in sorted({k[0] for k in units}):
                 pts = [(q, xc, layout.pages[page].rows[k[1]].baseline, dx - delta * means.get(q, 0.0))
                        for k, row in units.items() if k[0] == page for q, _, xc, dx in row]
-                fit = fit_page_field(np.array([p[1] for p in pts]), np.array([p[2] for p in pts]),
-                                     np.array([p[3] for p in pts]), degree=field_degree)
+                px, py, pd = (np.array([p[i] for p in pts]) for i in (1, 2, 3))
+                fit = fit_page_field(px, py, pd, degree=field_degree)
+                if local_mm:
+                    row_of = np.array([k[1] for k, row in units.items() if k[0] == page for _ in row])
+                    extra, kernel = choose_local_field(px, py, row_of, pd - fit, tuple(mm * MM_TO_PT for mm in local_mm))
+                    fit = fit + extra
+                    if chosen is not None:
+                        chosen[page] = None if kernel is None else round(kernel / MM_TO_PT, 3)
                 field.update({p[0]: float(v) for p, v in zip(pts, fit)})
         rows, dropped = _screened_rows(master, plan, disp, delta, degree, field)
         llrs, sigma = joint_word_llrs([(np.array([u[2] for u in r]), np.array([u[3] for u in r])) for r in rows],
@@ -632,11 +730,14 @@ def _decode_v2(
 ) -> SoftBits:
     """Channel 1 soft bits under geser-v2: word groups jointly per row, rows as in geser-v1.
     Strengths: :func:`joint_strengths` for the word groups, |s| / sigma for the rows (0 for an
-    implausible offset), as under geser-v1. With ``image`` (image evidence) the word-group LLRs
-    come from :func:`robust_word_llrs` under that model; everything else is unchanged."""
+    implausible offset), as under geser-v1. With ``image`` (image evidence) the word groups are
+    read against the local field of LOCAL_FIELD_MM as well and their LLRs come from
+    :func:`robust_word_llrs` under that model; everything else is unchanged."""
     delta = settings.word_pt
+    local: dict[int, float | None] = {}
     rows, llrs, sigma_w, dropped = _joint_decode(master, plan, disp, delta, sigma_floor_ratio * delta, degree,
-                                                 field_degree, FIELD_ROUNDS)
+                                                 field_degree, FIELD_ROUNDS,
+                                                 LOCAL_FIELD_MM if image is not None else None, local)
     word_meta: dict[str, object] = {}
     sign_llrs = llrs
     if image is not None and image.model is not None and rows:
@@ -649,6 +750,8 @@ def _decode_v2(
         sign_llrs, scale = robust_word_llrs([(np.array([u[2] for u in r]), np.array([u[3] for u in r])) for r in rows],
                                             mark, sigma_floor_ratio * delta, float(spec["nu"]), scales)  # type: ignore[arg-type]
         word_meta = {"word_model": image.name, "word_t_scale_pt": scale, "word_mark_pt": mark}
+    if image is not None and local:
+        word_meta["word_local_field_mm"] = {str(page): kernel for page, kernel in sorted(local.items())}
     pos: list[int] = []
     llr: list[float] = []
     for units, row_llr in zip(rows, sign_llrs):

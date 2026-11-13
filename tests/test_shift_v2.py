@@ -18,13 +18,17 @@ import numpy as np
 import pytest
 
 from tapak.decoder.ch_shift import (
+    LOCAL_FIELD_MM,
     MAX_JOINT_GROUPS,
+    PixelGrid,
+    choose_local_field,
     decode_displacements,
     fit_page_field,
     joint_decode,
     joint_measurements,
     joint_strengths,
     joint_word_llrs,
+    local_field,
     measure_vector,
     row_projector,
     row_sign_llrs,
@@ -379,6 +383,116 @@ def test_v2_survives_affine_distortion_and_curvature(v2_fixed):
     # Expected errors among confident bits: sum of 1 / (1 + e^|LLR|); allow a generous margin.
     expected = float(np.sum(1.0 / (1.0 + np.exp(np.abs(sb.llr[sure])))))
     assert int(np.sum(~right[sure])) <= 3 * expected + 3
+
+
+def test_local_field_reads_a_group_from_the_other_rows_only():
+    x = np.tile(np.array([100.0, 130.0, 160.0, 190.0]), 3)
+    y = np.repeat(np.array([200.0, 214.0, 228.0]), 4)
+    row = np.repeat(np.array([4, 5, 6]), 4)
+    cockle = 0.3 * np.sin(x / 40.0)
+    marked = cockle.copy()
+    marked[row == 5] += 0.07 * np.array([1, -1, -1, 1])  # the middle row carries marks
+    field = local_field(x, y, row, marked, 20.0)
+    assert np.allclose(field[row == 5], local_field(x, y, row, cockle, 20.0)[row == 5])  # own marks do not enter
+    assert np.abs(field - cockle)[row == 5].max() < 0.06  # ... and the sheet's shape is read off the neighbours
+    alone = local_field(np.append(x, 500.0), np.append(y, 700.0), np.append(row, 30), np.append(marked, 0.1), 20.0)
+    assert alone[-1] == 0.0  # nothing nearby: no local field
+    slipped = marked.copy()
+    slipped[row == 4] = [cockle[0], cockle[1] + 5.0, cockle[2], cockle[3]]  # one match far off in the row above
+    assert np.abs(local_field(x, y, row, slipped, 20.0) - cockle)[row == 5].max() < 0.25  # clipped, not followed
+    assert local_field(np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), 20.0).size == 0
+    with pytest.raises(ValueError):
+        local_field(x, y, row[:5], marked, 20.0)
+    with pytest.raises(ValueError):
+        local_field(x, y, row, marked, 0.0)
+
+
+def test_choose_local_field_takes_the_kernel_that_predicts_best_or_none():
+    rng = np.random.default_rng(11)
+    cols = np.arange(60.0, 540.0, 30.0)
+    x = np.tile(cols, 20)
+    y = np.repeat(np.arange(100.0, 100.0 + 14.0 * 20, 14.0), cols.size)
+    row = np.repeat(np.arange(20), cols.size)
+    marks = 0.07 * rng.choice([-1.0, 1.0], x.size)
+    noise = rng.normal(0, 0.02, x.size)
+    wave = 0.25 * np.sin(x / 30.0 + y / 26.0)  # changes over about a centimetre
+    kernels = tuple(mm * 72.0 / 25.4 for mm in LOCAL_FIELD_MM)
+    field, kernel = choose_local_field(x, y, row, wave + marks + noise, kernels)
+    assert kernel in kernels[:2]  # the short kernels follow it, the long ones average it away
+    assert np.sqrt(np.mean((field - wave) ** 2)) < 0.5 * wave.std()
+    resid = wave + marks + noise - field
+    assert np.mean(np.sign(resid) == np.sign(marks)) > np.mean(np.sign(wave + marks + noise) == np.sign(marks)) + 0.1
+    # nothing shared between the rows: no kernel predicts better than zero, and nothing is taken off
+    flat, none = choose_local_field(x, y, row, marks + noise, kernels)
+    assert none is None and not flat.any()
+    empty, none = choose_local_field(np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), kernels)
+    assert empty.size == 0 and none is None
+
+
+def _cockled(v2_fixed, seq: int, seed: int) -> dict:
+    """The exact displacements of a copy on a sheet whose print is displaced as the first real
+    prints were (research/fotoasli): waves of about 0.09 pt rms that change over a few
+    centimetres, more than the mark (0.071 pt), which no cubic page field follows."""
+    _, _, ctx = v2_fixed
+    disp = measure_vector(_copy(v2_fixed, seq), ctx.master)
+    rng = np.random.default_rng(seed)
+    out = {}
+    for wid, (dx, dy) in disp.items():
+        w = ctx.master.layout.word(wid)
+        x, y = 0.5 * (w.x0 + w.x1), w.glyphs[0].y
+        wave = 0.10 * np.sin(x / 40.0 + y / 45.0) + 0.08 * np.cos(x / 28.0 - y / 60.0)
+        out[wid] = (dx + wave + rng.normal(0, 0.02), dy)
+    return out
+
+
+def test_v2_local_field_reads_marks_through_cockled_paper(v2_fixed):
+    """A print displaced like the real ones costs the row model alone a third of the word bits;
+    reading each group also against the groups of the other rows nearby gives a good part of
+    them back (measured here: 32 % wrong without, 22 % with)."""
+    _, _, ctx = v2_fixed
+    cockled = _cockled(v2_fixed, 3, 1)
+    delta = ctx.shift.word_pt
+
+    def wrong(local_mm):
+        rows, llrs, _, _ = joint_decode(ctx.master, ctx.plan, cockled, delta, 0.05 * delta, local_mm=local_mm)
+        bits = [((v > 0) != (w == 1)) == (ctx.codewords[2][q] == 1) for r, rl in zip(rows, llrs)
+                for (q, w, _, _), v in zip(r, rl) if abs(v) > 1e-6]
+        return 1.0 - float(np.mean(bits)), len(bits)
+
+    plain, n = wrong(None)
+    local, m = wrong(LOCAL_FIELD_MM)
+    assert n > 300 and m > 300
+    assert plain > 0.25 and local < 0.8 * plain
+
+
+def test_v2_image_evidence_is_read_against_the_local_field_and_a_pdf_is_not(v2_fixed, monkeypatch):
+    """decode_displacements takes the local field on image evidence (a pixel grid is given) and
+    says which kernel each page chose; the same displacements as a PDF's are read as before."""
+    _, _, ctx = v2_fixed
+    cockled = _cockled(v2_fixed, 3, 2)
+    x = ctx.codewords[2]
+    grid = PixelGrid(np.diag([300.0 / 72.0, 300.0 / 72.0, 1.0]), 300.0, 300.0)
+    image = decode_displacements(ctx.master, ctx.plan, cockled, ctx.shift, ctx.excluded, grid=grid)
+    pdf = decode_displacements(ctx.master, ctx.plan, cockled, ctx.shift, ctx.excluded)
+    kernels = image.meta["word_local_field_mm"]
+    assert set(kernels) == {"0", "1"} and kernels["0"] in LOCAL_FIELD_MM
+    assert "word_local_field_mm" not in pdf.meta
+
+    def wrong(sb):
+        words = sb.llr[:sb.meta["word_slots_read"]], sb.positions[:sb.meta["word_slots_read"]]
+        return float(np.mean((words[0] > 0) != (x[words[1]] == 1)))
+
+    assert wrong(image) < 0.9 * wrong(pdf)
+    # an exact copy has nothing for the field to follow: no kernel is chosen and nothing changes
+    exact = measure_vector(_copy(v2_fixed, 3), ctx.master)
+    sb = decode_displacements(ctx.master, ctx.plan, exact, ctx.shift, ctx.excluded, grid=grid)
+    assert sb.meta["word_local_field_mm"] == {"0": None, "1": None} and sb.meta["word_slots_read"] >= 340
+    sure = np.abs(sb.llr) > 1
+    assert sure.sum() > 380 and np.all((sb.llr[sure] > 0) == (x[sb.positions[sure]] == 1))
+    monkeypatch.setattr("tapak.decoder.ch_shift.LOCAL_FIELD_MM", ())
+    off = decode_displacements(ctx.master, ctx.plan, exact, ctx.shift, ctx.excluded, grid=grid)
+    assert np.array_equal(off.positions, sb.positions) and np.array_equal(off.llr, sb.llr)
+    assert "word_local_field_mm" not in off.meta
 
 
 def test_registry_records_and_checks_the_shift_scheme(tmp_path, v2_fixed):

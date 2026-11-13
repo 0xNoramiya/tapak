@@ -16,11 +16,13 @@ quality 75, twice):
   other copy ids and so other codewords under the same bias vector: nobody may be named.
 
 Traces are not logged (all of eps), one stage, as in ``make bench``. The issuances and their
-secret are not in the repository, the photos neither; ``hasil/salinan.jsonl`` holds the rows.
+secret are not in the repository, the photos neither; ``hasil/salinan.jsonl`` holds the rows
+(``hasil/salinan_tanpa_medan.jsonl``: the same photos with the decoder before the local field
+of the word groups, ``ch_shift.choose_local_field``, which these photos led to).
 One process (a 12 megapixel photo takes more than a gigabyte). Usage, from the repository root:
 
     PYTHONPATH=. python research/fotoasli/salinan.py FOLDER --isu A=DIR_A:7,B=DIR_B:13,C=DIR_C:4 --kunci KEYFILE
-    PYTHONPATH=. python research/fotoasli/salinan.py --ringkas
+    PYTHONPATH=. python research/fotoasli/salinan.py --ringkas [--hasil FILE]
 
 FOLDER holds one subfolder per set (A, B, C); DIR_x is the ``dokumen/<id>`` folder of the
 issuance (``induk.pdf`` and ``manifest.json``), the number the copy that was printed.
@@ -45,7 +47,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-HASIL = Path(__file__).resolve().parent / "hasil" / "salinan.jsonl"
+HASIL = Path(__file__).resolve().parent / "hasil" / "salinan.jsonl"  # --hasil names another file
 FORWARD = {"long_side": 1600, "quality": 75, "times": 2}
 
 
@@ -102,6 +104,7 @@ def trace(gray: np.ndarray, ctx, seq: int) -> dict:
             "geser_saja": _verdict([sb for sb in obs if sb.channel == CHANNEL_SHIFT], ctx, seq),
             "latar_saja": _verdict([sb for sb in obs if sb.channel == CHANNEL_BACKGROUND], ctx, seq),
             "registered": bool(reg), "method": reg.get("method"), "correlation": reg.get("correlation"),
+            "local_field_mm": reg.get("word_local_field_mm"),
             "page": None if not reg else reg["page"] + 1, "effective_dpi": reg.get("effective_dpi"),
             "seconds": round(time.time() - t0, 1)}
 
@@ -182,7 +185,11 @@ def main() -> None:
     parser.add_argument("--isu")
     parser.add_argument("--kunci")
     parser.add_argument("--ringkas", action="store_true")
+    parser.add_argument("--hasil", type=Path)
     args = parser.parse_args()
+    if args.hasil:
+        global HASIL
+        HASIL = args.hasil
     if args.ringkas:
         summarize()
     elif args.folder and args.isu and args.kunci:

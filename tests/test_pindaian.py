@@ -354,8 +354,10 @@ def test_scan_copy_pdf_trace_names_the_copy(scan_issued):
     for sb in by.values():
         # geser-v2 reads twice the groups at half the shift; 2 to 4 % of its signs are wrong on a
         # scanned copy, all with |LLR| below 2 (measured over 160 copies with random copy ids).
+        # The copy ids here are random too: about 220 signs at 4 % leave 9 wrong, give or take 3,
+        # so one copy may show 5 to 6 % (seen: 12 of 222). The bound is three sigma above 4 %.
         right = (sb.llr > 0) == (x[sb.positions] == 1)
-        assert np.mean(right) > 0.95
+        assert np.mean(right) > 0.92
         assert np.mean(right[np.abs(sb.llr) > 2]) > 0.995
     assert any("halaman pindaian" in n for n in result.notes)
 

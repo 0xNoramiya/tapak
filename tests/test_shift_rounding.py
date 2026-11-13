@@ -225,6 +225,8 @@ def test_rows_off_the_pixel_grid_keep_the_gaussian_model(issued, ctx):
     assert rounded_rows(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded, grid) is None
     a = decode_displacements(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded, grid=grid, word_model="gauss")
     b = decode_displacements(ctx.master, ctx.plan, noisy, ctx.shift, ctx.excluded)
+    # image evidence also looks for a local field between the rows: this noise has none
+    assert set(a.meta.pop("word_local_field_mm").values()) == {None}
     assert np.array_equal(a.positions, b.positions) and np.array_equal(a.llr, b.llr) and a.meta == b.meta
     # the image word model (default on image evidence) changes the word-group LLRs and nothing else
     from tapak.decoder.ch_shift import IMAGE_WORD_MODEL

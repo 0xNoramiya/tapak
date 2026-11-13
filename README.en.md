@@ -33,7 +33,7 @@ The fingerprint is a Tardos code. In code-level simulation, the merged codes of 
   <img alt="Three of the five channels on a real copy: word shifts, the background pattern and invisible characters" src="docs/img/kanal-light.png" width="100%">
 </picture>
 
-- **Word and line shifts** survive screenshots and photos of a screen. On real paper they are read with many errors and do not name a copy by themselves.
+- **Word and line shifts** survive screenshots and photos of a screen. On real paper they are read with many errors and rarely name a copy by themselves (3 of 18 photos).
 - **The background pattern** survives screenshots and photos of a screen. On paper the very faint default pattern depends on the printer: the one real printer tested printed it, and every photo of a printed copy was named through it. The optional print profile is read almost without errors on paper, at the price of pages that look light grey.
 - **Invisible characters** travel with copied text and forwarded PDFs.
 - **Sentence variants**, rewordings of opening and closing sentences made by a local LLM and approved by a person, survive retyping but carry only a few bits.
@@ -108,7 +108,7 @@ The details, including the registry format for auditors, are in [security](docs/
 
 ## Limitations
 
-- **Prints** are traced through the background pattern; the shift channel alone is not enough on real paper (0 of 18 photos). On the one real printer tested, all three copies are named from every photo, also after a messaging app has shrunk it (36 of 36). The default profile's pattern printed there with a fifth of its bits wrong, the print profile's with 2 %; a printer that drops very light greys will lose the default pattern. For documents that will be printed, choose the print profile (the page looks light grey) ([limitation 3](docs/keamanan.md#batasan-3)).
+- **Prints** are traced through the background pattern; the shift channel alone is rarely enough on real paper (3 of 18 photos). On the one real printer tested, all three copies are named from every photo, also after a messaging app has shrunk it (36 of 36). The default profile's pattern printed there with a fifth of its bits wrong, the print profile's with 2 %; a printer that drops very light greys will lose the default pattern. For documents that will be printed, choose the print profile (the page looks light grey) ([limitation 3](docs/keamanan.md#batasan-3)).
 - **Retyping** leaves only the sentence variants and the optional word choice. One- and two-page documents stay at "not enough evidence"; a single leaker can be named from about 1,300 content words (simulation), without collusion resistance. Word choices can be imitated, so a name backed only by word choice always carries a warning ([limitation 1](docs/keamanan.md#batasan-1)).
 - **Canaries** go off only in viewers that fetch outside content, such as Adobe Reader and Word, and Adobe Reader first shows a permission warning that makes the canary easy to spot ([limitation 7](docs/keamanan.md#batasan-7)).
 - **An adversary who understands TAPAK** can get away without a name and without a warning by scrambling or weakening the marks, even from a single copy. Reversed marks and erasures where the coalition's copies agree usually trigger a warning, except erasures on prints. No one else is accused because of them ([limitation 6](docs/keamanan.md#batasan-6)).

@@ -16,19 +16,19 @@ Foto tidak ada di repositori: selain halaman contoh fiktif, terlihat meja dan ru
 
 ## Hasil utama: cetakan sungguhan dari salinan yang diketahui
 
-Setelah foto pertama itu, tim mencetak tiga salinan yang penerimanya hanya diketahui studi, kedua halaman masing-masing, dengan printer sungguhan yang sama, dan memotret setiap lembar rata dengan iPhone 11 (12 megapiksel, halaman pada sekitar 330 dpi): 18 foto. `salinan.py` melacak setiap foto terhadap penerbitannya, sekali lagi setelah foto itu diperkecil seperti kiriman aplikasi pesan (sisi panjang 1600 px, JPEG kualitas 75 dua kali, sekitar 130 dpi), dan sekali terhadap penerbitan lain (`hasil/salinan.jsonl`).
+Setelah foto pertama itu, tim mencetak tiga salinan yang penerimanya hanya diketahui studi, kedua halaman masing-masing, dengan printer sungguhan yang sama, dan memotret setiap lembar rata dengan iPhone 11 (12 megapiksel, halaman pada sekitar 330 dpi): 18 foto. `salinan.py` melacak setiap foto terhadap penerbitannya, sekali lagi setelah foto itu diperkecil seperti kiriman aplikasi pesan (sisi panjang 1600 px, JPEG kualitas 75 dua kali, sekitar 130 dpi), dan sekali terhadap penerbitan lain (`hasil/salinan.jsonl`; `hasil/salinan_tanpa_medan.jsonl` menyimpan foto yang sama dengan dekoder sebelum [medan lokal](#medan-lokal-kelompok-kata)).
 
 | Salinan | Foto asli: disebut benar (skor / ambang) | Setelah aplikasi pesan | Bit latar salah, hal. 1 / hal. 2 | Bit kata salah | Bit baris salah |
 |---|---|---|---|---|---|
-| A: skema v2, profil latar bawaan (253 +/- 2) | 6 dari 6 (3,2 sampai 4,1) | 6 dari 6 (3,7 sampai 4,1) | 19,8 % / 8,3 % | 25 % | 0 dari 63 |
-| B: skema v2, profil latar cetak (242 +/- 5) | 6 dari 6 (4,5 sampai 4,6) | 6 dari 6 (4,6) | 1,9 % / 0,1 % | 25 % | 3 dari 60 |
+| A: skema v2, profil latar bawaan (253 +/- 2) | 6 dari 6 (3,3 sampai 4,1) | 6 dari 6 (3,8 sampai 4,1) | 19,8 % / 8,3 % | 16 % (sebelum medan lokal 25 %) | 0 dari 63 |
+| B: skema v2, profil latar cetak (242 +/- 5) | 6 dari 6 (4,5 sampai 4,6) | 6 dari 6 (4,6 sampai 4,7) | 1,9 % / 0,1 % | 22 % (sebelumnya 25 %) | 3 dari 60 |
 | C: skema v1, profil latar bawaan | 6 dari 6 (3,1 sampai 3,8) | 6 dari 6 (3,7 sampai 3,9) | 19,2 % / 8,6 % | 5,3 % | 4 dari 63 |
 
-* **36 dari 36 pelacakan menyebut salinan yang benar**, dari satu foto satu halaman, dan tidak satu pun menyebut orang lain (skor orang lain paling tinggi 0,52 kali ambang).
-* **Terhadap penerbitan lain tidak ada yang tertuduh**: 0 dari 18 (paling tinggi 0,39 kali ambang). Salinan di sana punya kode lain di bawah vektor bias yang sama.
-* **Pola latarlah yang membawa pelacakan di kertas.** Dengan kanal latar saja 18 dari 18 disebut; dengan kanal geser saja 0 dari 18 (paling dekat 0,97 kali ambang, halaman 1 salinan A). Bit kata skema v2 seperempatnya salah juga pada lembar baru yang rata; bit kata skema v1 (geser dua kali lebih besar) 5,3 % salah, tetapi posisinya terlalu sedikit.
+* **36 dari 36 pelacakan menyebut salinan yang benar**, dari satu foto satu halaman, dan tidak satu pun menyebut orang lain (skor orang lain paling tinggi 0,51 kali ambang).
+* **Terhadap penerbitan lain tidak ada yang tertuduh**: 0 dari 18 (paling tinggi 0,34 kali ambang). Salinan di sana punya kode lain di bawah vektor bias yang sama.
+* **Pola latarlah yang membawa pelacakan di kertas.** Dengan kanal latar saja 18 dari 18 disebut. Dengan kanal geser saja 3 dari 18: ketiga foto halaman 1 salinan A (1,17 sampai 1,18 kali ambang), sejak dekoder membaca kelompok kata terhadap [medan lokal](#medan-lokal-kelompok-kata); sebelum itu 0 dari 18 (paling dekat 0,97). Halaman 1 salinan B berhenti di 0,87 sampai 0,88, halaman 2 yang pendek dan skema v1 jauh di bawah ambang. Bit kata skema v1 (geser dua kali lebih besar) 5,3 % salah, tetapi posisinya terlalu sedikit.
 * **Printer ini mencetak pola profil bawaan.** Simulator kami mengasumsikan tingkat abu-abu di atas sekitar 250 tercetak sebagai kertas polos, sehingga pola bawaan (251 sampai 255) hilang di kertas. Pada printer ini pola itu tercetak dan terbaca, dengan seperlima bitnya salah di halaman penuh teks. Profil cetak terbaca hampir tanpa galat. Jadi di kertas profil bawaan bergantung pada printer; profil cetak pilihan yang kuat.
-* **Foto yang diperkecil tidak lebih buruk.** Bit latar profil bawaan malah lebih sedikit salah setelah diperkecil (11 sampai 13 % di halaman 1), dan pelacakannya 4 detik, bukan 47.
+* **Foto yang diperkecil tidak lebih buruk.** Bit latar profil bawaan malah lebih sedikit salah setelah diperkecil (11 sampai 13 % di halaman 1), dan pelacakannya 4 detik, bukan 30 sampai 45.
 
 Batasnya: satu printer (tipe belum dicatat), satu ponsel, lembar baru yang rata dan difoto tegak lurus, satu dokumen, tiga salinan. Lembar kusut, basah, atau sobek dari salinan bertanda, printer lain, dan mode hemat toner belum diuji.
 
@@ -75,9 +75,36 @@ Pada foto yang diperiksa blok demi blok (basah/G_3332), setelah homografi terbai
 * **Kertasnya yang bergerak.** Setelah medan mulus registrasi dan gangguan baris (geser dan kemiringan per baris) dibuang, kelompok kata masih meleset 0,13 sampai 0,30 pt pada lembar datar, basah, dan sobek, dan 0,32 sampai 0,36 pt pada lembar kusut: dua sampai lima kali geser v2. Pada dy, yang tidak membawa tanda kata, besarnya sama, jadi itu bentuk kertas, bukan tanda.
 * **Baris tetangga meramalkan sebagian besar bentuk itu.** Bila geseran setiap kelompok diramal dari kelompok di baris lain di dekatnya (kernel Gauss, baris sendiri tidak ikut), sisa pada dy turun menjadi 0,05 sampai 0,06 pt pada lembar basah dan sobek (iPhone), 0,07 sampai 0,09 pt pada lembar datar (vivo), dan 0,19 sampai 0,22 pt pada lembar kusut (kernel 8 mm sepanjang baris dan 4 mm antarbaris, yang menyisakan paling sedikit pada dy); pada dx sisanya 0,07 sampai 0,12 pt, dan 0,22 sampai 0,25 pt pada lembar kusut. Sisa itu juga melekat pada lembar, bukan pada foto. Karena lembarnya tanpa tanda, seluruhnya derau cetakan: bentuk kertas yang lebih halus dari jarak baris dan letak glif printer. Dekoder sekarang memakai satu polinomial derajat 3 per halaman dan melaporkan sigma kata 0,08 sampai 0,12 pt pada foto ini, di atas geser v2.
 
-* **Batas fisik, bukan kekurangan dekoder.** Kelompok geser skema v2 hampir semuanya satu kata (229 kata terukur per kata, 228 kelompok pada halaman ini), jadi tidak ada pengukuran yang lebih rapat yang dapat memisahkan bentuk kertas dari tanda. Sisa 0,07 sampai 0,12 pt pada dx itu seukuran kisi letak printer 600 dpi: satu piksel perangkat 42 um, dan pembulatan letak kata ke piksel utuh saja sudah memberi sekitar 0,035 pt per kata. Tanda 25 um berada di dalam derau itu.
+* **Dugaan saat itu: batas fisik, bukan kekurangan dekoder** (dikoreksi di bagian berikut). Kelompok geser skema v2 hampir semuanya satu kata (229 kata terukur per kata, 228 kelompok pada halaman ini), jadi tidak ada pengukuran yang lebih rapat yang dapat memisahkan bentuk kertas dari tanda. Sisa 0,07 sampai 0,12 pt pada dx itu seukuran kisi letak printer 600 dpi: satu piksel perangkat 42 um, dan pembulatan letak kata ke piksel utuh saja sudah memberi sekitar 0,035 pt per kata. Tanda 25 um berada di dalam derau itu.
 
-Kesimpulan: pada cetakan sungguhan tanpa tanda, kelompok kata sudah bergeser 0,07 sampai 0,12 pt pada arah tanda (dx) setelah bentuk kertas diramal dari baris tetangga, sebesar atau lebih besar dari geser kata v2 (0,071 pt, 25 um). Cetakan salinan yang diketahui membenarkannya ([hasil utama](#hasil-utama-cetakan-sungguhan-dari-salinan-yang-diketahui)): seperempat bit kata v2 salah, kanal geser saja tidak pernah menyebut siapa pun, dan yang membawa pelacakan di kertas adalah pola latar.
+Kesimpulan saat itu: pada cetakan sungguhan tanpa tanda, kelompok kata sudah bergeser 0,07 sampai 0,12 pt pada arah tanda (dx) setelah bentuk kertas diramal dari baris tetangga, sebesar atau lebih besar dari geser kata v2 (0,071 pt, 25 um). Cetakan salinan yang diketahui kemudian menunjukkan bahwa "batas fisik" di atas terlalu cepat disimpulkan: sebagian besar sisa itu bukan derau, dan dekoder dapat membuang sebagiannya (bagian berikut).
+
+## Medan lokal kelompok kata
+
+Cetakan salinan yang diketahui menjawab pertanyaan yang tidak dapat dijawab lembar tanpa tanda: dari mana seperempat bit kata yang salah itu? Geseran setiap kelompok kata halaman 1 salinan A dan B (enam foto, 204 kelompok) dikurangi tandanya yang diketahui, medan polinomial halaman, dan gangguan baris. Sisanya 0,09 sampai 0,10 pt, lebih besar dari tanda (0,071 pt), dan sisa itu:
+
+* **melekat pada lembar.** Korelasinya 0,998 sampai 0,999 antara tiga foto lembar yang sama. Derau kamera tidak berperan.
+* **sebagian besar sama pada kedua lembar.** Korelasinya 0,78 sampai 0,81 antara salinan A dan B, dua cetakan dengan tanda berbeda, pada kelompok yang tandanya sama maupun yang berlawanan. Jadi bukan pembulatan letak kata ke kisi printer (itu akan bergantung pada tanda), dan bukan derau acak per cetakan.
+* **bukan buatan dekoder.** Cetakan dan foto simulasi dari salinan yang sama menyisakan 0,011 sampai 0,012 pt, tanpa pola itu.
+* **berupa medan yang berubah dalam kira-kira satu sentimeter.** Sisa satu kelompok dapat diramal dari kelompok di baris lain di dekatnya, dan medan halus registrasi (blok 6,5 mm, sebelum dirata-ratakan 15 mm) berkorelasi 0,83 sampai 0,87 dengannya. Geseran tegak lurus baris (dy) tidak meramalkannya, jadi bukan paralaks lembar yang tidak rata. Pembulatan lebar glif pada 300 sampai 1200 dpi juga tidak (korelasi paling tinggi 0,3), dan kata yang sama di tempat lain bergeser lain.
+
+Cetakan printer ini sendiri bergeser secara lokal, hampir sama pada setiap lembar, dan gangguan baris (geser dan kemiringan) terlalu kaku untuk mengikutinya. Penyebabnya di dalam printer belum diketahui.
+
+**Perbaikan dekoder** (`ch_shift.local_field` dan `choose_local_field`). Pada bukti gambar, setiap kelompok kata skema v2 kini juga dibaca terhadap rata-rata berkernel Gauss dari geseran kelompok di baris lain di dekatnya. Baris sendiri tidak ikut, jadi tanda baris itu tidak ikut terhapus. Lebar kernel dipilih per halaman dari bukti saja: dari 6, 9, 13, dan 20 mm, yang medannya menyisakan paling sedikit setelah garis sepanjang setiap baris dibuang (gangguan baris yang memang diproyeksikan keluar oleh dekoder). Medan dari kira-kira sepuluh tetangga membawa sepersepuluh sebaran mereka sendiri, jadi medan hanya dipakai bila menjelaskan paling sedikit seperempat sisa itu. Kode penerima tidak dipakai. Pada halaman 1 cetakan sungguhan terpilih 9 mm (salinan A) dan 6 mm (salinan B; 9 mm pada foto yang diperkecil), dan medannya menjelaskan 34 sampai 36 % pada putaran pertama (tanda masih ikut terhitung) dan 70 sampai 79 % sesudahnya.
+
+| Halaman 1 | Bit kata salah, foto asli | Setelah aplikasi pesan | Kanal geser saja, foto asli (skor / ambang) | Setelah aplikasi pesan |
+|---|---|---|---|---|
+| Salinan A | 25 % menjadi 16 % | 41 % menjadi 20 % | 0,96 sampai 0,97 menjadi 1,17 sampai 1,18: disebut 3 dari 3 | 0,30 sampai 0,42 menjadi 0,91 sampai 0,95 |
+| Salinan B | 26 % menjadi 22 % | 42 % menjadi 30 % | 0,76 sampai 0,80 menjadi 0,87 sampai 0,88 | 0,19 sampai 0,25 menjadi 0,58 sampai 0,61 |
+
+* **Tidak ada yang mundur.** Ke-36 pelacakan tetap benar, skor orang lain paling tinggi 0,51 kali ambang (kanal geser saja 0,30), dan terhadap penerbitan lain 0 dari 18. Ke-13 foto lembar tanpa tanda, dilacak ulang terhadap penerbitan salinan A, tetap tidak menuduh siapa pun (paling tinggi 0,35 kali ambang). Skema v1 (salinan C) tidak berubah sama sekali: kelompok datanya sudah dibaca terhadap dua tetangga kontrol.
+* **Bukti tanpa geseran lokal tidak tersentuh.** Pada foto simulasi cetakan salinan yang sama (lembar datar) dan pada foto cetak benchmark README medan itu menjelaskan 0 sampai 18 %, di bawah seperempat, jadi tidak ada kernel yang terpilih dan pengamatannya sama persis dengan dekoder sebelumnya: `make bench-check` mengulang ke-128 pelacakan benchmark dari awal dan hasilnya sama byte demi byte. Begitu juga salinan PDF yang persis dan halaman pindaian.
+* **Yang tidak membantu.** Meluruskan gambar dengan medan registrasi yang lebih halus (10 mm pada arah baris) di atas medan lokal: salinan A turun dari 1,18 menjadi 1,14, salinan B naik dari 0,87 menjadi 0,90. Medan halus itu ikut menelan tanda (14 % pada 7 mm), jadi tidak dipakai.
+* **Salinan B tetap lebih sulit.** Amplitudo tanda yang terukur di sana 0,61 kali besar terbitnya (salinan A 0,70). Mungkin raster abu-abu profil latar cetak mengganggu pencocokan kata; belum diperiksa.
+
+Batasnya: medan lokal ditemukan dan diukur pada foto yang sama (dua lembar, satu printer, satu halaman), jadi angka di atas bukan uji tertahan. Pemilihan kernelnya buta kode, tetapi keputusan memakai medan itu lahir dari data ini.
+
+Sesudah medan lokal, sisa kedua lembar masih berkorelasi 0,49 (0,06 pt per lembar, separuhnya bersama). Foto dokumen induk yang dicetak dengan printer yang sama ("lembar acuan") dapat mengukur bagian bersama itu, tetapi satu lembar acuan membawa derau lembarnya sendiri sebesar yang dibuangnya, jadi tidak menolong; baru rata-rata beberapa lembar acuan memberi sedikit (perkiraan dari angka ini: derau turun dari 0,06 menjadi 0,05 pt dengan empat lembar). Tidak dibuat.
 
 ## Bentuk lembar sungguhan pada salinan yang diketahui
 
@@ -130,7 +157,7 @@ Pemeriksaan alatnya sendiri (tanpa printer sungguhan): pada render bersih ke-18 
 1. Printer lain, terutama laser kantor dan mode hemat toner: profil bawaan di kertas bergantung pada printer, dan baru satu yang diuji. Lembar kalibrasi mengukurnya dengan satu cetakan.
 2. Cetakan salinan bertanda yang tidak rata (kusut, basah, sobek) dan difoto miring; simulasi dengan bentuk lembar sungguhan memperkirakan profil cetak bertahan.
 3. Foto layar sungguhan (skenario utama demo); sudah diminta dari tim.
-4. Model bentuk kertas di dekoder geser. Meramal bentuk dari baris tetangga pada tingkat kelompok kata belum cukup (satu percobaan pengembangan, tidak di repositori: 35 % menjadi 31 % bit kata salah); pengukuran per kata, yang lebih rapat dari bentuk kertas, belum dicoba. Letak glif printer sungguhan (kisi 42 um pada 600 dpi) mungkin sudah membatasi tanda 25 um.
+4. Uji tertahan untuk [medan lokal](#medan-lokal-kelompok-kata): cetakan baru (salinan lain, dokumen lain, printer lain) yang tidak ikut menentukannya. Pada bentuk lembar kusut dan basah yang diputar ulang di simulasi, percobaan awal medan seperti itu hanya membawa 35 % bit kata salah menjadi 31 %.
 
 ## Mengulang
 
@@ -143,7 +170,7 @@ PYTHONPATH=. python research/fotoasli/ukur.py geser
 PYTHONPATH=. python research/fotoasli/putar.py jalan     # 60 foto, sekitar 45 menit dengan 3 proses
 PYTHONPATH=. python research/fotoasli/putar.py ringkas
 PYTHONPATH=. python research/fotoasli/salinan.py FOLDER_FOTO --isu A=DIR_A:7,B=DIR_B:13,C=DIR_C:4 --kunci code_secret.key
-PYTHONPATH=. python research/fotoasli/salinan.py --ringkas
+PYTHONPATH=. python research/fotoasli/salinan.py --ringkas   # --hasil BERKAS untuk berkas hasil lain
 PYTHONPATH=. python research/fotoasli/kalibrasi.py buat lembar_K.pdf
 PYTHONPATH=. python research/fotoasli/kalibrasi.py ukur lembar_K.pdf FOTO_LEMBAR_K.jpg
 ```

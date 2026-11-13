@@ -1418,6 +1418,8 @@ EN: dict[str, str | tuple[str, str]] = {
     "derajat kebebasan harus positif": "the degrees of freedom must be positive",
     "sigma dan delta harus positif": "sigma and delta must be positive",
     "satu LLR per kelompok": "one LLR per group",
+    "satu posisi, baris, dan geseran per kelompok": "one position, row and displacement per group",
+    "lebar kernel medan lokal harus positif": "the kernel width of the local field must be positive",
     "baris dan posisinya harus sama panjang; delta, rentang, dan langkah positif":
         "the lines and their positions must have the same length; delta, range and step must be positive",
     "kisi piksel memerlukan homografi 3x3 dan resolusi positif": "a pixel grid needs a 3x3 homography and a positive resolution",

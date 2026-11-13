@@ -33,7 +33,7 @@ Sidiknya memakai kode Tardos. Dalam simulasi tingkat kode, gabungan kode tiga pe
   <img alt="Tiga dari lima kanal pada salinan sungguhan: geser kata, pola latar, dan karakter tak terlihat" src="docs/img/kanal-light.png" width="100%">
 </picture>
 
-- **Geser kata dan baris** bertahan pada tangkapan layar dan foto layar. Di kertas sungguhan kanal ini terbaca dengan banyak galat dan sendirian belum cukup untuk menyebut salinan.
+- **Geser kata dan baris** bertahan pada tangkapan layar dan foto layar. Di kertas sungguhan kanal ini terbaca dengan banyak galat dan sendirian jarang cukup untuk menyebut salinan (3 dari 18 foto).
 - **Pola latar** bertahan pada tangkapan layar dan foto layar. Di kertas pola bawaan yang sangat pucat bergantung pada printer: pada satu printer sungguhan yang diuji pola itu tercetak, dan setiap foto cetakan disebut lewat pola ini. Profil latar cetak (opsional) terbaca hampir tanpa galat di kertas, dengan harga halaman tampak abu-abu muda.
 - **Karakter tak terlihat** ikut terbawa saat teks disalin atau PDF diteruskan.
 - **Varian kalimat**, parafrasa kalimat pembuka dan penutup yang dibuat LLM lokal lalu disetujui manusia, bertahan saat dokumen diketik ulang, tetapi hanya membawa beberapa bit.
@@ -108,7 +108,7 @@ Rinciannya, termasuk format registri untuk auditor, ada di [keamanan](docs/keama
 
 ## Batasan
 
-- **Cetakan** dilacak lewat pola latar; kanal geser saja tidak cukup di kertas sungguhan (0 dari 18 foto). Pada satu printer sungguhan yang diuji, ketiga salinan disebut dari setiap foto, juga setelah diperkecil aplikasi pesan (36 dari 36). Pola profil bawaan tercetak di sana dengan seperlima bitnya salah, profil cetak 2 %; printer yang membuang abu-abu sangat muda akan menghilangkan pola bawaan. Untuk dokumen yang akan dicetak, pilih profil cetak (halaman tampak abu-abu muda) ([batasan 3](docs/keamanan.md#batasan-3)).
+- **Cetakan** dilacak lewat pola latar; kanal geser saja jarang cukup di kertas sungguhan (3 dari 18 foto). Pada satu printer sungguhan yang diuji, ketiga salinan disebut dari setiap foto, juga setelah diperkecil aplikasi pesan (36 dari 36). Pola profil bawaan tercetak di sana dengan seperlima bitnya salah, profil cetak 2 %; printer yang membuang abu-abu sangat muda akan menghilangkan pola bawaan. Untuk dokumen yang akan dicetak, pilih profil cetak (halaman tampak abu-abu muda) ([batasan 3](docs/keamanan.md#batasan-3)).
 - **Ketikan ulang** hanya menyisakan varian kalimat dan pilihan kata opsional. Dokumen 1 sampai 2 halaman tetap "tidak cukup bukti"; satu pembocor baru dapat disebut dari sekitar 1.300 kata isi (simulasi), tanpa ketahanan kolusi. Pilihan kata dapat ditiru, jadi nama yang hanya didukung pilihan kata selalu diberi peringatan ([batasan 1](docs/keamanan.md#batasan-1)).
 - **Kanari** hanya berbunyi di penampil yang mengambil konten luar, seperti Adobe Reader dan Word, dan Adobe Reader lebih dulu menampilkan peringatan izin yang membuat kanari mudah dikenali ([batasan 7](docs/keamanan.md#batasan-7)).
 - **Lawan yang memahami TAPAK** dapat lolos tanpa nama dan tanpa peringatan dengan mengacak atau melemahkan tanda, juga dari satu salinan saja. Tanda yang dibalik dan penghapusan di tempat salinan koalisi sama umumnya diberi peringatan, kecuali penghapusan pada cetakan. Tidak ada orang lain yang tertuduh karenanya ([batasan 6](docs/keamanan.md#batasan-6)).
