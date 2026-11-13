@@ -106,6 +106,27 @@ Batasnya: medan lokal ditemukan dan diukur pada foto yang sama (dua lembar, satu
 
 Sesudah medan lokal, sisa kedua lembar masih berkorelasi 0,49 (0,06 pt per lembar, separuhnya bersama). Foto dokumen induk yang dicetak dengan printer yang sama ("lembar acuan") dapat mengukur bagian bersama itu, tetapi satu lembar acuan membawa derau lembarnya sendiri sebesar yang dibuangnya, jadi tidak menolong; baru rata-rata beberapa lembar acuan memberi sedikit (perkiraan dari angka ini: derau turun dari 0,06 menjadi 0,05 pt dengan empat lembar). Tidak dibuat.
 
+## Foto yang lebih buruk
+
+Ke-18 foto di atas tajam, tegak lurus, dan memuat seluruh halaman. `tekan.py` memperburuk setiap foto dengan satu hal sekaligus dan melacaknya lagi dengan semua kanal (`hasil/tekan.jsonl`, protokol `hasil/protokol_tekan.json` ditetapkan sebelum dijalankan). Cetakan dan kameranya sungguhan; perlakuan sesudahnya simulasi.
+
+| Perlakuan | Halaman 1 (penuh teks), 9 foto | Halaman 2 (pendek), 9 foto |
+|---|---|---|
+| Diteruskan lebih kecil: sisi panjang 1280, 1024, 800 px | 27 dari 27 | 27 dari 27 |
+| Sisi panjang 640 px (halaman pada sekitar 52 dpi) | 9 dari 9 | 7 dari 9 (2 tidak ditemukan) |
+| Dipotong: paruh atas bingkai | 9 dari 9 | 9 dari 9 |
+| Dipotong: paruh bawah bingkai | 9 dari 9 | 1 dari 9 |
+| Dipotong: bagian tengah (seperempat bingkai) | 9 dari 9 (skor 1,8 sampai 3,7) | 0 dari 9 |
+| Dilihat 30 derajat dari tegak lurus | 9 dari 9 | 9 dari 9 |
+| Buram (Gauss 1,5 px pada 1600 px) | 9 dari 9 | 9 dari 9 |
+| Terlalu terang (kertas 10 % di atas putih, terpotong) | 9 dari 9 | 9 dari 9 |
+
+* **Halaman penuh teks: 90 dari 90**, pada ketiga salinan, juga dari seperempat bingkai dan pada 52 dpi. Seluruhnya 152 dari 180.
+* **Tidak ada tuduhan salah** dalam 180 pelacakan; skor orang lain paling tinggi 0,53 kali ambang.
+* **Yang gagal adalah potongan yang hampir kosong.** Paruh bawah dan bagian tengah halaman 2 hanya memuat kertas kosong dan dua baris kaki halaman, jadi tidak ada teks untuk registrasi. Pada 5 dari 9 potongan paruh bawah registrasi menerima pose yang salah (korelasi 0,76 sampai 0,88 pada skala yang keliru); bit yang lalu terbaca acak (43 sampai 46 % salah) dan tidak ada yang tertuduh. Potongan seperti itu tidak membocorkan isi, tetapi pose salah pada potongan yang nyaris tanpa teks belum ditolak.
+
+Batasnya: perlakuannya simulasi di atas foto yang tajam; lembar bertanda yang sungguh kusut, basah, atau difoto miring belum ada.
+
 ## Bentuk lembar sungguhan pada salinan yang diketahui
 
 Lembar yang difoto tidak bertanda, jadi tidak dapat menjawab apakah sebuah tanda terbaca. Tetapi setiap foto memberi bentuk lembarnya di bawah kamera: medan halus registrasi (`hasil/medan.json`, tanpa tanda di dalamnya). `putar.py` menaruh bentuk itu pada salinan simulasi yang penerimanya diketahui: halaman dicetak printer laser simulasi, isinya digeser menurut medan itu, lalu difoto ponsel simulasi pada 4000 px (sekitar 250 dpi, seperti foto iPhone). Yang sungguhan hanya geometrinya (lengkung, gelombang, lipatan, lensa ponsel); printer, derau kamera, dan cahaya tetap simulasi. Tidak ada yang dipilih di sini: dekoder apa adanya, protokol ditetapkan sebelum dijalankan (`hasil/protokol_putar.json`).
@@ -171,6 +192,8 @@ PYTHONPATH=. python research/fotoasli/putar.py jalan     # 60 foto, sekitar 45 m
 PYTHONPATH=. python research/fotoasli/putar.py ringkas
 PYTHONPATH=. python research/fotoasli/salinan.py FOLDER_FOTO --isu A=DIR_A:7,B=DIR_B:13,C=DIR_C:4 --kunci code_secret.key
 PYTHONPATH=. python research/fotoasli/salinan.py --ringkas   # --hasil BERKAS untuk berkas hasil lain
+PYTHONPATH=. python research/fotoasli/tekan.py jalan FOLDER_FOTO --isu A=DIR_A:7,B=DIR_B:13,C=DIR_C:4 --kunci code_secret.key
+PYTHONPATH=. python research/fotoasli/tekan.py ringkas
 PYTHONPATH=. python research/fotoasli/kalibrasi.py buat lembar_K.pdf
 PYTHONPATH=. python research/fotoasli/kalibrasi.py ukur lembar_K.pdf FOTO_LEMBAR_K.jpg
 ```

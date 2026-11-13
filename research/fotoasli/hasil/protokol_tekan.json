@@ -1,0 +1,69 @@
+{
+ "photos": "the 18 photos of salinan.py: sets A (geser-v2, default background), B (geser-v2, print background), C (geser-v1, default background), pages 1 and 2, three photos each",
+ "forwarded": {
+  "long_side": 1600,
+  "quality": 75,
+  "times": 2
+ },
+ "conditions": {
+  "sisi_1280": {
+   "kind": "forward",
+   "long_side": 1280
+  },
+  "sisi_1024": {
+   "kind": "forward",
+   "long_side": 1024
+  },
+  "sisi_800": {
+   "kind": "forward",
+   "long_side": 800
+  },
+  "sisi_640": {
+   "kind": "forward",
+   "long_side": 640
+  },
+  "potong_atas": {
+   "kind": "crop",
+   "box": [
+    0.0,
+    0.0,
+    1.0,
+    0.5
+   ]
+  },
+  "potong_bawah": {
+   "kind": "crop",
+   "box": [
+    0.0,
+    0.5,
+    1.0,
+    1.0
+   ]
+  },
+  "potong_tengah": {
+   "kind": "crop",
+   "box": [
+    0.25,
+    0.25,
+    0.75,
+    0.75
+   ]
+  },
+  "miring_30": {
+   "kind": "tilt",
+   "degrees": 30.0,
+   "distance": 1.5
+  },
+  "buram_1.5": {
+   "kind": "blur",
+   "sigma": 1.5
+  },
+  "terang_1.10": {
+   "kind": "bright",
+   "paper": 1.1
+  }
+ },
+ "c": 3,
+ "eps": 1e-06,
+ "spending": "not logged (all of eps), one stage, as in make bench"
+}

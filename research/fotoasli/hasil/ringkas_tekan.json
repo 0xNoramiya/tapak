@@ -1,0 +1,358 @@
+{
+ "photos": 18,
+ "traces": 180,
+ "wrong": 0,
+ "max_other_z": 0.531,
+ "conditions": {
+  "sisi_1280": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.761,
+     4.078
+    ],
+    "background_wrong": 0.117
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.563,
+     4.675
+    ],
+    "background_wrong": 0.002
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.713,
+     3.864
+    ],
+    "background_wrong": 0.101
+   }
+  },
+  "sisi_1024": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.701,
+     4.097
+    ],
+    "background_wrong": 0.118
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.558,
+     4.671
+    ],
+    "background_wrong": 0.004
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.61,
+     3.846
+    ],
+    "background_wrong": 0.107
+   }
+  },
+  "sisi_800": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.447,
+     4.007
+    ],
+    "background_wrong": 0.141
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.553,
+     4.665
+    ],
+    "background_wrong": 0.007
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.54,
+     3.749
+    ],
+    "background_wrong": 0.125
+   }
+  },
+  "sisi_640": {
+   "A": {
+    "n": 6,
+    "found": 4,
+    "benar": 4,
+    "salah": 0,
+    "score_z": [
+     3.141,
+     3.768
+    ],
+    "background_wrong": 0.191
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.53,
+     4.551
+    ],
+    "background_wrong": 0.012
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.057,
+     3.529
+    ],
+    "background_wrong": 0.158
+   }
+  },
+  "potong_atas": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     1.732,
+     3.051
+    ],
+    "background_wrong": 0.26
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.01,
+     4.31
+    ],
+    "background_wrong": 0.054
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     2.661,
+     2.921
+    ],
+    "background_wrong": 0.204
+   }
+  },
+  "potong_bawah": {
+   "A": {
+    "n": 6,
+    "found": 5,
+    "benar": 3,
+    "salah": 0,
+    "score_z": [
+     3.069,
+     3.173
+    ],
+    "background_wrong": 0.209
+   },
+   "B": {
+    "n": 6,
+    "found": 5,
+    "benar": 3,
+    "salah": 0,
+    "score_z": [
+     0.566,
+     4.24
+    ],
+    "background_wrong": 0.209
+   },
+   "C": {
+    "n": 6,
+    "found": 5,
+    "benar": 4,
+    "salah": 0,
+    "score_z": [
+     0.447,
+     3.19
+    ],
+    "background_wrong": 0.277
+   }
+  },
+  "potong_tengah": {
+   "A": {
+    "n": 6,
+    "found": 3,
+    "benar": 3,
+    "salah": 0,
+    "score_z": [
+     1.937,
+     2.045
+    ],
+    "background_wrong": 0.308
+   },
+   "B": {
+    "n": 6,
+    "found": 3,
+    "benar": 3,
+    "salah": 0,
+    "score_z": [
+     3.51,
+     3.702
+    ],
+    "background_wrong": 0.09
+   },
+   "C": {
+    "n": 6,
+    "found": 3,
+    "benar": 3,
+    "salah": 0,
+    "score_z": [
+     1.776,
+     1.99
+    ],
+    "background_wrong": 0.303
+   }
+  },
+  "miring_30": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.802,
+     4.178
+    ],
+    "background_wrong": 0.105
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.559,
+     4.669
+    ],
+    "background_wrong": 0.002
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.73,
+     3.901
+    ],
+    "background_wrong": 0.092
+   }
+  },
+  "buram_1.5": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.764,
+     4.114
+    ],
+    "background_wrong": 0.109
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.563,
+     4.658
+    ],
+    "background_wrong": 0.002
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.75,
+     3.85
+    ],
+    "background_wrong": 0.093
+   }
+  },
+  "terang_1.10": {
+   "A": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.598,
+     3.721
+    ],
+    "background_wrong": 0.149
+   },
+   "B": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     4.493,
+     4.599
+    ],
+    "background_wrong": 0.011
+   },
+   "C": {
+    "n": 6,
+    "found": 6,
+    "benar": 6,
+    "salah": 0,
+    "score_z": [
+     3.453,
+     3.647
+    ],
+    "background_wrong": 0.124
+   }
+  }
+ }
+}
