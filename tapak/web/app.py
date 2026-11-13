@@ -12,6 +12,7 @@ import csv
 import difflib
 import html
 import io
+import ipaddress
 import itertools
 import json
 import re
@@ -173,6 +174,10 @@ ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
 # the product page, the sandboxed demo and the static files stay open. Unset: no password.
 OPERATOR_PASSWORD = os.environ.get("TAPAK_OPERATOR_PASSWORD", "")
 OPERATOR_USER = "operator"
+# TAPAK_PUBLIC_INSTANCE=1: a trial instance that anyone may open, with no operator password. The
+# operator's pages say so on every page, and the resolver address of a canary query is shown
+# without its host part: it belongs to whoever sent the query, and here every visitor reads it.
+PUBLIC_INSTANCE = os.environ.get("TAPAK_PUBLIC_INSTANCE", "").strip() not in ("", "0")
 
 app = FastAPI(title="TAPAK", docs_url=None, redoc_url=None, openapi_url=None)
 # Host allowlist: a page on another site cannot reach this app through DNS rebinding.
@@ -203,6 +208,34 @@ async def _same_origin_posts(request: Request, call_next):
 
 
 _LOOPBACK = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def short_address(address: str) -> str:
+    """An IP address without its host part (``182.8.x.x``, ``2001:db8:x``): the network a query
+    came from, not the machine. Text that is not an address comes back as ``x``."""
+    try:
+        ip = ipaddress.ip_address(address.strip())
+    except ValueError:
+        return "x"
+    if ip.version == 4:
+        first, second = str(ip).split(".")[:2]
+        return f"{first}.{second}.x.x"
+    first, second = (group.lstrip("0") or "0" for group in ip.exploded.split(":")[:2])
+    return f"{first}:{second}:x"
+
+
+def _resolver(address: object) -> str:
+    """A resolver address as this instance shows it: whole, or shortened on a public instance."""
+    return short_address(str(address)) if PUBLIC_INSTANCE else str(address)
+
+
+def _shown_outcome(outcome: object) -> object:
+    """A trace outcome as this instance shows it (result page and berita acara): on a public
+    instance the canary events carry shortened resolver addresses."""
+    if PUBLIC_INSTANCE:
+        outcome.canary = [{**event, "src_ip": _resolver(event.get("src_ip", "")),
+                           "source_ip": _resolver(event.get("source_ip", ""))} for event in outcome.canary]
+    return outcome
 
 
 def _public_path(path: str) -> bool:
@@ -314,6 +347,7 @@ templates.env.add_extension("jinja2.ext.do")
 templates.env.install_gettext_callables(i18n.translate, i18n.translate_plural, newstyle=True)  # type: ignore[attr-defined]
 templates.env.policies["ext.i18n.trimmed"] = True
 templates.env.globals["bahasa"] = i18n.current
+templates.env.globals["instans_publik"] = lambda: PUBLIC_INSTANCE
 templates.env.filters["tr"] = i18n.translate_text
 templates.env.filters["num"] = lambda v, d=0: i18n.localize(format_number(float(v), d))
 templates.env.filters["prob"] = lambda p, log10=None: Markup(i18n.localize(format_probability_html(float(p), log10)))
@@ -925,7 +959,7 @@ def _canary_events(s: Settings, docs: list) -> list[dict[str, object]]:
     for ev in evs:
         if ev.token in copies:
             m, c = copies[ev.token]
-            alerts.append({"seq": c.seq, "time": ev.received_at, "src_ip": ev.src_ip, "qtype": ev.qtype,
+            alerts.append({"seq": c.seq, "time": ev.received_at, "src_ip": _resolver(ev.src_ip), "qtype": ev.qtype,
                            "doc_name": m.doc_name, "doc": m.doc_hash[:16]})
     alerts.sort(key=lambda a: str(a["time"]), reverse=True)
     return alerts
@@ -1778,7 +1812,7 @@ async def lacak_run(
         return resp
     def run() -> object:
         with _TRACE_SLOTS:
-            return trace_evidence(settings(), dokumen, name, data, None, items[1:])
+            return _shown_outcome(trace_evidence(settings(), dokumen, name, data, None, items[1:]))
 
     try:
         outcome = await run_in_threadpool(run)
@@ -2073,8 +2107,8 @@ async def demo_trace(request: Request, bukti: str = Form("")) -> HTMLResponse:
 
     def run() -> object:
         with _TRACE_SLOTS:
-            return trace_evidence(demo_settings(settings(), visitor), m.doc_hash, str(item["name"]),
-                                  bytes(item["data"]))
+            return _shown_outcome(trace_evidence(demo_settings(settings(), visitor), m.doc_hash, str(item["name"]),
+                                                 bytes(item["data"])))
 
     t0 = time.perf_counter()
     try:

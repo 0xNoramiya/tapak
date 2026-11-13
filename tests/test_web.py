@@ -204,6 +204,57 @@ def test_operator_password_guards_all_but_public_pages(client, monkeypatch):
     assert "need a password" in client.get("/lacak?lang=en").text
 
 
+def test_short_address_keeps_the_network_only():
+    from tapak.web.app import short_address
+
+    assert short_address("198.51.100.7") == "198.51.x.x"
+    assert short_address(" 10.0.0.9 ") == "10.0.x.x"
+    assert short_address("2001:db8:85a3::8a2e:370:7334") == "2001:db8:x"
+    assert short_address("::1") == "0:0:x"
+    assert short_address("bukan alamat") == "x" and short_address("") == "x"
+
+
+def test_public_instance_says_so_and_shortens_resolver_addresses(client, monkeypatch):
+    """TAPAK_PUBLIC_INSTANCE: every operator page carries the notice, and the resolver address of
+    a canary query reaches no page and no berita acara whole. The canary log is not changed."""
+    import importlib
+
+    import pymupdf
+
+    from tapak.canary_dns.store import record_event
+
+    web = importlib.import_module("tapak.web.app")
+    s, m = _issue_small()
+    doc = m.doc_hash[:16]
+    token = m.copies[1].canary_token
+    record_event(s.canary_db, f"{token}.c.kanari.tapak.test", token, "A", "198.51.100.7", 5353)
+    copy = client.get(f"/dokumen/{doc}/salinan/2").content
+
+    def trace() -> tuple[str, str]:
+        r = client.post("/lacak", data={"dokumen": doc}, files={"bukti": ("bocor.pdf", copy, "application/pdf")})
+        tid = re.search(r"/lacak/([0-9a-f]{16})/berita-acara.pdf", r.text).group(1)
+        with pymupdf.open(stream=client.get(f"/lacak/{tid}/berita-acara.pdf").content, filetype="pdf") as pdf:
+            return r.text, " ".join(page.get_text() for page in pdf)
+
+    page = client.get("/registri").text
+    assert "198.51.100.7" in page and "Instans uji coba publik" not in page and "<b>Luring</b>" in page
+    result, report = trace()
+    assert "Salinan #2" in result and "198.51.100.7" in result and "198.51.100.7" in report
+
+    monkeypatch.setattr(web, "PUBLIC_INSTANCE", True)
+    page = client.get("/registri").text
+    assert "198.51.x.x" in page and "198.51.100.7" not in page and "Log utuh" in page
+    assert "Instans uji coba publik" in page and "<b>Instans publik</b>" in page and "<b>Luring</b>" not in page
+    for path in ("/beranda", "/terbitkan", "/lacak"):
+        text = client.get(path).text
+        assert "Instans uji coba publik" in text and "198.51.100.7" not in text, path
+    assert "Public trial instance" in client.get("/registri?lang=en").text
+    assert "Instans uji coba publik" not in client.get("/").text  # the product page is public anyway
+    result, report = trace()
+    assert "198.51.x.x" in result and "198.51.100.7" not in result
+    assert "198.51.x.x" in report and "198.51.100.7" not in report
+
+
 def test_document_keys_cannot_escape_data_dir(client):
     for bad in ("..%2F..%2Fetc", "....", "ZZZZZZZZZZZZZZZZ", "%2e%2e"):
         r = client.get(f"/dokumen/{bad}/salinan.zip")

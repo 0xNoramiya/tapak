@@ -1,6 +1,8 @@
 # TAPAK on Fly.io: the web app and the canary DNS listener on one machine (scripts/fly_mulai.sh),
 # with the registry, keys and canary log on the volume tapak_data. Steps: docs/operasi.md, Fly.io.
-# The operator password is a secret: fly secrets set TAPAK_OPERATOR_PASSWORD=...
+# This instance is the public trial for the hackathon's judges: no operator password, and
+# TAPAK_PUBLIC_INSTANCE below. For real use set a password (fly secrets set TAPAK_OPERATOR_PASSWORD=...)
+# and remove that line.
 app = "tapak"
 primary_region = "sin"
 kill_timeout = 10
@@ -17,6 +19,8 @@ kill_timeout = 10
   # The dedicated IPv4 of the app (fly ips list): the address of ns1.<canary domain>.
   TAPAK_CANARY_NS_IP = "149.248.205.214"
   TAPAK_WORKERS = "2"
+  # Open to anyone: the operator's pages say so, and resolver addresses are shown without their host part.
+  TAPAK_PUBLIC_INSTANCE = "1"
 
 [[mounts]]
   source = "tapak_data"

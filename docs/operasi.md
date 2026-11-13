@@ -140,6 +140,7 @@ Variabel lingkungan:
 | `TAPAK_LLM_TIMEOUT` | batas waktu per permintaan ke LLM dalam detik; bawaan 120 |
 | `TAPAK_ALLOWED_HOSTS` | nama host yang dilayani aplikasi web; bawaan `127.0.0.1,localhost` |
 | `TAPAK_OPERATOR_PASSWORD` | kata sandi halaman operator di alamat publik (HTTP Basic, pengguna `operator`); halaman produk, demo, dan berkas statis tetap terbuka; kosong = tanpa kata sandi ([Fly.io](#flyio)) |
+| `TAPAK_PUBLIC_INSTANCE` | `1` untuk instans uji coba yang dibuka untuk umum tanpa kata sandi: setiap halaman operator memuat pemberitahuan bahwa siapa pun dapat melihat isinya, dan alamat resolver kueri kanari ditampilkan tanpa bagian hostnya (`182.8.x.x`) di halaman dan di berita acara; log kanari sendiri tidak berubah; kosong = tidak dipakai ([Fly.io](#flyio)) |
 | `TAPAK_SIGNING_KEY`, `TAPAK_PUBLIC_KEY` | lokasi kunci tanda tangan dan kunci publik registri; bawaan di `TAPAK_KEY_DIR` |
 | `TAPAK_ANCHOR_LOG` | berkas [log jangkar](#log-jangkar-eksternal-opsional) di penyimpanan terpisah (sama dengan `tapak --log-jangkar`); kosong = tidak dipakai |
 | `TAPAK_WORKERS` | jumlah proses kerja paling banyak untuk setiap penerbitan (CLI, web, demo; juga membatasi `--workers`) dan untuk pelacakan web yang berjalan bersamaan (paling banyak 2); bilangan bulat positif; kosong = sebanyak CPU, paling banyak 8; docker-compose: bawaan 4 ([Docker](#docker)) |
@@ -233,6 +234,8 @@ fly ssh console -C "tapak verify"                # perintah tapak di mesin itu
 ```
 
 Isi `TAPAK_CANARY_NS_IP` di `fly.toml` dengan IPv4 itu. Bila nama `tapak` sudah dipakai, ganti `app` dan `TAPAK_ALLOWED_HOSTS`. Halaman produk, demo, dan berkas statis terbuka untuk umum. Halaman operator (Beranda, Terbitkan, Lacak, Registri, unduhan salinan dan berita acara) meminta `TAPAK_OPERATOR_PASSWORD` dengan pengguna `operator`.
+
+**Instans uji coba di https://tapak.fly.dev** berjalan tanpa kata sandi selama penjurian Kartika Cyber Hackathon 2026, dengan `TAPAK_PUBLIC_INSTANCE = "1"` di `fly.toml` dan tanpa secret `TAPAK_OPERATOR_PASSWORD`. Siapa pun dapat menerbitkan, melacak, dan membaca registrinya, jadi isinya hanya dokumen contoh; setiap halaman operator mengatakannya, dan alamat resolver ditampilkan tanpa bagian hostnya. Untuk pemakaian sungguhan di alamat publik, pasang kata sandi dengan perintah di atas dan hapus `TAPAK_PUBLIC_INSTANCE`; di jaringan satuan, aplikasi tidak perlu terlihat dari internet sama sekali.
 
 Supaya token kanari terpicu dari internet, delegasikan domain kanari ke mesin ini di DNS domain induknya, misalnya rekaman NS `kanari.contoh.id` ke nama yang beralamat IPv4 tadi, lalu isi `TAPAK_CANARY_DOMAIN` dengan domain itu. Tanpa delegasi, pendengar tetap menjawab kueri yang dikirim langsung ke IPv4 itu (`dig @IPV4 <token>.c.<domain>`), sama seperti yang dilakukan resolver setelah mengikuti delegasi.
 

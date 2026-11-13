@@ -1090,6 +1090,11 @@ EN: dict[str, str | tuple[str, str]] = {
     "Penerbitan sedang berjalan. Keputusan tidak dapat diubah lagi; tunggu hasilnya.": "Issuing is running. Decisions can no longer change; wait for the result.",
     "Permintaan dari asal lain ditolak.": "A request from another origin was refused.",
     "Halaman operator memerlukan kata sandi.": "The operator pages need a password.",
+    "<b>Instans uji coba publik.</b> Siapa pun dapat membuka halaman ini dan melihat dokumen yang diterbitkan di sini. Pakai dokumen contoh, jangan dokumen asli. Alamat resolver ditampilkan tanpa bagian hostnya.":
+        "<b>Public trial instance.</b> Anyone can open these pages and see the documents issued here. Use sample documents, never real ones. Resolver addresses are shown without their host part.",
+    "<b>Instans publik</b>, berkas diproses di server ini": "<b>Public instance</b>, files are processed on this server",
+    "Berkas yang diunggah diproses di server uji coba ini dan tidak diteruskan ke layanan lain":
+        "Uploaded files are processed on this trial server and are not passed on to any other service",
     "identitas penerima hanya berasal dari catatan lokal dan belum dikonfirmasi.": "the recipient\u2019s identity comes from local records only and is not confirmed.",
     "Dokumen ini tidak tercatat di registri.": "This document is not recorded in the registry.",
     "identitas penerima belum dikonfirmasi oleh rantai bertanda tangan.": "the recipient\u2019s identity is not yet confirmed by a signed chain.",

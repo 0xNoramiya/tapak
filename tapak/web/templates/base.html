@@ -38,9 +38,15 @@
         </ul>
       </nav>
       <div class="sidebar-status">
+        {% if instans_publik() %}
+        <p class="status-line" title="{{ _('Berkas yang diunggah diproses di server uji coba ini dan tidak diteruskan ke layanan lain') }}">
+          <span class="status-dot" aria-hidden="true"></span><span>{% trans %}<b>Instans publik</b>, berkas diproses di server ini{% endtrans %}</span>
+        </p>
+        {% else %}
         <p class="status-line" title="{{ _('Tidak ada data yang dikirim keluar dari perangkat ini') }}">
           <span class="status-dot" aria-hidden="true"></span><span>{% trans %}<b>Luring</b>, semua diproses di perangkat ini{% endtrans %}</span>
         </p>
+        {% endif %}
         {% include "_status_registri.html" %}
         <div class="sidebar-foot">
           <a class="link small" href="/">{{ _("Halaman produk TAPAK") }}</a>
@@ -51,6 +57,9 @@
     <div class="main-col">
       <main id="konten" tabindex="-1">
         <div id="galat-global" role="alert" tabindex="-1"></div>
+        {% if instans_publik() %}
+        <p class="notice notice-warn instans-publik" role="note">{% trans %}<b>Instans uji coba publik.</b> Siapa pun dapat membuka halaman ini dan melihat dokumen yang diterbitkan di sini. Pakai dokumen contoh, jangan dokumen asli. Alamat resolver ditampilkan tanpa bagian hostnya.{% endtrans %}</p>
+        {% endif %}
         {% block content %}{% endblock %}
       </main>
       <footer class="footer">

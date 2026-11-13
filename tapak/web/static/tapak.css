@@ -448,6 +448,7 @@ main {
   container-name: main;
 }
 #galat-global:not(:empty) { margin-bottom: 24px; }
+.instans-publik { margin-bottom: 24px; }
 
 .footer { border-top: 1px solid var(--border); color: var(--ink-muted); font-size: var(--fs-label); }
 .footer-inner {
